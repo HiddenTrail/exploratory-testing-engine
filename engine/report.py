@@ -8,8 +8,9 @@ genuinely per-SUT parts (how to render one test entry, how to render the
 onboarding/schema section) are supplied by the adapter.
 
 esc/inline_markdown/render_prose/badge/bool_badge/verdict_badge/
-render_json_block are public so adapter render_test_entry/
-render_onboarding_section implementations can reuse them.
+render_json_block/CSS are public so adapter render_test_entry/
+render_onboarding_section implementations, and other report renderers
+(e.g. engine.bootstrap.report), can reuse them.
 """
 
 import html
@@ -267,7 +268,7 @@ def _render_bug_report_section(bug_reports) -> str:
     """
 
 
-_CSS = """
+CSS = """
 :root {
   --ink: #17262b;
   --ink-soft: #45575d;
@@ -467,7 +468,7 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{esc(report_title)}</title>
-<style>{_CSS}</style>
+<style>{CSS}</style>
 </head>
 <body>
 <div class="topbar">

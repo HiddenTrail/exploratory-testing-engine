@@ -10,9 +10,9 @@ matching the "human review before trust" principle used throughout this
 roadmap.
 
 --discover-only stops after Phase 1 (OpenAPI/Swagger discovery) and writes
-just that result to runs/<name>/discovered_schema.json - no LLM calls at
-all, so it's a free way to check what a SUT publishes before spending any
-probing/generation budget on it.
+just that result to runs/<name>/discovered_schema.json and
+discovered_schema.html - no LLM calls at all, so it's a free way to check
+what a SUT publishes before spending any probing/generation budget on it.
 """
 
 import argparse
@@ -26,6 +26,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 from engine.bootstrap.discovery import discover_schema
 from engine.bootstrap.generate import generate_adapter_source, write_adapter_module
 from engine.bootstrap.probe import run_bootstrap_probe_loop
+from engine.bootstrap.report import render_discovery_report
 from engine.bootstrap.schema import discover_or_draft_schema
 from engine.client import build_client
 
@@ -39,10 +40,6 @@ def _run_discover_only(base_url: str, name: str) -> None:
     fetched_note = f" (fetched from {schema.fetched_from})" if schema.fetched_from else ""
     print(f"    status: {schema.status}{fetched_note}")
 
-    if not schema.endpoints:
-        detail = f" - {schema.error}" if schema.error else ""
-        raise SystemExit(f"No OpenAPI/Swagger schema found (status: {schema.status}){detail}")
-
     for endpoint in schema.endpoints:
         print(f"\n{endpoint.method} {endpoint.path}")
         for field in endpoint.request_fields:
@@ -52,9 +49,15 @@ def _run_discover_only(base_url: str, name: str) -> None:
 
     out_dir = _RUNS_DIR / name
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "discovered_schema.json"
-    out_path.write_text(json.dumps(dataclasses.asdict(schema), indent=2), encoding="utf-8")
-    print(f"\nWrote discovered schema to {out_path}")
+    json_path = out_dir / "discovered_schema.json"
+    json_path.write_text(json.dumps(dataclasses.asdict(schema), indent=2), encoding="utf-8")
+    html_path = out_dir / "discovered_schema.html"
+    html_path.write_text(render_discovery_report(schema, base_url), encoding="utf-8")
+    print(f"\nWrote discovered schema to {json_path} and {html_path}")
+
+    if not schema.endpoints:
+        detail = f" - {schema.error}" if schema.error else ""
+        raise SystemExit(f"No OpenAPI/Swagger schema found (status: {schema.status}){detail}")
 
 
 def main() -> None:
