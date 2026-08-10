@@ -34,8 +34,22 @@ def build_client() -> Anthropic:
     return Anthropic(api_key=api_key)
 
 
+def _cache_breakpoint(tools: list[dict], system: str) -> tuple[list[dict], list[dict] | str]:
+    """Marks the end of tools and the end of system as cache breakpoints, so
+    Anthropic caches that whole static prefix (tool schema + system prompt)
+    and only the actual messages - which change every call - are billed and
+    processed fresh. Caching is a pure serving-cost optimization: the model
+    still reasons over the same content either way, it's just not re-billed
+    or re-processed when byte-identical to a recent prior call.
+    """
+    cached_tools = [*tools[:-1], {**tools[-1], "cache_control": {"type": "ephemeral"}}] if tools else tools
+    cached_system = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+    return cached_tools, cached_system
+
+
 def call_tool_with_retry(
-    client, *, model, system, tools, tool_name, user_message, validate_fn, max_tokens, max_attempts=DEFAULT_MAX_ATTEMPTS
+    client, *, model, system, tools, tool_name, user_message, validate_fn, max_tokens,
+    max_attempts=DEFAULT_MAX_ATTEMPTS, cache_static_content=False,
 ):
     """Retries are informed, not blind repeats: on failure, the model's own malformed call and
     the concrete validation errors are fed back as a tool_result before asking again, so a
@@ -43,7 +57,15 @@ def call_tool_with_retry(
     instead of reproducing the identical mistake on every attempt. Transient API errors (rate
     limits, connection issues, 5xx) share the same attempt budget, retried with backoff rather
     than fed back as a message, since there's no "correction" to make - just try again.
+
+    cache_static_content marks the tool schema and system prompt as cacheable - worthwhile at
+    call sites where they're byte-identical across many calls in a run (e.g. every checkpoint),
+    left off by default so opting a given call site in is a deliberate choice, not a silent
+    blanket change to every call's request shape.
     """
+    request_tools, request_system = (
+        _cache_breakpoint(tools, system) if cache_static_content else (tools, system)
+    )
     messages = [{"role": "user", "content": user_message}]
     last_errors = ["no attempts made"]
     for attempt in range(1, max_attempts + 1):
@@ -51,8 +73,8 @@ def call_tool_with_retry(
             message = client.messages.create(
                 model=model,
                 max_tokens=max_tokens,
-                system=system,
-                tools=tools,
+                system=request_system,
+                tools=request_tools,
                 tool_choice={"type": "tool", "name": tool_name},
                 messages=messages,
             )

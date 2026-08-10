@@ -76,6 +76,7 @@ def get_casting_round(
         validate_fn=adapter.validate_casting_response,
         max_tokens=adapter.casting_max_tokens(test_budget),
         max_attempts=run_config.max_attempts,
+        cache_static_content=True,
     )
 
 
@@ -103,6 +104,7 @@ def get_checkpoint_hypothesis(
         validate_fn=validate_hypothesis_response,
         max_tokens=2560,
         max_attempts=run_config.max_attempts,
+        cache_static_content=True,
     )
 
 
@@ -241,5 +243,6 @@ def get_bug_reports(
         validate_fn=validate_bug_reports,
         max_tokens=3072,
         max_attempts=run_config.max_attempts,
+        cache_static_content=True,
     )
     return result["bugs"]
