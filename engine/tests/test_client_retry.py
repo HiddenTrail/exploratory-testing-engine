@@ -26,9 +26,11 @@ class _FakeMessagesAPI:
     def __init__(self, responses):
         self._responses = iter(responses)
         self.call_count = 0
+        self.last_kwargs = None
 
     def create(self, **kwargs):
         self.call_count += 1
+        self.last_kwargs = kwargs
         item = next(self._responses)
         if isinstance(item, BaseException):
             raise item
@@ -139,6 +141,46 @@ def test_raises_runtime_error_after_max_attempts_of_transient_errors(monkeypatch
             validate_fn=lambda d: [], max_tokens=10, max_attempts=3,
         )
     assert client.messages.call_count == 3
+
+
+def test_cache_static_content_off_by_default_leaves_system_and_tools_untouched():
+    client = _FakeClient([_FakeMessage([_FakeToolUse("id1", {"ok": True})])])
+
+    call_tool_with_retry(
+        client, model="m", system="a system prompt", tools=[{"name": "t"}], tool_name="t", user_message="u",
+        validate_fn=lambda d: [], max_tokens=10,
+    )
+
+    assert client.messages.last_kwargs["system"] == "a system prompt"
+    assert client.messages.last_kwargs["tools"] == [{"name": "t"}]
+
+
+def test_cache_static_content_marks_breakpoints_on_system_and_last_tool():
+    client = _FakeClient([_FakeMessage([_FakeToolUse("id1", {"ok": True})])])
+
+    call_tool_with_retry(
+        client, model="m", system="a system prompt", tools=[{"name": "t1"}, {"name": "t2"}], tool_name="t2",
+        user_message="u", validate_fn=lambda d: [], max_tokens=10, cache_static_content=True,
+    )
+
+    sent = client.messages.last_kwargs
+    assert sent["system"] == [{"type": "text", "text": "a system prompt", "cache_control": {"type": "ephemeral"}}]
+    assert sent["tools"] == [
+        {"name": "t1"},
+        {"name": "t2", "cache_control": {"type": "ephemeral"}},
+    ]
+
+
+def test_cache_static_content_does_not_mutate_the_original_tools_list():
+    client = _FakeClient([_FakeMessage([_FakeToolUse("id1", {"ok": True})])])
+    original_tools = [{"name": "t"}]
+
+    call_tool_with_retry(
+        client, model="m", system="s", tools=original_tools, tool_name="t", user_message="u",
+        validate_fn=lambda d: [], max_tokens=10, cache_static_content=True,
+    )
+
+    assert original_tools == [{"name": "t"}]
 
 
 def test_non_retryable_error_propagates_immediately_without_retrying(monkeypatch):
