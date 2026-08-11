@@ -1,11 +1,17 @@
 """CLI entrypoint chaining all 4 adapter-bootstrap phases end-to-end:
 python -m engine.bootstrap.cli --name <slug> --display-name <Name> --base-url <url>
-[--spec-text <text>] [--context-file <path>] [--max-probes N]
+[--spec-text <text>] [--context-source {file,jira}] [--context-file <path>] [--ticket <id>]
+[--max-probes N]
 
---context-file points at a plain text file describing what the API does and
-its normal use cases - passed to every round of Phase 3 probing regardless
-of how the schema was found. This is distinct from --spec-text, which is
-only ever read as a schema-inference fallback when discovery finds nothing.
+--context-source selects where free-text context (what the API does and its
+normal use cases) comes from - passed to every round of Phase 3 probing and
+baked into the generated adapter, regardless of how the schema was found:
+  'file' (default) - read from --context-file <path>.
+  'jira'            - read from a MOCKED ticket store via --ticket <id>. Real
+                       JIRA integration is not implemented yet (TODO, see
+                       engine/bootstrap/jira_mock.py).
+This is distinct from --spec-text, which is only ever read as a schema-
+inference fallback when discovery finds nothing.
 
 Writes a draft adapter under engine/adapters/<name>/ and prints the registry
 line to add plus the run command - it deliberately does NOT edit
@@ -30,6 +36,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from engine.bootstrap.discovery import discover_schema
 from engine.bootstrap.generate import generate_adapter_source, write_adapter_module
+from engine.bootstrap.jira_mock import fetch_ticket_context
 from engine.bootstrap.probe import run_bootstrap_probe_loop
 from engine.bootstrap.report import render_discovery_report
 from engine.bootstrap.schema import discover_or_draft_schema
@@ -72,9 +79,15 @@ def main() -> None:
     parser.add_argument("--base-url", required=True, dest="base_url")
     parser.add_argument("--spec-text", default=None, dest="spec_text",
                          help="Free-text API description, used only if schema discovery finds nothing.")
+    parser.add_argument("--context-source", choices=["file", "jira"], default="file", dest="context_source",
+                         help="Where to read context text from. 'jira' reads a MOCKED ticket store "
+                              "(--ticket) - real JIRA integration is not implemented yet (TODO).")
     parser.add_argument("--context-file", default=None, dest="context_file",
                          help="Path to a text file describing what the API does and normal use cases - "
-                              "informs probing, regardless of how the schema was found.")
+                              "informs probing, regardless of how the schema was found. Used with "
+                              "--context-source file (the default).")
+    parser.add_argument("--ticket", default=None, dest="ticket_id",
+                         help="Mock JIRA ticket ID, e.g. 'PROJ-101' - only used with --context-source jira.")
     parser.add_argument("--max-probes", type=int, default=8, dest="max_probes")
     parser.add_argument(
         "--discover-only", action="store_true", dest="discover_only",
@@ -95,7 +108,16 @@ def main() -> None:
         raise SystemExit("--display-name is required unless --discover-only is set")
 
     api_context = ""
-    if args.context_file:
+    if args.context_source == "jira":
+        if args.context_file:
+            raise SystemExit("--context-file cannot be used with --context-source jira - use --ticket instead")
+        if not args.ticket_id:
+            raise SystemExit("--ticket is required when --context-source jira")
+        try:
+            api_context = fetch_ticket_context(args.ticket_id)
+        except KeyError as e:
+            raise SystemExit(str(e))
+    elif args.context_file:
         context_path = Path(args.context_file)
         if not context_path.is_file():
             raise SystemExit(f"--context-file not found: {context_path}")
