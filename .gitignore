@@ -37,3 +37,6 @@ venv/
 
 # engine/ run output
 runs/
+
+# Playwright MCP's own snapshot/trace output (recreated on every run)
+.playwright-mcp/
