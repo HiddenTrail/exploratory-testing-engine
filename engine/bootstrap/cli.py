@@ -96,7 +96,10 @@ def main() -> None:
 
     api_context = ""
     if args.context_file:
-        api_context = context_path.read_text(encoding="utf-8").rstrip("\r\n")
+        context_path = Path(args.context_file)
+        if not context_path.is_file():
+            raise SystemExit(f"--context-file not found: {context_path}")
+        api_context = context_path.read_text(encoding="utf-8").strip()
 
     anthropic_client = build_client()
 
