@@ -125,7 +125,9 @@ def main() -> None:
         )
 
     print("[3/3] Generating draft adapter ...")
-    source = generate_adapter_source(args.name, args.display_name, args.base_url, bootstrap_result)
+    source = generate_adapter_source(
+        args.name, args.display_name, args.base_url, bootstrap_result, api_context=api_context
+    )
     adapter_path = write_adapter_module(_ADAPTERS_DIR, args.name, source)
 
     print(f"\nDraft adapter written to {adapter_path}")

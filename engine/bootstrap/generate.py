@@ -21,6 +21,11 @@ _GENERIC_CASTING_SYSTEM_PROMPT_BODY = '''You are testing a live API endpoint ({m
 bugs or unexpected behavior. You've been shown the API's schema documentation and one real executed
 "happy day" example.
 
+If the schema documentation above includes background context on what this API does and how it's
+normally used, treat it as a useful starting hypothesis for testing - not a confirmed fact. Domain
+descriptions can be wrong, outdated, or incomplete; real test results should always take priority over
+what the context implies.
+
 {context_instruction}
 
 In one round, propose a BATCH of tests - up to {{test_budget}} total:
@@ -110,7 +115,7 @@ def _as_comment_block(text: str) -> str:
     return "\n".join(f"# {line}" for line in text.splitlines()) or "# "
 
 
-def _render_api_schema_doc(endpoint) -> str:
+def _render_api_schema_doc(endpoint, api_context: str = "") -> str:
     lines = [f"{endpoint.method} {endpoint.path}", "", "Request body:"]
     for f in endpoint.request_fields:
         req = "required" if f.required else "optional"
@@ -122,6 +127,10 @@ def _render_api_schema_doc(endpoint) -> str:
         "This schema was discovered/confirmed by the adapter-bootstrap tool, not hand-written - "
         "review it before trusting it fully."
     )
+    if api_context:
+        lines.append("")
+        lines.append("Background context (supplied at bootstrap time):")
+        lines.append(api_context)
     return "\n".join(lines)
 
 
@@ -186,7 +195,9 @@ def validate_casting_response(data) -> list[str]:
     return errors'''
 
 
-def generate_adapter_source(name: str, display_name: str, base_url: str, bootstrap_result: BootstrapResult) -> str:
+def generate_adapter_source(
+    name: str, display_name: str, base_url: str, bootstrap_result: BootstrapResult, api_context: str = ""
+) -> str:
     if bootstrap_result.status == "failed":
         raise ValueError(
             "Cannot generate an adapter from a failed bootstrap result - no confirmed working "
@@ -201,7 +212,7 @@ def generate_adapter_source(name: str, display_name: str, base_url: str, bootstr
     endpoint = bootstrap_result.schema.endpoints[0]
     casting_tool = _build_casting_tool(endpoint)
     casting_tool_literal = pprint.pformat(casting_tool, sort_dicts=False, width=100)
-    api_schema_doc = _render_api_schema_doc(endpoint)
+    api_schema_doc = _render_api_schema_doc(endpoint, api_context)
     happy_day_request = bootstrap_result.happy_day_example["request"]["body"]
     happy_day_request_literal = pprint.pformat(happy_day_request, sort_dicts=False, width=100)
     request_field_names_literal = pprint.pformat(
