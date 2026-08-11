@@ -10,7 +10,7 @@ import pytest
 
 from engine.adapter import validate_adapter
 from engine.bootstrap.discovery import DiscoveredEndpoint, DiscoveredField, DiscoveredSchema
-from engine.bootstrap.generate import generate_adapter_source, write_adapter_module
+from engine.bootstrap.generate import _render_api_schema_doc, generate_adapter_source, write_adapter_module
 from engine.bootstrap.probe import BootstrapResult
 
 
@@ -176,3 +176,77 @@ def test_render_test_entry_and_onboarding_section_produce_html(tmp_path, monkeyp
     )
     assert "API schema" in onboarding
     assert "Happy-day example" in onboarding
+
+
+# --- api_context (Phase 2 of the context-enriched bootstrap roadmap) ---
+
+def test_render_api_schema_doc_includes_background_context_when_given():
+    endpoint = _endpoint()
+    doc = _render_api_schema_doc(endpoint, "This API powers point redemption for the loyalty program.")
+
+    assert "This API powers point redemption for the loyalty program." in doc
+    discovered_line = doc.index("discovered/confirmed by the adapter-bootstrap tool")
+    context_line = doc.index("This API powers point redemption for the loyalty program.")
+    assert discovered_line < context_line
+
+
+def test_render_api_schema_doc_omits_background_context_section_when_not_given():
+    endpoint = _endpoint()
+    assert _render_api_schema_doc(endpoint) == _render_api_schema_doc(endpoint, "")
+    assert "Background context" not in _render_api_schema_doc(endpoint)
+
+
+def test_generate_adapter_source_threads_api_context_into_generated_api_schema_doc(tmp_path, monkeypatch):
+    context = "Used internally by the loyalty team."
+    source = generate_adapter_source(
+        "gen_context", "Gen Context", "http://test", _confirmed_result(), api_context=context
+    )
+    assert context in source
+
+    module = _import_generated(tmp_path, monkeypatch, "gen_context", source)
+    assert context in module.ADAPTER.api_schema_doc
+    validate_adapter(module.ADAPTER)
+
+
+def test_generate_adapter_source_without_api_context_kwarg_is_unchanged():
+    source = generate_adapter_source("gen_no_context", "Gen No Context", "http://test", _confirmed_result())
+    assert "Background context" not in source
+
+
+def test_generate_adapter_source_with_adversarial_api_context_still_imports_and_validates(tmp_path, monkeypatch):
+    adversarial_context = (
+        'Contains a triple-quote """ sequence, {curly braces}, {{already-doubled}} braces, '
+        'a backslash \\ and a trailing quote " on one line,\nthen a second line,\n'
+        'and a fake placeholder {test_budget} plus {context_instruction} that must NOT resolve.'
+    )
+    source = generate_adapter_source(
+        "gen_adversarial", "Gen Adversarial", "http://test", _confirmed_result(), api_context=adversarial_context
+    )
+
+    module = _import_generated(tmp_path, monkeypatch, "gen_adversarial", source)
+    validate_adapter(module.ADAPTER)
+
+    assert adversarial_context in module.ADAPTER.api_schema_doc
+    assert "{test_budget}" in module.ADAPTER.api_schema_doc
+    assert "{context_instruction}" in module.ADAPTER.api_schema_doc
+
+    prompt = module.casting_system_prompt(8, True)
+    assert "8" in prompt
+
+
+def test_generate_adapter_source_adversarial_api_context_does_not_inject_code(tmp_path, monkeypatch):
+    breakout_attempt = 'x"""\nEVIL = 1\n"""y'
+    source = generate_adapter_source(
+        "gen_breakout", "Gen Breakout", "http://test", _confirmed_result(), api_context=breakout_attempt
+    )
+
+    module = _import_generated(tmp_path, monkeypatch, "gen_breakout", source)
+
+    assert not hasattr(module, "EVIL")
+    assert breakout_attempt in module.ADAPTER.api_schema_doc
+    validate_adapter(module.ADAPTER)
+
+
+def test_casting_system_prompt_includes_fixed_context_caution_sentence():
+    source = generate_adapter_source("gen_caution", "Gen Caution", "http://test", _confirmed_result())
+    assert "descriptions can be wrong, outdated, or incomplete" in source

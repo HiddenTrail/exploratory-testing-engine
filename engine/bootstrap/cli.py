@@ -96,7 +96,10 @@ def main() -> None:
 
     api_context = ""
     if args.context_file:
-        api_context = context_path.read_text(encoding="utf-8").rstrip("\r\n")
+        context_path = Path(args.context_file)
+        if not context_path.is_file():
+            raise SystemExit(f"--context-file not found: {context_path}")
+        api_context = context_path.read_text(encoding="utf-8").strip()
 
     anthropic_client = build_client()
 
@@ -122,7 +125,9 @@ def main() -> None:
         )
 
     print("[3/3] Generating draft adapter ...")
-    source = generate_adapter_source(args.name, args.display_name, args.base_url, bootstrap_result)
+    source = generate_adapter_source(
+        args.name, args.display_name, args.base_url, bootstrap_result, api_context=api_context
+    )
     adapter_path = write_adapter_module(_ADAPTERS_DIR, args.name, source)
 
     print(f"\nDraft adapter written to {adapter_path}")
