@@ -65,6 +65,36 @@ See [`docs/examples/bootstrap_demo/`](docs/examples/bootstrap_demo/) for a
 real, unedited run of this pipeline - including the adapter it generated and
 the bug it found.
 
+Other flags:
+- `--discover-only` - stop after Phase 1 (schema discovery) and write
+  `runs/<name>/discovered_schema.{json,html}`, then exit - no LLM calls at
+  all, so it's a free way to check what a SUT publishes before spending any
+  probing/generation budget on it.
+- `--spec-text <text>` - a schema-inference fallback, read only if Phase 1
+  discovery finds nothing at all (i.e. no OpenAPI/Swagger doc).
+- `--max-probes N` - cap on Phase 3 probing rounds (default 8).
+
+### Context-enriched bootstrap
+
+Beyond the schema itself, free-text background - what the API does, its
+normal use cases - can be supplied and gets threaded into both Phase 3
+probing and the generated adapter (baked into its schema doc and system
+prompt, so it persists into every future checkpoint-loop run against that
+adapter, not just the one-off bootstrap):
+
+```
+--context-source file --context-file <path>     # (default) read a plain text file
+--context-source jira --ticket <id>              # read a MOCKED ticket store
+```
+
+This is a 4-phase roadmap, being built incrementally:
+1. ✅ Thread context into probing.
+2. ✅ Persist context into the generated adapter.
+3. ✅ Prove the source is swappable via a mocked `jira` ticket store
+   (`engine/bootstrap/jira_mock.py`) - no real JIRA calls.
+4. ⏳ Not started - real JIRA API integration (auth, live ticket fetch),
+   left as a `TODO` in `jira_mock.py` until explicitly requested.
+
 ## Layout
 
 ```
@@ -86,6 +116,8 @@ engine/
     schema.py     # ties discovery and the free-text fallback together
     probe.py      # Phase 3 - active probing loop against the live SUT
     generate.py   # Phase 4 - generate a real adapter.py from a confirmed/inconclusive result
+    report.py     # renders a DiscoveredSchema as HTML for --discover-only
+    jira_mock.py  # stubbed ticket store for context-enriched bootstrap - see above; real JIRA is a TODO
     cli.py        # python -m engine.bootstrap.cli - chains all 4 phases end to end
   tests/          # deterministic regression + parity tests (no LLM calls, runs in CI)
 experiments/      # earlier throwaway prototypes this package was hardened from - untouched historical archive

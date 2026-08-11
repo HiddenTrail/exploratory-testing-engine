@@ -93,7 +93,10 @@ Alternatively, `engine/bootstrap/cli.py` can generate a first draft of steps
 1-2 automatically by discovering/probing a live SUT for real - see the root
 [`README.md`](../README.md#bootstrapping-a-new-adapter-automatically). Still
 scoped to the "one request in, one response out" case; still ends with a
-manual registration step.
+manual registration step. Free-text background on the API can also be
+supplied (from a file or a mocked ticket store) to inform probing and persist
+into the generated adapter - see the root README's "Context-enriched
+bootstrap" section.
 
 ## Testing
 

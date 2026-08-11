@@ -6,6 +6,12 @@ followed by a real 3-checkpoint run of the Driver+Skeptic checkpoint loop
 against the generated adapter. Kept here as a worked example of what the
 pipeline actually produces - not part of the runnable engine.
 
+This run predates the context-enriched bootstrap roadmap - no
+`--context-file`/`--context-source` was used, so the generated adapter here
+has no background-context section in its schema doc. See the root
+[`README.md`](../../../README.md#context-enriched-bootstrap) for that
+feature.
+
 ## How this was produced
 
 ```
