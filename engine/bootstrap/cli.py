@@ -117,6 +117,8 @@ def main() -> None:
             api_context = fetch_ticket_context(args.ticket_id)
         except KeyError as e:
             raise SystemExit(str(e))
+    elif args.ticket_id:
+        raise SystemExit("--ticket can only be used with --context-source jira")
     elif args.context_file:
         context_path = Path(args.context_file)
         if not context_path.is_file():
