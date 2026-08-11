@@ -83,6 +83,12 @@ not guessing from documentation, but finding out how it actually behaves. You've
 best-understanding of the schema (which fields exist, their types, whether required) and the full log
 of every probe tried so far, with the real request sent and the real response received.
 
+If background context describing what this API does and how it's normally used has also been provided
+below, treat it as a useful starting hypothesis for which unknowns matter most and what realistic values
+are worth trying - not as a confirmed fact. Domain descriptions can be wrong, outdated, or incomplete; a
+real response, especially an error message, is still the more reliable signal, so let what the SUT
+actually returns override anything the context implies.
+
 Propose ONE concrete request to send next - a specific method, path, and body - designed to resolve a
 SPECIFIC remaining unknown. Real error responses are often the richest signal available: a 422 saying
 "missing required field: cvv" or "priority must be one of ['normal', 'high']" tells you exactly what
@@ -242,7 +248,8 @@ def validate_review_response(data) -> list[str]:
 
 
 def _get_probe(
-    client, request_fields, probe_log: list[dict], prior_review: dict | None, model: str, max_attempts: int
+    client, request_fields, probe_log: list[dict], prior_review: dict | None, model: str, max_attempts: int,
+    api_context: str = "",
 ) -> dict:
     evidence = {
         "current_schema_fields": [
@@ -253,6 +260,8 @@ def _get_probe(
     }
     if prior_review is not None:
         evidence["prior_review"] = prior_review
+    if api_context:
+        evidence["api_context"] = api_context
     return call_tool_with_retry(
         client,
         model=model,
@@ -301,10 +310,16 @@ def run_bootstrap_probe_loop(
     model: str = DEFAULT_MODEL,
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
     on_probe=None,
+    api_context: str = "",
 ) -> BootstrapResult:
     """on_probe(probe_log), if given, is called after every round - not just
     once at the end - mirroring run_checkpoint_loop's on_checkpoint pattern,
-    so a crash partway through doesn't discard probes that already ran."""
+    so a crash partway through doesn't discard probes that already ran.
+
+    api_context, if given, is free-text background on what the API does and
+    how it's normally used - passed to every round's probe proposal (not the
+    review) so probes are informed by domain knowledge instead of guessing
+    blind from field names alone."""
     if not initial_schema.endpoints:
         raise ValueError("initial_schema has no endpoints to probe - pass a schema with status == 'found'")
     endpoint = initial_schema.endpoints[0]
@@ -315,7 +330,7 @@ def run_bootstrap_probe_loop(
     latest_fields = endpoint.request_fields
 
     for _ in range(max_probes):
-        probe = _get_probe(anthropic_client, latest_fields, probe_log, prior_review, model, max_attempts)
+        probe = _get_probe(anthropic_client, latest_fields, probe_log, prior_review, model, max_attempts, api_context)
         if probe["give_up"]:
             break
 

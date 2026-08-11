@@ -3,6 +3,8 @@ adapter-bootstrap roadmap. No real network or LLM calls: the Anthropic
 client is stubbed (same pattern as test_client_retry.py/test_freetext.py/
 test_bootstrap_schema.py), the SUT via httpx.MockTransport."""
 
+import json
+
 import httpx
 import pytest
 
@@ -34,9 +36,11 @@ class _FakeMessagesAPI:
     def __init__(self, responses):
         self._responses = iter(responses)
         self.call_count = 0
+        self.calls: list[dict] = []
 
     def create(self, **kwargs):
         self.call_count += 1
+        self.calls.append(kwargs)
         return next(self._responses)
 
 
@@ -47,6 +51,13 @@ class _FakeAnthropicClient:
 
 def _tool_response(tool_id, data):
     return _FakeMessage([_FakeToolUse(tool_id, data)])
+
+
+def _evidence(calls: list[dict], index: int) -> dict:
+    """The evidence dict sent as the user turn's content for calls[index] -
+    call_tool_with_retry passes it as messages=[{"role": "user", "content": ...}],
+    not as a literal user_message kwarg."""
+    return json.loads(calls[index]["messages"][0]["content"])
 
 
 def _canned_probe(give_up=False, method="POST", path="/submit", body=None, reasoning="testing an unknown"):
@@ -232,6 +243,65 @@ def test_probe_log_entries_have_request_response_and_reasoning():
     assert set(entry.keys()) == {"request", "response", "reasoning"}
     assert entry["reasoning"] == "checking whether client_id alone is enough"
     assert entry["response"]["status"] == 200
+
+
+# --- api_context evidence ---
+
+def test_api_context_appears_in_first_probe_evidence_when_given():
+    client = _FakeAnthropicClient([_tool_response("p1", _canned_probe(give_up=True))])
+    context = "This is a credits-purchase API; normal usage is a valid auth token plus a Luhn-valid test card."
+
+    run_bootstrap_probe_loop(
+        client, "http://test", _initial_schema(), max_probes=5, transport=_transport_always(200),
+        api_context=context,
+    )
+
+    evidence = _evidence(client.messages.calls, 0)
+    assert evidence["api_context"] == context
+
+
+def test_no_api_context_key_in_evidence_when_not_given():
+    client = _FakeAnthropicClient([_tool_response("p1", _canned_probe(give_up=True))])
+
+    run_bootstrap_probe_loop(client, "http://test", _initial_schema(), max_probes=5, transport=_transport_always(200))
+
+    evidence = _evidence(client.messages.calls, 0)
+    assert "api_context" not in evidence
+
+
+def test_api_context_present_in_every_probe_call_across_multiple_rounds():
+    client = _FakeAnthropicClient([
+        _tool_response("p1", _canned_probe()),
+        _tool_response("r1", _canned_review(verdict="needs_more_probing")),
+        _tool_response("p2", _canned_probe()),
+        _tool_response("r2", _canned_review(verdict="needs_more_probing")),
+    ])
+    context = "A credits-purchase API."
+
+    run_bootstrap_probe_loop(
+        client, "http://test", _initial_schema(), max_probes=2, transport=_transport_always(200),
+        api_context=context,
+    )
+
+    round_one_probe_evidence = _evidence(client.messages.calls, 0)
+    round_two_probe_evidence = _evidence(client.messages.calls, 2)
+    assert round_one_probe_evidence["api_context"] == context
+    assert round_two_probe_evidence["api_context"] == context
+
+
+def test_api_context_not_sent_to_the_review_call():
+    client = _FakeAnthropicClient([
+        _tool_response("p1", _canned_probe()),
+        _tool_response("r1", _canned_review(verdict="confident_enough")),
+    ])
+
+    run_bootstrap_probe_loop(
+        client, "http://test", _initial_schema(), max_probes=5, transport=_transport_always(200),
+        api_context="A credits-purchase API.",
+    )
+
+    review_evidence = _evidence(client.messages.calls, 1)
+    assert "api_context" not in review_evidence
 
 
 # --- validators ---

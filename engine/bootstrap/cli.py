@@ -1,6 +1,11 @@
 """CLI entrypoint chaining all 4 adapter-bootstrap phases end-to-end:
 python -m engine.bootstrap.cli --name <slug> --display-name <Name> --base-url <url>
-[--spec-text <text>] [--max-probes N]
+[--spec-text <text>] [--context-file <path>] [--max-probes N]
+
+--context-file points at a plain text file describing what the API does and
+its normal use cases - passed to every round of Phase 3 probing regardless
+of how the schema was found. This is distinct from --spec-text, which is
+only ever read as a schema-inference fallback when discovery finds nothing.
 
 Writes a draft adapter under engine/adapters/<name>/ and prints the registry
 line to add plus the run command - it deliberately does NOT edit
@@ -67,6 +72,9 @@ def main() -> None:
     parser.add_argument("--base-url", required=True, dest="base_url")
     parser.add_argument("--spec-text", default=None, dest="spec_text",
                          help="Free-text API description, used only if schema discovery finds nothing.")
+    parser.add_argument("--context-file", default=None, dest="context_file",
+                         help="Path to a text file describing what the API does and normal use cases - "
+                              "informs probing, regardless of how the schema was found.")
     parser.add_argument("--max-probes", type=int, default=8, dest="max_probes")
     parser.add_argument(
         "--discover-only", action="store_true", dest="discover_only",
@@ -86,6 +94,10 @@ def main() -> None:
     if args.display_name is None:
         raise SystemExit("--display-name is required unless --discover-only is set")
 
+    api_context = ""
+    if args.context_file:
+        api_context = context_path.read_text(encoding="utf-8").rstrip("\r\n")
+
     anthropic_client = build_client()
 
     print(f"[1/3] Discovering schema at {args.base_url} ...")
@@ -98,7 +110,9 @@ def main() -> None:
     print(f"    schema source: {schema.source}, endpoint: {schema.endpoints[0].method} {schema.endpoints[0].path}")
 
     print(f"[2/3] Probing live SUT to confirm the schema (up to {args.max_probes} probes) ...")
-    bootstrap_result = run_bootstrap_probe_loop(anthropic_client, args.base_url, schema, max_probes=args.max_probes)
+    bootstrap_result = run_bootstrap_probe_loop(
+        anthropic_client, args.base_url, schema, max_probes=args.max_probes, api_context=api_context
+    )
     print(f"    bootstrap status: {bootstrap_result.status}")
 
     if bootstrap_result.status == "failed":
