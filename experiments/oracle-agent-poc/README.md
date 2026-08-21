@@ -50,19 +50,43 @@ No SUT to start - this agent only reads `spec/spec.md`. Writes
 `results/oracle_library.json`: one entry per applicable heuristic, each
 with its own `vectors` list.
 
+## The catalog: a growing reference behind the active 5
+
+`heuristics/catalog.json` is the broader reference the active 5 heuristics
+above are drawn from - not loaded by `run_live.py`, just a standing,
+growing list of what *could* be modeled. Seeded from James Bach's
+Heuristic Test Strategy Model (HTSM v6.3): all 7 SFDIPOT Product Factors,
+all 10 Quality Criteria Categories, all 9 General Test Techniques, and the
+5 FEW HICCUPPS-derived oracles this project has named so far. Each entry
+follows one template (`keyword`, `type` - `"model"` vs `"technique"`,
+`category`, `name`, `description`, `context`, `status` - `"implemented"`
+vs `"cataloged"`, `source`). HTSM's "Project Environment" category
+(testing-project logistics, not SUT behavior) is deliberately excluded -
+a different kind of thing than everything else here. Standing practice:
+append newly invented heuristics here, following the same template.
+
+## Wired into the real Driver
+
+This run's output (`results/oracle_library.json`, copied verbatim, not
+regenerated) is now committed at
+[`engine/adapters/token_purchase/oracle_library.json`](../../engine/adapters/token_purchase/oracle_library.json)
+and merged into the real `token_purchase` adapter's `onboarding_extra` -
+see [`adapter.py`](../../engine/adapters/token_purchase/adapter.py). The
+Driver sees it as ordinary evidence alongside the schema and known
+accounts, and it renders as its own "Oracle library" exhibit in the HTML
+report. A real live run confirmed the effect isn't just cosmetic: given
+the library, the Driver's first-round reasoning explicitly cited the
+`expired_card` vs. `expiry_mismatch` distinction the library's `function`
+and `comparable_products` vectors both flag, tested for it directly, and
+it surfaced as a real (inconclusive, honestly caveated) anomaly in the
+bug report - not fabricated, an actual run against the live mock SUT.
+
+It's still a one-time snapshot, not live - regenerating it means re-running
+`run_live.py` and re-copying the output by hand. This library only grows
+by intent, matching the pattern for [the catalog](#the-catalog-a-growing-reference-behind-the-active-5)
+above.
+
 ## What this doesn't do (yet)
 
 - The Driver doesn't update this library as it tests (learn/refine oracle
   facts from real results) - explicitly deferred.
-- This library isn't wired into the real `token_purchase` adapter's
-  `onboarding_extra` as a shipped feature - explicitly deferred. It was,
-  however, live-verified to be the right *shape* to be useful there: a
-  one-off comparison of `engine.loop.get_casting_round()` with vs. without
-  the library merged into a copy of the real adapter's `onboarding_extra`
-  showed a real, observable difference - with the library, the Driver
-  explicitly considered "invalid CVV" and "Luhn check" as candidate bug
-  classes (absent from the baseline's reasoning entirely), and concretely
-  chose to test `expired_card` as one of its 5 real tests, replacing a
-  `credit_count=-1` test that appeared in the baseline run. Not proof this
-  makes testing *better* - just evidence the artifact is the right shape
-  to change real casting behavior, which is what this phase needed to show.

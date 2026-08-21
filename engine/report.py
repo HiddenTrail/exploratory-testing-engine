@@ -366,6 +366,13 @@ details.reasoning .prose {
 }
 .test-hypothesis { font-size: 0.92rem; margin-bottom: 0.5rem; }
 .account-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.oracle-heuristic {
+  background: var(--paper); border: 1px solid var(--line); border-radius: 4px;
+  padding: 0.75rem 1rem; margin: 0.75rem 0;
+}
+.oracle-heuristic h4 { margin: 0 0 0.4rem; }
+.vector-list { margin: 0.4rem 0; padding-left: 1.2rem; }
+.vector-list li { margin: 0.35rem 0; font-size: 0.88rem; }
 .test-number {
   font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-soft);
   background: var(--paper); border: 1px solid var(--line); border-radius: 4px;
