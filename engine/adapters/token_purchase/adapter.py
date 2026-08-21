@@ -5,6 +5,9 @@ prompt, execute_test, onboarding data, report rendering for one test entry
 and the onboarding section).
 """
 
+import json
+from pathlib import Path
+
 from engine.adapter import SUTAdapter
 from engine.http import call_sut_once
 from engine.report import badge, bool_badge, esc, inline_markdown, render_json_block
@@ -66,6 +69,12 @@ KNOWN_ACCOUNTS = [
 ]
 
 HAPPY_DAY_REQUEST = {**KNOWN_ACCOUNTS[0], "credit_count": 10}
+
+# A one-time snapshot from the Oracle Agent PoC (experiments/oracle-agent-poc),
+# a heuristic pass over this SUT's spec.md - not regenerated per run. Merged
+# into onboarding_extra so the Driver sees it as ordinary evidence, same as
+# known_accounts.
+ORACLE_LIBRARY = json.loads((Path(__file__).parent / "oracle_library.json").read_text(encoding="utf-8"))
 
 
 def execute_test(test: dict, test_number: int) -> dict:
@@ -314,6 +323,40 @@ def render_test_entry(entry) -> str:
     """
 
 
+def _render_oracle_library(oracle_library: dict | None) -> str:
+    if not oracle_library:
+        return ""
+
+    modeled_html = ""
+    for key, entry in oracle_library.get("modeled", {}).items():
+        vectors_html = "".join(
+            f"""<li><strong>{esc(v['claim'])}</strong><div class="prose-muted">{inline_markdown(v['rationale'])}</div></li>"""
+            for v in entry.get("vectors", [])
+        )
+        modeled_html += f"""
+        <div class="oracle-heuristic">
+          <h4>{esc(key)} {bool_badge(entry.get('applies'), 'applies', 'does not apply')}</h4>
+          <p class="prose-muted">{inline_markdown(entry.get('reasoning', ''))}</p>
+          <ul class="vector-list">{vectors_html}</ul>
+        </div>
+        """
+
+    not_modeled = oracle_library.get("not_modeled", {})
+    not_modeled_html = "".join(f"<li>{esc(dim)}</li>" for dim in not_modeled)
+
+    return f"""
+    <div class="exhibit">
+      <h3>Oracle library</h3>
+      <p class="prose-muted">A one-time heuristic pass over this SUT's spec, produced by the
+        Oracle Agent PoC - not testing, just context handed to the Driver alongside the schema
+        and known accounts.</p>
+      {modeled_html}
+      <p class="eyebrow">Not modeled in this pass</p>
+      <ul class="prose-muted">{not_modeled_html}</ul>
+    </div>
+    """
+
+
 def render_onboarding_section(api_schema, onboarding_extra, happy_day_example) -> str:
     known_accounts = onboarding_extra.get("known_accounts", [])
     happy_request = (happy_day_example or {}).get("request", {})
@@ -336,6 +379,7 @@ def render_onboarding_section(api_schema, onboarding_extra, happy_day_example) -
       <p class="eyebrow">Response</p>
       {render_json_block(happy_response.get('body', {}))}
     </div>
+    {_render_oracle_library(onboarding_extra.get('oracle_library'))}
     """
 
 
@@ -345,7 +389,7 @@ ADAPTER = SUTAdapter(
     base_url=BASE_URL,
     test_endpoint_path=TEST_ENDPOINT_PATH,
     api_schema_doc=API_SCHEMA_DOC,
-    onboarding_extra={"known_accounts": KNOWN_ACCOUNTS},
+    onboarding_extra={"known_accounts": KNOWN_ACCOUNTS, "oracle_library": ORACLE_LIBRARY},
     happy_day_request=HAPPY_DAY_REQUEST,
     casting_tool_schema=CASTING_TOOL,
     casting_system_prompt=casting_system_prompt,

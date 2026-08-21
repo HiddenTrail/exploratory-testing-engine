@@ -1,0 +1,289 @@
+{
+  "sut": "token_purchase",
+  "modeled": {
+    "data": {
+      "applies": true,
+      "reasoning": "This system handles several distinct categories of sensitive and structured data: payment card data (PAN, CVV, expiry), authentication tokens, financial/monetary values (total_charged), integer credit quantities, categorical status/enum fields, and account identity fields. The Data (SFDIPOT) heuristic is highly relevant here because the nature and sensitivity of these data types directly drives what boundary conditions, format rules, and correctness properties should be tested.",
+      "vectors": [
+        {
+          "claim": "The card_number field must pass a Luhn checksum check; a number that fails the Luhn algorithm (e.g., '4111111111111112') should yield decline_reason 'invalid_card_number', not 'card_not_authorized'.",
+          "rationale": "Card numbers (PANs) have a well-known structural validity rule (Luhn). The spec states test cards 'pass basic format/Luhn checks', implying the system enforces this check. Distinguishing format invalidity from authorization failure is a key correctness property of PAN data."
+        },
+        {
+          "claim": "The cvv field, despite being typed as string, should reject non-numeric strings (e.g., 'abc') and return decline_reason 'invalid_cvv'.",
+          "rationale": "CVV codes are always numeric digits (3 or 4 digits). Being typed as string means non-digit values could be submitted; the system must treat them as invalid since real CVVs are numeric-only."
+        },
+        {
+          "claim": "The expiry_month field must only accept integer values 1\u201312; submitting 0, 13, or a non-integer should be rejected (e.g., decline_reason 'expiry_mismatch' or a validation error).",
+          "rationale": "expiry_month is an enum-like bounded integer (1\u201312 per the spec). Values outside this range have no valid calendar meaning and represent invalid card data."
+        },
+        {
+          "claim": "The expiry_year field, when set to a past year (e.g., 2020), should yield decline_reason 'expired_card', and when set to the current year with a past month, should also yield 'expired_card'.",
+          "rationale": "Card expiry is a temporal field. The system explicitly lists 'expired_card' as a decline reason, meaning it evaluates expiry_month + expiry_year together against the current date, not just each field in isolation."
+        },
+        {
+          "claim": "The total_charged response field is a monetary (floating-point dollar) value; for 10 credits the system charges $0.20, implying a base rate of $0.02/credit. Purchasing quantities at tier boundaries should produce a total_charged that is a valid, non-negative dollar amount with at most 2 decimal places of precision.",
+          "rationale": "Financial values should not exhibit floating-point artifacts (e.g., $0.30000000001). The spec says pricing is tiered but the happy-day example reveals $0.20 for 10 credits, giving a concrete baseline to validate monetary precision and rounding behavior."
+        },
+        {
+          "claim": "The credit_count field must be a positive integer; submitting 0, a negative number, or a non-integer should return decline_reason 'invalid_credit_count'.",
+          "rationale": "credit_count represents a quantity of a digital good. Zero or negative values are semantically meaningless for a purchase, and the spec explicitly lists 'invalid_credit_count' as a possible decline reason, confirming the system validates this field."
+        },
+        {
+          "claim": "The auth_token field, when supplied with a syntactically plausible but unrecognized token (e.g., 'tok_live_00000000'), should return status 'declined', decline_reason 'invalid_auth_token', and new_credit_balance null.",
+          "rationale": "auth_token is an identity/authentication field. The spec states new_credit_balance is null 'only if auth_token itself couldn't be resolved to any account', making this the one scenario where that nullable field carries a specific semantic meaning tied to the identity data type."
+        },
+        {
+          "claim": "The transaction_id field (e.g., 'txn_000001') should be unique across approved transactions; a second successful purchase should not reuse the same transaction_id.",
+          "rationale": "Transaction IDs are a financial record-keeping data type that must be unique to be meaningful for audit, reconciliation, and idempotency purposes. The happy-day example shows 'txn_000001', implying sequential or otherwise unique generation."
+        },
+        {
+          "claim": "The card_number field must not be echoed back or logged in any response field; none of the response fields (status, decline_reason, transaction_id, etc.) should contain or expose the submitted PAN.",
+          "rationale": "Card numbers (PANs) are highly sensitive PCI-DSS-regulated data. By nature, this data type must not be reflected in API responses, as doing so would constitute a data exposure violation regardless of operational correctness."
+        },
+        {
+          "claim": "The cvv field must not appear in any response field; the response should contain no reflection of the submitted CVV string.",
+          "rationale": "CVV codes are specifically prohibited from being stored or transmitted post-authorization under PCI-DSS. Their sensitive nature means even echoing them in a response body is a critical data-handling failure."
+        },
+        {
+          "claim": "Submitting a very large credit_count (e.g., Integer.MAX_VALUE or 2147483647) should either return a valid approved response with a correctly computed total_charged, or return decline_reason 'invalid_credit_count' \u2014 it must not cause a server error or return a negative/overflowed total_charged.",
+          "rationale": "credit_count is an integer quantity field. Extreme integer values are a key boundary for numeric data types, and financial calculations on them must not overflow or produce nonsensical monetary results."
+        }
+      ]
+    },
+    "function": {
+      "applies": true,
+      "reasoning": "This heuristic is highly relevant. The system performs several distinct real-world semantic operations: authenticating a user, validating a payment instrument, applying tiered bulk pricing, authorizing and charging a payment method, crediting an account balance, and recording a transaction. Each of these operations has testable semantic consequences beyond just field names and HTTP status codes.",
+      "vectors": [
+        {
+          "claim": "A successful purchase actually increments the user's stored credit balance by exactly the number of credits purchased (credit_count), so that new_credit_balance equals the prior balance plus credits_purchased.",
+          "rationale": "The happy-day example shows new_credit_balance=10 after buying 10 credits from what appears to be a zero balance. The semantic action is 'add credits to account', which must be reflected persistently in the balance field."
+        },
+        {
+          "claim": "A declined purchase does NOT change the user's credit balance \u2014 new_credit_balance must equal the same value it would have had before the declined attempt.",
+          "rationale": "credits_purchased is 0 and total_charged is 0 on a decline, so no credit transfer occurs. The new_credit_balance should remain unchanged from the pre-transaction state."
+        },
+        {
+          "claim": "A successful purchase actually charges the card (total_charged > 0) \u2014 for 10 credits the charge was $0.20, so the per-credit base price is $0.02 at small quantities, and buying larger quantities should reduce total_charged per credit (tiered pricing).",
+          "rationale": "The spec states pricing is tiered by bulk quantity. The example gives $0.20 for 10 credits ($0.02/credit). A purchase of, say, 1000 credits should result in a lower per-credit cost than $0.02, i.e. total_charged < $20.00."
+        },
+        {
+          "claim": "Each approved transaction produces a unique, non-null transaction_id, and a declined transaction produces a null transaction_id.",
+          "rationale": "The semantic action 'record a payment transaction' only occurs on approval. The spec states transaction_id is present only if approved, and the example shows txn_000001 \u2014 subsequent approvals must produce distinct IDs."
+        },
+        {
+          "claim": "When auth_token cannot be resolved to any account, new_credit_balance is null \u2014 the system cannot report a balance for an unknown user even after a decline.",
+          "rationale": "The spec explicitly states new_credit_balance is null only if auth_token itself couldn't be resolved to any account, and decline_reason would be invalid_auth_token. This is the semantic distinction between 'unknown user' and 'known user with a declined card'."
+        },
+        {
+          "claim": "When a known user's card is declined (e.g. card_not_authorized, expired_card, insufficient_funds), new_credit_balance is a non-null integer reflecting the user's actual current balance \u2014 not null \u2014 because the user account is still resolved.",
+          "rationale": "The spec says new_credit_balance is null ONLY if the auth_token can't be resolved. All other decline reasons still resolve the account, so a real balance must be returned."
+        },
+        {
+          "claim": "Submitting credit_count=0 or a negative integer should be declined with decline_reason='invalid_credit_count', and credits_purchased and total_charged must both be 0.",
+          "rationale": "The semantic operation is 'purchase credits', which is meaningless for zero or negative quantities. The spec lists invalid_credit_count as a possible decline reason, implying the system validates that a positive quantity is being purchased."
+        },
+        {
+          "claim": "The total_charged amount is calculated deterministically from credit_count alone (given the tiered pricing schedule), so two approved purchases of the same credit_count must produce the same total_charged.",
+          "rationale": "Tiered pricing is based on bulk quantity per transaction. There is no indication of dynamic pricing, so the same quantity must always yield the same charge amount."
+        },
+        {
+          "claim": "An expired card (where expiry_month/expiry_year is in the past) must be declined with decline_reason='expired_card', not 'expiry_mismatch'.",
+          "rationale": "The spec distinguishes two card-date decline reasons: expired_card (the date is genuinely past) and expiry_mismatch (the date doesn't match the card on file). These are semantically different actions \u2014 one is a time-based validity check, the other is a credential-match check."
+        },
+        {
+          "claim": "A card with insufficient funds to cover total_charged must be declined with decline_reason='insufficient_funds', and the user's credit balance must not increase.",
+          "rationale": "The semantic action 'authorize and charge the payment method' can fail at the payment gateway due to spending capacity. The spec lists insufficient_funds as a decline reason, and no credit transfer should occur without a successful charge."
+        }
+      ]
+    },
+    "claims": {
+      "applies": true,
+      "reasoning": "The spec makes numerous explicit, documented claims about field values, allowed enumeration sets, conditional nullability, and relationships between fields that can be mechanically checked against any real response. This heuristic applies strongly here.",
+      "vectors": [
+        {
+          "claim": "The `status` field must be exactly one of the two string values: \"approved\" or \"declined\".",
+          "rationale": "The spec explicitly documents: status (string) - \"approved\" or \"declined\". Any other value (including casing variants, extra values, or missing field) violates the spec."
+        },
+        {
+          "claim": "The `decline_reason` field must be one of exactly eight documented values: `invalid_auth_token`, `card_not_authorized`, `invalid_card_number`, `expiry_mismatch`, `expired_card`, `invalid_cvv`, `invalid_credit_count`, `insufficient_funds` \u2014 or null.",
+          "rationale": "The spec explicitly enumerates the allowed values for decline_reason. Any value not in this list (including undocumented reasons, misspellings, or different casing) violates the spec."
+        },
+        {
+          "claim": "When `status` is \"approved\", `decline_reason` must be null.",
+          "rationale": "The spec states decline_reason is 'present only if declined', and the happy-day example confirms `decline_reason: null` on an approved response. An approved response with a non-null decline_reason violates the spec."
+        },
+        {
+          "claim": "When `status` is \"declined\", `decline_reason` must be a non-null string from the documented enumeration.",
+          "rationale": "The spec states decline_reason is 'present only if declined', implying it must be present (non-null) when status is declined. A declined response with `decline_reason: null` violates the spec."
+        },
+        {
+          "claim": "When `status` is \"declined\", `credits_purchased` must be exactly 0.",
+          "rationale": "The spec explicitly states: credits_purchased (integer) - 0 if declined. Any non-zero value for credits_purchased on a declined response violates the spec."
+        },
+        {
+          "claim": "When `status` is \"declined\", `total_charged` must be exactly 0.",
+          "rationale": "The spec explicitly states: total_charged (number) - dollars charged, 0 if declined. Any non-zero value for total_charged on a declined response violates the spec."
+        },
+        {
+          "claim": "When `status` is \"approved\", `credits_purchased` must equal the `credit_count` from the request.",
+          "rationale": "The spec states credits_purchased represents how many credits were purchased, and the happy-day example confirms the requested credit_count (10) matches credits_purchased (10). A mismatch violates the spec."
+        },
+        {
+          "claim": "When `status` is \"approved\", `transaction_id` must be a non-null string.",
+          "rationale": "The spec states transaction_id is 'present only if approved', meaning it must exist and be non-null on approved responses. A null or absent transaction_id on an approved response violates the spec."
+        },
+        {
+          "claim": "When `status` is \"declined\", `transaction_id` must be null (or absent).",
+          "rationale": "The spec states transaction_id is 'present only if approved', so it must not be present (or must be null) when status is declined."
+        },
+        {
+          "claim": "`new_credit_balance` must be null only when the `auth_token` could not be resolved to any account (i.e., decline_reason is `invalid_auth_token`); for all other cases it must be a non-null integer.",
+          "rationale": "The spec explicitly states: new_credit_balance (integer or null) - null only if auth_token itself couldn't be resolved to any account. Any response where auth_token was valid but new_credit_balance is null violates the spec."
+        },
+        {
+          "claim": "When `status` is \"approved\", `new_credit_balance` must be a non-null integer (not null).",
+          "rationale": "An approved response implies the auth_token was resolved successfully, so the spec's condition for null (auth_token unresolvable) cannot apply. A null new_credit_balance on an approved response violates the spec."
+        },
+        {
+          "claim": "`credits_purchased` must be an integer (not a float or string).",
+          "rationale": "The spec defines credits_purchased as type integer. A response returning a decimal number (e.g., 10.0) or string would violate the declared type."
+        },
+        {
+          "claim": "`new_credit_balance` must be an integer (not a float or string) when non-null.",
+          "rationale": "The spec defines new_credit_balance as integer or null. A non-null response returning a decimal number or string would violate the declared type."
+        },
+        {
+          "claim": "`total_charged` must be a number (numeric type) representing dollars charged; it must be non-negative.",
+          "rationale": "The spec defines total_charged as a number representing dollars charged. A negative value would be nonsensical and violates the semantics of the field."
+        },
+        {
+          "claim": "When `auth_token` is `invalid_auth_token` decline reason fires, `new_credit_balance` must be null.",
+          "rationale": "The spec explicitly ties null new_credit_balance to the condition where the auth_token could not be resolved to any account, which directly maps to the invalid_auth_token decline_reason."
+        }
+      ]
+    },
+    "comparable_products": {
+      "applies": true,
+      "reasoning": "This is a credits/in-app purchase API that processes credit card transactions. It belongs to a well-recognized category: payment/billing APIs and in-app purchase systems. Comparable real-world systems include Stripe, Braintree, PayPal, Apple/Google in-app purchase APIs, and generic merchant payment gateways. These systems have well-established conventions around card validation (Luhn checks, expiry logic), idempotency, pricing tiers, balance tracking, error handling, and transaction IDs that can be checked against this system even though the spec doesn't explicitly document all of them.",
+      "vectors": [
+        {
+          "claim": "A card with an expiry month/year that is in the past (e.g., expiry_month=1, expiry_year=2020) should be declined with decline_reason='expired_card', not 'expiry_mismatch'.",
+          "rationale": "Payment gateway comparables universally distinguish between a card whose date has genuinely passed (expired_card) vs. a card where the submitted expiry doesn't match what the issuer has on file (expiry_mismatch). These are two distinct decline reasons in the spec, so the system should correctly route temporal expiry failures to 'expired_card'."
+        },
+        {
+          "claim": "A card number that fails the Luhn algorithm check (e.g., '4111111111111112') should be declined with decline_reason='invalid_card_number' without ever reaching authorization.",
+          "rationale": "All major payment processors (Stripe, Braintree, etc.) perform a local Luhn check before sending to the network, returning an immediate format-validation error rather than an authorization attempt. The spec lists 'invalid_card_number' as a decline reason, implying format validation happens server-side."
+        },
+        {
+          "claim": "Submitting a credit_count of 0 or a negative integer should be declined with decline_reason='invalid_credit_count'.",
+          "rationale": "E-commerce and in-app purchase APIs universally reject zero or negative quantity purchases. The spec lists 'invalid_credit_count' as a decline reason and 'credit_count' is described as an integer with implied positive constraint. Comparable systems reject non-positive quantities immediately."
+        },
+        {
+          "claim": "The transaction_id should be unique per successful transaction and should increment or otherwise differ between separate approved purchases.",
+          "rationale": "The happy-day example shows transaction_id='txn_000001', suggesting a sequential or unique identifier scheme. Real payment gateway comparables (Stripe, Braintree) guarantee unique transaction IDs per charge. Reusing the same transaction_id across different approved purchases would be a serious defect in any payment system."
+        },
+        {
+          "claim": "Tiered pricing should produce a lower total_charged per credit when purchasing a larger credit_count in a single transaction compared to a smaller credit_count (e.g., buying 100 credits at once should cost less per credit than buying 10).",
+          "rationale": "The spec explicitly states 'Pricing is tiered by bulk quantity - buying more credits in one transaction may reduce the price per credit for the whole order.' Comparable bulk-discount/tiered pricing systems (e.g., AWS, Twilio, Stripe metered billing) apply the discount to the entire order quantity when a tier threshold is crossed. The happy-day example shows 10 credits for $0.20 ($0.02/credit); a sufficiently large purchase should yield a lower per-credit rate."
+        },
+        {
+          "claim": "new_credit_balance should be null when an invalid/unresolvable auth_token is submitted, and a non-null integer for all other decline reasons (including card declines).",
+          "rationale": "The spec explicitly states new_credit_balance is 'null only if auth_token itself couldn't be resolved to any account.' Comparable account/wallet systems always return the current balance on a failed transaction as long as the account is identifiable. This boundary condition is a common source of bugs in payment APIs."
+        },
+        {
+          "claim": "A CVV consisting of non-numeric characters or wrong length (e.g., 'ABC' or '1') submitted with an otherwise valid card should return decline_reason='invalid_cvv'.",
+          "rationale": "All major card-processing comparables validate CVV format (3 digits for Visa/Mastercard) before sending to the network. The spec lists 'invalid_cvv' as a distinct decline reason, and comparable systems surface this as a format error distinct from card authorization failure."
+        },
+        {
+          "claim": "After a successful purchase, the new_credit_balance should equal the user's prior credit balance plus credits_purchased (i.e., credits accumulate correctly across transactions).",
+          "rationale": "The happy-day example shows new_credit_balance=10 after buying 10 credits from what appears to be a zero starting balance. Comparable wallet/credits systems (e.g., Google Play credits, Twilio balance) must correctly accumulate credits across purchases. A second purchase for the same account should show new_credit_balance = 10 + credits_purchased."
+        },
+        {
+          "claim": "Submitting a card_number with a valid Luhn checksum but wrong length (e.g., fewer than 13 digits) should result in decline_reason='invalid_card_number'.",
+          "rationale": "Payment gateway comparables validate both Luhn checksum AND card number length (Visa: 16 digits, Mastercard: 16 digits). A number that passes Luhn but is the wrong length is still an invalid card number. Real-world processors like Stripe return a card_number format error in this case."
+        },
+        {
+          "claim": "A declined transaction due to 'insufficient_funds' should still return the correct (unchanged) new_credit_balance for the authenticated user, not 0 or null.",
+          "rationale": "Comparable payment and wallet APIs (Stripe, PayPal) always return the current account state even on declined transactions, so the user knows their actual balance. The spec states new_credit_balance reflects 'the user's current total credit balance after this transaction (whether or not it was approved)', confirming balance should be accurate on any decline except unresolvable auth_token."
+        }
+      ]
+    },
+    "self_consistency": {
+      "applies": true,
+      "reasoning": "The spec defines multiple fields whose values are interdependent (status, decline_reason, credits_purchased, total_charged, new_credit_balance, transaction_id). Several cross-field invariants are either explicitly stated or directly implied by the spec, making the Self-consistency (Product) heuristic highly applicable here.",
+      "vectors": [
+        {
+          "claim": "If status is 'declined', then credits_purchased must be exactly 0.",
+          "rationale": "The spec explicitly states 'credits_purchased: 0 if declined'. Any declined response returning a non-zero credits_purchased violates documented behavior."
+        },
+        {
+          "claim": "If status is 'declined', then total_charged must be exactly 0.",
+          "rationale": "The spec explicitly states 'total_charged: 0 if declined'. Any declined response returning a non-zero total_charged violates documented behavior."
+        },
+        {
+          "claim": "If status is 'approved', then transaction_id must be a non-null string.",
+          "rationale": "The spec states transaction_id is 'present only if approved', meaning an approved response must always include a non-null transaction_id."
+        },
+        {
+          "claim": "If status is 'declined', then transaction_id must be absent or null.",
+          "rationale": "The spec states transaction_id is 'present only if approved', so a declined response must not carry a transaction_id."
+        },
+        {
+          "claim": "If status is 'approved', then decline_reason must be null.",
+          "rationale": "The spec states decline_reason is 'present only if declined', so an approved response must not carry a non-null decline_reason."
+        },
+        {
+          "claim": "If status is 'declined', then decline_reason must be a non-null string drawn from the enumerated set: invalid_auth_token, card_not_authorized, invalid_card_number, expiry_mismatch, expired_card, invalid_cvv, invalid_credit_count, insufficient_funds.",
+          "rationale": "The spec states decline_reason is present only if declined and enumerates exactly those values. A declined response with a null or out-of-enum decline_reason violates the spec."
+        },
+        {
+          "claim": "If status is 'approved', then credits_purchased must equal the credit_count from the request.",
+          "rationale": "An approved purchase means the requested number of credits was successfully purchased. The happy-day example confirms credits_purchased (10) matches credit_count (10). Returning a different value would be internally inconsistent."
+        },
+        {
+          "claim": "If status is 'approved', then total_charged must be greater than 0.",
+          "rationale": "Credits cost money (the spec describes a pricing model). An approved purchase that charges $0 is self-contradictory \u2014 the spec's pricing tiers imply a positive cost for any valid credit_count."
+        },
+        {
+          "claim": "If decline_reason is 'invalid_auth_token', then new_credit_balance must be null.",
+          "rationale": "The spec states new_credit_balance is null 'only if auth_token itself couldn't be resolved to any account'. An invalid_auth_token means the token cannot be resolved, so new_credit_balance must be null."
+        },
+        {
+          "claim": "If decline_reason is anything other than 'invalid_auth_token' (e.g. card_not_authorized, invalid_card_number, expired_card, invalid_cvv, invalid_credit_count, insufficient_funds), then new_credit_balance must be a non-null integer.",
+          "rationale": "The spec states new_credit_balance is null only when the auth_token cannot be resolved. All other decline reasons imply the token was valid and the account was found, so a balance must be returned."
+        },
+        {
+          "claim": "If status is 'approved', then new_credit_balance must be a non-null integer and must be greater than or equal to credits_purchased.",
+          "rationale": "An approved purchase adds credits_purchased to the user's prior balance. The resulting new_credit_balance must be at least credits_purchased (assuming prior balance \u2265 0). A null or lower-than-purchased balance after approval is self-contradictory."
+        },
+        {
+          "claim": "If status is 'approved', then new_credit_balance must equal (prior balance + credits_purchased), meaning repeated approved calls should show a monotonically increasing balance by the purchased amount each time.",
+          "rationale": "new_credit_balance is defined as 'the user's current total credit balance after this transaction'. For an approval, credits are added, so the balance must grow by exactly credits_purchased relative to the balance before the call."
+        }
+      ]
+    }
+  },
+  "not_modeled": {
+    "structure": {
+      "modeled": false,
+      "reason": "Not implemented in this PoC - skipped by design."
+    },
+    "interfacing": {
+      "modeled": false,
+      "reason": "Not implemented in this PoC - skipped by design."
+    },
+    "platform": {
+      "modeled": false,
+      "reason": "Not implemented in this PoC - skipped by design."
+    },
+    "operations": {
+      "modeled": false,
+      "reason": "Not implemented in this PoC - skipped by design."
+    },
+    "time": {
+      "modeled": false,
+      "reason": "Not implemented in this PoC - skipped by design."
+    }
+  }
+}
