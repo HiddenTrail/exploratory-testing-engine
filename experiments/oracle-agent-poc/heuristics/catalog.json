@@ -1,0 +1,312 @@
+[
+  {
+    "keyword": "structure",
+    "type": "model",
+    "category": "SFDIPOT",
+    "name": "Structure",
+    "description": "What does the product actually consist of, physically - code, executables and routines, integral hardware, independently-running services/servers, non-executable files (text, sample data, help files), and collateral (documents, web pages, packaging, license agreements)? Are all these pieces individually testable and accounted for?",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - Product Factors"
+  },
+  {
+    "keyword": "function",
+    "type": "model",
+    "category": "SFDIPOT",
+    "name": "Function",
+    "description": "What does this system's operations actually DO, semantically - not the literal field names, but the real-world actions/effects (e.g. 'authorizes and charges a payment method', 'applies tiered bulk pricing', 'tracks a running balance').",
+    "context": ["api", "gui"],
+    "status": "implemented",
+    "source": "HTSM v6.3 - Product Factors"
+  },
+  {
+    "keyword": "data",
+    "type": "model",
+    "category": "SFDIPOT",
+    "name": "Data",
+    "description": "What KINDS of data does this system handle - financial values, PII-adjacent fields, categorical/enum fields, temporal fields, etc.? Focus on the nature and sensitivity of the data itself, not the operations performed on it.",
+    "context": ["api", "gui"],
+    "status": "implemented",
+    "source": "HTSM v6.3 - Product Factors"
+  },
+  {
+    "keyword": "interfaces",
+    "type": "model",
+    "category": "SFDIPOT",
+    "name": "Interfaces",
+    "description": "Through what conduits is the product accessed or expressed - user interfaces (displays, buttons, fields), system interfaces (logs, other programs, disk, network), APIs/SDKs for third-party developers, and import/export functions that package or interpret data for other products?",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - Product Factors"
+  },
+  {
+    "keyword": "platform",
+    "type": "model",
+    "category": "SFDIPOT",
+    "name": "Platform",
+    "description": "What does the product depend on that's outside the project itself - external hardware/software required or optional for it to work, embedded components/libraries produced elsewhere, and the resource footprint (memory, filehandles) it consumes in that environment?",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - Product Factors"
+  },
+  {
+    "keyword": "operations",
+    "type": "model",
+    "category": "SFDIPOT",
+    "name": "Operations",
+    "description": "What experiences do real users actually have with the product - who are the different kinds of users, what's their physical/environmental context, and what does common, uncommon, extreme, and disfavored (careless, malicious, mistaken) use of it look like?",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - Product Factors"
+  },
+  {
+    "keyword": "time",
+    "type": "model",
+    "category": "SFDIPOT",
+    "name": "Time",
+    "description": "How does the product relate to time - time-related data (timeouts, timezones, holidays, warranty periods), timing relationships between input and output, pacing (fast/slow/bursty input), and concurrency (multiple things happening at once)?",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - Product Factors"
+  },
+  {
+    "keyword": "capability",
+    "type": "model",
+    "category": "Quality Criteria",
+    "name": "Capability",
+    "description": "Can it perform the required functions? Sufficiency - does it have all the capabilities necessary for its purpose - and correctness - can it function as intended and produce output that's acceptably accurate?",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - Quality Criteria Categories"
+  },
+  {
+    "keyword": "reliability",
+    "type": "model",
+    "category": "Quality Criteria",
+    "name": "Reliability",
+    "description": "Will it work well and resist failure in all required situations - robustness (no degradation over time or under reasonable stress), error handling (graceful failure and recovery from bad data or conditions), data integrity (protection from loss or corruption), and safety (won't harm life or property even under failure)?",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - Quality Criteria Categories"
+  },
+  {
+    "keyword": "usability",
+    "type": "model",
+    "category": "Quality Criteria",
+    "name": "Usability",
+    "description": "How easy is it for a real user to use - learnability (can the intended user rapidly master its operation), operability (minimum effort and fuss to operate day-to-day), and accessibility (meets accessibility standards and platform accessibility features)?",
+    "context": ["gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - Quality Criteria Categories"
+  },
+  {
+    "keyword": "charisma",
+    "type": "model",
+    "category": "Quality Criteria",
+    "name": "Charisma",
+    "description": "How appealing is the product - aesthetics (appeals to the senses), uniqueness (new or special in some way), entrancement (users get hooked, have fun, or stay engaged), and image (projects the desired impression of quality)?",
+    "context": ["gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - Quality Criteria Categories"
+  },
+  {
+    "keyword": "security",
+    "type": "model",
+    "category": "Quality Criteria",
+    "name": "Security",
+    "description": "How well is it protected against unauthorized use or intrusion - authentication (verifying who a user is), authorization (rights granted to authenticated users at varying privilege levels), privacy (protecting customer/employee data from unauthorized people), and security holes (ways the system fails to enforce security, including via social engineering)?",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - Quality Criteria Categories"
+  },
+  {
+    "keyword": "scalability",
+    "type": "model",
+    "category": "Quality Criteria",
+    "name": "Scalability",
+    "description": "How well does the deployment of the product scale up or down - in users, data volume, load, or geographic distribution?",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - Quality Criteria Categories"
+  },
+  {
+    "keyword": "compatibility",
+    "type": "model",
+    "category": "Quality Criteria",
+    "name": "Compatibility",
+    "description": "How well does it work with external components and configurations - other applications, particular operating systems, particular hardware, earlier versions of itself (backward compatibility) - and does it avoid unnecessarily hogging memory, storage, or other shared resources?",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - Quality Criteria Categories"
+  },
+  {
+    "keyword": "performance",
+    "type": "model",
+    "category": "Quality Criteria",
+    "name": "Performance",
+    "description": "How speedy and responsive is it, under normal and under adverse conditions?",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - Quality Criteria Categories"
+  },
+  {
+    "keyword": "installability",
+    "type": "model",
+    "category": "Quality Criteria",
+    "name": "Installability",
+    "description": "How easily can it be installed onto its target platform(s) - does it recognize missing or insufficient system requirements, what parts of the system does installation affect and where are files/resources stored, is uninstallation clean, can upgrades/patches be applied easily while respecting existing configuration, and who or what schedule handles installation?",
+    "context": ["gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - Quality Criteria Categories"
+  },
+  {
+    "keyword": "development",
+    "type": "model",
+    "category": "Quality Criteria",
+    "name": "Development",
+    "description": "How well can we create, test, and modify it - supportability (economical to support users), testability (how effectively it can be tested), maintainability (economical to build, fix, or enhance), portability (economical to port or reuse elsewhere), and localizability (economical to adapt for other places)?",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - Quality Criteria Categories"
+  },
+  {
+    "keyword": "function_testing",
+    "type": "technique",
+    "category": "General Test Technique",
+    "name": "Function Testing",
+    "description": "Test what it can do: identify the product's functions and subfunctions, determine how you'd know if a function is capable of working, test each one individually, and confirm it does what it's supposed to and not what it isn't supposed to do.",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - General Test Techniques"
+  },
+  {
+    "keyword": "claims_testing",
+    "type": "technique",
+    "category": "General Test Technique",
+    "name": "Claims Testing",
+    "description": "Challenge every claim: identify reference materials with claims about the product (SLAs, EULAs, ads, specs, help text, manuals), analyze and clarify vague claims, test each one, and, if testing from an explicit spec, expect spec and product to be brought into alignment. Related to but distinct from the 'claims' FEW-HICCUPPS oracle below - that oracle judges whether a documented claim holds true for a given result, while this technique is the procedural approach of hunting down and testing every claim the product makes.",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - General Test Techniques"
+  },
+  {
+    "keyword": "domain_testing",
+    "type": "technique",
+    "category": "General Test Technique",
+    "name": "Domain Testing",
+    "description": "Partition the data: look at data the product processes (including outputs, not just inputs), decide which specific values to test with (boundary, typical, convenient, invalid, best-representative), consider combinations worth testing together, and use inputs that force the whole range of possible outputs to occur.",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - General Test Techniques"
+  },
+  {
+    "keyword": "user_testing",
+    "type": "technique",
+    "category": "General Test Technique",
+    "name": "User Testing",
+    "description": "Involve the users: identify categories or roles of users, determine what each does and values (use cases), get real user data or logs or bring real users in, otherwise systematically simulate a user carefully, and favor a variety of users/roles over just one.",
+    "context": ["gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - General Test Techniques"
+  },
+  {
+    "keyword": "stress_testing",
+    "type": "technique",
+    "category": "General Test Technique",
+    "name": "Stress Testing",
+    "description": "Overwhelm the product: look for sub-systems or functions vulnerable to overload or breakage under challenging data or constrained resources, then select or generate challenging conditions to test with (large or complex data, high loads, long runs, many test cases, low memory).",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - General Test Techniques"
+  },
+  {
+    "keyword": "risk_testing",
+    "type": "technique",
+    "category": "General Test Technique",
+    "name": "Risk Testing",
+    "description": "Imagine a problem, then look for it: what kinds of problems could the product have, which matter most, how would you detect them if present, and design tests specifically to reveal them - consulting experts, design docs, past bug reports, or risk heuristics as needed.",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - General Test Techniques"
+  },
+  {
+    "keyword": "flow_testing",
+    "type": "technique",
+    "category": "General Test Technique",
+    "name": "Flow Testing",
+    "description": "Do one thing after another: perform multiple activities connected end-to-end (e.g. tours through a state model) without resetting the system between actions, varying timing and sequencing, and trying parallel threads.",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - General Test Techniques"
+  },
+  {
+    "keyword": "tool_supported_testing",
+    "type": "technique",
+    "category": "General Test Technique",
+    "name": "Tool-Supported Testing",
+    "description": "Use tools to make testers more powerful: look for or develop tools that perform many actions or checks, partially automate test coverage, partially automate oracles, detect changes automatically, or generate test data automatically.",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - General Test Techniques"
+  },
+  {
+    "keyword": "scenario_testing",
+    "type": "technique",
+    "category": "General Test Technique",
+    "name": "Scenario Testing",
+    "description": "Test to a compelling story: think about everything going on around the product, design tests involving meaningful and complex interactions with it, where a good scenario is a compelling story of how someone who matters might do something that matters with the product.",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "HTSM v6.3 - General Test Techniques"
+  },
+  {
+    "keyword": "claims",
+    "type": "model",
+    "category": "FEW HICCUPPS",
+    "name": "Claims (spec-conformance)",
+    "description": "What EXPLICIT, documented claims does the spec make that can be mechanically checked against any real response? (e.g. 'decline_reason must be one of these N documented values', 'credits_purchased must be 0 if declined').",
+    "context": ["api", "gui"],
+    "status": "implemented",
+    "source": "docs/exploratory-testing-engine-concept.md §3.4"
+  },
+  {
+    "keyword": "comparable_products",
+    "type": "model",
+    "category": "FEW HICCUPPS",
+    "name": "Comparable products",
+    "description": "Does this system belong to a recognizable category of real-world systems? If so, what conventions or behaviors do systems in that category typically get right (or wrong) that this system should be checked against, even if never explicitly documented?",
+    "context": ["api", "gui"],
+    "status": "implemented",
+    "source": "docs/exploratory-testing-engine-concept.md §3.4"
+  },
+  {
+    "keyword": "self_consistency",
+    "type": "model",
+    "category": "FEW HICCUPPS",
+    "name": "Self-consistency (Product)",
+    "description": "What cross-field or cross-response invariants SHOULD hold within this system's own documented behavior, even if never explicitly stated as a single rule? (e.g. 'if status is declined, credits_purchased and total_charged must both be 0').",
+    "context": ["api", "gui"],
+    "status": "implemented",
+    "source": "docs/exploratory-testing-engine-concept.md §3.4"
+  },
+  {
+    "keyword": "dumb_user",
+    "type": "model",
+    "category": "FEW HICCUPPS",
+    "name": "Dumb user (User's expectations)",
+    "description": "Would a naive user find this confusing or wrong, regardless of whether it's technically spec-compliant? Judge from the perspective of someone with no special knowledge of the system's internals or documentation.",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "docs/exploratory-testing-engine-concept.md §3.4"
+  },
+  {
+    "keyword": "statistical_trend",
+    "type": "model",
+    "category": "FEW HICCUPPS",
+    "name": "Statistical/trend (History)",
+    "description": "Does this deviate from the system's own past behavior - latency drift, error-rate creep, or other trends observable only by comparing against prior runs or history? Needs accumulated data across runs to be meaningful; not useful on a single, first-time pass.",
+    "context": ["api", "gui"],
+    "status": "cataloged",
+    "source": "docs/exploratory-testing-engine-concept.md §3.4"
+  }
+]

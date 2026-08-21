@@ -50,6 +50,21 @@ No SUT to start - this agent only reads `spec/spec.md`. Writes
 `results/oracle_library.json`: one entry per applicable heuristic, each
 with its own `vectors` list.
 
+## The catalog: a growing reference behind the active 5
+
+`heuristics/catalog.json` is the broader reference the active 5 heuristics
+above are drawn from - not loaded by `run_live.py`, just a standing,
+growing list of what *could* be modeled. Seeded from James Bach's
+Heuristic Test Strategy Model (HTSM v6.3): all 7 SFDIPOT Product Factors,
+all 10 Quality Criteria Categories, all 9 General Test Techniques, and the
+5 FEW HICCUPPS-derived oracles this project has named so far. Each entry
+follows one template (`keyword`, `type` - `"model"` vs `"technique"`,
+`category`, `name`, `description`, `context`, `status` - `"implemented"`
+vs `"cataloged"`, `source`). HTSM's "Project Environment" category
+(testing-project logistics, not SUT behavior) is deliberately excluded -
+a different kind of thing than everything else here. Standing practice:
+append newly invented heuristics here, following the same template.
+
 ## What this doesn't do (yet)
 
 - The Driver doesn't update this library as it tests (learn/refine oracle
