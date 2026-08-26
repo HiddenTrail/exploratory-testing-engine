@@ -10,7 +10,7 @@ import traceback
 import httpx
 
 from engine.adapter import SUTAdapter, validate_adapter
-from engine.client import build_client
+from engine.client import build_client, summarize_usage
 from engine.config import RunConfig
 from engine.loop import get_bug_reports, get_happy_day_example, run_checkpoint_loop
 from engine.report import render_report
@@ -41,6 +41,7 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
     }
     bug_reports = []
     test_counter = itertools.count(1)
+    usage_log: list[dict] = []
 
     def save_progress(casting_log, checkpoints):
         # Called after every checkpoint, not just once at the end - a crash
@@ -56,7 +57,8 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
 
     try:
         casting_log, checkpoints, stopped_reason = run_checkpoint_loop(
-            client, adapter, run_config, happy_day_example, test_counter, on_checkpoint=save_progress
+            client, adapter, run_config, happy_day_example, test_counter,
+            on_checkpoint=save_progress, usage_sink=usage_log,
         )
         output["casting_log"] = casting_log
         output["checkpoints"] = checkpoints
@@ -71,7 +73,8 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
             plural = "y" if len(anomalies) == 1 else "ies"
             print(f"Writing bug report(s) for {len(anomalies)} anomal{plural}...")
             bug_reports = get_bug_reports(
-                client, adapter, run_config, final_hypothesis, final_skeptic_review, stopped_reason, casting_log
+                client, adapter, run_config, final_hypothesis, final_skeptic_review, stopped_reason, casting_log,
+                usage_sink=usage_log,
             )
     except RuntimeError as e:
         print(f"Stopped early: {e}")
@@ -86,6 +89,16 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
         traceback.print_exc()
         output["error"] = str(e)
         output["stopped_reason"] = "error"
+
+    output["usage_summary"] = summarize_usage(usage_log)
+    if output["usage_summary"]:
+        print("\nToken usage by call type:")
+        for call, agg in output["usage_summary"].items():
+            print(
+                f"  {call}: {agg['calls']} call(s), input={agg['input_tokens']}, "
+                f"cache_read={agg['cache_read_input_tokens']}, cache_creation={agg['cache_creation_input_tokens']}, "
+                f"output={agg['output_tokens']}"
+            )
 
     out_path.write_text(json.dumps(output, indent=2))
     print(f"\nWrote result to {out_path}")

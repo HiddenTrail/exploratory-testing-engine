@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 import anthropic
-from engine.client import call_tool_with_retry
+from engine.client import call_tool_with_retry, summarize_usage
 
 
 class _FakeToolUse:
@@ -16,10 +16,19 @@ class _FakeToolUse:
         self.input = input
 
 
+class _FakeUsage:
+    def __init__(self, input_tokens=0, output_tokens=0, cache_creation_input_tokens=0, cache_read_input_tokens=0):
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+        self.cache_creation_input_tokens = cache_creation_input_tokens
+        self.cache_read_input_tokens = cache_read_input_tokens
+
+
 class _FakeMessage:
-    def __init__(self, content, stop_reason="tool_use"):
+    def __init__(self, content, stop_reason="tool_use", usage=None):
         self.content = content
         self.stop_reason = stop_reason
+        self.usage = usage
 
 
 class _FakeMessagesAPI:
@@ -181,6 +190,79 @@ def test_cache_static_content_does_not_mutate_the_original_tools_list():
     )
 
     assert original_tools == [{"name": "t"}]
+
+
+def test_usage_sink_records_one_entry_per_raw_response():
+    client = _FakeClient([_FakeMessage([_FakeToolUse("id1", {"ok": True})], usage=_FakeUsage(
+        input_tokens=120, output_tokens=45, cache_creation_input_tokens=0, cache_read_input_tokens=900,
+    ))])
+    usage_sink = []
+
+    call_tool_with_retry(
+        client, model="m", system="s", tools=[], tool_name="submit_x", user_message="u",
+        validate_fn=lambda d: [], max_tokens=10, usage_sink=usage_sink,
+    )
+
+    assert usage_sink == [{
+        "call": "submit_x", "input_tokens": 120, "output_tokens": 45,
+        "cache_creation_input_tokens": 0, "cache_read_input_tokens": 900,
+    }]
+
+
+def test_usage_sink_records_every_attempt_including_a_failed_validation_retry():
+    responses = [
+        _FakeMessage([_FakeToolUse("id1", {"bad": True})], usage=_FakeUsage(input_tokens=100, output_tokens=10)),
+        _FakeMessage([_FakeToolUse("id2", {"ok": True})], usage=_FakeUsage(input_tokens=110, output_tokens=12)),
+    ]
+    client = _FakeClient(responses)
+    usage_sink = []
+
+    call_tool_with_retry(
+        client, model="m", system="s", tools=[], tool_name="t", user_message="u",
+        validate_fn=lambda d: [] if d.get("ok") else ["missing 'ok'"], max_tokens=10, usage_sink=usage_sink,
+    )
+
+    assert len(usage_sink) == 2
+    assert [r["input_tokens"] for r in usage_sink] == [100, 110]
+
+
+def test_usage_sink_untouched_when_message_has_no_usage_attribute():
+    # No usage kwarg passed to _FakeMessage - matches every other test in this
+    # file, and stubbed messages elsewhere that don't model .usage at all.
+    client = _FakeClient([_FakeMessage([_FakeToolUse("id1", {"ok": True})])])
+    usage_sink = []
+
+    call_tool_with_retry(
+        client, model="m", system="s", tools=[], tool_name="t", user_message="u",
+        validate_fn=lambda d: [], max_tokens=10, usage_sink=usage_sink,
+    )
+
+    assert usage_sink == []
+
+
+def test_summarize_usage_aggregates_per_call_type():
+    usage_log = [
+        {"call": "submit_casting_round", "input_tokens": 100, "output_tokens": 20, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0},
+        {"call": "submit_casting_round", "input_tokens": 50, "output_tokens": 15, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 900},
+        {"call": "submit_skeptic_review", "input_tokens": 300, "output_tokens": 40, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0},
+    ]
+
+    summary = summarize_usage(usage_log)
+
+    assert summary == {
+        "submit_casting_round": {
+            "calls": 2, "input_tokens": 150, "output_tokens": 35,
+            "cache_creation_input_tokens": 0, "cache_read_input_tokens": 900,
+        },
+        "submit_skeptic_review": {
+            "calls": 1, "input_tokens": 300, "output_tokens": 40,
+            "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
+        },
+    }
+
+
+def test_summarize_usage_of_empty_log_is_empty():
+    assert summarize_usage([]) == {}
 
 
 def test_non_retryable_error_propagates_immediately_without_retrying(monkeypatch):

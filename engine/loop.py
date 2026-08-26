@@ -43,6 +43,29 @@ def _base_evidence(adapter: SUTAdapter, happy_day_example: dict) -> dict:
     }
 
 
+def _render_history_fragment(checkpoint_num: int, entries: list[dict]) -> str:
+    """One checkpoint's worth of redacted test entries, as a fragment meant to
+    be string-*appended* (never regenerated) onto a running history_text - see
+    the module docstring-level note in run_checkpoint_loop for why that matters
+    for prompt caching."""
+    return f"\n\n--- checkpoint {checkpoint_num} ---\n{json.dumps(entries, indent=2)}"
+
+
+def _cacheable_evidence_text(adapter: SUTAdapter, happy_day_example: dict, section_title: str, history_text: str) -> str:
+    """The static evidence (schema, known accounts, oracle data, happy-day
+    example - identical for the whole run) followed by the growing test
+    history, built via history_text's pure string-append growth so that this
+    whole block is always an exact byte-prefix of what the next call of the
+    SAME call site sends. That prefix-stability is what actually lets
+    Anthropic's prompt cache credit the unchanged leading portion instead of
+    rewriting it from scratch every call - see run_checkpoint_loop.
+    """
+    return (
+        json.dumps(_base_evidence(adapter, happy_day_example), indent=2)
+        + f"\n\n=== {section_title} ===" + history_text
+    )
+
+
 def get_happy_day_example(adapter: SUTAdapter) -> dict:
     request = {"method": "POST", "path": adapter.test_endpoint_path, "body": adapter.happy_day_request}
     response = call_sut_once(adapter.base_url, adapter.test_endpoint_path, adapter.happy_day_request)
@@ -54,16 +77,16 @@ def get_casting_round(
     adapter: SUTAdapter,
     run_config: RunConfig,
     happy_day_example: dict,
-    casting_log: list[dict],
+    history_text: str,
     prior_checkpoint_feedback: dict | None = None,
     *,
     test_budget: int,
     is_first_round: bool,
+    usage_sink: list[dict] | None = None,
 ) -> dict:
-    cached_evidence = {
-        **_base_evidence(adapter, happy_day_example),
-        "tests_tried_in_earlier_rounds": _redact(adapter, casting_log),
-    }
+    cached_content = _cacheable_evidence_text(
+        adapter, happy_day_example, "TESTS TRIED IN EARLIER ROUNDS", history_text
+    )
     fresh_evidence = {}
     if prior_checkpoint_feedback is not None:
         fresh_evidence["prior_checkpoint_feedback"] = prior_checkpoint_feedback
@@ -73,12 +96,13 @@ def get_casting_round(
         system=adapter.casting_system_prompt(test_budget, is_first_round),
         tools=[adapter.casting_tool_schema],
         tool_name="submit_casting_round",
-        cached_content=json.dumps(cached_evidence, indent=2),
+        cached_content=cached_content,
         user_message=json.dumps(fresh_evidence, indent=2),
         validate_fn=adapter.validate_casting_response,
         max_tokens=adapter.casting_max_tokens(test_budget),
         max_attempts=run_config.max_attempts,
         cache_static_content=True,
+        usage_sink=usage_sink,
     )
 
 
@@ -87,13 +111,11 @@ def get_checkpoint_hypothesis(
     adapter: SUTAdapter,
     run_config: RunConfig,
     happy_day_example: dict,
-    casting_log: list[dict],
+    history_text: str,
     prior_skeptic_review: dict | None = None,
+    usage_sink: list[dict] | None = None,
 ) -> dict:
-    cached_evidence = {
-        **_base_evidence(adapter, happy_day_example),
-        "all_tests_this_session": _redact(adapter, casting_log),
-    }
+    cached_content = _cacheable_evidence_text(adapter, happy_day_example, "ALL TESTS THIS SESSION", history_text)
     fresh_evidence = {}
     if prior_skeptic_review is not None:
         fresh_evidence["prior_skeptic_review"] = prior_skeptic_review
@@ -103,17 +125,19 @@ def get_checkpoint_hypothesis(
         system=HYPOTHESIS_SYSTEM_PROMPT,
         tools=[HYPOTHESIS_TOOL],
         tool_name="submit_checkpoint_hypothesis",
-        cached_content=json.dumps(cached_evidence, indent=2),
+        cached_content=cached_content,
         user_message=json.dumps(fresh_evidence, indent=2),
         validate_fn=validate_hypothesis_response,
         max_tokens=2560,
         max_attempts=run_config.max_attempts,
         cache_static_content=True,
+        usage_sink=usage_sink,
     )
 
 
 def get_skeptic_review(
-    client: Anthropic, run_config: RunConfig, hypothesis: dict, prior_skeptic_review: dict | None = None
+    client: Anthropic, run_config: RunConfig, hypothesis: dict, prior_skeptic_review: dict | None = None,
+    usage_sink: list[dict] | None = None,
 ) -> dict:
     evidence = {
         "observed_behavior": hypothesis["observed_behavior"],
@@ -133,6 +157,7 @@ def get_skeptic_review(
         validate_fn=lambda data: validate_skeptic_response(data, expected_anomaly_count=len(hypothesis["anomalies"])),
         max_tokens=3072,
         max_attempts=run_config.max_attempts,
+        usage_sink=usage_sink,
     )
 
 
@@ -143,6 +168,7 @@ def run_checkpoint_loop(
     happy_day_example: dict,
     test_counter,
     on_checkpoint=None,
+    usage_sink: list[dict] | None = None,
 ):
     """Returns (casting_log, checkpoints, stopped_reason).
 
@@ -151,11 +177,26 @@ def run_checkpoint_loop(
     through (a non-retryable API error, an unexpected bug) doesn't discard
     checkpoints that already finished. Each call is a full, self-consistent
     snapshot; the caller decides what to do with it (e.g. write it to disk).
+
+    usage_sink, if given, is passed straight through to every Driver/Skeptic
+    call this makes - see call_tool_with_retry.
+
+    history_text (below) is built by pure string-append, one _render_history_
+    fragment per checkpoint, and NEVER regenerated from casting_log as a
+    whole - re-serializing the whole growing casting_log fresh every call (the
+    original approach) reshuffles JSON array/object closing punctuation every
+    time it grows, which breaks prompt-cache prefix matching almost entirely
+    even though the underlying content barely changed; a live checkpoint loop
+    measured this landing ~0 cache_read on the evidence block virtually every
+    call. Appending a fixed, never-touched-again fragment guarantees each
+    call's cached_content is byte-for-byte an extension of the previous call's
+    of the SAME call site, which is what actually lets the cache credit it.
     """
     casting_log = []
     checkpoints = []
     prior_feedback = None
     stopped_reason = "checkpoints_exhausted"
+    history_text = ""
 
     for checkpoint_num in range(1, run_config.max_checkpoints + 1):
         is_first_checkpoint = checkpoint_num == 1
@@ -166,12 +207,14 @@ def run_checkpoint_loop(
             adapter,
             run_config,
             happy_day_example,
-            casting_log,
+            history_text,
             prior_feedback,
             test_budget=test_budget,
             is_first_round=is_first_checkpoint,
+            usage_sink=usage_sink,
         )
 
+        entries_before = len(casting_log)
         if casting["give_up"]:
             print(f"  Claude gave up casting: {casting['reasoning']}")
         else:
@@ -197,17 +240,23 @@ def run_checkpoint_loop(
                 result_detail = adapter.describe_result_for_log(result) if adapter.describe_result_for_log else str(result.get("response", {}).get("body", {}))
                 print(f"    actual: {result_detail} - prediction {'matched' if result['prediction_matched'] else 'MISSED'}")
 
+        new_entries = _redact(adapter, casting_log[entries_before:])
+        if new_entries:
+            history_text += _render_history_fragment(checkpoint_num, new_entries)
+
         prior_skeptic_review = prior_feedback["skeptic_review"] if prior_feedback else None
 
         print(f"Checkpoint {checkpoint_num}: forming a hypothesis...")
-        hypothesis = get_checkpoint_hypothesis(client, adapter, run_config, happy_day_example, casting_log, prior_skeptic_review)
+        hypothesis = get_checkpoint_hypothesis(
+            client, adapter, run_config, happy_day_example, history_text, prior_skeptic_review, usage_sink=usage_sink
+        )
         print(f"  observed_behavior: {hypothesis['observed_behavior']}")
         print(f"  anomalies noticed: {len(hypothesis['anomalies'])}")
         if hypothesis["prior_gaps_response"]:
             print(f"  prior gaps responded to: {len(hypothesis['prior_gaps_response'])}")
 
         print("Asking Skeptic for a cold review...")
-        skeptic_review = get_skeptic_review(client, run_config, hypothesis, prior_skeptic_review)
+        skeptic_review = get_skeptic_review(client, run_config, hypothesis, prior_skeptic_review, usage_sink=usage_sink)
         print(f"  skeptic verdict: {skeptic_review['verdict']}")
 
         checkpoints.append({"checkpoint": checkpoint_num, "hypothesis": hypothesis, "skeptic_review": skeptic_review})
@@ -231,6 +280,7 @@ def get_bug_reports(
     final_skeptic_review: dict,
     stopped_reason: str,
     casting_log: list[dict],
+    usage_sink: list[dict] | None = None,
 ) -> list[dict]:
     evidence = {
         "final_hypothesis": final_hypothesis,
@@ -249,5 +299,6 @@ def get_bug_reports(
         max_tokens=3072,
         max_attempts=run_config.max_attempts,
         cache_static_content=True,
+        usage_sink=usage_sink,
     )
     return result["bugs"]

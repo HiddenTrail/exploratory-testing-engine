@@ -8,7 +8,7 @@ LLM call in this project (see engine/tools.py).
 """
 
 from engine.bootstrap.discovery import DiscoveredEndpoint, DiscoveredSchema, field_from_dict
-from engine.client import DEFAULT_MAX_ATTEMPTS, DEFAULT_MODEL, call_tool_with_retry
+from engine.client import DEFAULT_MAX_ATTEMPTS, call_tool_with_retry, default_model
 
 _JSON_SCHEMA_TYPES = ("string", "integer", "number", "boolean", "array", "object", "unknown")
 
@@ -129,11 +129,11 @@ def validate_schema_draft_response(data) -> list[str]:
 
 
 def propose_schema_from_text(
-    client, spec_text: str, model: str = DEFAULT_MODEL, max_attempts: int = DEFAULT_MAX_ATTEMPTS
+    client, spec_text: str, model: str | None = None, max_attempts: int = DEFAULT_MAX_ATTEMPTS
 ) -> DiscoveredSchema:
     result = call_tool_with_retry(
         client,
-        model=model,
+        model=model or default_model(),
         system=FREETEXT_SCHEMA_SYSTEM_PROMPT,
         tools=[FREETEXT_SCHEMA_TOOL],
         tool_name="submit_schema_draft",

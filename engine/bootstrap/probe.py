@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from engine.bootstrap.discovery import DiscoveredEndpoint, DiscoveredSchema, field_from_dict
-from engine.client import DEFAULT_MAX_ATTEMPTS, DEFAULT_MODEL, call_tool_with_retry
+from engine.client import DEFAULT_MAX_ATTEMPTS, call_tool_with_retry, default_model
 from engine.http import call_sut_once
 
 _JSON_SCHEMA_TYPES = ("string", "integer", "number", "boolean", "array", "object", "unknown")
@@ -307,7 +307,7 @@ def run_bootstrap_probe_loop(
     initial_schema: DiscoveredSchema,
     max_probes: int = 8,
     transport: httpx.BaseTransport | None = None,
-    model: str = DEFAULT_MODEL,
+    model: str | None = None,
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
     on_probe=None,
     api_context: str = "",
@@ -322,6 +322,7 @@ def run_bootstrap_probe_loop(
     blind from field names alone."""
     if not initial_schema.endpoints:
         raise ValueError("initial_schema has no endpoints to probe - pass a schema with status == 'found'")
+    model = model or default_model()
     endpoint = initial_schema.endpoints[0]
     probe_log: list[dict] = []
     happy_day_example: dict | None = None

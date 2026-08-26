@@ -38,11 +38,11 @@ def _stub_sut_io(monkeypatch):
     monkeypatch.setattr(runner, "build_client", lambda: object())
 
 
-def _fake_casting_round(client, adapter, run_config, happy_day_example, casting_log, prior_feedback, *, test_budget, is_first_round):
+def _fake_casting_round(client, adapter, run_config, happy_day_example, casting_log, prior_feedback, *, test_budget, is_first_round, usage_sink=None):
     return {"give_up": False, "reasoning": "r", "candidate_tests": [{"linked_hypothesis": "", "predicted_outcome": "x"}]}
 
 
-def _fake_hypothesis(client, adapter, run_config, happy_day_example, casting_log, prior_skeptic_review=None):
+def _fake_hypothesis(client, adapter, run_config, happy_day_example, casting_log, prior_skeptic_review=None, usage_sink=None):
     return {"observed_behavior": "b", "anomalies": [], "untested_areas": ["u"], "prior_gaps_response": []}
 
 
@@ -56,7 +56,7 @@ def _skeptic_review(verdict):
 def test_output_json_written_incrementally_and_survives_a_mid_run_crash(monkeypatch, tmp_path):
     checkpoint_count = {"n": 0}
 
-    def flaky_skeptic(client, run_config, hypothesis, prior_skeptic_review=None):
+    def flaky_skeptic(client, run_config, hypothesis, prior_skeptic_review=None, usage_sink=None):
         checkpoint_count["n"] += 1
         if checkpoint_count["n"] == 2:
             raise ValueError("simulated unexpected failure mid-run")

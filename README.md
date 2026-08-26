@@ -165,6 +165,11 @@ cp engine/.env.example engine/.env   # fill in ANTHROPIC_API_KEY
 python -m engine.cli --adapter token_purchase
 ```
 
+To authenticate through Amazon Bedrock instead of an API key, set
+`ENGINE_USE_BEDROCK=1` and `AWS_REGION` (plus `AWS_PROFILE` if needed) - see
+[`engine/README.md`](engine/README.md) for the model-ID caveats, which are not
+the same IDs `aws bedrock list-inference-profiles` reports.
+
 Writes `runs/<adapter>/output.json`, `runs/<adapter>/bugs.json` (if any
 anomalies were found), and `runs/<adapter>/report.html`. Override run
 parameters with `--model`, `--max-checkpoints`, `--first-round-budget`,
