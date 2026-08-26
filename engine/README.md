@@ -32,6 +32,14 @@ doesn't account for realistic value rounding/precision when deciding whether
 cited evidence discriminates a claim from its rival - see the comment on
 that field in `engine/tools.py`. Carried forward deliberately, not fixed.
 
+`engine/adapters/token_purchase/adapter.py` also pulls its onboarding
+evidence's oracle content from `engine/ontology/` - a ranked, prioritized
+test-idea list rather than the old flat claim dump - see the root README's
+"Ontology layer" section and `docs/ontology-todo.md` for what's proven and
+what's still open (claim matching between a Driver-written hypothesis and an
+oracle claim is currently exact-string only, so re-ranking doesn't yet
+reflect a run's actual results).
+
 ## Layout
 
 ```
@@ -47,8 +55,7 @@ engine/
     registry.py           # name -> adapter module, resolved lazily
     token_purchase/        # first adapter, ported from experiments/token-purchase-poc
     complex_sut/            # second adapter - concurrency/rate-limiting domain
-  bootstrap/                # generate a draft adapter from a live SUT - see below
-  tests/                    # deterministic regression + parity tests (no LLM calls)
+  bootstrap/                # generate a draft adapter from a live SUT - see below  ontology/                  # prioritization layer stack (heuristics/domain/context/ranked oracle) - see root README  tests/                    # deterministic regression + parity tests (no LLM calls)
 ```
 
 `engine/*` never imports from `engine/adapters/*` - adapters import from

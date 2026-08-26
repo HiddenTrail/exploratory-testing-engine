@@ -95,6 +95,26 @@ This is a 4-phase roadmap, being built incrementally:
 4. ⏳ Not started - real JIRA API integration (auth, live ticket fetch),
    left as a `TODO` in `jira_mock.py` until explicitly requested.
 
+## Ontology layer (prioritization)
+
+`engine/ontology/` sits between the domain-grounded oracle claims and the
+Driver: a 4-layer flat-file stack (generic heuristic library → per-SUT
+business/domain facts → context/results → a ranked, prioritized test-idea
+list) that scores claims up or down based on what's already been tested,
+refuted, or flagged in a ticket, instead of handing the Driver an unranked
+dump. Proven end to end on `token_purchase` (a live Driver run consumed the
+ranked list, and its results were fed back into the context layer), with one
+real gap found and not yet fixed: claim matching between a Driver's own
+free-text hypothesis and an oracle claim is currently exact-string, so
+nothing actually reprioritizes yet. Full status and backlog:
+[`docs/ontology-todo.md`](docs/ontology-todo.md).
+
+```
+python -m engine.ontology.oracle_creator --sut token_purchase   # layer 4: rank
+python -m engine.ontology.website --sut token_purchase          # view all 4 layers
+python -m engine.ontology.feedback --sut token_purchase --run <output.json>  # close the loop
+```
+
 ## Layout
 
 ```
@@ -119,6 +139,7 @@ engine/
     report.py     # renders a DiscoveredSchema as HTML for --discover-only
     jira_mock.py  # stubbed ticket store for context-enriched bootstrap - see above; real JIRA is a TODO
     cli.py        # python -m engine.bootstrap.cli - chains all 4 phases end to end
+  ontology/       # prioritization layer stack (heuristics/domain/context/ranked oracle) - see above
   tests/          # deterministic regression + parity tests (no LLM calls, runs in CI)
 experiments/      # earlier throwaway prototypes this package was hardened from - untouched historical archive
 docs/

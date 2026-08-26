@@ -1,6 +1,37 @@
 {
   "sut": "token_purchase",
-  "test_results": [],
+  "test_results": [
+    {
+      "claim": "Cross-account authorization: using auth_token from account 1 with card_number from account 2 should be declined with 'card_not_authorized' because the card does not belong to the authenticated user. If the system only validates card format and not ownership, it might erroneously approve this request.",
+      "verified": true,
+      "timestamp": "2026-08-26"
+    },
+    {
+      "claim": "Submitting an unrecognized/invalid auth_token should return status 'declined', decline_reason 'invalid_auth_token', and new_credit_balance null (the only case per spec where balance is null).",
+      "verified": true,
+      "timestamp": "2026-08-26"
+    },
+    {
+      "claim": "Submitting a card with a past expiry_year (2020) should yield decline_reason 'expired_card', testing that the system evaluates expiry temporally rather than just as a credential mismatch.",
+      "verified": false,
+      "timestamp": "2026-08-26"
+    },
+    {
+      "claim": "Submitting a wrong CVV (one digit off from the correct CVV) with an otherwise valid card and auth_token should return decline_reason='invalid_cvv', not 'card_not_authorized'. Additionally, a declined transaction due to invalid_cvv should leave new_credit_balance unchanged (balance-invariance on decline).",
+      "verified": true,
+      "timestamp": "2026-08-26"
+    },
+    {
+      "claim": "Submitting credit_count=0 with otherwise valid credentials should return decline_reason='invalid_credit_count' because zero is not a valid purchase quantity. The spec explicitly lists 'invalid_credit_count' as a decline reason, implying the system validates that a positive quantity is being purchased.",
+      "verified": true,
+      "timestamp": "2026-08-26"
+    },
+    {
+      "claim": "Tiered pricing: buying a large quantity (1000 credits) should produce a lower per-credit price than the base rate of $0.02/credit observed at 10 credits, yielding total_charged < $20.00. The spec states 'buying more credits in one transaction may reduce the price per credit for the whole order.'",
+      "verified": true,
+      "timestamp": "2026-08-26"
+    }
+  ],
   "jira_entries": [],
   "risk_assessments": []
 }
