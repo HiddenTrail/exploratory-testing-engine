@@ -47,6 +47,10 @@ the next capture. So multi-step work does not belong in a shell loop over
 py experiments/game-screen-probe/game_session.py
 py experiments/game-screen-probe/game_session.py --keep-open   # leave it running
 
+# Actually play: cold launch, score to level 2, take the reward, quit
+py experiments/game-screen-probe/play_level.py
+py experiments/game-screen-probe/play_level.py --recon    # dump crops, don't play
+
 # Replay a whole action sequence, capturing as it goes
 py experiments/game-screen-probe/play.py snap:00 click:0.3398,0.3361 wait:2 \
     crop:board,0.2415,0.3939,0.1155,0.2033@600 snap:01
@@ -100,9 +104,12 @@ tile to ~50px - enough to see that a tile changed, not always enough to tell
   **game screen is mouse-driven**, and clicks land there reliably once delivered
   correctly - the first strategy in a 13-way escalation sweep won, so the earlier
   failures were the delivery code, never insufficient force.
-- Full play loop exercised end to end: enter a new game, read the board, place
-  tiles through the edge arrows, score four 2x2 matches (0 -> 95 points), trigger
-  **Level up! - level 2**, and pick a reward from the four-way choice screen.
+- Full play loop exercised end to end, cold disk to no process: launch, new game,
+  read the board, place tiles through the edge arrows, score 2x2 matches, detect
+  **Level up! - level 2** on the push that caused it, take a reward off the
+  four-card panel, click the in-game exit icon twice, `WM_CLOSE`. Two consecutive
+  cold runs: 7 pushes / 3 matches / 100 points, and 10 pushes / 6 matches / 50
+  points. See `play_level.py` below.
 
 ## What the game turned out to be
 
@@ -114,8 +121,24 @@ line of it was paid for in wrong moves:
   whole line away, and the far tile drops off the board. So a 2x2 is built by
   pushing the same tile type twice into *adjacent lines from the same side* - you
   cannot target a cell.
-- Matching a 2x2 of one type scores, **clears the quad to dirt**, and refills the
-  deck. Matches chain, with a multiplier (`+10 x2`, `x3`).
+- Matching a 2x2 of one type scores and **refills the cleared quad with fresh
+  tiles** - it does not leave dirt behind, which an earlier reading of this file
+  claimed. Matches chain, with a multiplier (`+10 x2`, `x3`).
+- Level 1 deals exactly **three tile types**: forest (big dark leaves), bush (small
+  light shrubs), sand (tan with dots). All three are matchable; there is no inert
+  type to strand the planner. `play_level.py --types` exists to settle that, and
+  did.
+- **No push can fill one cell of a 2x2 without displacing another cell of the same
+  2x2.** Inserting at an edge shifts the whole line, so filling (0,0) from the top
+  pushes what was at (0,0) down into (1,0). "Three of a kind in a 2x2 window" is
+  therefore *not* one move from scoring, and a planner rewarded for building those
+  spends the whole deck on positions it can never close - which is what one did.
+  What scores is a push that slides an existing pair into place while inserting the
+  third: an L of three, not a square of three.
+- The level-up panel offers **four reward cards** (`mud`, `sea`, `+10`,
+  `autumn forest`) and **their order is randomized per level-up**, so a fixed
+  coordinate takes whatever is in that slot. Three of the four add a tile type, and
+  an extra type makes a 2x2 rarer on nine cells, so they are not interchangeable.
 - Hovering an arrow stages the tile beside it and turns it blue. The selection
   **persists**, so any subsequent click *anywhere* confirms it and places a tile.
   There is no neutral click on the game screen - a click meant only to dismiss a
@@ -131,9 +154,18 @@ line of it was paid for in wrong moves:
 
 ```
 main menu  --enter on NEW GAME-->  board
+board      --score 50----------->  level-up panel, drawn *over* the board
+level-up   --any mouse click--->   board, minus one reward card
 board      --deck reaches 0---->   CHALLENGES
 CHALLENGES --any mouse click--->   main menu (NEW GAME pre-highlighted)
+board      --exit icon, twice-->   blank screen
 ```
+
+The level-up transition is the dangerous one. The panel does not replace the board,
+it covers it, and since no click on that screen is neutral, *any* click takes a
+card - so a driver that fails to notice the panel does not get stuck on it. It
+picks a reward at random and plays on, having never seen the thing it was waiting
+for.
 
 Corrections to earlier readings of this, each of which was wrong in a way that
 looked right:
@@ -151,16 +183,18 @@ looked right:
   "press up a few times to reach the top" is not safe; the highlighted row has to
   be read off the pixels before enter is pressed.
 
-Two hard rules for anything driving this game:
+Two rules for anything driving this game:
 
-- **Never click the exit icon** at fraction `(0.9063, 0.9097)`. It quits the game
-  outright, and every measurement after that reads a dead window - which looks
-  exactly like "the input did nothing" rather than "there is nothing there". A
-  whole 10-strategy sweep once ran against a closed game and reported clean
-  zeros. No script here holds that coordinate, and `assert_alive` in
-  `shuffle_run.py` fails loudly on a flat frame rather than measuring against
-  one.
 - **Never activate `RESET TUTORIAL`** in the settings menu.
+- **Do not click the exit icon** at fraction `(0.9063, 0.9097)` from a measuring
+  run. It takes **two clicks** to leave, and then every capture reads a dead or
+  blank window - which looks exactly like "the input did nothing" rather than
+  "there is nothing there". A whole 10-strategy sweep once ran against a closed
+  game and reported clean zeros; `assert_alive` in `shuffle_run.py` now fails
+  loudly on a flat frame rather than measuring against one. `play_level.py`
+  deliberately clicks it as the last thing it does, because it was asked to quit
+  the way a player would, and shutdown is still finished with `WM_CLOSE` so it does
+  not depend on where those clicks land.
 
 ## Things that bit, worth not re-learning
 
@@ -227,7 +261,36 @@ Two hard rules for anything driving this game:
     skipped the second. **Assert the window is foreground before trusting a
     frame**, and treat "I captured something that isn't the game" as a state the
     code must be able to detect, not a thing that won't happen.
-11. **One `SetForegroundWindow` is not enough.** Windows refuses it from a process
+11. **Every panel in this game is cream, so a popup *removes* ink.** The level-up
+    panel and the CHALLENGES screen are both light cards on a light background.
+    Drawn over a board of saturated tiles they take detail away, so a detector
+    asking "has ink appeared where the board used to be empty" scored a genuine
+    level-up panel at 10 grid cells against a threshold of 20 - and no threshold on
+    that test would ever have worked, because it was pointed in the wrong
+    direction. Testing the same quantity the other way round separates the two by an
+    order of magnitude: the board box reads 2113-2145 dark pixels of 2304 while a
+    board is up and 206-306 under a panel. **Before tuning a threshold, check the
+    sign.**
+12. **`on_game_screen()` stays true under the level-up panel.** It measures the
+    blueness of the `shuffle` label, and the label is still visible behind the
+    panel - so the one "am I still playing" detector a run had kept answering yes
+    at the exact moment the run existed to notice. Worse than a miss: since there
+    is no neutral click on the board, the next planned push spent itself picking a
+    reward card at random and the panel was gone before anything had seen it. The
+    run sailed on to 90 points and reported "left the board" 20 moves later. Same
+    shape as entry 10 - the check was truthful about the wrong question.
+13. **A different *feature* beats a better *metric*.** Forest and bush tiles cannot
+    be separated by mean colour at all: over the same patch, forest reads
+    (34-38, 115-123, 94-99) and bush (42-49, 125-135, 103-114), overlapping once a
+    cell's grass shows through, and one staged forest tile landed on the exact
+    midpoint between the two centroids. Two attempts to fix that by changing the
+    comparison - chromaticity, then majority voting over sub-patches - both made it
+    worse. What fixed it was measuring something else: the **fraction of pixels
+    darker than G=70**, which is 0.30-0.41 for forest and 0.04-0.14 for bush,
+    because forest carries three big near-black leaves and bush simply has no
+    pixels that dark. Averaging destroys it, so that patch must be sampled 1:1
+    rather than through `StretchBlt`.
+14. **One `SetForegroundWindow` is not enough.** Windows refuses it from a process
     that doesn't own the foreground and has had no recent input, so it fails
     silently and returns a value nobody checks. Retry in a loop; if the polite
     version keeps being refused, tapping ALT gives the calling process a keystroke
@@ -287,6 +350,48 @@ Measured facts about startup and shutdown:
   `Popen` returned. Steamworks titles commonly call
   `SteamAPI_RestartAppIfNecessary`, which relaunches through Steam and exits the
   original process, so the spawned PID can be long dead while the game runs.
+
+## Playing: `play_level.py`
+
+Everything above reads *whether* the screen changed. This one has to read *what is
+on it* and choose, which is a different problem: launch cold, identify all nine
+tiles plus the staged one, plan a push, score 2x2s until the level-up panel opens,
+take a reward, quit. Two consecutive cold runs:
+
+```
+ready after 8.0s: 3840x2160, NEW GAME menu
+a full board reads 2130 ink of 2304; a panel is anything under 958
+   7      t0   30%    46    206  b,f,b / f,b,b / f,b,f       bottom 1  match 1, ...
+  panel over the board after move 7: 206 ink of 2130, no green tiles
+  reward taken at (0.564, 0.518); back on the board
+```
+
+Three problems were actually hard, and each failed in a different way. All three are
+written up where the code lives, because the code is the only place the fix makes
+sense:
+
+- **Identifying tiles** (`classify`). Mean colour cannot separate forest from bush,
+  and no metric over that measurement can - see "things that bit" 13. A second
+  feature can.
+- **Choosing a push** (`scoring_moves`). The first lookahead counted 2x2 windows
+  holding three of a kind, which on a 3x3 board are not one move from scoring at
+  all, so the planner reliably spent the deck building positions it could never
+  close. Replaced by simulating every type the deck could deal against every push
+  and counting the ones that actually land a quad - the same mechanics as the real
+  move, so it cannot disagree with them.
+- **Noticing the level up** (`panel_up`). Two detectors in a row were truthful about
+  the wrong question - see "things that bit" 11 and 12. The working one is two
+  independent conditions, ink density and the presence of any green tile, because a
+  match's clear-and-refill animation can empty four cells on a live board and fool
+  the density test alone.
+
+One smaller thing worth keeping: the wandering animal hides one cell per read, and
+an unknown cell is a hole in all four 2x2s that touch it. Since the push rules are
+deterministic, the previous turn's simulation says what is underneath, so
+`merge_prediction` fills it in - but only on turns that scored nothing, because a
+match refills its quad from the deck and that is not modelled. Carried-forward
+unknowns get freshly numbered labels each turn; reusing a label would let two cells
+that are both merely unknown compare equal and fake a quad.
 
 ## Speed: `bench_shuffle.py`
 
