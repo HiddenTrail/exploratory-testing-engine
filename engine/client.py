@@ -4,6 +4,7 @@ existed in every prior experiment's run_live.py."""
 
 import os
 import time
+from datetime import datetime, timezone
 
 import anthropic
 from anthropic import Anthropic, AnthropicBedrockMantle
@@ -84,17 +85,65 @@ def build_client() -> Anthropic | AnthropicBedrockMantle:
     return Anthropic(api_key=api_key)
 
 
-def _cache_breakpoint(tools: list[dict], system: str) -> tuple[list[dict], list[dict] | str]:
-    """Marks the end of tools and the end of system as cache breakpoints, so
-    Anthropic caches that whole static prefix (tool schema + system prompt)
-    and only the actual messages - which change every call - are billed and
-    processed fresh. Caching is a pure serving-cost optimization: the model
-    still reasons over the same content either way, it's just not re-billed
-    or re-processed when byte-identical to a recent prior call.
+def _cache_breakpoint(system: str) -> list[dict]:
+    """Marks the end of the system prompt as a cache breakpoint. A marker there
+    covers the whole static prefix - tools render before system, so one system
+    breakpoint caches tool schema *and* system prompt together, and marking the
+    last tool as well would only spend one of the four available breakpoints to
+    cache a strictly shorter prefix. Only the actual messages - which change
+    every call - are then billed and processed fresh. Caching is a pure
+    serving-cost optimization: the model still reasons over the same content
+    either way, it's just not re-billed or re-processed when byte-identical to
+    a recent prior call.
     """
-    cached_tools = [*tools[:-1], {**tools[-1], "cache_control": {"type": "ephemeral"}}] if tools else tools
-    cached_system = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
-    return cached_tools, cached_system
+    return [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+
+
+# Anthropic allows 4 cache_control markers per request; _cache_breakpoint spends
+# one on system+tools, leaving these for the message content blocks.
+_MAX_MESSAGE_BREAKPOINTS = 3
+
+
+def _breakpoint_indexes(segment_count: int) -> set[int]:
+    """Which of cached_segments get a cache_control marker: the first, the
+    second-to-last, and the last.
+
+    The cache only ever matches at a *block boundary that carried a marker*, so
+    for an append-only sequence of segments the marker positions are what decide
+    whether the next call reads anything at all:
+
+    - last: writes a cache entry covering everything sent this call, which is
+      the prefix the NEXT call (this call's segments plus one new one) starts
+      with. Without it that next call has nothing to hit.
+    - second-to-last: where the *previous* call put its "last" marker, i.e. the
+      boundary the entry being read actually ends at. Re-marking it is what
+      keeps that entry alive as the window slides forward.
+    - first: the run-static evidence. A floor - if the sliding pair ever misses,
+      this still gets credited instead of dropping to zero.
+
+    Three markers, so it fits _MAX_MESSAGE_BREAKPOINTS for any segment count.
+    """
+    return {index for index in (0, segment_count - 2, segment_count - 1) if index >= 0}
+
+
+def _cacheable_content(cached_segments: list[str], user_message: str) -> list[dict]:
+    marked = _breakpoint_indexes(len(cached_segments))
+    content = []
+    for index, segment in enumerate(cached_segments):
+        block = {"type": "text", "text": segment}
+        if index in marked:
+            block["cache_control"] = {"type": "ephemeral"}
+        content.append(block)
+    content.append({"type": "text", "text": user_message})
+    return content
+
+
+def _now_iso() -> str:
+    """Wall-clock stamp for usage records. Wall clock rather than a monotonic
+    reading because the thing it exists to measure - cache TTL expiry - is a
+    real-time, 5-minute window, and because an absolute timestamp survives being
+    written to output.json as something a human can still read later."""
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def _record_usage(usage_sink: list[dict] | None, tool_name: str, usage) -> None:
@@ -102,11 +151,17 @@ def _record_usage(usage_sink: list[dict] | None, tool_name: str, usage) -> None:
     cache_creation_input_tokens, cache_read_input_tokens) - absent on stubbed
     messages in tests, so both the sink and the attribute are optional.
     Recorded per raw API response (including malformed-tool-use retries),
-    since those still cost real tokens."""
+    since those still cost real tokens.
+
+    "at" is what makes a zero cache_read diagnosable after the fact: a gap of
+    more than the 5-minute TTL since the previous call of the same name explains
+    it as plain expiry, while a short gap points at the prompt's own prefix
+    having changed."""
     if usage_sink is None or usage is None:
         return
     usage_sink.append({
         "call": tool_name,
+        "at": _now_iso(),
         "input_tokens": getattr(usage, "input_tokens", 0) or 0,
         "output_tokens": getattr(usage, "output_tokens", 0) or 0,
         "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", 0) or 0,
@@ -132,7 +187,7 @@ def summarize_usage(usage_log: list[dict]) -> dict[str, dict]:
 
 def call_tool_with_retry(
     client, *, model, system, tools, tool_name, user_message, validate_fn, max_tokens,
-    max_attempts=DEFAULT_MAX_ATTEMPTS, cache_static_content=False, cached_content=None, usage_sink=None,
+    max_attempts=DEFAULT_MAX_ATTEMPTS, cache_static_content=False, cached_segments=None, usage_sink=None,
 ):
     """Retries are informed, not blind repeats: on failure, the model's own malformed call and
     the concrete validation errors are fed back as a tool_result before asking again, so a
@@ -146,29 +201,27 @@ def call_tool_with_retry(
     left off by default so opting a given call site in is a deliberate choice, not a silent
     blanket change to every call's request shape.
 
-    cached_content, if given, is placed as its own content block BEFORE user_message and marked
-    cacheable - for a call site whose evidence has a large, append-only-growing prefix (e.g. a
-    replayed test history) shared with the immediately preceding call of the same kind. Anthropic
-    caches by exact byte-prefix match, so this only pays off when cached_content is either
-    byte-identical to, or an extension of, what a recent call of the SAME call site already sent;
-    it does not share anything across different call sites (they have different system prompts
-    and content to begin with, so there is no prefix to match regardless). user_message stays the
-    small, call-specific remainder that changes every time and is never cached.
+    cached_segments, if given, are placed as their own content blocks BEFORE user_message, some of
+    them marked cacheable (see _breakpoint_indexes) - for a call site whose evidence has a large,
+    append-only-growing prefix (e.g. a replayed test history) shared with the immediately preceding
+    call of the same kind. Anthropic caches by exact byte-prefix match, so this only pays off when
+    the segments are byte-identical to, or an append-only extension of, what a recent call of the
+    SAME call site already sent; it does not share anything across different call sites (they have
+    different system prompts and content to begin with, so there is no prefix to match regardless).
+
+    Passing them as a LIST rather than one concatenated string is the whole point: a cache entry
+    can only start or end at a content-block boundary, so growing evidence held in a single block
+    puts every previous call's boundary in the middle of this call's block, where no entry can end,
+    and nothing is ever read back however append-only the text itself was. One block per appended
+    chunk gives the boundaries somewhere real to land. user_message stays the small, call-specific
+    remainder that changes every time and is never cached.
 
     usage_sink, if given, gets one record appended per raw API response (see _record_usage) -
     the caller's way of collecting real cache_read/cache_creation/input/output token counts
     across a run without changing this function's return value.
     """
-    request_tools, request_system = (
-        _cache_breakpoint(tools, system) if cache_static_content else (tools, system)
-    )
-    if cached_content is not None:
-        content = [
-            {"type": "text", "text": cached_content, "cache_control": {"type": "ephemeral"}},
-            {"type": "text", "text": user_message},
-        ]
-    else:
-        content = user_message
+    request_system = _cache_breakpoint(system) if cache_static_content else system
+    content = _cacheable_content(cached_segments, user_message) if cached_segments else user_message
     messages = [{"role": "user", "content": content}]
     last_errors = ["no attempts made"]
     for attempt in range(1, max_attempts + 1):
@@ -177,7 +230,7 @@ def call_tool_with_retry(
                 model=model,
                 max_tokens=max_tokens,
                 system=request_system,
-                tools=request_tools,
+                tools=tools,
                 tool_choice={"type": "tool", "name": tool_name},
                 messages=messages,
             )

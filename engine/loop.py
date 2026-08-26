@@ -45,25 +45,30 @@ def _base_evidence(adapter: SUTAdapter, happy_day_example: dict) -> dict:
 
 def _render_history_fragment(checkpoint_num: int, entries: list[dict]) -> str:
     """One checkpoint's worth of redacted test entries, as a fragment meant to
-    be string-*appended* (never regenerated) onto a running history_text - see
-    the module docstring-level note in run_checkpoint_loop for why that matters
-    for prompt caching."""
-    return f"\n\n--- checkpoint {checkpoint_num} ---\n{json.dumps(entries, indent=2)}"
+    be *appended* to a running list of fragments and never regenerated - see
+    the docstring-level note in run_checkpoint_loop for why that matters for
+    prompt caching. sort_keys pins the serialization so a fragment can't come
+    out byte-different for content that didn't change."""
+    return f"\n\n--- checkpoint {checkpoint_num} ---\n{json.dumps(entries, indent=2, sort_keys=True)}"
 
 
-def _cacheable_evidence_text(adapter: SUTAdapter, happy_day_example: dict, section_title: str, history_text: str) -> str:
+def _cacheable_evidence_segments(
+    adapter: SUTAdapter, happy_day_example: dict, section_title: str, history_segments: list[str]
+) -> list[str]:
     """The static evidence (schema, known accounts, oracle data, happy-day
-    example - identical for the whole run) followed by the growing test
-    history, built via history_text's pure string-append growth so that this
-    whole block is always an exact byte-prefix of what the next call of the
-    SAME call site sends. That prefix-stability is what actually lets
-    Anthropic's prompt cache credit the unchanged leading portion instead of
-    rewriting it from scratch every call - see run_checkpoint_loop.
+    example - identical for the whole run) followed by the growing test history,
+    as SEPARATE segments rather than one joined string: each becomes its own
+    request content block, and a cache entry can only begin or end at a block
+    boundary. Joined into one block, every previous call's boundary would fall
+    in the middle of this call's block - a place no entry can end - so nothing
+    would ever be read back no matter how append-only the text was. See
+    call_tool_with_retry's cached_segments and run_checkpoint_loop.
     """
-    return (
-        json.dumps(_base_evidence(adapter, happy_day_example), indent=2)
-        + f"\n\n=== {section_title} ===" + history_text
+    head = (
+        json.dumps(_base_evidence(adapter, happy_day_example), indent=2, sort_keys=True)
+        + f"\n\n=== {section_title} ==="
     )
+    return [head, *history_segments]
 
 
 def get_happy_day_example(adapter: SUTAdapter) -> dict:
@@ -77,15 +82,21 @@ def get_casting_round(
     adapter: SUTAdapter,
     run_config: RunConfig,
     happy_day_example: dict,
-    history_text: str,
+    history_segments: list[str],
     prior_checkpoint_feedback: dict | None = None,
     *,
     test_budget: int,
     is_first_round: bool,
     usage_sink: list[dict] | None = None,
 ) -> dict:
-    cached_content = _cacheable_evidence_text(
-        adapter, happy_day_example, "TESTS TRIED IN EARLIER ROUNDS", history_text
+    # Known and unavoidable: the casting system prompt varies with test_budget
+    # and is_first_round, and system renders BEFORE the messages, so checkpoint 2
+    # can't read checkpoint 1's cache however stable the evidence blocks are.
+    # Rounds 2..N share a prompt and do hit - measured 0 read at checkpoint 2,
+    # then ~14k at checkpoint 3 - so it costs one extra write per run, not one
+    # per checkpoint. Not worth flattening the prompt over.
+    cached_segments = _cacheable_evidence_segments(
+        adapter, happy_day_example, "TESTS TRIED IN EARLIER ROUNDS", history_segments
     )
     fresh_evidence = {}
     if prior_checkpoint_feedback is not None:
@@ -96,7 +107,7 @@ def get_casting_round(
         system=adapter.casting_system_prompt(test_budget, is_first_round),
         tools=[adapter.casting_tool_schema],
         tool_name="submit_casting_round",
-        cached_content=cached_content,
+        cached_segments=cached_segments,
         user_message=json.dumps(fresh_evidence, indent=2),
         validate_fn=adapter.validate_casting_response,
         max_tokens=adapter.casting_max_tokens(test_budget),
@@ -111,11 +122,13 @@ def get_checkpoint_hypothesis(
     adapter: SUTAdapter,
     run_config: RunConfig,
     happy_day_example: dict,
-    history_text: str,
+    history_segments: list[str],
     prior_skeptic_review: dict | None = None,
     usage_sink: list[dict] | None = None,
 ) -> dict:
-    cached_content = _cacheable_evidence_text(adapter, happy_day_example, "ALL TESTS THIS SESSION", history_text)
+    cached_segments = _cacheable_evidence_segments(
+        adapter, happy_day_example, "ALL TESTS THIS SESSION", history_segments
+    )
     fresh_evidence = {}
     if prior_skeptic_review is not None:
         fresh_evidence["prior_skeptic_review"] = prior_skeptic_review
@@ -125,7 +138,7 @@ def get_checkpoint_hypothesis(
         system=HYPOTHESIS_SYSTEM_PROMPT,
         tools=[HYPOTHESIS_TOOL],
         tool_name="submit_checkpoint_hypothesis",
-        cached_content=cached_content,
+        cached_segments=cached_segments,
         user_message=json.dumps(fresh_evidence, indent=2),
         validate_fn=validate_hypothesis_response,
         max_tokens=2560,
@@ -181,22 +194,28 @@ def run_checkpoint_loop(
     usage_sink, if given, is passed straight through to every Driver/Skeptic
     call this makes - see call_tool_with_retry.
 
-    history_text (below) is built by pure string-append, one _render_history_
-    fragment per checkpoint, and NEVER regenerated from casting_log as a
-    whole - re-serializing the whole growing casting_log fresh every call (the
-    original approach) reshuffles JSON array/object closing punctuation every
-    time it grows, which breaks prompt-cache prefix matching almost entirely
-    even though the underlying content barely changed; a live checkpoint loop
-    measured this landing ~0 cache_read on the evidence block virtually every
-    call. Appending a fixed, never-touched-again fragment guarantees each
-    call's cached_content is byte-for-byte an extension of the previous call's
-    of the SAME call site, which is what actually lets the cache credit it.
+    history_segments (below) is a growing LIST of per-checkpoint fragments, each
+    rendered once by _render_history_fragment and never touched again, rather
+    than either of the two things that came before it:
+
+    - Re-serializing the whole growing casting_log fresh every call reshuffles
+      JSON array/object closing punctuation every time it grows, so the text
+      isn't even append-only and prefix matching breaks almost entirely.
+    - Appending to a single growing *string* fixes that, but a cache entry can
+      only end at a request content-block boundary, and one string is one block:
+      the previous call's boundary lands mid-block this call, where no entry can
+      end. A live loop measured this still landing ~0 cache_read on the evidence.
+
+    Keeping the fragments separate means each one is its own content block, so
+    the previous call's boundary is a real boundary this call too - which is what
+    finally lets the cache credit the unchanged leading portion. See
+    _cacheable_evidence_segments and call_tool_with_retry's cached_segments.
     """
     casting_log = []
     checkpoints = []
     prior_feedback = None
     stopped_reason = "checkpoints_exhausted"
-    history_text = ""
+    history_segments: list[str] = []
 
     for checkpoint_num in range(1, run_config.max_checkpoints + 1):
         is_first_checkpoint = checkpoint_num == 1
@@ -207,7 +226,7 @@ def run_checkpoint_loop(
             adapter,
             run_config,
             happy_day_example,
-            history_text,
+            history_segments,
             prior_feedback,
             test_budget=test_budget,
             is_first_round=is_first_checkpoint,
@@ -242,13 +261,14 @@ def run_checkpoint_loop(
 
         new_entries = _redact(adapter, casting_log[entries_before:])
         if new_entries:
-            history_text += _render_history_fragment(checkpoint_num, new_entries)
+            history_segments.append(_render_history_fragment(checkpoint_num, new_entries))
 
         prior_skeptic_review = prior_feedback["skeptic_review"] if prior_feedback else None
 
         print(f"Checkpoint {checkpoint_num}: forming a hypothesis...")
         hypothesis = get_checkpoint_hypothesis(
-            client, adapter, run_config, happy_day_example, history_text, prior_skeptic_review, usage_sink=usage_sink
+            client, adapter, run_config, happy_day_example, history_segments, prior_skeptic_review,
+            usage_sink=usage_sink,
         )
         print(f"  observed_behavior: {hypothesis['observed_behavior']}")
         print(f"  anomalies noticed: {len(hypothesis['anomalies'])}")
@@ -298,6 +318,11 @@ def get_bug_reports(
         validate_fn=validate_bug_reports,
         max_tokens=3072,
         max_attempts=run_config.max_attempts,
+        # Measured as a no-op in practice: this call site's tools+system prefix
+        # is below the model's minimum cacheable length, so the marker is
+        # silently ignored (0 creation, 0 read), and it runs once per run anyway
+        # while caching only breaks even at two requests. Left on so a retry, or
+        # a future longer bug-report prompt, gets it for free.
         cache_static_content=True,
         usage_sink=usage_sink,
     )

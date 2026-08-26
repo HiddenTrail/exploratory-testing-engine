@@ -42,6 +42,12 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
     bug_reports = []
     test_counter = itertools.count(1)
     usage_log: list[dict] = []
+    # The same list object, so every write below - including save_progress's
+    # partial ones - serializes whatever has accumulated by then. The per-call
+    # records are kept alongside the aggregate on purpose: a summary showing
+    # cache_read=0 can't say WHICH calls missed or how far apart they were, so
+    # diagnosing a caching regression from one real run needs the raw rows.
+    output["usage_log"] = usage_log
 
     def save_progress(casting_log, checkpoints):
         # Called after every checkpoint, not just once at the end - a crash
@@ -50,6 +56,7 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
         # API calls to produce.
         output["casting_log"] = casting_log
         output["checkpoints"] = checkpoints
+        output["usage_summary"] = summarize_usage(usage_log)
         output["stopped_reason"] = "in_progress"
         tmp_path = out_path.with_name(out_path.name + ".tmp")
         tmp_path.write_text(json.dumps(output, indent=2))
