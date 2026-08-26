@@ -43,6 +43,10 @@ the next capture. So multi-step work does not belong in a shell loop over
 `probe.py` - it belongs in one process:
 
 ```bash
+# Whole lifecycle: launch the game cold, one shuffle cycle, shut it down
+py experiments/game-screen-probe/game_session.py
+py experiments/game-screen-probe/game_session.py --keep-open   # leave it running
+
 # Replay a whole action sequence, capturing as it goes
 py experiments/game-screen-probe/play.py snap:00 click:0.3398,0.3361 wait:2 \
     crop:board,0.2415,0.3939,0.1155,0.2033@600 snap:01
@@ -208,6 +212,26 @@ Two hard rules for anything driving this game:
    cell every turn, drawn over whatever tile is beneath it. Three consecutive
    board reads disagreed with each other and with the push rules before the cause
    was clear. Read the tile under the overlay, not the cell as drawn.
+10. **A window that is merely *behind* something captures as that something.**
+    This is the worst failure mode in the whole probe, because it produces no
+    error anywhere. Capture reads the **screen** DC clipped to the window's
+    client rect, so a game sitting behind another window returns a clean,
+    plausible frame - of the other application. Every detector then answers
+    correctly about the wrong picture: "is the main menu up" is truthfully `no`
+    about a spreadsheet, and the run times out looking healthy for 60 seconds. It
+    cost two failed runs and only became obvious from a saved dump, which showed
+    the desktop. The two unreadable states also look identical downstream and
+    need different fixes: *minimized* (rect 0x0, from the fullscreen-exclusive
+    self-minimize) and *occluded* (valid rect, wrong pixels). `restore()` only
+    retried while the rect was empty, so it handled the first and silently
+    skipped the second. **Assert the window is foreground before trusting a
+    frame**, and treat "I captured something that isn't the game" as a state the
+    code must be able to detect, not a thing that won't happen.
+11. **One `SetForegroundWindow` is not enough.** Windows refuses it from a process
+    that doesn't own the foreground and has had no recent input, so it fails
+    silently and returns a value nobody checks. Retry in a loop; if the polite
+    version keeps being refused, tapping ALT gives the calling process a keystroke
+    to hold, which is a documented workaround rather than superstition.
 
 ## Implication for the ontology/adapter direction
 
@@ -225,6 +249,44 @@ State can only be moved through the game's own menus, so anything built on this
 needs to record *which* state an observation came from before results can be
 compared across runs. There *is* a usable reset (drain the deck, click,
 enter) - see the state machine above - but it costs a whole game to get one.
+
+## Lifecycle: `game_session.py`
+
+Everything above assumed a human had already started the game and would close it
+afterwards - fine for exploring, useless for anything scheduled.
+`game_session.py` owns the whole thing: find the exe, launch it, run one shuffle
+cycle, shut it down. Two consecutive cold runs:
+
+```
+window after 2.5s, 1280x720 at (1280, 742)
+resized to 3840x2160 at (0, 0) after 5.8s
+ready after 7.6s: NEW GAME menu
+shuffle test stage 6: 6.19s, 14 clicks, 9 landed (64%), 239 captures, 231 KiB
+closed via WM_CLOSE
+```
+
+Measured facts about startup and shutdown:
+
+- The exe lives at `steamapps/common/Tile Tale/tile_tale.exe`. It is found via
+  every root in `libraryfolders.vdf` rather than a hardcoded path, because games
+  move between libraries when a drive fills up.
+- Launch it with **cwd set to its own directory**. `data.win`, `Steamworks.dll`
+  and `options.ini` all resolve relative to cwd.
+- **The window opens windowed 1280x720 and switches to fullscreen 3840x2160
+  about 3.3s later** - so the first rect you can read is not the one you want.
+- **It opens in the background.** Launched from a non-foreground process it comes
+  up *behind* whatever was already on screen, and never raises itself. See
+  "things that bit" 10, which is the single most expensive entry in that list.
+- Cold start to a readable main menu: **7.6-14.0s**, varying with disk cache. The
+  window itself appears in 2.5-8.7s of that.
+- **`WM_CLOSE` is enough to quit**; `taskkill /F` has never been needed. Closing
+  through the OS rather than the in-game exit icon also makes shutdown
+  independent of what is on screen, which matters because the test deliberately
+  ends on the game-over screen.
+- The PID to kill is the one from `GetWindowThreadProcessId`, **not** the one
+  `Popen` returned. Steamworks titles commonly call
+  `SteamAPI_RestartAppIfNecessary`, which relaunches through Steam and exits the
+  original process, so the spawned PID can be long dead while the game runs.
 
 ## Speed: `bench_shuffle.py`
 
