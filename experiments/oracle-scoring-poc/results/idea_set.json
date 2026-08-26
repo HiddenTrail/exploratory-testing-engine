@@ -1,0 +1,296 @@
+[
+  {
+    "category": "SFDIPOT",
+    "keyword": "structure",
+    "claim": "The notes feature backend consists of at least two distinct code artifacts \u2014 `server/src/routes/notesRoutes.ts` and `server/src/services/notesService.ts` \u2014 and both should be individually testable and accounted for in the test suite.",
+    "rationale": "Structure heuristic requires enumerating all code/executable pieces. The risk register and known-issues log both reference these two files explicitly, confirming they exist as separate units. A test file (`notesRoutes.test.ts`) exists for the routes layer, but the service layer's independent test coverage is not separately confirmed.",
+    "source": "qe-knowledge/risk-register.md (R-2026-006)"
+  },
+  {
+    "category": "SFDIPOT",
+    "keyword": "structure",
+    "claim": "The notes feature Gherkin specification (`postcode-info-panel.feature`) is the sole spec artifact covering notes behaviour (13 scenarios); there is no separate `notes.feature` file, meaning all notes scenarios are co-located with unrelated panel scenarios and tested as a single structural unit.",
+    "rationale": "Structure heuristic asks whether all pieces are accounted for. The coverage tracker shows notes scenarios were added to `postcode-info-panel.feature` rather than given their own feature file, which affects traceability and independent testability of the notes sub-feature.",
+    "source": "qe-knowledge/coverage-tracker.md (postcode-info-panel.feature row)"
+  },
+  {
+    "category": "SFDIPOT",
+    "keyword": "function",
+    "claim": "Creating a note (POST) semantically links the note content to a specific postcode \u2014 a note created for postcode '00180' must not appear in the notes list for postcode '00100', and vice versa.",
+    "rationale": "The Function heuristic asks what the operation actually does: 'adds a personal annotation scoped to a postcode'. Scope is the core semantic property. If postcode scoping is broken, the create operation does something different from what it claims.",
+    "source": "specifications/features/postcode-info-panel.feature (Scenario: Notes are fetched fresh when a different postcode is selected)"
+  },
+  {
+    "category": "SFDIPOT",
+    "keyword": "function",
+    "claim": "Server restart semantically destroys all notes for all postcodes \u2014 the create/update operations do not produce durable persistence; their effect is limited to the current server process lifetime.",
+    "rationale": "The Function heuristic surfaces what 'save a note' truly does: it writes to a bare in-memory Map with no persistence layer. Users experience note loss as a silent data destruction event. This is a semantic gap between the implied function (persist annotation) and actual function (hold in RAM).",
+    "source": "qe-knowledge/tech-debt-register.md (TD-2026-001)"
+  },
+  {
+    "category": "SFDIPOT",
+    "keyword": "data",
+    "claim": "Note content is free-text (user-authored string) with a declared maximum length of 500 characters; the server currently enforces NO length constraint \u2014 only the UI component enforces the 500-char limit \u2014 meaning a client bypassing the UI can POST a note of arbitrary length.",
+    "rationale": "Free-text fields are a classic Data heuristic concern: boundary conditions, encoding edge cases, and enforcement gaps. The spec shows maxLength is UI-only; no server-side validation exists.",
+    "source": "qe-knowledge/tech-debt-register.md (TD-2026-004)"
+  },
+  {
+    "category": "SFDIPOT",
+    "keyword": "data",
+    "claim": "Notes have implicit temporal/ordering metadata: the list endpoint returns notes 'in insertion order', but the in-memory Map storage is non-deterministic under concurrent test runners, meaning insertion-order guarantees are a data-integrity concern that is already producing test instability.",
+    "rationale": "Temporal and ordering properties of data are a Data heuristic concern. Insertion order is a documented behavioural expectation that is already fragile.",
+    "source": "qe-knowledge/test-health-register.md (TH-2026-001)"
+  },
+  {
+    "category": "SFDIPOT",
+    "keyword": "interfaces",
+    "claim": "The Notes REST API must expose at minimum GET (list), POST (create), PUT (update), and DELETE endpoints scoped to a postcode; any missing method would silently break CRUD operations in the UI.",
+    "rationale": "The Gherkin scenarios require adding, editing, deleting, and listing notes per postcode, which implies all four HTTP methods must be present and correctly routed on the backend.",
+    "source": "specifications/features/postcode-info-panel.feature (Rule: Info panel contains a Notes section for personal annotations)"
+  },
+  {
+    "category": "SFDIPOT",
+    "keyword": "interfaces",
+    "claim": "The PostcodeNotes UI component interface must render a textarea with placeholder 'Add a note about this postcode...', an 'Add Note' button, a character counter, and per-note 'Edit'/'Delete' buttons; any missing control breaks a specified user interaction.",
+    "rationale": "The Gherkin scenarios explicitly name each UI control and its behaviour, making each control part of the testable UI interface surface.",
+    "source": "specifications/features/postcode-info-panel.feature (Scenarios: Notes section is visible, Adding a new note, Editing an existing note, Deleting a note, Character counter updates as user types)"
+  },
+  {
+    "category": "SFDIPOT",
+    "keyword": "platform",
+    "claim": "All notes data is held exclusively in a bare in-memory Map within the Node.js process; a container restart, crash, or redeploy on Azure Container Apps permanently destroys every note for every user with no recovery path.",
+    "rationale": "The Platform heuristic asks what the product depends on for storage. Notes depend solely on the process heap \u2014 no database, no file, no external store. Any platform lifecycle event (OOM kill, rolling deploy, container scale-in) is a total data loss event.",
+    "source": "qe-knowledge/tech-debt-register.md (TD-2026-001)"
+  },
+  {
+    "category": "SFDIPOT",
+    "keyword": "platform",
+    "claim": "The notes backend runs on Node 18 Alpine (the declared base image); Alpine's minimal libc (musl) and stripped-down OS layer mean any native add-on or filesystem dependency added to notes persistence in the future must be validated against Alpine compatibility specifically.",
+    "rationale": "The Platform heuristic covers the OS/runtime layer the product is embedded in. Alpine is a constrained environment; this is a forward-looking but concrete platform constraint for the notes feature if storage is ever migrated away from in-memory.",
+    "source": "ECOESTATE.md"
+  },
+  {
+    "category": "SFDIPOT",
+    "keyword": "operations",
+    "claim": "A malicious or curious user who knows or can guess a note's ID can modify or delete notes created by any other user/session, because PUT and DELETE /api/notes/:id have no ownership verification.",
+    "rationale": "This is the primary adversarial-use vector for the notes feature. Any client that discovers a note ID (e.g., by observing their own IDs and incrementing, or by inspecting API responses) can overwrite or delete another user's annotation. This is a confirmed high-severity risk.",
+    "source": "qe-knowledge/risk-register.md (R-2026-006)"
+  },
+  {
+    "category": "SFDIPOT",
+    "keyword": "operations",
+    "claim": "A user who opens the info panel for postcode '00180', adds a note, then immediately clicks postcode '00100', should see the notes section briefly show 'Loading notes...' and then display notes for '00100' \u2014 but if the PostcodeInfoPanel / PostcodeNotes integration wiring is broken, notes may silently fail to refresh or show stale data.",
+    "rationale": "KI-2026-008 confirms that the PostcodeInfoPanel integration with PostcodeNotes and the useNotes hook has zero test coverage. The cross-postcode refresh scenario (common user behaviour: browsing multiple postcodes in sequence) is the exact workflow where this silent failure would manifest.",
+    "source": "qe-knowledge/known-issues.md (KI-2026-008)"
+  },
+  {
+    "category": "SFDIPOT",
+    "keyword": "time",
+    "claim": "All notes data is lost on server restart because the notes store is a bare in-memory Map with no persistence; any notes created before a restart will not be present after it.",
+    "rationale": "The Time heuristic covers product lifecycle timing \u2014 data that is ephemeral and destroyed at a specific point in time (server restart) represents a time-boundary failure. Users who added notes between restarts lose all their work silently.",
+    "source": "qe-knowledge/tech-debt-register.md (TD-2026-001)"
+  },
+  {
+    "category": "SFDIPOT",
+    "keyword": "time",
+    "claim": "Because the 500-character maximum is enforced only in the UI component and not on the server side, a client that submits note content at high speed (e.g., via direct API calls) can store notes exceeding 500 characters, bypassing the timing-dependent UI guard.",
+    "rationale": "The Time heuristic covers timing relationships between input and output \u2014 the UI-only validation creates a gap where server-side state can be set before any client-side check has a chance to fire.",
+    "source": "qe-knowledge/tech-debt-register.md (TD-2026-004)"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "capability",
+    "claim": "The notes CRUD API must support all four operations: listing notes for a postcode (GET), adding a new note (POST), updating an existing note (PUT), and deleting a note (DELETE); all four must be present and functional for the feature to be complete.",
+    "rationale": "The Gherkin scenarios explicitly cover add, edit/save, cancel-edit, and delete operations. Missing any one of these operations would make the feature incomplete for its stated purpose as a personal annotation system.",
+    "source": "specifications/features/postcode-info-panel.feature (Rule: Info panel contains a Notes section for personal annotations)"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "capability",
+    "claim": "The PostcodeInfoPanel integration with the PostcodeNotes component via the useNotes hook has zero test coverage, meaning there is no automated verification that the notes feature is correctly wired into the panel shown to users. A wiring failure would silently break notes for all users.",
+    "rationale": "KI-2026-008 states 'PostcodeInfoPanel integration with PostcodeNotes component untested; panel wiring with useNotes hook has zero test coverage. Failure silently breaks feature for all users.' This is a correctness risk: the feature's end-to-end display path is unverified.",
+    "source": "qe-knowledge/known-issues.md (KI-2026-008)"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "reliability",
+    "claim": "All notes data is permanently lost on every server restart because the notes store is an in-memory Map with no persistence layer \u2014 there is no database, file, or external store backing it.",
+    "rationale": "Data integrity under failure: a server crash or scheduled restart (e.g., Azure Container Apps rolling update, container OOM kill) silently destroys every note for every user. This is a fundamental data-loss risk directly tied to the in-memory design.",
+    "source": "qe-knowledge/tech-debt-register.md (TD-2026-001)"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "reliability",
+    "claim": "The notes list endpoint (GET /api/notes/:postcode) produces non-deterministic ordering when tests run concurrently because the in-memory Map accumulates state across parallel test runners \u2014 this same shared-state design means production concurrent requests can also observe inconsistent or interleaved note lists.",
+    "rationale": "Robustness / data integrity: the test instability (TH-2026-001) is a symptom of the underlying shared-mutable-state design, which makes concurrent production use unreliable.",
+    "source": "qe-knowledge/test-health-register.md (TH-2026-001)"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "usability",
+    "claim": "Keyboard users cannot dismiss the note edit textarea by pressing Escape \u2014 only by clicking Cancel \u2014 making edit mode a keyboard trap for non-mouse users.",
+    "rationale": "KI-2026-009 explicitly confirms that PostcodeNotes edit textarea lacks an Escape-key dismissal handler. This is a direct operability and accessibility failure: keyboard users must reach for the mouse to exit edit mode, violating the principle that all interactive elements should be operable via keyboard alone.",
+    "source": "qe-knowledge/known-issues.md (KI-2026-009)"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "usability",
+    "claim": "When a note is saved or cancelled in edit mode, the edit textarea must be dismissed and the normal note display restored \u2014 users should not need to manually close any editor or hunt for a way back to read mode.",
+    "rationale": "The 'Saving an edited note' and 'Cancelling an edit discards changes' scenarios both assert 'edit textarea should be dismissed' after the respective action. Failure to auto-dismiss forces extra navigation steps, degrading operability.",
+    "source": "specifications/features/postcode-info-panel.feature"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "charisma",
+    "claim": "The notes section should feel cohesive with the rest of the PostcodeInfoPanel \u2014 it has a visible heading, placeholder text, character counter, and distinctly styled Add/Edit/Save/Cancel/Delete controls \u2014 so a tester should verify none of these elements appear unstyled, misaligned, or visually orphaned from the panel's overall layout.",
+    "rationale": "A CRUD widget with multiple transitional states (loading, empty, add, edit, error) risks looking bolted-on if individual states receive inconsistent styling. The Charisma heuristic flags this as an aesthetics concern \u2014 the notes section must look like a first-class part of the panel rather than an afterthought.",
+    "source": "specifications/features/postcode-info-panel.feature (Rule: Info panel contains a Notes section for personal annotations)"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "charisma",
+    "claim": "The error state shown when the notes API is unavailable ('an error message') should display a human-readable, actionable message \u2014 not a raw HTTP status code, JSON error object, or stack trace \u2014 to maintain the product's quality image.",
+    "rationale": "AC-UX-02 requires user-facing errors to show actionable messages rather than technical details. From a Charisma/image standpoint, a raw technical error in a personal-annotation widget severely undermines the impression that the product is polished.",
+    "source": "specifications/acceptance-criteria.md (AC-UX-02); specifications/features/postcode-info-panel.feature (Scenario: Error state is shown when notes cannot be fetched)"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "security",
+    "claim": "PUT /api/notes/:id and DELETE /api/notes/:id accept any note ID with no ownership verification \u2014 a client that knows or guesses another session's note ID can modify or delete that note without authorization.",
+    "rationale": "R-2026-006 explicitly documents this as a High-severity open risk: 'any client that knows or guesses a note ID can modify or delete another session's notes'. KI-2026-011 confirms that ownership-scoping tests were added only to document the current permissive behavior, not to enforce a fix.",
+    "source": "qe-knowledge/risk-register.md (R-2026-006), qe-knowledge/known-issues.md (KI-2026-011)"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "security",
+    "claim": "The notes API endpoints (GET, POST, PUT, DELETE /api/notes/:postcode or /api/notes/:id) must enforce the production CORS policy; unauthorized cross-origin requests should be rejected. This is currently not monitored or verified for the notes routes specifically.",
+    "rationale": "AC-SEC-01 (CORS Enforcement) is marked Not Implemented \u2014 CORS is configured but not monitored. The notes endpoints represent a mutable data surface (write operations) where CORS bypass would be particularly damaging, yet no notes-specific CORS test evidence exists.",
+    "source": "specifications/acceptance-criteria.md (AC-SEC-01), qe-knowledge/coverage-tracker.md (AC-SEC-01)"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "scalability",
+    "claim": "The notes storage backend has no cap on the total number of notes per postcode; sustained use will accumulate notes unboundedly in heap memory, eventually causing an OOM crash that affects all features system-wide.",
+    "rationale": "Scalability requires that data volume growth does not crash the system. The in-memory Map has no eviction, no cap, and no pagination \u2014 sustained concurrent use will exhaust heap memory.",
+    "source": "qe-knowledge/risk-register.md (R-2026-007)"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "scalability",
+    "claim": "The in-memory Map storage causes non-deterministic test ordering when test suites run in parallel, because note state accumulates across concurrent test runners \u2014 a symptom that also manifests under concurrent load in production.",
+    "rationale": "The test instability observed in TH-2026-001 is directly caused by shared mutable in-memory state, the same mechanism that would cause data corruption under concurrent user load in production.",
+    "source": "qe-knowledge/test-health-register.md (TH-2026-001)"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "compatibility",
+    "claim": "The notes service stores all notes in a bare in-memory Map with no cap on the total number of notes per postcode; under sustained use, this accumulates unboundedly in heap memory and can cause an OOM crash that affects all features sharing the same server process.",
+    "rationale": "The in-memory Map has no eviction or size limit. Unbounded growth is a direct shared-resource compatibility risk: notes data competes with all other in-process caches (property prices, boundaries, green spaces) for the same heap. An OOM crash terminates the whole Node.js process, taking down every API endpoint.",
+    "source": "qe-knowledge/risk-register.md (R-2026-007)"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "compatibility",
+    "claim": "There is no ownership or session scoping on PUT and DELETE /api/notes/:id; any client that knows or guesses a note ID can modify or delete notes created by a different client session, making notes incompatible with any multi-user or shared-environment deployment.",
+    "rationale": "In a shared deployment environment (dev, staging, prod) where multiple users access the same server, the absence of ownership verification means notes written by one user are silently writable and deletable by any other user, breaking the feature's expected isolation.",
+    "source": "qe-knowledge/risk-register.md (R-2026-006)"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "performance",
+    "claim": "GET /api/notes/:postcode must respond within 500ms at p95 under normal load, but no measurement infrastructure exists to verify this for any notes endpoint.",
+    "rationale": "AC-PERF-01 states all API endpoints must respond within 500ms at p95; its signal status is 'Not Implemented' with no response-time measurement in place. The notes endpoints are covered by this criterion but have zero performance instrumentation.",
+    "source": "specifications/acceptance-criteria.md (AC-PERF-01), qe-knowledge/coverage-tracker.md (AC-PERF-01 Not Implemented)"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "performance",
+    "claim": "The notes list endpoint (GET /api/notes/:postcode) may return results in non-deterministic order under concurrent load because the shared in-memory Map accumulates state across parallel callers with no synchronisation, as already observed in the test suite.",
+    "rationale": "TH-2026-001 documents that the in-memory Map accumulates state across parallel test runners, making the ordering of the list response non-deterministic. The same mechanism applies at runtime under concurrent requests, which is both a correctness and a consistency-under-load concern.",
+    "source": "qe-knowledge/test-health-register.md (TH-2026-001)"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "development",
+    "claim": "The notes service stores all data in a bare in-memory Map with no persistence abstraction, meaning a server restart destroys all user notes and there is no interface to swap in a real database without rewriting the service layer.",
+    "rationale": "Maintainability and portability both suffer: a developer cannot replace the storage backend economically because there is no repository interface or storage abstraction \u2014 the implementation is tightly coupled to the in-memory Map. Supportability also suffers because a production restart silently loses all user data with no recovery path.",
+    "source": "qe-knowledge/tech-debt-register.md (TD-2026-001)"
+  },
+  {
+    "category": "Quality Criteria",
+    "keyword": "development",
+    "claim": "The notesRoutes test 'should list all notes for a postcode (returns in insertion order)' is at-risk of flakiness because the shared in-memory Map accumulates state across parallel test runners, producing non-deterministic ordering. This makes the test suite unreliable for CI gating.",
+    "rationale": "Testability: a test suite that produces non-deterministic results cannot reliably gate merges, increasing the cost of maintaining a green build. The root cause (shared mutable in-memory state) also makes adding new notes tests harder without careful isolation setup.",
+    "source": "qe-knowledge/test-health-register.md (TH-2026-001)"
+  },
+  {
+    "category": "FEW HICCUPPS",
+    "keyword": "claims",
+    "claim": "GET /api/notes/:postcode returns notes in insertion order (the list is ordered by insertion time, not by any other ordering).",
+    "rationale": "The Gherkin scenario 'Adding a new note' implies notes appear in the list after being added, and the test suite explicitly tests 'returns in insertion order'. This is a documented behavioral claim that can be checked by adding notes sequentially and verifying the response array order.",
+    "source": "qe-knowledge/test-health-register.md (TH-2026-001)"
+  },
+  {
+    "category": "FEW HICCUPPS",
+    "keyword": "claims",
+    "claim": "GET /api/notes/:postcode returns only notes associated with that specific postcode, not notes from other postcodes. Notes stored for '00180' must not appear in the response for '00100'.",
+    "rationale": "The Gherkin scenario 'Notes are fetched fresh when a different postcode is selected' states that switching to postcode '00100' shows notes for '00100', implying per-postcode scoping of the notes list. This is mechanically checkable at the API layer.",
+    "source": "specifications/features/postcode-info-panel.feature"
+  },
+  {
+    "category": "FEW HICCUPPS",
+    "keyword": "comparable_products",
+    "claim": "PUT /api/notes/:id should return 404 when the given note ID does not exist, rather than silently creating a new resource or returning a generic error.",
+    "rationale": "REST CRUD APIs conventionally return 404 Not Found on update of a non-existent resource. Comparable note/annotation APIs (e.g., GitHub Gist, Evernote API, any standard annotations service) enforce this. The spec does not document this behaviour, making it an unverified gap for the notes endpoint.",
+    "source": ""
+  },
+  {
+    "category": "FEW HICCUPPS",
+    "keyword": "comparable_products",
+    "claim": "Sustained creation of notes (without deletions) causes unbounded heap growth in the server process because the in-memory Map has no per-postcode or global note count cap, which can eventually crash the server and affect all features.",
+    "rationale": "Comparable in-process storage systems (e.g., simple chat servers, demo todo APIs) that omit storage caps are known to suffer OOM crashes under sustained use. This risk is explicitly catalogued in the project's risk register.",
+    "source": "qe-knowledge/risk-register.md (R-2026-007)"
+  },
+  {
+    "category": "FEW HICCUPPS",
+    "keyword": "self_consistency",
+    "claim": "When a note is successfully added via POST, the note's content must appear in the subsequent GET (list) response for the same postcode \u2014 the list must contain exactly the submitted text, not a stale or empty entry.",
+    "rationale": "The 'Adding a new note' scenario states the note appears in the list after clicking Add; this implies the list response is consistent with the write operation. A cross-response invariant: POST result \u2194 subsequent GET list content.",
+    "source": "specifications/features/postcode-info-panel.feature (Scenario: Adding a new note)"
+  },
+  {
+    "category": "FEW HICCUPPS",
+    "keyword": "self_consistency",
+    "claim": "The 'Add Note' button disabled state must be consistent with the textarea content at all times: if textarea is empty or whitespace-only \u2192 button is disabled; if textarea has \u22651 non-whitespace character and length \u2264500 \u2192 button is enabled. No state where button is enabled with empty/whitespace content, or disabled with valid non-empty content, should exist.",
+    "rationale": "Two scenarios ('disabled when empty', 'disabled when only whitespace') combined with the 'Adding a new note' scenario imply a strict invariant between textarea value and button enabled state.",
+    "source": "specifications/features/postcode-info-panel.feature (Scenario: Add Note button is disabled when textarea is empty; Scenario: Add Note button is disabled when textarea contains only whitespace)"
+  },
+  {
+    "category": "FEW HICCUPPS",
+    "keyword": "dumb_user",
+    "claim": "A user who adds notes for a postcode will find all their notes gone after the server restarts, with no warning or explanation \u2014 they will assume the app is broken or lost their data.",
+    "rationale": "Notes are stored in a bare in-memory Map with no persistence. A naive user has no visibility into server restarts and will simply see their annotations disappear, which violates the universal expectation that 'save' means the data is kept.",
+    "source": "qe-knowledge/tech-debt-register.md (TD-2026-001)"
+  },
+  {
+    "category": "FEW HICCUPPS",
+    "keyword": "dumb_user",
+    "claim": "If the notes API is unavailable, the user sees an error message in the notes section, but the message may not tell them what to do next (e.g., retry, come back later) \u2014 a naive user will not know whether their previously saved notes are lost or temporarily unavailable.",
+    "rationale": "AC-UX-02 requires actionable error messages, not technical stack traces, but its status is only 'Improved' and not systematically verified. The notes error scenario in the feature file checks that an error message appears but does not specify its content or actionability.",
+    "source": "specifications/acceptance-criteria.md (AC-UX-02)"
+  },
+  {
+    "category": "FEW HICCUPPS",
+    "keyword": "statistical_trend",
+    "claim": "The notes list ordering test (TH-2026-001) has already failed 1 out of 3 observed runs due to in-memory Map state shared across parallel Jest workers; if a failure is observed in the next PR it must be promoted from 'At-Risk' to 'Flaky' per the register's own promotion rule.",
+    "rationale": "The test health register explicitly states 'Promote to Flaky if failure observed again in next PR.' Tracking this across runs is the definition of the Statistical/trend heuristic \u2014 only meaningful with accumulated history.",
+    "source": "qe-knowledge/test-health-register.md (TH-2026-001)"
+  },
+  {
+    "category": "FEW HICCUPPS",
+    "keyword": "statistical_trend",
+    "claim": "The notes-routes insertion-order test (TH-2026-001) fails non-deterministically due to concurrent test runner state sharing; monitoring its fail rate across future PRs should show whether the rate is stable (~33%), improving, or creeping upward \u2014 a trend signal that justifies either a fix or formal quarantine.",
+    "rationale": "The test health register tracks fail/total ratios (currently 1/3) and prescribes quarantine when a pattern solidifies. This is precisely the kind of accumulating-runs analysis the Statistical/trend heuristic demands.",
+    "source": "qe-knowledge/test-health-register.md (TH-2026-001)"
+  }
+]

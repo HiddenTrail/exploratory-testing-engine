@@ -1,0 +1,66 @@
+[
+  {
+    "canonical_keyword": "reliability",
+    "canonical_claim": "The notes list endpoint (GET /api/notes/:postcode) produces non-deterministic ordering when tests run concurrently because the in-memory Map accumulates state across parallel test runners \u2014 this same shared-state design means production concurrent requests can also observe inconsistent or interleaved note lists.",
+    "absorbed": [
+      {
+        "keyword": "data",
+        "claim": "Notes have implicit temporal/ordering metadata: the list endpoint returns notes 'in insertion order', but the in-memory Map storage is non-deterministic under concurrent test runners, meaning insertion-order guarantees are a data-integrity concern that is already producing test instability."
+      },
+      {
+        "keyword": "scalability",
+        "claim": "The in-memory Map storage causes non-deterministic test ordering when test suites run in parallel, because note state accumulates across concurrent test runners \u2014 a symptom that also manifests under concurrent load in production."
+      },
+      {
+        "keyword": "performance",
+        "claim": "The notes list endpoint (GET /api/notes/:postcode) may return results in non-deterministic order under concurrent load because the shared in-memory Map accumulates state across parallel callers with no synchronisation, as already observed in the test suite."
+      },
+      {
+        "keyword": "development",
+        "claim": "The notesRoutes test 'should list all notes for a postcode (returns in insertion order)' is at-risk of flakiness because the shared in-memory Map accumulates state across parallel test runners, producing non-deterministic ordering. This makes the test suite unreliable for CI gating."
+      }
+    ]
+  },
+  {
+    "canonical_keyword": "compatibility",
+    "canonical_claim": "There is no ownership or session scoping on PUT and DELETE /api/notes/:id; any client that knows or guesses a note ID can modify or delete notes created by a different client session, making notes incompatible with any multi-user or shared-environment deployment.",
+    "absorbed": [
+      {
+        "keyword": "operations",
+        "claim": "A malicious or curious user who knows or can guess a note's ID can modify or delete notes created by any other user/session, because PUT and DELETE /api/notes/:id have no ownership verification."
+      },
+      {
+        "keyword": "security",
+        "claim": "PUT /api/notes/:id and DELETE /api/notes/:id accept any note ID with no ownership verification \u2014 a client that knows or guesses another session's note ID can modify or delete that note without authorization."
+      }
+    ]
+  },
+  {
+    "canonical_keyword": "development",
+    "canonical_claim": "The notes service stores all data in a bare in-memory Map with no persistence abstraction, meaning a server restart destroys all user notes and there is no interface to swap in a real database without rewriting the service layer.",
+    "absorbed": [
+      {
+        "keyword": "time",
+        "claim": "All notes data is lost on server restart because the notes store is a bare in-memory Map with no persistence; any notes created before a restart will not be present after it."
+      },
+      {
+        "keyword": "reliability",
+        "claim": "All notes data is permanently lost on every server restart because the notes store is an in-memory Map with no persistence layer \u2014 there is no database, file, or external store backing it."
+      }
+    ]
+  },
+  {
+    "canonical_keyword": "compatibility",
+    "canonical_claim": "The notes service stores all notes in a bare in-memory Map with no cap on the total number of notes per postcode; under sustained use, this accumulates unboundedly in heap memory and can cause an OOM crash that affects all features sharing the same server process.",
+    "absorbed": [
+      {
+        "keyword": "scalability",
+        "claim": "The notes storage backend has no cap on the total number of notes per postcode; sustained use will accumulate notes unboundedly in heap memory, eventually causing an OOM crash that affects all features system-wide."
+      },
+      {
+        "keyword": "comparable_products",
+        "claim": "Sustained creation of notes (without deletions) causes unbounded heap growth in the server process because the in-memory Map has no per-postcode or global note count cap, which can eventually crash the server and affect all features."
+      }
+    ]
+  }
+]

@@ -1,0 +1,2110 @@
+[
+  {
+    "idea_index": 0,
+    "keyword": "structure",
+    "claim": "The notes feature backend consists of at least two distinct code artifacts \u2014 `server/src/routes/notesRoutes.ts` and `ser",
+    "final_score_mean": 43.1,
+    "final_score_stdev": 1.5,
+    "final_score_range": [
+      41.2,
+      45.0
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 4,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 3,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 5.8,
+        "stdev": 0.75
+      },
+      "distinctiveness": {
+        "mean": 4,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "ease_to_maintain": {
+        "mean": 5.8,
+        "stdev": 0.87
+      },
+      "similarity": {
+        "mean": 3.9,
+        "stdev": 0.3
+      },
+      "break_frequency": {
+        "mean": 3,
+        "stdev": 0.0
+      }
+    }
+  },
+  {
+    "idea_index": 1,
+    "keyword": "structure",
+    "claim": "The notes feature Gherkin specification (`postcode-info-panel.feature`) is the sole spec artifact covering notes behavio",
+    "final_score_mean": 26.5,
+    "final_score_stdev": 5.1,
+    "final_score_range": [
+      20.0,
+      33.8
+    ],
+    "tiers_seen": [
+      "maybe",
+      "nope"
+    ],
+    "tier_flipped": true,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 2.2,
+        "stdev": 0.4
+      },
+      "customer_impact": {
+        "mean": 1.6,
+        "stdev": 0.49
+      },
+      "probability_of_occurrence": {
+        "mean": 2.9,
+        "stdev": 0.83
+      },
+      "distinctiveness": {
+        "mean": 2.4,
+        "stdev": 0.49
+      },
+      "prob_of_fix": {
+        "mean": 3,
+        "stdev": 0.45
+      },
+      "ease_to_maintain": {
+        "mean": 5.3,
+        "stdev": 1.68
+      },
+      "similarity": {
+        "mean": 2.2,
+        "stdev": 0.4
+      },
+      "break_frequency": {
+        "mean": 1.6,
+        "stdev": 0.49
+      }
+    }
+  },
+  {
+    "idea_index": 2,
+    "keyword": "function",
+    "claim": "Creating a note (POST) semantically links the note content to a specific postcode \u2014 a note created for postcode '00180' ",
+    "final_score_mean": 76.3,
+    "final_score_stdev": 1.2,
+    "final_score_range": [
+      73.8,
+      78.8
+    ],
+    "tiers_seen": [
+      "maybe",
+      "test_it"
+    ],
+    "tier_flipped": true,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 9,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 8.9,
+        "stdev": 0.3
+      },
+      "probability_of_occurrence": {
+        "mean": 6.8,
+        "stdev": 0.75
+      },
+      "distinctiveness": {
+        "mean": 7.5,
+        "stdev": 0.5
+      },
+      "prob_of_fix": {
+        "mean": 8,
+        "stdev": 0.0
+      },
+      "ease_to_maintain": {
+        "mean": 9,
+        "stdev": 0.0
+      },
+      "similarity": {
+        "mean": 6.8,
+        "stdev": 0.4
+      },
+      "break_frequency": {
+        "mean": 5.1,
+        "stdev": 0.3
+      }
+    }
+  },
+  {
+    "idea_index": 3,
+    "keyword": "function",
+    "claim": "Server restart semantically destroys all notes for all postcodes \u2014 the create/update operations do not produce durable p",
+    "final_score_mean": 54.0,
+    "final_score_stdev": 3.2,
+    "final_score_range": [
+      50.0,
+      60.0
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.6,
+        "stdev": 0.49
+      },
+      "customer_impact": {
+        "mean": 9,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 6.3,
+        "stdev": 0.46
+      },
+      "distinctiveness": {
+        "mean": 5.7,
+        "stdev": 0.78
+      },
+      "prob_of_fix": {
+        "mean": 4.6,
+        "stdev": 0.66
+      },
+      "ease_to_maintain": {
+        "mean": 3.1,
+        "stdev": 0.3
+      },
+      "similarity": {
+        "mean": 4.6,
+        "stdev": 0.49
+      },
+      "break_frequency": {
+        "mean": 4.3,
+        "stdev": 0.64
+      }
+    }
+  },
+  {
+    "idea_index": 4,
+    "keyword": "data",
+    "claim": "Note content is free-text (user-authored string) with a declared maximum length of 500 characters; the server currently ",
+    "final_score_mean": 71.5,
+    "final_score_stdev": 2.1,
+    "final_score_range": [
+      67.5,
+      75.0
+    ],
+    "tiers_seen": [
+      "maybe",
+      "test_it"
+    ],
+    "tier_flipped": true,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 8.9,
+        "stdev": 0.3
+      },
+      "customer_impact": {
+        "mean": 7,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 5.9,
+        "stdev": 0.3
+      },
+      "distinctiveness": {
+        "mean": 7.9,
+        "stdev": 0.3
+      },
+      "prob_of_fix": {
+        "mean": 6.6,
+        "stdev": 0.49
+      },
+      "ease_to_maintain": {
+        "mean": 9,
+        "stdev": 0.0
+      },
+      "similarity": {
+        "mean": 6.6,
+        "stdev": 0.66
+      },
+      "break_frequency": {
+        "mean": 5.3,
+        "stdev": 0.46
+      }
+    }
+  },
+  {
+    "idea_index": 5,
+    "keyword": "data",
+    "claim": "Notes have implicit temporal/ordering metadata: the list endpoint returns notes 'in insertion order', but the in-memory ",
+    "final_score_mean": 51.9,
+    "final_score_stdev": 2.8,
+    "final_score_range": [
+      47.5,
+      57.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "2/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.4,
+        "stdev": 0.49
+      },
+      "customer_impact": {
+        "mean": 4.7,
+        "stdev": 0.46
+      },
+      "probability_of_occurrence": {
+        "mean": 4.1,
+        "stdev": 0.3
+      },
+      "distinctiveness": {
+        "mean": 5.2,
+        "stdev": 0.4
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.45
+      },
+      "ease_to_maintain": {
+        "mean": 3.7,
+        "stdev": 0.46
+      },
+      "similarity": {
+        "mean": 6.3,
+        "stdev": 0.46
+      },
+      "break_frequency": {
+        "mean": 7.1,
+        "stdev": 0.3
+      }
+    }
+  },
+  {
+    "idea_index": 6,
+    "keyword": "interfaces",
+    "claim": "The Notes REST API must expose at minimum GET (list), POST (create), PUT (update), and DELETE endpoints scoped to a post",
+    "final_score_mean": 64.6,
+    "final_score_stdev": 2.9,
+    "final_score_range": [
+      61.2,
+      71.2
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 7.1,
+        "stdev": 0.3
+      },
+      "customer_impact": {
+        "mean": 8,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 5.8,
+        "stdev": 0.75
+      },
+      "distinctiveness": {
+        "mean": 5.4,
+        "stdev": 0.49
+      },
+      "prob_of_fix": {
+        "mean": 7.2,
+        "stdev": 0.4
+      },
+      "ease_to_maintain": {
+        "mean": 8.6,
+        "stdev": 0.49
+      },
+      "similarity": {
+        "mean": 5.4,
+        "stdev": 0.49
+      },
+      "break_frequency": {
+        "mean": 4.2,
+        "stdev": 0.4
+      }
+    }
+  },
+  {
+    "idea_index": 7,
+    "keyword": "interfaces",
+    "claim": "The PostcodeNotes UI component interface must render a textarea with placeholder 'Add a note about this postcode...', an",
+    "final_score_mean": 40.7,
+    "final_score_stdev": 2.3,
+    "final_score_range": [
+      36.2,
+      43.8
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 3,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 6.1,
+        "stdev": 0.3
+      },
+      "probability_of_occurrence": {
+        "mean": 4.5,
+        "stdev": 0.5
+      },
+      "distinctiveness": {
+        "mean": 3.7,
+        "stdev": 0.46
+      },
+      "prob_of_fix": {
+        "mean": 5.4,
+        "stdev": 0.49
+      },
+      "ease_to_maintain": {
+        "mean": 3.5,
+        "stdev": 0.67
+      },
+      "similarity": {
+        "mean": 3.4,
+        "stdev": 0.49
+      },
+      "break_frequency": {
+        "mean": 3,
+        "stdev": 0.45
+      }
+    }
+  },
+  {
+    "idea_index": 8,
+    "keyword": "platform",
+    "claim": "All notes data is held exclusively in a bare in-memory Map within the Node.js process; a container restart, crash, or re",
+    "final_score_mean": 56.9,
+    "final_score_stdev": 3.8,
+    "final_score_range": [
+      50.0,
+      62.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 6.5,
+        "stdev": 0.67
+      },
+      "customer_impact": {
+        "mean": 9.6,
+        "stdev": 0.49
+      },
+      "probability_of_occurrence": {
+        "mean": 6.9,
+        "stdev": 0.54
+      },
+      "distinctiveness": {
+        "mean": 5.9,
+        "stdev": 0.7
+      },
+      "prob_of_fix": {
+        "mean": 4.6,
+        "stdev": 0.66
+      },
+      "ease_to_maintain": {
+        "mean": 3,
+        "stdev": 0.0
+      },
+      "similarity": {
+        "mean": 4.6,
+        "stdev": 0.49
+      },
+      "break_frequency": {
+        "mean": 4.4,
+        "stdev": 0.66
+      }
+    }
+  },
+  {
+    "idea_index": 9,
+    "keyword": "platform",
+    "claim": "The notes backend runs on Node 18 Alpine (the declared base image); Alpine's minimal libc (musl) and stripped-down OS la",
+    "final_score_mean": 23.0,
+    "final_score_stdev": 2.6,
+    "final_score_range": [
+      20.0,
+      26.2
+    ],
+    "tiers_seen": [
+      "maybe",
+      "nope"
+    ],
+    "tier_flipped": true,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 2,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 3.2,
+        "stdev": 0.4
+      },
+      "probability_of_occurrence": {
+        "mean": 2,
+        "stdev": 0.0
+      },
+      "distinctiveness": {
+        "mean": 2.3,
+        "stdev": 0.46
+      },
+      "prob_of_fix": {
+        "mean": 3,
+        "stdev": 0.0
+      },
+      "ease_to_maintain": {
+        "mean": 3.3,
+        "stdev": 1.27
+      },
+      "similarity": {
+        "mean": 1.4,
+        "stdev": 0.49
+      },
+      "break_frequency": {
+        "mean": 1.2,
+        "stdev": 0.4
+      }
+    }
+  },
+  {
+    "idea_index": 10,
+    "keyword": "operations",
+    "claim": "A malicious or curious user who knows or can guess a note's ID can modify or delete notes created by any other user/sess",
+    "final_score_mean": 73.4,
+    "final_score_stdev": 1.3,
+    "final_score_range": [
+      70.0,
+      75.0
+    ],
+    "tiers_seen": [
+      "maybe",
+      "test_it"
+    ],
+    "tier_flipped": true,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 9,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 8.8,
+        "stdev": 0.4
+      },
+      "probability_of_occurrence": {
+        "mean": 5.9,
+        "stdev": 0.3
+      },
+      "distinctiveness": {
+        "mean": 8.1,
+        "stdev": 0.3
+      },
+      "prob_of_fix": {
+        "mean": 6.3,
+        "stdev": 0.46
+      },
+      "ease_to_maintain": {
+        "mean": 8,
+        "stdev": 0.0
+      },
+      "similarity": {
+        "mean": 6.9,
+        "stdev": 0.3
+      },
+      "break_frequency": {
+        "mean": 5.7,
+        "stdev": 0.46
+      }
+    }
+  },
+  {
+    "idea_index": 11,
+    "keyword": "operations",
+    "claim": "A user who opens the info panel for postcode '00180', adds a note, then immediately clicks postcode '00100', should see ",
+    "final_score_mean": 64.0,
+    "final_score_stdev": 1.7,
+    "final_score_range": [
+      61.2,
+      66.2
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "1/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 7,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 8,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 7.3,
+        "stdev": 0.46
+      },
+      "distinctiveness": {
+        "mean": 6.3,
+        "stdev": 0.46
+      },
+      "prob_of_fix": {
+        "mean": 5.9,
+        "stdev": 0.54
+      },
+      "ease_to_maintain": {
+        "mean": 4.9,
+        "stdev": 0.54
+      },
+      "similarity": {
+        "mean": 6.4,
+        "stdev": 0.49
+      },
+      "break_frequency": {
+        "mean": 5.4,
+        "stdev": 0.49
+      }
+    }
+  },
+  {
+    "idea_index": 12,
+    "keyword": "time",
+    "claim": "All notes data is lost on server restart because the notes store is a bare in-memory Map with no persistence; any notes ",
+    "final_score_mean": 52.2,
+    "final_score_stdev": 3.6,
+    "final_score_range": [
+      45.0,
+      56.2
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.4,
+        "stdev": 0.66
+      },
+      "customer_impact": {
+        "mean": 9,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 6.7,
+        "stdev": 0.64
+      },
+      "distinctiveness": {
+        "mean": 4.8,
+        "stdev": 0.75
+      },
+      "prob_of_fix": {
+        "mean": 4.6,
+        "stdev": 0.66
+      },
+      "ease_to_maintain": {
+        "mean": 2.7,
+        "stdev": 0.46
+      },
+      "similarity": {
+        "mean": 4.5,
+        "stdev": 0.67
+      },
+      "break_frequency": {
+        "mean": 4.1,
+        "stdev": 0.54
+      }
+    }
+  },
+  {
+    "idea_index": 13,
+    "keyword": "time",
+    "claim": "Because the 500-character maximum is enforced only in the UI component and not on the server side, a client that submits",
+    "final_score_mean": 60.3,
+    "final_score_stdev": 2.4,
+    "final_score_range": [
+      56.2,
+      65.0
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 6.9,
+        "stdev": 0.3
+      },
+      "customer_impact": {
+        "mean": 6,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 4.9,
+        "stdev": 0.3
+      },
+      "distinctiveness": {
+        "mean": 5.9,
+        "stdev": 0.54
+      },
+      "prob_of_fix": {
+        "mean": 5.7,
+        "stdev": 0.46
+      },
+      "ease_to_maintain": {
+        "mean": 8.7,
+        "stdev": 0.46
+      },
+      "similarity": {
+        "mean": 5.8,
+        "stdev": 0.87
+      },
+      "break_frequency": {
+        "mean": 4.3,
+        "stdev": 0.46
+      }
+    }
+  },
+  {
+    "idea_index": 14,
+    "keyword": "capability",
+    "claim": "The notes CRUD API must support all four operations: listing notes for a postcode (GET), adding a new note (POST), updat",
+    "final_score_mean": 64.7,
+    "final_score_stdev": 2.9,
+    "final_score_range": [
+      61.2,
+      71.2
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 7.2,
+        "stdev": 0.4
+      },
+      "customer_impact": {
+        "mean": 8.1,
+        "stdev": 0.3
+      },
+      "probability_of_occurrence": {
+        "mean": 5.8,
+        "stdev": 0.75
+      },
+      "distinctiveness": {
+        "mean": 5.2,
+        "stdev": 0.4
+      },
+      "prob_of_fix": {
+        "mean": 7.3,
+        "stdev": 0.46
+      },
+      "ease_to_maintain": {
+        "mean": 8.7,
+        "stdev": 0.46
+      },
+      "similarity": {
+        "mean": 5.3,
+        "stdev": 0.46
+      },
+      "break_frequency": {
+        "mean": 4.2,
+        "stdev": 0.4
+      }
+    }
+  },
+  {
+    "idea_index": 15,
+    "keyword": "capability",
+    "claim": "The PostcodeInfoPanel integration with the PostcodeNotes component via the useNotes hook has zero test coverage, meaning",
+    "final_score_mean": 65.8,
+    "final_score_stdev": 2.2,
+    "final_score_range": [
+      61.2,
+      68.8
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 7.2,
+        "stdev": 0.6
+      },
+      "customer_impact": {
+        "mean": 9,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 6.5,
+        "stdev": 0.5
+      },
+      "distinctiveness": {
+        "mean": 6.7,
+        "stdev": 0.46
+      },
+      "prob_of_fix": {
+        "mean": 6.6,
+        "stdev": 0.66
+      },
+      "ease_to_maintain": {
+        "mean": 4,
+        "stdev": 0.45
+      },
+      "similarity": {
+        "mean": 6.9,
+        "stdev": 0.3
+      },
+      "break_frequency": {
+        "mean": 5.7,
+        "stdev": 0.46
+      }
+    }
+  },
+  {
+    "idea_index": 16,
+    "keyword": "reliability",
+    "claim": "All notes data is permanently lost on every server restart because the notes store is an in-memory Map with no persisten",
+    "final_score_mean": 52.7,
+    "final_score_stdev": 4.1,
+    "final_score_range": [
+      45.0,
+      58.8
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.5,
+        "stdev": 0.67
+      },
+      "customer_impact": {
+        "mean": 9.2,
+        "stdev": 0.4
+      },
+      "probability_of_occurrence": {
+        "mean": 6.7,
+        "stdev": 0.64
+      },
+      "distinctiveness": {
+        "mean": 4.8,
+        "stdev": 0.75
+      },
+      "prob_of_fix": {
+        "mean": 4.6,
+        "stdev": 0.66
+      },
+      "ease_to_maintain": {
+        "mean": 2.7,
+        "stdev": 0.46
+      },
+      "similarity": {
+        "mean": 4.5,
+        "stdev": 0.67
+      },
+      "break_frequency": {
+        "mean": 4.2,
+        "stdev": 0.6
+      }
+    }
+  },
+  {
+    "idea_index": 17,
+    "keyword": "reliability",
+    "claim": "The notes list endpoint (GET /api/notes/:postcode) produces non-deterministic ordering when tests run concurrently becau",
+    "final_score_mean": 52.1,
+    "final_score_stdev": 3.0,
+    "final_score_range": [
+      48.8,
+      57.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.2,
+        "stdev": 0.4
+      },
+      "customer_impact": {
+        "mean": 5.6,
+        "stdev": 0.49
+      },
+      "probability_of_occurrence": {
+        "mean": 4.1,
+        "stdev": 0.3
+      },
+      "distinctiveness": {
+        "mean": 5.1,
+        "stdev": 0.3
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.45
+      },
+      "ease_to_maintain": {
+        "mean": 3.2,
+        "stdev": 0.4
+      },
+      "similarity": {
+        "mean": 6.4,
+        "stdev": 0.66
+      },
+      "break_frequency": {
+        "mean": 7.1,
+        "stdev": 0.3
+      }
+    }
+  },
+  {
+    "idea_index": 18,
+    "keyword": "usability",
+    "claim": "Keyboard users cannot dismiss the note edit textarea by pressing Escape \u2014 only by clicking Cancel \u2014 making edit mode a k",
+    "final_score_mean": 60.8,
+    "final_score_stdev": 2.3,
+    "final_score_range": [
+      56.2,
+      63.8
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 6.9,
+        "stdev": 0.3
+      },
+      "customer_impact": {
+        "mean": 6.8,
+        "stdev": 0.4
+      },
+      "probability_of_occurrence": {
+        "mean": 5.4,
+        "stdev": 0.49
+      },
+      "distinctiveness": {
+        "mean": 6,
+        "stdev": 0.63
+      },
+      "prob_of_fix": {
+        "mean": 5.6,
+        "stdev": 0.49
+      },
+      "ease_to_maintain": {
+        "mean": 5.5,
+        "stdev": 0.67
+      },
+      "similarity": {
+        "mean": 7.1,
+        "stdev": 0.54
+      },
+      "break_frequency": {
+        "mean": 5.3,
+        "stdev": 0.46
+      }
+    }
+  },
+  {
+    "idea_index": 19,
+    "keyword": "usability",
+    "claim": "When a note is saved or cancelled in edit mode, the edit textarea must be dismissed and the normal note display restored",
+    "final_score_mean": 51.4,
+    "final_score_stdev": 2.7,
+    "final_score_range": [
+      46.2,
+      55.0
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.6,
+        "stdev": 0.49
+      },
+      "customer_impact": {
+        "mean": 5.7,
+        "stdev": 0.46
+      },
+      "probability_of_occurrence": {
+        "mean": 6.4,
+        "stdev": 0.49
+      },
+      "distinctiveness": {
+        "mean": 4.2,
+        "stdev": 0.4
+      },
+      "prob_of_fix": {
+        "mean": 6.1,
+        "stdev": 0.3
+      },
+      "ease_to_maintain": {
+        "mean": 5,
+        "stdev": 0.63
+      },
+      "similarity": {
+        "mean": 4.6,
+        "stdev": 0.49
+      },
+      "break_frequency": {
+        "mean": 3.5,
+        "stdev": 0.5
+      }
+    }
+  },
+  {
+    "idea_index": 20,
+    "keyword": "charisma",
+    "claim": "The notes section should feel cohesive with the rest of the PostcodeInfoPanel \u2014 it has a visible heading, placeholder te",
+    "final_score_mean": 31.2,
+    "final_score_stdev": 1.3,
+    "final_score_range": [
+      30.0,
+      33.8
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 3,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 4,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 4,
+        "stdev": 0.0
+      },
+      "distinctiveness": {
+        "mean": 3,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 4,
+        "stdev": 0.0
+      },
+      "ease_to_maintain": {
+        "mean": 2.5,
+        "stdev": 0.5
+      },
+      "similarity": {
+        "mean": 2.3,
+        "stdev": 0.46
+      },
+      "break_frequency": {
+        "mean": 2.2,
+        "stdev": 0.4
+      }
+    }
+  },
+  {
+    "idea_index": 21,
+    "keyword": "charisma",
+    "claim": "The error state shown when the notes API is unavailable ('an error message') should display a human-readable, actionable",
+    "final_score_mean": 53.5,
+    "final_score_stdev": 1.9,
+    "final_score_range": [
+      50.0,
+      57.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "2/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 6.1,
+        "stdev": 0.3
+      },
+      "customer_impact": {
+        "mean": 6.1,
+        "stdev": 0.3
+      },
+      "probability_of_occurrence": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "distinctiveness": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5.9,
+        "stdev": 0.3
+      },
+      "ease_to_maintain": {
+        "mean": 6,
+        "stdev": 0.63
+      },
+      "similarity": {
+        "mean": 5.1,
+        "stdev": 0.3
+      },
+      "break_frequency": {
+        "mean": 3.6,
+        "stdev": 0.49
+      }
+    }
+  },
+  {
+    "idea_index": 22,
+    "keyword": "security",
+    "claim": "PUT /api/notes/:id and DELETE /api/notes/:id accept any note ID with no ownership verification \u2014 a client that knows or ",
+    "final_score_mean": 73.7,
+    "final_score_stdev": 1.4,
+    "final_score_range": [
+      70.0,
+      75.0
+    ],
+    "tiers_seen": [
+      "maybe",
+      "test_it"
+    ],
+    "tier_flipped": true,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 9,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 8.8,
+        "stdev": 0.4
+      },
+      "probability_of_occurrence": {
+        "mean": 5.9,
+        "stdev": 0.3
+      },
+      "distinctiveness": {
+        "mean": 8.1,
+        "stdev": 0.3
+      },
+      "prob_of_fix": {
+        "mean": 6.3,
+        "stdev": 0.46
+      },
+      "ease_to_maintain": {
+        "mean": 8.2,
+        "stdev": 0.4
+      },
+      "similarity": {
+        "mean": 6.9,
+        "stdev": 0.3
+      },
+      "break_frequency": {
+        "mean": 5.7,
+        "stdev": 0.46
+      }
+    }
+  },
+  {
+    "idea_index": 23,
+    "keyword": "security",
+    "claim": "The notes API endpoints (GET, POST, PUT, DELETE /api/notes/:postcode or /api/notes/:id) must enforce the production CORS",
+    "final_score_mean": 48.8,
+    "final_score_stdev": 2.6,
+    "final_score_range": [
+      42.5,
+      52.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.3,
+        "stdev": 0.46
+      },
+      "customer_impact": {
+        "mean": 7,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 3.7,
+        "stdev": 0.46
+      },
+      "distinctiveness": {
+        "mean": 5.9,
+        "stdev": 0.3
+      },
+      "prob_of_fix": {
+        "mean": 4.8,
+        "stdev": 0.4
+      },
+      "ease_to_maintain": {
+        "mean": 4.5,
+        "stdev": 0.81
+      },
+      "similarity": {
+        "mean": 4.9,
+        "stdev": 0.3
+      },
+      "break_frequency": {
+        "mean": 2.9,
+        "stdev": 0.3
+      }
+    }
+  },
+  {
+    "idea_index": 24,
+    "keyword": "scalability",
+    "claim": "The notes storage backend has no cap on the total number of notes per postcode; sustained use will accumulate notes unbo",
+    "final_score_mean": 61.5,
+    "final_score_stdev": 2.7,
+    "final_score_range": [
+      57.5,
+      66.2
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "9/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 7.3,
+        "stdev": 0.46
+      },
+      "customer_impact": {
+        "mean": 9,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 4.2,
+        "stdev": 0.4
+      },
+      "distinctiveness": {
+        "mean": 7,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 6,
+        "stdev": 0.45
+      },
+      "ease_to_maintain": {
+        "mean": 5.4,
+        "stdev": 1.02
+      },
+      "similarity": {
+        "mean": 5.6,
+        "stdev": 0.49
+      },
+      "break_frequency": {
+        "mean": 4.7,
+        "stdev": 0.46
+      }
+    }
+  },
+  {
+    "idea_index": 25,
+    "keyword": "scalability",
+    "claim": "The in-memory Map storage causes non-deterministic test ordering when test suites run in parallel, because note state ac",
+    "final_score_mean": 49.6,
+    "final_score_stdev": 2.9,
+    "final_score_range": [
+      43.8,
+      55.0
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 4.4,
+        "stdev": 0.49
+      },
+      "customer_impact": {
+        "mean": 5.2,
+        "stdev": 0.6
+      },
+      "probability_of_occurrence": {
+        "mean": 4.1,
+        "stdev": 0.3
+      },
+      "distinctiveness": {
+        "mean": 4.5,
+        "stdev": 0.5
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.45
+      },
+      "ease_to_maintain": {
+        "mean": 3,
+        "stdev": 0.45
+      },
+      "similarity": {
+        "mean": 6.4,
+        "stdev": 0.66
+      },
+      "break_frequency": {
+        "mean": 7.1,
+        "stdev": 0.3
+      }
+    }
+  },
+  {
+    "idea_index": 26,
+    "keyword": "compatibility",
+    "claim": "The notes service stores all notes in a bare in-memory Map with no cap on the total number of notes per postcode; under ",
+    "final_score_mean": 58.0,
+    "final_score_stdev": 3.0,
+    "final_score_range": [
+      53.8,
+      62.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "8/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 6.3,
+        "stdev": 0.46
+      },
+      "customer_impact": {
+        "mean": 9,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 4.2,
+        "stdev": 0.4
+      },
+      "distinctiveness": {
+        "mean": 6,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5.9,
+        "stdev": 0.54
+      },
+      "ease_to_maintain": {
+        "mean": 4.8,
+        "stdev": 1.25
+      },
+      "similarity": {
+        "mean": 5.6,
+        "stdev": 0.49
+      },
+      "break_frequency": {
+        "mean": 4.6,
+        "stdev": 0.49
+      }
+    }
+  },
+  {
+    "idea_index": 27,
+    "keyword": "compatibility",
+    "claim": "There is no ownership or session scoping on PUT and DELETE /api/notes/:id; any client that knows or guesses a note ID ca",
+    "final_score_mean": 69.4,
+    "final_score_stdev": 1.9,
+    "final_score_range": [
+      66.2,
+      72.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "9/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 8,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 8.3,
+        "stdev": 0.46
+      },
+      "probability_of_occurrence": {
+        "mean": 5.6,
+        "stdev": 0.49
+      },
+      "distinctiveness": {
+        "mean": 7.1,
+        "stdev": 0.3
+      },
+      "prob_of_fix": {
+        "mean": 6.3,
+        "stdev": 0.46
+      },
+      "ease_to_maintain": {
+        "mean": 8,
+        "stdev": 0.45
+      },
+      "similarity": {
+        "mean": 6.9,
+        "stdev": 0.3
+      },
+      "break_frequency": {
+        "mean": 5.3,
+        "stdev": 0.64
+      }
+    }
+  },
+  {
+    "idea_index": 28,
+    "keyword": "performance",
+    "claim": "GET /api/notes/:postcode must respond within 500ms at p95 under normal load, but no measurement infrastructure exists to",
+    "final_score_mean": 38.4,
+    "final_score_stdev": 1.8,
+    "final_score_range": [
+      36.2,
+      41.2
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 4.1,
+        "stdev": 0.3
+      },
+      "customer_impact": {
+        "mean": 5.2,
+        "stdev": 0.4
+      },
+      "probability_of_occurrence": {
+        "mean": 4.5,
+        "stdev": 0.5
+      },
+      "distinctiveness": {
+        "mean": 4.1,
+        "stdev": 0.3
+      },
+      "prob_of_fix": {
+        "mean": 4,
+        "stdev": 0.0
+      },
+      "ease_to_maintain": {
+        "mean": 3.4,
+        "stdev": 0.49
+      },
+      "similarity": {
+        "mean": 3,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 2.4,
+        "stdev": 0.49
+      }
+    }
+  },
+  {
+    "idea_index": 29,
+    "keyword": "performance",
+    "claim": "The notes list endpoint (GET /api/notes/:postcode) may return results in non-deterministic order under concurrent load b",
+    "final_score_mean": 49.1,
+    "final_score_stdev": 3.0,
+    "final_score_range": [
+      43.8,
+      55.0
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "1/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 4.4,
+        "stdev": 0.49
+      },
+      "customer_impact": {
+        "mean": 5,
+        "stdev": 0.45
+      },
+      "probability_of_occurrence": {
+        "mean": 4.1,
+        "stdev": 0.3
+      },
+      "distinctiveness": {
+        "mean": 4.4,
+        "stdev": 0.49
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.45
+      },
+      "ease_to_maintain": {
+        "mean": 3.1,
+        "stdev": 0.54
+      },
+      "similarity": {
+        "mean": 6.3,
+        "stdev": 0.46
+      },
+      "break_frequency": {
+        "mean": 7,
+        "stdev": 0.0
+      }
+    }
+  },
+  {
+    "idea_index": 30,
+    "keyword": "development",
+    "claim": "The notes service stores all data in a bare in-memory Map with no persistence abstraction, meaning a server restart dest",
+    "final_score_mean": 47.6,
+    "final_score_stdev": 3.6,
+    "final_score_range": [
+      40.0,
+      53.8
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 4.3,
+        "stdev": 0.46
+      },
+      "customer_impact": {
+        "mean": 7.6,
+        "stdev": 0.49
+      },
+      "probability_of_occurrence": {
+        "mean": 5.8,
+        "stdev": 0.75
+      },
+      "distinctiveness": {
+        "mean": 4.6,
+        "stdev": 0.49
+      },
+      "prob_of_fix": {
+        "mean": 4.4,
+        "stdev": 0.49
+      },
+      "ease_to_maintain": {
+        "mean": 3,
+        "stdev": 0.77
+      },
+      "similarity": {
+        "mean": 4.3,
+        "stdev": 0.64
+      },
+      "break_frequency": {
+        "mean": 4.1,
+        "stdev": 0.54
+      }
+    }
+  },
+  {
+    "idea_index": 31,
+    "keyword": "development",
+    "claim": "The notesRoutes test 'should list all notes for a postcode (returns in insertion order)' is at-risk of flakiness because",
+    "final_score_mean": 51.6,
+    "final_score_stdev": 1.6,
+    "final_score_range": [
+      48.8,
+      55.0
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 4.2,
+        "stdev": 0.4
+      },
+      "probability_of_occurrence": {
+        "mean": 5.1,
+        "stdev": 0.3
+      },
+      "distinctiveness": {
+        "mean": 4.8,
+        "stdev": 0.4
+      },
+      "prob_of_fix": {
+        "mean": 5.6,
+        "stdev": 0.49
+      },
+      "ease_to_maintain": {
+        "mean": 3.1,
+        "stdev": 0.54
+      },
+      "similarity": {
+        "mean": 6.4,
+        "stdev": 0.49
+      },
+      "break_frequency": {
+        "mean": 7.1,
+        "stdev": 0.3
+      }
+    }
+  },
+  {
+    "idea_index": 32,
+    "keyword": "claims",
+    "claim": "GET /api/notes/:postcode returns notes in insertion order (the list is ordered by insertion time, not by any other order",
+    "final_score_mean": 61.1,
+    "final_score_stdev": 1.0,
+    "final_score_range": [
+      58.8,
+      62.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 7,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 5.8,
+        "stdev": 0.4
+      },
+      "distinctiveness": {
+        "mean": 5.1,
+        "stdev": 0.3
+      },
+      "prob_of_fix": {
+        "mean": 5.9,
+        "stdev": 0.3
+      },
+      "ease_to_maintain": {
+        "mean": 7,
+        "stdev": 0.0
+      },
+      "similarity": {
+        "mean": 6.1,
+        "stdev": 0.54
+      },
+      "break_frequency": {
+        "mean": 7,
+        "stdev": 0.0
+      }
+    }
+  },
+  {
+    "idea_index": 33,
+    "keyword": "claims",
+    "claim": "GET /api/notes/:postcode returns only notes associated with that specific postcode, not notes from other postcodes. Note",
+    "final_score_mean": 74.6,
+    "final_score_stdev": 0.8,
+    "final_score_range": [
+      73.8,
+      76.2
+    ],
+    "tiers_seen": [
+      "maybe",
+      "test_it"
+    ],
+    "tier_flipped": true,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 9,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 8.1,
+        "stdev": 0.3
+      },
+      "probability_of_occurrence": {
+        "mean": 6.8,
+        "stdev": 0.75
+      },
+      "distinctiveness": {
+        "mean": 7.1,
+        "stdev": 0.3
+      },
+      "prob_of_fix": {
+        "mean": 8,
+        "stdev": 0.0
+      },
+      "ease_to_maintain": {
+        "mean": 9,
+        "stdev": 0.0
+      },
+      "similarity": {
+        "mean": 6.8,
+        "stdev": 0.4
+      },
+      "break_frequency": {
+        "mean": 4.9,
+        "stdev": 0.3
+      }
+    }
+  },
+  {
+    "idea_index": 34,
+    "keyword": "comparable_products",
+    "claim": "PUT /api/notes/:id should return 404 when the given note ID does not exist, rather than silently creating a new resource",
+    "final_score_mean": 57.9,
+    "final_score_stdev": 2.2,
+    "final_score_range": [
+      53.8,
+      61.2
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 6.9,
+        "stdev": 0.3
+      },
+      "customer_impact": {
+        "mean": 5.5,
+        "stdev": 0.5
+      },
+      "probability_of_occurrence": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "distinctiveness": {
+        "mean": 5.8,
+        "stdev": 0.4
+      },
+      "prob_of_fix": {
+        "mean": 6.1,
+        "stdev": 0.3
+      },
+      "ease_to_maintain": {
+        "mean": 8.8,
+        "stdev": 0.4
+      },
+      "similarity": {
+        "mean": 4.9,
+        "stdev": 0.3
+      },
+      "break_frequency": {
+        "mean": 3.3,
+        "stdev": 0.46
+      }
+    }
+  },
+  {
+    "idea_index": 35,
+    "keyword": "comparable_products",
+    "claim": "Sustained creation of notes (without deletions) causes unbounded heap growth in the server process because the in-memory",
+    "final_score_mean": 56.1,
+    "final_score_stdev": 3.4,
+    "final_score_range": [
+      50.0,
+      61.2
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "8/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 6,
+        "stdev": 0.63
+      },
+      "customer_impact": {
+        "mean": 8.9,
+        "stdev": 0.3
+      },
+      "probability_of_occurrence": {
+        "mean": 3.7,
+        "stdev": 0.46
+      },
+      "distinctiveness": {
+        "mean": 6.3,
+        "stdev": 0.46
+      },
+      "prob_of_fix": {
+        "mean": 5.9,
+        "stdev": 0.54
+      },
+      "ease_to_maintain": {
+        "mean": 4.3,
+        "stdev": 0.9
+      },
+      "similarity": {
+        "mean": 5.5,
+        "stdev": 0.5
+      },
+      "break_frequency": {
+        "mean": 4.3,
+        "stdev": 0.46
+      }
+    }
+  },
+  {
+    "idea_index": 36,
+    "keyword": "self_consistency",
+    "claim": "When a note is successfully added via POST, the note's content must appear in the subsequent GET (list) response for the",
+    "final_score_mean": 73.4,
+    "final_score_stdev": 1.9,
+    "final_score_range": [
+      68.8,
+      76.2
+    ],
+    "tiers_seen": [
+      "maybe",
+      "test_it"
+    ],
+    "tier_flipped": true,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 8.9,
+        "stdev": 0.3
+      },
+      "customer_impact": {
+        "mean": 8,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 7.2,
+        "stdev": 0.6
+      },
+      "distinctiveness": {
+        "mean": 6.3,
+        "stdev": 0.46
+      },
+      "prob_of_fix": {
+        "mean": 7.9,
+        "stdev": 0.3
+      },
+      "ease_to_maintain": {
+        "mean": 9,
+        "stdev": 0.0
+      },
+      "similarity": {
+        "mean": 6.5,
+        "stdev": 0.5
+      },
+      "break_frequency": {
+        "mean": 4.9,
+        "stdev": 0.3
+      }
+    }
+  },
+  {
+    "idea_index": 37,
+    "keyword": "self_consistency",
+    "claim": "The 'Add Note' button disabled state must be consistent with the textarea content at all times: if textarea is empty or ",
+    "final_score_mean": 44.8,
+    "final_score_stdev": 3.4,
+    "final_score_range": [
+      38.8,
+      51.2
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5,
+        "stdev": 0.45
+      },
+      "customer_impact": {
+        "mean": 5.1,
+        "stdev": 0.3
+      },
+      "probability_of_occurrence": {
+        "mean": 5.2,
+        "stdev": 0.4
+      },
+      "distinctiveness": {
+        "mean": 4.4,
+        "stdev": 0.49
+      },
+      "prob_of_fix": {
+        "mean": 5.5,
+        "stdev": 0.5
+      },
+      "ease_to_maintain": {
+        "mean": 4,
+        "stdev": 1.0
+      },
+      "similarity": {
+        "mean": 3.8,
+        "stdev": 0.6
+      },
+      "break_frequency": {
+        "mean": 2.8,
+        "stdev": 0.4
+      }
+    }
+  },
+  {
+    "idea_index": 38,
+    "keyword": "dumb_user",
+    "claim": "A user who adds notes for a postcode will find all their notes gone after the server restarts, with no warning or explan",
+    "final_score_mean": 50.1,
+    "final_score_stdev": 3.2,
+    "final_score_range": [
+      43.8,
+      55.0
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 4.8,
+        "stdev": 0.6
+      },
+      "customer_impact": {
+        "mean": 8.8,
+        "stdev": 0.4
+      },
+      "probability_of_occurrence": {
+        "mean": 6.7,
+        "stdev": 0.64
+      },
+      "distinctiveness": {
+        "mean": 4.3,
+        "stdev": 0.46
+      },
+      "prob_of_fix": {
+        "mean": 4.4,
+        "stdev": 0.49
+      },
+      "ease_to_maintain": {
+        "mean": 2.7,
+        "stdev": 0.46
+      },
+      "similarity": {
+        "mean": 4.3,
+        "stdev": 0.64
+      },
+      "break_frequency": {
+        "mean": 4.1,
+        "stdev": 0.54
+      }
+    }
+  },
+  {
+    "idea_index": 39,
+    "keyword": "dumb_user",
+    "claim": "If the notes API is unavailable, the user sees an error message in the notes section, but the message may not tell them ",
+    "final_score_mean": 45.6,
+    "final_score_stdev": 1.3,
+    "final_score_range": [
+      43.8,
+      47.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "1/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 4.9,
+        "stdev": 0.3
+      },
+      "customer_impact": {
+        "mean": 6,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 4.9,
+        "stdev": 0.3
+      },
+      "distinctiveness": {
+        "mean": 4,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "ease_to_maintain": {
+        "mean": 4.6,
+        "stdev": 0.66
+      },
+      "similarity": {
+        "mean": 4.2,
+        "stdev": 0.4
+      },
+      "break_frequency": {
+        "mean": 2.9,
+        "stdev": 0.3
+      }
+    }
+  },
+  {
+    "idea_index": 40,
+    "keyword": "statistical_trend",
+    "claim": "The notes list ordering test (TH-2026-001) has already failed 1 out of 3 observed runs due to in-memory Map state shared",
+    "final_score_mean": 47.5,
+    "final_score_stdev": 2.0,
+    "final_score_range": [
+      45.0,
+      51.2
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 4,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 3.2,
+        "stdev": 0.4
+      },
+      "probability_of_occurrence": {
+        "mean": 5.2,
+        "stdev": 0.4
+      },
+      "distinctiveness": {
+        "mean": 3.5,
+        "stdev": 0.5
+      },
+      "prob_of_fix": {
+        "mean": 5.6,
+        "stdev": 0.49
+      },
+      "ease_to_maintain": {
+        "mean": 3.1,
+        "stdev": 0.83
+      },
+      "similarity": {
+        "mean": 6.4,
+        "stdev": 0.49
+      },
+      "break_frequency": {
+        "mean": 7,
+        "stdev": 0.0
+      }
+    }
+  },
+  {
+    "idea_index": 41,
+    "keyword": "statistical_trend",
+    "claim": "The notes-routes insertion-order test (TH-2026-001) fails non-deterministically due to concurrent test runner state shar",
+    "final_score_mean": 44.4,
+    "final_score_stdev": 1.1,
+    "final_score_range": [
+      42.5,
+      46.2
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 3.3,
+        "stdev": 0.46
+      },
+      "customer_impact": {
+        "mean": 3.1,
+        "stdev": 0.3
+      },
+      "probability_of_occurrence": {
+        "mean": 4.9,
+        "stdev": 0.54
+      },
+      "distinctiveness": {
+        "mean": 3.3,
+        "stdev": 0.46
+      },
+      "prob_of_fix": {
+        "mean": 4.8,
+        "stdev": 0.6
+      },
+      "ease_to_maintain": {
+        "mean": 2.7,
+        "stdev": 0.64
+      },
+      "similarity": {
+        "mean": 6.4,
+        "stdev": 0.49
+      },
+      "break_frequency": {
+        "mean": 7,
+        "stdev": 0.0
+      }
+    }
+  }
+]

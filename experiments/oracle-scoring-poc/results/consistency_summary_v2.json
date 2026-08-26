@@ -1,0 +1,6309 @@
+[
+  {
+    "idea_index": 0,
+    "keyword": "structure",
+    "claim": "The notes feature backend consists of at least two distinct code artifacts \u2014 `server/src/routes/notesRoutes.ts` and `ser",
+    "final_score_mean": 46.2,
+    "final_score_stdev": 1.6,
+    "final_score_range": [
+      44.8,
+      50.0
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 4.58,
+        "stdev": 0.27
+      },
+      "customer_impact": {
+        "mean": 3.98,
+        "stdev": 0.27
+      },
+      "probability_of_occurrence": {
+        "mean": 4.46,
+        "stdev": 0.18
+      },
+      "distinctiveness": {
+        "mean": 4.4,
+        "stdev": 0.27
+      },
+      "ease_to_maintain": {
+        "mean": 4.52,
+        "stdev": 0.75
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "unknown",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 1,
+    "keyword": "structure",
+    "claim": "The notes feature Gherkin specification (`postcode-info-panel.feature`) is the sole spec artifact covering notes behavio",
+    "final_score_mean": 41.0,
+    "final_score_stdev": 1.0,
+    "final_score_range": [
+      39.5,
+      42.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 3.62,
+        "stdev": 0.27
+      },
+      "customer_impact": {
+        "mean": 3.2,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 3.74,
+        "stdev": 0.18
+      },
+      "distinctiveness": {
+        "mean": 3.74,
+        "stdev": 0.18
+      },
+      "ease_to_maintain": {
+        "mean": 3.5,
+        "stdev": 0.48
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 2,
+    "keyword": "function",
+    "claim": "Creating a note (POST) semantically links the note content to a specific postcode \u2014 a note created for postcode '00180' ",
+    "final_score_mean": 66.7,
+    "final_score_stdev": 0.2,
+    "final_score_range": [
+      66.0,
+      66.8
+    ],
+    "tiers_seen": [
+      "prio2"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 9.0,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 9.0,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 6.26,
+        "stdev": 0.18
+      },
+      "distinctiveness": {
+        "mean": 6.68,
+        "stdev": 0.24
+      },
+      "ease_to_maintain": {
+        "mean": 7.4,
+        "stdev": 0.0
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 3,
+    "keyword": "function",
+    "claim": "Server restart semantically destroys all notes for all postcodes \u2014 the create/update operations do not produce durable p",
+    "final_score_mean": 55.8,
+    "final_score_stdev": 1.2,
+    "final_score_range": [
+      54.3,
+      57.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.6,
+        "stdev": 0.66
+      },
+      "customer_impact": {
+        "mean": 9.0,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 5.98,
+        "stdev": 0.44
+      },
+      "distinctiveness": {
+        "mean": 5.78,
+        "stdev": 0.38
+      },
+      "ease_to_maintain": {
+        "mean": 3.26,
+        "stdev": 0.18
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 4,
+    "keyword": "data",
+    "claim": "Note content is free-text (user-authored string) with a declared maximum length of 500 characters; the server currently ",
+    "final_score_mean": 67.0,
+    "final_score_stdev": 1.4,
+    "final_score_range": [
+      65.0,
+      70.0
+    ],
+    "tiers_seen": [
+      "prio2"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 9.0,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 7.0,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 5.54,
+        "stdev": 0.18
+      },
+      "distinctiveness": {
+        "mean": 7.7,
+        "stdev": 0.61
+      },
+      "ease_to_maintain": {
+        "mean": 7.4,
+        "stdev": 0.0
+      },
+      "similarity": {
+        "mean": 6.8,
+        "stdev": 0.6
+      },
+      "break_frequency": {
+        "mean": 5.1,
+        "stdev": 0.3
+      },
+      "prob_of_fix": {
+        "mean": 5.1,
+        "stdev": 0.3
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded",
+        "inferred",
+        "grounded"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "TD-2026-004",
+        "TD-2026-004",
+        "TD-2026-004",
+        "TD-2026-004",
+        "TD-2026-004",
+        "TD-2026-004",
+        "TD-2026-004",
+        "TD-2026-004",
+        "TD-2026-004",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "TD-2026-004",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "TD-2026-004",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 5,
+    "keyword": "data",
+    "claim": "Notes have implicit temporal/ordering metadata: the list endpoint returns notes 'in insertion order', but the in-memory ",
+    "final_score_mean": 55.8,
+    "final_score_stdev": 2.0,
+    "final_score_range": [
+      53.2,
+      59.0
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "4/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 6.2,
+        "stdev": 0.4
+      },
+      "customer_impact": {
+        "mean": 5.12,
+        "stdev": 0.24
+      },
+      "probability_of_occurrence": {
+        "mean": 5.0,
+        "stdev": 0.0
+      },
+      "distinctiveness": {
+        "mean": 5.3,
+        "stdev": 0.3
+      },
+      "ease_to_maintain": {
+        "mean": 4.1,
+        "stdev": 0.7
+      },
+      "similarity": {
+        "mean": 6.8,
+        "stdev": 0.6
+      },
+      "break_frequency": {
+        "mean": 7,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5.1,
+        "stdev": 0.3
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "inferred",
+        "grounded"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        ""
+      ],
+      "break_frequency": [
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001"
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "TH-2026-001",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 6,
+    "keyword": "interfaces",
+    "claim": "The Notes REST API must expose at minimum GET (list), POST (create), PUT (update), and DELETE endpoints scoped to a post",
+    "final_score_mean": 57.8,
+    "final_score_stdev": 1.9,
+    "final_score_range": [
+      56.0,
+      62.5
+    ],
+    "tiers_seen": [
+      "maybe",
+      "prio2"
+    ],
+    "tier_flipped": true,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 6.56,
+        "stdev": 0.55
+      },
+      "customer_impact": {
+        "mean": 7.14,
+        "stdev": 0.66
+      },
+      "probability_of_occurrence": {
+        "mean": 4.88,
+        "stdev": 0.24
+      },
+      "distinctiveness": {
+        "mean": 5.48,
+        "stdev": 0.36
+      },
+      "ease_to_maintain": {
+        "mean": 7.16,
+        "stdev": 0.29
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 7,
+    "keyword": "interfaces",
+    "claim": "The PostcodeNotes UI component interface must render a textarea with placeholder 'Add a note about this postcode...', an",
+    "final_score_mean": 46.2,
+    "final_score_stdev": 1.2,
+    "final_score_range": [
+      44.0,
+      47.8
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 4.1,
+        "stdev": 0.3
+      },
+      "customer_impact": {
+        "mean": 5.96,
+        "stdev": 0.29
+      },
+      "probability_of_occurrence": {
+        "mean": 4.52,
+        "stdev": 0.36
+      },
+      "distinctiveness": {
+        "mean": 4.16,
+        "stdev": 0.29
+      },
+      "ease_to_maintain": {
+        "mean": 3.26,
+        "stdev": 0.18
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 8,
+    "keyword": "platform",
+    "claim": "All notes data is held exclusively in a bare in-memory Map within the Node.js process; a container restart, crash, or re",
+    "final_score_mean": 56.7,
+    "final_score_stdev": 1.2,
+    "final_score_range": [
+      54.8,
+      59.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 6.1,
+        "stdev": 0.3
+      },
+      "customer_impact": {
+        "mean": 9.1,
+        "stdev": 0.3
+      },
+      "probability_of_occurrence": {
+        "mean": 6.1,
+        "stdev": 0.4
+      },
+      "distinctiveness": {
+        "mean": 5.78,
+        "stdev": 0.38
+      },
+      "ease_to_maintain": {
+        "mean": 3.26,
+        "stdev": 0.18
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 9,
+    "keyword": "platform",
+    "claim": "The notes backend runs on Node 18 Alpine (the declared base image); Alpine's minimal libc (musl) and stripped-down OS la",
+    "final_score_mean": 40.1,
+    "final_score_stdev": 0.8,
+    "final_score_range": [
+      38.8,
+      41.8
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 3.2,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 3.74,
+        "stdev": 0.18
+      },
+      "probability_of_occurrence": {
+        "mean": 3.2,
+        "stdev": 0.0
+      },
+      "distinctiveness": {
+        "mean": 3.56,
+        "stdev": 0.29
+      },
+      "ease_to_maintain": {
+        "mean": 3.38,
+        "stdev": 0.38
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 10,
+    "keyword": "operations",
+    "claim": "A malicious or curious user who knows or can guess a note's ID can modify or delete notes created by any other user/sess",
+    "final_score_mean": 73.2,
+    "final_score_stdev": 1.7,
+    "final_score_range": [
+      70.0,
+      76.0
+    ],
+    "tiers_seen": [
+      "prio2"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 9.0,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 8.0,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 6.06,
+        "stdev": 0.54
+      },
+      "distinctiveness": {
+        "mean": 7.76,
+        "stdev": 0.48
+      },
+      "ease_to_maintain": {
+        "mean": 6.86,
+        "stdev": 0.32
+      },
+      "similarity": {
+        "mean": 7.8,
+        "stdev": 0.4
+      },
+      "break_frequency": {
+        "mean": 6.9,
+        "stdev": 0.3
+      },
+      "prob_of_fix": {
+        "mean": 6.2,
+        "stdev": 0.75
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded",
+        "inferred",
+        "grounded"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "KI-2026-011"
+      ],
+      "break_frequency": [
+        "R-2026-006",
+        "R-2026-006",
+        "KI-2026-011",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006"
+      ],
+      "prob_of_fix": [
+        "R-2026-006",
+        "",
+        "KI-2026-011",
+        "KI-2026-011",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006"
+      ]
+    }
+  },
+  {
+    "idea_index": 11,
+    "keyword": "operations",
+    "claim": "A user who opens the info panel for postcode '00180', adds a note, then immediately clicks postcode '00100', should see ",
+    "final_score_mean": 64.6,
+    "final_score_stdev": 2.4,
+    "final_score_range": [
+      61.0,
+      68.2
+    ],
+    "tiers_seen": [
+      "prio2"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "4/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 7.2,
+        "stdev": 0.4
+      },
+      "customer_impact": {
+        "mean": 8.0,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 7.1,
+        "stdev": 0.77
+      },
+      "distinctiveness": {
+        "mean": 6.02,
+        "stdev": 0.27
+      },
+      "ease_to_maintain": {
+        "mean": 4.7,
+        "stdev": 0.4
+      },
+      "similarity": {
+        "mean": 6.8,
+        "stdev": 0.4
+      },
+      "break_frequency": {
+        "mean": 5.9,
+        "stdev": 0.3
+      },
+      "prob_of_fix": {
+        "mean": 6,
+        "stdev": 0.89
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "grounded",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008"
+      ],
+      "break_frequency": [
+        "",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008"
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008"
+      ]
+    }
+  },
+  {
+    "idea_index": 12,
+    "keyword": "time",
+    "claim": "All notes data is lost on server restart because the notes store is a bare in-memory Map with no persistence; any notes ",
+    "final_score_mean": 54.5,
+    "final_score_stdev": 0.9,
+    "final_score_range": [
+      52.8,
+      56.2
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.2,
+        "stdev": 0.4
+      },
+      "customer_impact": {
+        "mean": 9.0,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 6.04,
+        "stdev": 0.43
+      },
+      "distinctiveness": {
+        "mean": 5.18,
+        "stdev": 0.38
+      },
+      "ease_to_maintain": {
+        "mean": 3.2,
+        "stdev": 0.0
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 13,
+    "keyword": "time",
+    "claim": "Because the 500-character maximum is enforced only in the UI component and not on the server side, a client that submits",
+    "final_score_mean": 61.6,
+    "final_score_stdev": 2.3,
+    "final_score_range": [
+      59.5,
+      65.8
+    ],
+    "tiers_seen": [
+      "maybe",
+      "prio2"
+    ],
+    "tier_flipped": true,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 7.5,
+        "stdev": 0.5
+      },
+      "customer_impact": {
+        "mean": 5.74,
+        "stdev": 0.42
+      },
+      "probability_of_occurrence": {
+        "mean": 5.36,
+        "stdev": 0.29
+      },
+      "distinctiveness": {
+        "mean": 6.08,
+        "stdev": 0.68
+      },
+      "ease_to_maintain": {
+        "mean": 7.4,
+        "stdev": 0.0
+      },
+      "similarity": {
+        "mean": 6.8,
+        "stdev": 0.6
+      },
+      "break_frequency": {
+        "mean": 5.1,
+        "stdev": 0.3
+      },
+      "prob_of_fix": {
+        "mean": 5.3,
+        "stdev": 0.64
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "TD-2026-004",
+        "TD-2026-004",
+        "TD-2026-004",
+        "TD-2026-004",
+        "TD-2026-004",
+        "TD-2026-004",
+        "TD-2026-004",
+        "TD-2026-004",
+        "TD-2026-004",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "TD-2026-004",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "TD-2026-004",
+        "",
+        "",
+        "TD-2026-004",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 14,
+    "keyword": "capability",
+    "claim": "The notes CRUD API must support all four operations: listing notes for a postcode (GET), adding a new note (POST), updat",
+    "final_score_mean": 57.3,
+    "final_score_stdev": 1.9,
+    "final_score_range": [
+      56.0,
+      62.5
+    ],
+    "tiers_seen": [
+      "maybe",
+      "prio2"
+    ],
+    "tier_flipped": true,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 6.44,
+        "stdev": 0.55
+      },
+      "customer_impact": {
+        "mean": 7.14,
+        "stdev": 0.66
+      },
+      "probability_of_occurrence": {
+        "mean": 4.88,
+        "stdev": 0.24
+      },
+      "distinctiveness": {
+        "mean": 5.24,
+        "stdev": 0.4
+      },
+      "ease_to_maintain": {
+        "mean": 7.16,
+        "stdev": 0.29
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 15,
+    "keyword": "capability",
+    "claim": "The PostcodeInfoPanel integration with the PostcodeNotes component via the useNotes hook has zero test coverage, meaning",
+    "final_score_mean": 65.7,
+    "final_score_stdev": 4.0,
+    "final_score_range": [
+      57.2,
+      69.0
+    ],
+    "tiers_seen": [
+      "maybe",
+      "prio2"
+    ],
+    "tier_flipped": true,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 7.4,
+        "stdev": 0.8
+      },
+      "customer_impact": {
+        "mean": 8.9,
+        "stdev": 0.3
+      },
+      "probability_of_occurrence": {
+        "mean": 6.48,
+        "stdev": 0.56
+      },
+      "distinctiveness": {
+        "mean": 6.04,
+        "stdev": 0.5
+      },
+      "ease_to_maintain": {
+        "mean": 3.68,
+        "stdev": 0.24
+      },
+      "similarity": {
+        "mean": 7.6,
+        "stdev": 0.49
+      },
+      "break_frequency": {
+        "mean": 6.4,
+        "stdev": 0.49
+      },
+      "prob_of_fix": {
+        "mean": 6.1,
+        "stdev": 0.94
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "grounded",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008"
+      ],
+      "break_frequency": [
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008"
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008",
+        "KI-2026-008"
+      ]
+    }
+  },
+  {
+    "idea_index": 16,
+    "keyword": "reliability",
+    "claim": "All notes data is permanently lost on every server restart because the notes store is an in-memory Map with no persisten",
+    "final_score_mean": 55.0,
+    "final_score_stdev": 1.6,
+    "final_score_range": [
+      52.8,
+      58.8
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.4,
+        "stdev": 0.66
+      },
+      "customer_impact": {
+        "mean": 9.1,
+        "stdev": 0.3
+      },
+      "probability_of_occurrence": {
+        "mean": 6.04,
+        "stdev": 0.43
+      },
+      "distinctiveness": {
+        "mean": 5.24,
+        "stdev": 0.4
+      },
+      "ease_to_maintain": {
+        "mean": 3.2,
+        "stdev": 0.0
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 17,
+    "keyword": "reliability",
+    "claim": "The notes list endpoint (GET /api/notes/:postcode) produces non-deterministic ordering when tests run concurrently becau",
+    "final_score_mean": 54.6,
+    "final_score_stdev": 2.1,
+    "final_score_range": [
+      51.0,
+      57.0
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.8,
+        "stdev": 0.4
+      },
+      "customer_impact": {
+        "mean": 5.42,
+        "stdev": 0.27
+      },
+      "probability_of_occurrence": {
+        "mean": 4.82,
+        "stdev": 0.27
+      },
+      "distinctiveness": {
+        "mean": 4.94,
+        "stdev": 0.32
+      },
+      "ease_to_maintain": {
+        "mean": 3.7,
+        "stdev": 0.66
+      },
+      "similarity": {
+        "mean": 6.9,
+        "stdev": 0.7
+      },
+      "break_frequency": {
+        "mean": 7,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5.1,
+        "stdev": 0.3
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded",
+        "inferred",
+        "grounded"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        ""
+      ],
+      "break_frequency": [
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001"
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "TH-2026-001",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 18,
+    "keyword": "usability",
+    "claim": "Keyboard users cannot dismiss the note edit textarea by pressing Escape \u2014 only by clicking Cancel \u2014 making edit mode a k",
+    "final_score_mean": 58.6,
+    "final_score_stdev": 0.9,
+    "final_score_range": [
+      57.2,
+      59.8
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 7.1,
+        "stdev": 0.3
+      },
+      "customer_impact": {
+        "mean": 6.9,
+        "stdev": 0.3
+      },
+      "probability_of_occurrence": {
+        "mean": 5.7,
+        "stdev": 0.3
+      },
+      "distinctiveness": {
+        "mean": 5.7,
+        "stdev": 0.54
+      },
+      "ease_to_maintain": {
+        "mean": 4.1,
+        "stdev": 0.61
+      },
+      "similarity": {
+        "mean": 6.1,
+        "stdev": 0.3
+      },
+      "break_frequency": {
+        "mean": 6,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5.3,
+        "stdev": 0.46
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "grounded"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "KI-2026-009",
+        "KI-2026-009",
+        "KI-2026-009",
+        "KI-2026-009",
+        "KI-2026-009",
+        "KI-2026-009",
+        "KI-2026-009",
+        "KI-2026-009",
+        "KI-2026-009",
+        "KI-2026-009"
+      ],
+      "break_frequency": [
+        "KI-2026-009",
+        "KI-2026-009",
+        "KI-2026-009",
+        "KI-2026-009",
+        "KI-2026-009",
+        "KI-2026-009",
+        "KI-2026-009",
+        "KI-2026-009",
+        "KI-2026-009",
+        "KI-2026-009"
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "KI-2026-009",
+        "",
+        "KI-2026-009",
+        "KI-2026-009",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 19,
+    "keyword": "usability",
+    "claim": "When a note is saved or cancelled in edit mode, the edit textarea must be dismissed and the normal note display restored",
+    "final_score_mean": 49.8,
+    "final_score_stdev": 1.7,
+    "final_score_range": [
+      47.0,
+      52.8
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.52,
+        "stdev": 0.29
+      },
+      "customer_impact": {
+        "mean": 5.42,
+        "stdev": 0.27
+      },
+      "probability_of_occurrence": {
+        "mean": 5.18,
+        "stdev": 0.38
+      },
+      "distinctiveness": {
+        "mean": 4.7,
+        "stdev": 0.3
+      },
+      "ease_to_maintain": {
+        "mean": 3.98,
+        "stdev": 0.47
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 20,
+    "keyword": "charisma",
+    "claim": "The notes section should feel cohesive with the rest of the PostcodeInfoPanel \u2014 it has a visible heading, placeholder te",
+    "final_score_mean": 43.5,
+    "final_score_stdev": 0.7,
+    "final_score_range": [
+      42.5,
+      44.8
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 4.04,
+        "stdev": 0.29
+      },
+      "customer_impact": {
+        "mean": 4.4,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 4.28,
+        "stdev": 0.24
+      },
+      "distinctiveness": {
+        "mean": 3.92,
+        "stdev": 0.24
+      },
+      "ease_to_maintain": {
+        "mean": 3.2,
+        "stdev": 0.0
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 21,
+    "keyword": "charisma",
+    "claim": "The error state shown when the notes API is unavailable ('an error message') should display a human-readable, actionable",
+    "final_score_mean": 52.6,
+    "final_score_stdev": 2.1,
+    "final_score_range": [
+      50.2,
+      57.2
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "1/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 6.18,
+        "stdev": 0.56
+      },
+      "customer_impact": {
+        "mean": 5.86,
+        "stdev": 0.42
+      },
+      "probability_of_occurrence": {
+        "mean": 5.06,
+        "stdev": 0.18
+      },
+      "distinctiveness": {
+        "mean": 5.12,
+        "stdev": 0.24
+      },
+      "ease_to_maintain": {
+        "mean": 4.88,
+        "stdev": 0.92
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "customer_impact": [
+        "inferred",
+        "grounded",
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 22,
+    "keyword": "security",
+    "claim": "PUT /api/notes/:id and DELETE /api/notes/:id accept any note ID with no ownership verification \u2014 a client that knows or ",
+    "final_score_mean": 73.5,
+    "final_score_stdev": 1.7,
+    "final_score_range": [
+      70.0,
+      76.0
+    ],
+    "tiers_seen": [
+      "prio2"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 9.0,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 8.0,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 6.06,
+        "stdev": 0.54
+      },
+      "distinctiveness": {
+        "mean": 7.76,
+        "stdev": 0.48
+      },
+      "ease_to_maintain": {
+        "mean": 7.1,
+        "stdev": 0.3
+      },
+      "similarity": {
+        "mean": 7.8,
+        "stdev": 0.4
+      },
+      "break_frequency": {
+        "mean": 6.9,
+        "stdev": 0.3
+      },
+      "prob_of_fix": {
+        "mean": 6.2,
+        "stdev": 0.75
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded",
+        "inferred",
+        "grounded"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "KI-2026-011"
+      ],
+      "break_frequency": [
+        "R-2026-006",
+        "R-2026-006",
+        "KI-2026-011",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006"
+      ],
+      "prob_of_fix": [
+        "R-2026-006",
+        "",
+        "KI-2026-011",
+        "KI-2026-011",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006"
+      ]
+    }
+  },
+  {
+    "idea_index": 23,
+    "keyword": "security",
+    "claim": "The notes API endpoints (GET, POST, PUT, DELETE /api/notes/:postcode or /api/notes/:id) must enforce the production CORS",
+    "final_score_mean": 50.8,
+    "final_score_stdev": 1.5,
+    "final_score_range": [
+      47.8,
+      52.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.5,
+        "stdev": 0.5
+      },
+      "customer_impact": {
+        "mean": 6.02,
+        "stdev": 0.27
+      },
+      "probability_of_occurrence": {
+        "mean": 4.28,
+        "stdev": 0.24
+      },
+      "distinctiveness": {
+        "mean": 5.52,
+        "stdev": 0.29
+      },
+      "ease_to_maintain": {
+        "mean": 4.28,
+        "stdev": 0.24
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "inferred",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded",
+        "grounded",
+        "inferred"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 24,
+    "keyword": "scalability",
+    "claim": "The notes storage backend has no cap on the total number of notes per postcode; sustained use will accumulate notes unbo",
+    "final_score_mean": 63.1,
+    "final_score_stdev": 2.4,
+    "final_score_range": [
+      60.2,
+      66.5
+    ],
+    "tiers_seen": [
+      "prio2"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 7.5,
+        "stdev": 0.5
+      },
+      "customer_impact": {
+        "mean": 8.7,
+        "stdev": 0.46
+      },
+      "probability_of_occurrence": {
+        "mean": 5.0,
+        "stdev": 0.27
+      },
+      "distinctiveness": {
+        "mean": 6.6,
+        "stdev": 0.4
+      },
+      "ease_to_maintain": {
+        "mean": 5.42,
+        "stdev": 0.27
+      },
+      "similarity": {
+        "mean": 6.5,
+        "stdev": 0.67
+      },
+      "break_frequency": {
+        "mean": 5.6,
+        "stdev": 0.49
+      },
+      "prob_of_fix": {
+        "mean": 5.2,
+        "stdev": 0.4
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "",
+        "R-2026-007"
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "R-2026-007",
+        "",
+        "R-2026-007",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 25,
+    "keyword": "scalability",
+    "claim": "The in-memory Map storage causes non-deterministic test ordering when test suites run in parallel, because note state ac",
+    "final_score_mean": 53.0,
+    "final_score_stdev": 1.9,
+    "final_score_range": [
+      50.5,
+      55.8
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.2,
+        "stdev": 0.4
+      },
+      "customer_impact": {
+        "mean": 5.3,
+        "stdev": 0.3
+      },
+      "probability_of_occurrence": {
+        "mean": 4.7,
+        "stdev": 0.3
+      },
+      "distinctiveness": {
+        "mean": 4.76,
+        "stdev": 0.29
+      },
+      "ease_to_maintain": {
+        "mean": 3.4,
+        "stdev": 0.6
+      },
+      "similarity": {
+        "mean": 6.9,
+        "stdev": 0.7
+      },
+      "break_frequency": {
+        "mean": 7,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5.1,
+        "stdev": 0.3
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        ""
+      ],
+      "break_frequency": [
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001"
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "TH-2026-001",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 26,
+    "keyword": "compatibility",
+    "claim": "The notes service stores all notes in a bare in-memory Map with no cap on the total number of notes per postcode; under ",
+    "final_score_mean": 60.4,
+    "final_score_stdev": 2.5,
+    "final_score_range": [
+      57.5,
+      64.0
+    ],
+    "tiers_seen": [
+      "maybe",
+      "prio2"
+    ],
+    "tier_flipped": true,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 6.5,
+        "stdev": 0.5
+      },
+      "customer_impact": {
+        "mean": 8.7,
+        "stdev": 0.46
+      },
+      "probability_of_occurrence": {
+        "mean": 4.76,
+        "stdev": 0.29
+      },
+      "distinctiveness": {
+        "mean": 5.76,
+        "stdev": 0.25
+      },
+      "ease_to_maintain": {
+        "mean": 5.3,
+        "stdev": 0.3
+      },
+      "similarity": {
+        "mean": 6.5,
+        "stdev": 0.67
+      },
+      "break_frequency": {
+        "mean": 5.6,
+        "stdev": 0.49
+      },
+      "prob_of_fix": {
+        "mean": 5.2,
+        "stdev": 0.4
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "",
+        "R-2026-007"
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "R-2026-007",
+        "",
+        "R-2026-007",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 27,
+    "keyword": "compatibility",
+    "claim": "There is no ownership or session scoping on PUT and DELETE /api/notes/:id; any client that knows or guesses a note ID ca",
+    "final_score_mean": 70.2,
+    "final_score_stdev": 2.3,
+    "final_score_range": [
+      65.0,
+      73.0
+    ],
+    "tiers_seen": [
+      "prio2"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 8.0,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 7.9,
+        "stdev": 0.3
+      },
+      "probability_of_occurrence": {
+        "mean": 5.7,
+        "stdev": 0.2
+      },
+      "distinctiveness": {
+        "mean": 6.88,
+        "stdev": 0.66
+      },
+      "ease_to_maintain": {
+        "mean": 6.8,
+        "stdev": 0.38
+      },
+      "similarity": {
+        "mean": 7.8,
+        "stdev": 0.4
+      },
+      "break_frequency": {
+        "mean": 6.9,
+        "stdev": 0.3
+      },
+      "prob_of_fix": {
+        "mean": 6.2,
+        "stdev": 0.75
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded",
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "KI-2026-011"
+      ],
+      "break_frequency": [
+        "R-2026-006",
+        "R-2026-006",
+        "KI-2026-011",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006"
+      ],
+      "prob_of_fix": [
+        "R-2026-006",
+        "",
+        "KI-2026-011",
+        "KI-2026-011",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006",
+        "R-2026-006"
+      ]
+    }
+  },
+  {
+    "idea_index": 28,
+    "keyword": "performance",
+    "claim": "GET /api/notes/:postcode must respond within 500ms at p95 under normal load, but no measurement infrastructure exists to",
+    "final_score_mean": 47.4,
+    "final_score_stdev": 1.1,
+    "final_score_range": [
+      45.0,
+      49.0
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 4.78,
+        "stdev": 0.35
+      },
+      "customer_impact": {
+        "mean": 5.28,
+        "stdev": 0.36
+      },
+      "probability_of_occurrence": {
+        "mean": 4.4,
+        "stdev": 0.27
+      },
+      "distinctiveness": {
+        "mean": 4.64,
+        "stdev": 0.29
+      },
+      "ease_to_maintain": {
+        "mean": 3.8,
+        "stdev": 0.0
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "inferred",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 29,
+    "keyword": "performance",
+    "claim": "The notes list endpoint (GET /api/notes/:postcode) may return results in non-deterministic order under concurrent load b",
+    "final_score_mean": 52.9,
+    "final_score_stdev": 2.0,
+    "final_score_range": [
+      49.8,
+      55.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "2/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.3,
+        "stdev": 0.46
+      },
+      "customer_impact": {
+        "mean": 5.06,
+        "stdev": 0.18
+      },
+      "probability_of_occurrence": {
+        "mean": 4.58,
+        "stdev": 0.27
+      },
+      "distinctiveness": {
+        "mean": 4.76,
+        "stdev": 0.29
+      },
+      "ease_to_maintain": {
+        "mean": 3.7,
+        "stdev": 0.91
+      },
+      "similarity": {
+        "mean": 6.9,
+        "stdev": 0.7
+      },
+      "break_frequency": {
+        "mean": 7,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        ""
+      ],
+      "break_frequency": [
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001"
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 30,
+    "keyword": "development",
+    "claim": "The notes service stores all data in a bare in-memory Map with no persistence abstraction, meaning a server restart dest",
+    "final_score_mean": 50.9,
+    "final_score_stdev": 1.3,
+    "final_score_range": [
+      48.2,
+      52.8
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 4.44,
+        "stdev": 0.47
+      },
+      "customer_impact": {
+        "mean": 7.6,
+        "stdev": 0.49
+      },
+      "probability_of_occurrence": {
+        "mean": 5.56,
+        "stdev": 0.61
+      },
+      "distinctiveness": {
+        "mean": 4.88,
+        "stdev": 0.24
+      },
+      "ease_to_maintain": {
+        "mean": 3.26,
+        "stdev": 0.18
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "inferred"
+      ],
+      "customer_impact": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 31,
+    "keyword": "development",
+    "claim": "The notesRoutes test 'should list all notes for a postcode (returns in insertion order)' is at-risk of flakiness because",
+    "final_score_mean": 54.0,
+    "final_score_stdev": 2.4,
+    "final_score_range": [
+      49.8,
+      59.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.8,
+        "stdev": 0.4
+      },
+      "customer_impact": {
+        "mean": 4.64,
+        "stdev": 0.29
+      },
+      "probability_of_occurrence": {
+        "mean": 5.5,
+        "stdev": 0.5
+      },
+      "distinctiveness": {
+        "mean": 5.0,
+        "stdev": 0.38
+      },
+      "ease_to_maintain": {
+        "mean": 2.98,
+        "stdev": 0.58
+      },
+      "similarity": {
+        "mean": 7.1,
+        "stdev": 0.83
+      },
+      "break_frequency": {
+        "mean": 7,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5.2,
+        "stdev": 0.6
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "inferred",
+        "inferred",
+        "grounded"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "inferred",
+        "grounded"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        ""
+      ],
+      "break_frequency": [
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001"
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "TH-2026-001",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 32,
+    "keyword": "claims",
+    "claim": "GET /api/notes/:postcode returns notes in insertion order (the list is ordered by insertion time, not by any other order",
+    "final_score_mean": 60.8,
+    "final_score_stdev": 1.5,
+    "final_score_range": [
+      58.0,
+      63.2
+    ],
+    "tiers_seen": [
+      "maybe",
+      "prio2"
+    ],
+    "tier_flipped": true,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 7.4,
+        "stdev": 0.49
+      },
+      "customer_impact": {
+        "mean": 5.12,
+        "stdev": 0.24
+      },
+      "probability_of_occurrence": {
+        "mean": 5.36,
+        "stdev": 0.29
+      },
+      "distinctiveness": {
+        "mean": 5.48,
+        "stdev": 0.24
+      },
+      "ease_to_maintain": {
+        "mean": 6.38,
+        "stdev": 0.27
+      },
+      "similarity": {
+        "mean": 6.8,
+        "stdev": 0.6
+      },
+      "break_frequency": {
+        "mean": 7,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5.1,
+        "stdev": 0.3
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        ""
+      ],
+      "break_frequency": [
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001"
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "TH-2026-001",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 33,
+    "keyword": "claims",
+    "claim": "GET /api/notes/:postcode returns only notes associated with that specific postcode, not notes from other postcodes. Note",
+    "final_score_mean": 64.0,
+    "final_score_stdev": 1.2,
+    "final_score_range": [
+      62.5,
+      66.8
+    ],
+    "tiers_seen": [
+      "prio2"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 9.0,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 7.38,
+        "stdev": 0.76
+      },
+      "probability_of_occurrence": {
+        "mean": 6.08,
+        "stdev": 0.24
+      },
+      "distinctiveness": {
+        "mean": 6.32,
+        "stdev": 0.24
+      },
+      "ease_to_maintain": {
+        "mean": 7.4,
+        "stdev": 0.0
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 34,
+    "keyword": "comparable_products",
+    "claim": "PUT /api/notes/:id should return 404 when the given note ID does not exist, rather than silently creating a new resource",
+    "final_score_mean": 54.5,
+    "final_score_stdev": 0.7,
+    "final_score_range": [
+      53.8,
+      56.0
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 6.2,
+        "stdev": 0.0
+      },
+      "customer_impact": {
+        "mean": 5.06,
+        "stdev": 0.18
+      },
+      "probability_of_occurrence": {
+        "mean": 4.7,
+        "stdev": 0.3
+      },
+      "distinctiveness": {
+        "mean": 5.6,
+        "stdev": 0.0
+      },
+      "ease_to_maintain": {
+        "mean": 7.04,
+        "stdev": 0.29
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 35,
+    "keyword": "comparable_products",
+    "claim": "Sustained creation of notes (without deletions) causes unbounded heap growth in the server process because the in-memory",
+    "final_score_mean": 59.8,
+    "final_score_stdev": 2.3,
+    "final_score_range": [
+      56.8,
+      64.0
+    ],
+    "tiers_seen": [
+      "maybe",
+      "prio2"
+    ],
+    "tier_flipped": true,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 6.5,
+        "stdev": 0.5
+      },
+      "customer_impact": {
+        "mean": 8.6,
+        "stdev": 0.49
+      },
+      "probability_of_occurrence": {
+        "mean": 4.52,
+        "stdev": 0.36
+      },
+      "distinctiveness": {
+        "mean": 5.8,
+        "stdev": 0.25
+      },
+      "ease_to_maintain": {
+        "mean": 5.12,
+        "stdev": 0.36
+      },
+      "similarity": {
+        "mean": 6.5,
+        "stdev": 0.67
+      },
+      "break_frequency": {
+        "mean": 5.6,
+        "stdev": 0.49
+      },
+      "prob_of_fix": {
+        "mean": 5.2,
+        "stdev": 0.4
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "R-2026-007",
+        "",
+        "R-2026-007"
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "R-2026-007",
+        "",
+        "R-2026-007",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 36,
+    "keyword": "self_consistency",
+    "claim": "When a note is successfully added via POST, the note's content must appear in the subsequent GET (list) response for the",
+    "final_score_mean": 63.0,
+    "final_score_stdev": 1.5,
+    "final_score_range": [
+      60.5,
+      64.8
+    ],
+    "tiers_seen": [
+      "prio2"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "10/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 8.52,
+        "stdev": 0.73
+      },
+      "customer_impact": {
+        "mean": 7.28,
+        "stdev": 0.59
+      },
+      "probability_of_occurrence": {
+        "mean": 6.08,
+        "stdev": 0.24
+      },
+      "distinctiveness": {
+        "mean": 6.14,
+        "stdev": 0.18
+      },
+      "ease_to_maintain": {
+        "mean": 7.4,
+        "stdev": 0.0
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded",
+        "inferred",
+        "grounded"
+      ],
+      "customer_impact": [
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 37,
+    "keyword": "self_consistency",
+    "claim": "The 'Add Note' button disabled state must be consistent with the textarea content at all times: if textarea is empty or ",
+    "final_score_mean": 47.2,
+    "final_score_stdev": 1.3,
+    "final_score_range": [
+      45.5,
+      50.0
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.12,
+        "stdev": 0.36
+      },
+      "customer_impact": {
+        "mean": 5.06,
+        "stdev": 0.18
+      },
+      "probability_of_occurrence": {
+        "mean": 4.58,
+        "stdev": 0.27
+      },
+      "distinctiveness": {
+        "mean": 4.58,
+        "stdev": 0.27
+      },
+      "ease_to_maintain": {
+        "mean": 3.44,
+        "stdev": 0.29
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 38,
+    "keyword": "dumb_user",
+    "claim": "A user who adds notes for a postcode will find all their notes gone after the server restarts, with no warning or explan",
+    "final_score_mean": 52.5,
+    "final_score_stdev": 1.6,
+    "final_score_range": [
+      49.5,
+      55.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 4.9,
+        "stdev": 0.54
+      },
+      "customer_impact": {
+        "mean": 8.3,
+        "stdev": 0.46
+      },
+      "probability_of_occurrence": {
+        "mean": 5.86,
+        "stdev": 0.52
+      },
+      "distinctiveness": {
+        "mean": 4.7,
+        "stdev": 0.3
+      },
+      "ease_to_maintain": {
+        "mean": 3.26,
+        "stdev": 0.18
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 39,
+    "keyword": "dumb_user",
+    "claim": "If the notes API is unavailable, the user sees an error message in the notes section, but the message may not tell them ",
+    "final_score_mean": 48.5,
+    "final_score_stdev": 1.4,
+    "final_score_range": [
+      47.0,
+      51.8
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 5.1,
+        "stdev": 0.3
+      },
+      "customer_impact": {
+        "mean": 5.6,
+        "stdev": 0.35
+      },
+      "probability_of_occurrence": {
+        "mean": 4.58,
+        "stdev": 0.27
+      },
+      "distinctiveness": {
+        "mean": 4.52,
+        "stdev": 0.24
+      },
+      "ease_to_maintain": {
+        "mean": 3.98,
+        "stdev": 0.47
+      },
+      "similarity": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "break_frequency": {
+        "mean": 5,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5,
+        "stdev": 0.0
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "grounded",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "break_frequency": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 40,
+    "keyword": "statistical_trend",
+    "claim": "The notes list ordering test (TH-2026-001) has already failed 1 out of 3 observed runs due to in-memory Map state shared",
+    "final_score_mean": 50.2,
+    "final_score_stdev": 2.4,
+    "final_score_range": [
+      47.8,
+      56.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 4.2,
+        "stdev": 0.4
+      },
+      "customer_impact": {
+        "mean": 3.98,
+        "stdev": 0.27
+      },
+      "probability_of_occurrence": {
+        "mean": 5.44,
+        "stdev": 0.59
+      },
+      "distinctiveness": {
+        "mean": 3.98,
+        "stdev": 0.38
+      },
+      "ease_to_maintain": {
+        "mean": 3.32,
+        "stdev": 0.36
+      },
+      "similarity": {
+        "mean": 7.1,
+        "stdev": 0.83
+      },
+      "break_frequency": {
+        "mean": 7,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5.1,
+        "stdev": 0.3
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "inferred",
+        "inferred",
+        "grounded"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        ""
+      ],
+      "break_frequency": [
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001"
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "TH-2026-001",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  },
+  {
+    "idea_index": 41,
+    "keyword": "statistical_trend",
+    "claim": "The notes-routes insertion-order test (TH-2026-001) fails non-deterministically due to concurrent test runner state shar",
+    "final_score_mean": 49.2,
+    "final_score_stdev": 1.6,
+    "final_score_range": [
+      46.5,
+      52.5
+    ],
+    "tiers_seen": [
+      "maybe"
+    ],
+    "tier_flipped": false,
+    "testable_now_agreement": "0/10",
+    "axis_stats": {
+      "gut": {
+        "mean": 3.9,
+        "stdev": 0.3
+      },
+      "customer_impact": {
+        "mean": 3.8,
+        "stdev": 0.0
+      },
+      "probability_of_occurrence": {
+        "mean": 5.28,
+        "stdev": 0.63
+      },
+      "distinctiveness": {
+        "mean": 3.92,
+        "stdev": 0.24
+      },
+      "ease_to_maintain": {
+        "mean": 3.26,
+        "stdev": 0.18
+      },
+      "similarity": {
+        "mean": 7.1,
+        "stdev": 0.83
+      },
+      "break_frequency": {
+        "mean": 7,
+        "stdev": 0.0
+      },
+      "prob_of_fix": {
+        "mean": 5.1,
+        "stdev": 0.3
+      }
+    },
+    "confidence_tags": {
+      "gut": [
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded",
+        "grounded"
+      ],
+      "customer_impact": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "probability_of_occurrence": [
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded",
+        "inferred",
+        "grounded",
+        "grounded",
+        "inferred",
+        "inferred",
+        "grounded"
+      ],
+      "distinctiveness": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ],
+      "ease_to_maintain": [
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred",
+        "inferred"
+      ]
+    },
+    "citations": {
+      "similarity": [
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        ""
+      ],
+      "break_frequency": [
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001",
+        "TH-2026-001"
+      ],
+      "prob_of_fix": [
+        "",
+        "",
+        "",
+        "",
+        "TH-2026-001",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  }
+]
