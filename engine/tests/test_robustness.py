@@ -16,7 +16,7 @@ from engine.http import call_sut_once
 
 def _valid_test(**overrides):
     base = {
-        "linked_hypothesis": "", "auth_token": "tok_live_9f2c8a41", "card_number": "4111104332181963",
+        "linked_hypothesis": "", "oracle_claim_id": "", "auth_token": "tok_live_9f2c8a41", "card_number": "4111104332181963",
         "expiry_month": 11, "expiry_year": 2027, "cvv": "482", "credit_count": 10,
         "predicted_outcome": "approved", "predicted_status": "approved", "predicted_decline_reason": "",
     }
@@ -34,6 +34,7 @@ def test_validate_casting_response_accepts_well_typed_test():
     ("card_number", None),
     ("cvv", ["482"]),
     ("linked_hypothesis", 0),
+    ("oracle_claim_id", 0),
 ])
 def test_validate_casting_response_rejects_non_string_fields(field, bad_value):
     data = {"give_up": False, "reasoning": "x", "candidate_tests": [_valid_test(**{field: bad_value})]}

@@ -7,7 +7,7 @@ the Driver, plus a heuristic library and a context/results feed. See
 `/memories/repo/ontology-phase0-status.md` for the full session history that
 led here.
 
-## Status: Phase 0 proven on `token_purchase`, one real gap found
+## Status: Phase 0 proven on `token_purchase`; claim-matching gap fixed
 
 The 4 layers exist as flat JSON files, wired together by
 `engine/ontology/oracle_creator.py`, rendered by `engine/ontology/website.py`,
@@ -26,34 +26,41 @@ and the Driver has been live-run once against them end to end:
 in its onboarding evidence, and `engine/ontology/feedback.py` writes a completed
 Driver run's results back into `context_<sut>.json`.
 
-## Known gap — claim matching is exact-string only
+## Resolved gap — claim matching was exact-string only
 
 Confirmed live: after a real Driver run (2 checkpoints, 3 tests/round), the
-ranking did **not** shift, because `oracle_creator.score_grounded_claim` matches
+ranking did **not** shift, because `oracle_creator.score_grounded_claim` matched
 a test result to an oracle claim by exact string equality — but the Driver's
 `linked_hypothesis` is free text it writes itself, never verbatim equal to the
-oracle's claim text, even when it's clearly testing the same thing. The loop
-runs mechanically end to end but doesn't yet actually reprioritize anything.
+oracle's claim text, even when it's clearly testing the same thing.
 
-Options to fix (not yet decided):
-- Fuzzy/keyword-overlap matching instead of exact equality (cheap, imperfect)
-- Give oracle claims stable IDs and have the casting tool reference an ID when
-  a test is tied to one, instead of restating the claim in prose
-- LLM-based matching ("does this result confirm/refute claim X") — most
-  accurate, adds cost/latency per result
+Fixed by giving every domain claim a stable, deterministic id
+(`load_domain_claims` in `engine/ontology/oracle_creator.py`, e.g.
+`claim:data:03`; generic heuristics reuse their existing `heuristics.json`
+id as `heuristic:<id>`) and threading a new `oracle_claim_id` field through
+the casting tool schema: the Driver still writes `linked_hypothesis` as its
+own free-text theory (unchanged, still used by the report/Skeptic), but when
+a test is meant to test one of the ranked ideas shown in its evidence, it now
+also cites that idea's id verbatim. `engine/loop.py` persists
+`oracle_claim_id` into `casting_log`; `engine/ontology/feedback.py` only
+carries forward results that have one (a pure edge-case probe or an
+off-list hypothesis has nothing to reprioritize); `oracle_creator.py` matches
+on that id instead of on claim text. Covered by
+`engine/tests/test_ontology_claim_matching.py`, including an end-to-end case
+proving a merged result actually changes a claim's score.
+`context_token_purchase.json`'s prior demo `test_results` were cleared since
+they were keyed by claim text under the old, non-functional scheme.
 
 ## Backlog (not yet started)
 
-1. **Fix claim matching** (see gap above) — the loop needs this to have any
-   real effect.
-2. **Skeptic-guided case selection.** Right now the Driver just pulls from the
+1. **Skeptic-guided case selection.** Right now the Driver just pulls from the
    top of the ranked list. The Skeptic should instead steer which prioritized
    cases get run next, based on what still needs proving/disproving for the
    current hypothesis — not a fixed top-N pull.
-3. **Driver/Skeptic output verbosity.** Free-text reasoning/hypothesis/critique
+2. **Driver/Skeptic output verbosity.** Free-text reasoning/hypothesis/critique
    fields are very large per checkpoint. Needs a pass at trimming or
    restructuring before this scales to more checkpoints or more SUTs.
-4. **Prioritization ablation** (still open from before Phase 0 started) — hasn't
+3. **Prioritization ablation** (still open from before Phase 0 started) — hasn't
    been run: unranked vs. ranked claim order at a fixed test budget, to
    measure whether ranking actually improves what gets found. Cheap to run,
    reuses the existing paired-trial methodology from

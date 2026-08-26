@@ -1,6 +1,6 @@
 """Closes the loop: reads a Driver run's output.json (casting_log) and writes
-each executed test's linked_hypothesis + prediction_matched into layer 3's
-context_<sut>.json as a test_result, keyed by claim text. Existing entries for
+each executed test's oracle_claim_id + prediction_matched into layer 3's
+context_<sut>.json as a test_result, keyed by claim id. Existing entries for
 the same claim are overwritten (latest run wins) rather than duplicated.
 
 Run: python -m engine.ontology.feedback --sut token_purchase --run runs/ontology_phase0_driver/output.json
@@ -17,15 +17,17 @@ from engine.ontology.oracle_creator import ONTOLOGY_DIR, load_context
 
 
 def extract_results(output: dict) -> list[dict]:
-    """Ungrounded probes (empty linked_hypothesis) don't map to a claim in the
-    oracle - only linked, hypothesis-tied tests are feedback-worthy."""
+    """Only tests the Driver explicitly tied to a ranked oracle idea
+    (oracle_claim_id set) are feedback-worthy - linked_hypothesis alone is
+    free text the Driver writes itself and can't be matched back to an
+    oracle claim reliably (see docs/ontology-todo.md's former "known gap")."""
     results = []
     for entry in output.get("casting_log", []):
-        claim = entry.get("linked_hypothesis")
-        if not claim:
+        claim_id = entry.get("oracle_claim_id")
+        if not claim_id:
             continue
         results.append({
-            "claim": claim,
+            "claim_id": claim_id,
             "verified": entry.get("prediction_matched"),
             "timestamp": date.today().isoformat(),
         })
@@ -33,10 +35,10 @@ def extract_results(output: dict) -> list[dict]:
 
 
 def merge_results(context: dict, new_results: list[dict]) -> dict:
-    by_claim = {r["claim"]: r for r in context.get("test_results", [])}
+    by_claim_id = {r["claim_id"]: r for r in context.get("test_results", [])}
     for result in new_results:
-        by_claim[result["claim"]] = result
-    context["test_results"] = list(by_claim.values())
+        by_claim_id[result["claim_id"]] = result
+    context["test_results"] = list(by_claim_id.values())
     return context
 
 

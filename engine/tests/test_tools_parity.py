@@ -3,6 +3,7 @@ unchanged from experiments/token-purchase-poc/run_live.py - the literal
 contract this port must not silently drift from. Loads the original module
 directly from its file path (it's not an importable package)."""
 
+import copy
 import importlib.util
 import sys
 from pathlib import Path
@@ -163,7 +164,18 @@ def test_skeptic_validator_checks_anomaly_checks_count_against_hypothesis():
 # --- token_purchase adapter's per-SUT pieces vs. the original ---
 
 def test_casting_tool_schema_matches(original):
-    assert token_purchase_adapter.CASTING_TOOL == original.CASTING_TOOL
+    # Deliberate divergence: oracle_claim_id was added as a required
+    # candidate_tests field so a test can cite a ranked oracle idea by its
+    # stable id, instead of relying on the Driver's free-text
+    # linked_hypothesis to match it back to an oracle claim - see
+    # docs/ontology-todo.md's former "known gap: claim matching is
+    # exact-string only". Stripping it back out should make the schemas
+    # identical again, proving that's the only change.
+    engine_schema = copy.deepcopy(token_purchase_adapter.CASTING_TOOL)
+    items = engine_schema["input_schema"]["properties"]["candidate_tests"]["items"]
+    del items["properties"]["oracle_claim_id"]
+    items["required"].remove("oracle_claim_id")
+    assert engine_schema == original.CASTING_TOOL
 
 
 def test_casting_system_prompt_matches(original):

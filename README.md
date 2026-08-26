@@ -103,11 +103,11 @@ business/domain facts → context/results → a ranked, prioritized test-idea
 list) that scores claims up or down based on what's already been tested,
 refuted, or flagged in a ticket, instead of handing the Driver an unranked
 dump. Proven end to end on `token_purchase` (a live Driver run consumed the
-ranked list, and its results were fed back into the context layer), with one
-real gap found and not yet fixed: claim matching between a Driver's own
-free-text hypothesis and an oracle claim is currently exact-string, so
-nothing actually reprioritizes yet. Full status and backlog:
-[`docs/ontology-todo.md`](docs/ontology-todo.md).
+ranked list, and its results were fed back into the context layer). Each
+ranked idea carries a stable id the Driver can cite (`oracle_claim_id`) when
+a test targets it, so feedback actually reprioritizes claims on the next run
+rather than only ever matching on the Driver's own free-text hypothesis.
+Full status and backlog: [`docs/ontology-todo.md`](docs/ontology-todo.md).
 
 ```
 python -m engine.ontology.oracle_creator --sut token_purchase   # layer 4: rank

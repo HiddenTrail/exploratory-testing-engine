@@ -92,7 +92,7 @@ def _render_domain(domain: dict) -> str:
 
 def _render_context(context: dict) -> str:
     results_rows = "".join(
-        f"<tr><td>{esc(r.get('claim', ''))[:80]}</td><td>{bool_badge_text(r.get('verified'))}</td><td>{esc(r.get('timestamp', ''))}</td></tr>"
+        f"<tr><td>{esc(r.get('claim_id', ''))}</td><td>{bool_badge_text(r.get('verified'))}</td><td>{esc(r.get('timestamp', ''))}</td></tr>"
         for r in context.get("test_results", [])
     )
     jira_rows = "".join(
@@ -102,7 +102,7 @@ def _render_context(context: dict) -> str:
     risk_rows = "".join(f"<li>{esc(str(r))}</li>" for r in context.get("risk_assessments", []))
     return f"""
 <p><strong>Test results ({len(context.get('test_results', []))})</strong></p>
-<table><thead><tr><th>Claim</th><th>Verified</th><th>Timestamp</th></tr></thead><tbody>{results_rows or '<tr><td colspan="3"><em>none yet</em></td></tr>'}</tbody></table>
+<table><thead><tr><th>Claim id</th><th>Verified</th><th>Timestamp</th></tr></thead><tbody>{results_rows or '<tr><td colspan="3"><em>none yet</em></td></tr>'}</tbody></table>
 <p><strong>JIRA entries ({len(context.get('jira_entries', []))})</strong></p>
 <table><thead><tr><th>Title</th><th>Description</th></tr></thead><tbody>{jira_rows or '<tr><td colspan="2"><em>none yet</em></td></tr>'}</tbody></table>
 <p><strong>Risk assessments ({len(context.get('risk_assessments', []))})</strong></p>
@@ -122,6 +122,7 @@ def _render_oracle(ranked: dict, top_n: int = 25) -> str:
     rows = "".join(f"""
         <tr>
           <td>{idea['rank']}</td>
+          <td>{esc(idea['id'])}</td>
           <td>{idea['score']:.1f}</td>
           <td>{badge(idea['tier'], _TIER_KIND.get(idea['tier'], 'neutral'))}</td>
           <td>{badge(idea['status'], _status_kind(idea['status']))}</td>
@@ -131,7 +132,7 @@ def _render_oracle(ranked: dict, top_n: int = 25) -> str:
     return f"""
 <p>Showing top {min(top_n, len(ideas))} of {len(ideas)} ranked test ideas (grounded claims + generic heuristic probes, combined and sorted).</p>
 <table>
-<thead><tr><th>Rank</th><th>Score</th><th>Tier</th><th>Status</th><th>Category</th><th>Claim</th></tr></thead>
+<thead><tr><th>Rank</th><th>Id</th><th>Score</th><th>Tier</th><th>Status</th><th>Category</th><th>Claim</th></tr></thead>
 <tbody>{rows}</tbody></table>"""
 
 

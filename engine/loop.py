@@ -191,6 +191,7 @@ def run_checkpoint_loop(
                     "round": 1,
                     "round_reasoning": casting["reasoning"],
                     "linked_hypothesis": linked,
+                    "oracle_claim_id": test.get("oracle_claim_id", ""),
                     **result,
                 })
                 result_detail = adapter.describe_result_for_log(result) if adapter.describe_result_for_log else str(result.get("response", {}).get("body", {}))
