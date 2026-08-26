@@ -54,3 +54,9 @@ runs/
 # Screenshots pulled out of the game to look at by hand. Regenerable from any
 # probe run, and a few MB of PNGs per session.
 experiments/game-screen-probe/pics/
+
+# Recon session output: ontology.json, report.md and a few dozen PNGs per run.
+# Already caught by the bare `out/` rule above, but that one is there for build
+# artifacts - stated explicitly so this stays ignored if that rule is ever
+# narrowed to the places builds actually write to.
+experiments/game-ontology/out/
