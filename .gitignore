@@ -14,6 +14,13 @@ Desktop.ini
 .env.*
 !.env.example
 
+# Claude Code's per-machine settings. This is the file an ANTHROPIC_API_KEY or
+# other auth env belongs in - .claude/settings.json is the shared, committed
+# counterpart, so keep credentials out of that one. Only a machine-global
+# ~/.config/git/ignore was covering this before, which a fresh clone or anyone
+# else working on the repo doesn't inherit.
+.claude/settings.local.json
+
 # Logs
 *.log
 logs/
