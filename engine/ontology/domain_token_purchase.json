@@ -1,0 +1,43 @@
+{
+  "sut": "token_purchase",
+  "description": "Credit-purchase API backed by a mock payment processor.",
+  "endpoint": {
+    "method": "POST",
+    "path": "/purchase"
+  },
+  "request_fields": [
+    {"name": "auth_token", "type": "string", "description": "Identifies the calling user."},
+    {"name": "card_number", "type": "string", "description": "The card to charge."},
+    {"name": "expiry_month", "type": "integer", "description": "1-12"},
+    {"name": "expiry_year", "type": "integer", "description": ""},
+    {"name": "cvv", "type": "string", "description": ""},
+    {"name": "credit_count", "type": "integer", "description": "How many credits to purchase."}
+  ],
+  "response_fields": [
+    {"name": "status", "type": "string", "description": "\"approved\" or \"declined\"."},
+    {"name": "decline_reason", "type": "string or null", "description": "Present only if declined."},
+    {"name": "credits_purchased", "type": "integer", "description": "0 if declined."},
+    {"name": "total_charged", "type": "number", "description": "Dollars charged, 0 if declined."},
+    {"name": "new_credit_balance", "type": "integer or null", "description": "Null only if auth_token couldn't be resolved to any account."},
+    {"name": "transaction_id", "type": "string or null", "description": "Present only if approved."}
+  ],
+  "known_decline_reasons": [
+    "invalid_auth_token",
+    "card_not_authorized",
+    "invalid_card_number",
+    "expiry_mismatch",
+    "expired_card",
+    "invalid_cvv",
+    "invalid_credit_count",
+    "insufficient_funds"
+  ],
+  "business_rules": [
+    "Pricing is tiered by bulk quantity - buying more credits in one transaction may reduce the price per credit for the whole order. The exact tiers are not published.",
+    "Each card has a spending capacity that is never revealed directly in any response; capacity has to be inferred by testing purchases until declines start happening."
+  ],
+  "known_accounts": [
+    {"auth_token": "tok_live_9f2c8a41", "card_number": "4111104332181963", "expiry_month": 11, "expiry_year": 2027, "cvv": "482"},
+    {"auth_token": "tok_live_7d51e6b0", "card_number": "4111001338908383", "expiry_month": 3, "expiry_year": 2028, "cvv": "915"},
+    {"auth_token": "tok_live_c3a9f204", "card_number": "4111637940265421", "expiry_month": 8, "expiry_year": 2028, "cvv": "067"}
+  ]
+}

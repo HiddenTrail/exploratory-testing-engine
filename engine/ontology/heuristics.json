@@ -1,0 +1,64 @@
+{
+  "heuristics": [
+    {
+      "id": "goldilocks",
+      "category": "boundary",
+      "description": "Test too small, just right, and too big values for any bounded field.",
+      "base_weight": 2
+    },
+    {
+      "id": "boundary_edges",
+      "category": "boundary",
+      "description": "Test values exactly at, one below, and one above a documented limit.",
+      "base_weight": 2
+    },
+    {
+      "id": "zero_and_negative",
+      "category": "boundary",
+      "description": "Test zero and negative values for any field assumed to be a positive quantity.",
+      "base_weight": 3
+    },
+    {
+      "id": "alphabet_soup",
+      "category": "data_type",
+      "description": "Feed unicode, emoji, whitespace-only, and mixed-script strings into text fields.",
+      "base_weight": 1
+    },
+    {
+      "id": "monetary_precision",
+      "category": "data_type",
+      "description": "Check that monetary values never show float rounding artifacts and use consistent decimal precision.",
+      "base_weight": 3
+    },
+    {
+      "id": "empty_and_null",
+      "category": "data_type",
+      "description": "Submit empty string, null, and missing-field variants for every required field.",
+      "base_weight": 2
+    },
+    {
+      "id": "duplicate_replay",
+      "category": "state",
+      "description": "Repeat an identical request/transaction and check for idempotency or unintended duplication.",
+      "base_weight": 2
+    },
+    {
+      "id": "ordering_race",
+      "category": "state",
+      "description": "Fire near-simultaneous or out-of-order requests against the same resource/account.",
+      "base_weight": 1
+    },
+    {
+      "id": "sensitive_data_exposure",
+      "category": "security",
+      "description": "Check that sensitive fields (secrets, PANs, tokens) are never echoed back in responses or logs.",
+      "base_weight": 3
+    },
+    {
+      "id": "self_consistency",
+      "category": "consistency",
+      "description": "Compare two responses that should logically agree (e.g. same query, different path) for contradictions.",
+      "base_weight": 2
+    }
+  ]
+}
