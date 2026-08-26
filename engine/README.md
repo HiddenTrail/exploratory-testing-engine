@@ -27,10 +27,10 @@ If the final hypothesis claims anomalies, a bug report is written per claim -
 honestly marked `inconclusive` if the checkpoint budget ran out while the
 Skeptic still had objections, `corroborated` only if it was satisfied.
 
-**Known, accepted limitation:** the Skeptic's `inference_validity_check`
-doesn't account for realistic value rounding/precision when deciding whether
-cited evidence discriminates a claim from its rival - see the comment on
-that field in `engine/tools.py`. Carried forward deliberately, not fixed.
+**Known, accepted limitation:** the Skeptic's per-anomaly `discriminates_from_rival`
+check (in `anomaly_checks`) doesn't account for realistic value rounding/precision
+when deciding whether cited evidence discriminates a claim from its rival - see
+the comment on that field in `engine/tools.py`. Carried forward deliberately, not fixed.
 
 `engine/adapters/token_purchase/adapter.py` also pulls its onboarding
 evidence's oracle content from `engine/ontology/` - a ranked, prioritized
@@ -79,6 +79,27 @@ Writes `runs/<adapter>/output.json`, `runs/<adapter>/bugs.json` (if any
 anomalies were found), and `runs/<adapter>/report.html`. Override run
 parameters with `--model`, `--max-checkpoints`, `--first-round-budget`,
 `--default-budget`, `--out-dir`.
+
+### Authenticating through Bedrock instead of an API key
+
+Set `ENGINE_USE_BEDROCK=1` plus `AWS_REGION` (and `AWS_PROFILE`, if it isn't
+your default) instead of `ANTHROPIC_API_KEY`. Credentials then come from the
+normal AWS chain - SSO cache, profile, env vars, instance role - so there is no
+long-lived key in the repo or the environment.
+
+The default model changes with the provider, because Bedrock names models
+differently. Two important details:
+
+- Bedrock's Messages-API endpoint exposes a **different, smaller catalogue**
+  than the `aws bedrock list-inference-profiles` output. The `eu.anthropic.*`
+  and `global.anthropic.*` inference-profile IDs from that listing are for the
+  older `bedrock-runtime` InvokeModel path and are rejected here.
+- Because the catalogues differ, a Bedrock run may not be on the same model as
+  a direct-API run. Check `output.json`'s `model` before comparing results
+  across providers.
+
+Discover what actually works by attempting a one-token call per candidate ID -
+an unavailable model fails fast with a 404 and costs nothing.
 
 ## Adding a new adapter
 

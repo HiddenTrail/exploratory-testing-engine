@@ -157,6 +157,16 @@ CASTING_TOOL = {
                     "type": "object",
                     "properties": {
                         "linked_hypothesis": {"type": "string"},
+                        "oracle_claim_id": {
+                            "type": "string",
+                            "description": (
+                                "If this test is meant to test one of the ranked ideas from the "
+                                "'Prioritized oracle' list in your evidence, copy its id exactly as shown "
+                                "there (e.g. 'claim:data:03' or 'heuristic:goldilocks'). Otherwise - a pure "
+                                "edge-case probe, or a hypothesis you came up with yourself that isn't on "
+                                "that list - leave this an empty string, even if linked_hypothesis is set."
+                            ),
+                        },
                         "auth_token": {"type": "string"},
                         "card_number": {"type": "string"},
                         "expiry_month": {"type": "integer"},
@@ -171,8 +181,9 @@ CASTING_TOOL = {
                         },
                     },
                     "required": [
-                        "linked_hypothesis", "auth_token", "card_number", "expiry_month", "expiry_year",
-                        "cvv", "credit_count", "predicted_outcome", "predicted_status", "predicted_decline_reason",
+                        "linked_hypothesis", "oracle_claim_id", "auth_token", "card_number", "expiry_month",
+                        "expiry_year", "cvv", "credit_count", "predicted_outcome", "predicted_status",
+                        "predicted_decline_reason",
                     ],
                 },
             },
@@ -254,7 +265,7 @@ def validate_casting_response(data) -> list[str]:
         errors.append("'candidate_tests' must be non-empty unless give_up is true")
     else:
         required_test_keys = (
-            "linked_hypothesis", "auth_token", "card_number", "expiry_month", "expiry_year",
+            "linked_hypothesis", "oracle_claim_id", "auth_token", "card_number", "expiry_month", "expiry_year",
             "cvv", "credit_count", "predicted_outcome", "predicted_status", "predicted_decline_reason",
         )
         for i, test in enumerate(tests or []):
@@ -268,7 +279,7 @@ def validate_casting_response(data) -> list[str]:
             # unwrap_accidental_json_body(), which calls .strip() on them - a
             # non-string value here (e.g. a stray number or null) would crash
             # the run rather than just producing a bad, but harmless, test.
-            for key in ("linked_hypothesis", "auth_token", "card_number", "cvv", "predicted_outcome"):
+            for key in ("linked_hypothesis", "oracle_claim_id", "auth_token", "card_number", "cvv", "predicted_outcome"):
                 if key in test and not isinstance(test[key], str):
                     errors.append(f"candidate_tests[{i}].{key} must be a string")
             for key in ("expiry_month", "expiry_year", "credit_count"):
@@ -369,7 +380,7 @@ def _render_oracle_ranked(ranked_ideas: list[dict]) -> str:
     if not ranked_ideas:
         return ""
     rows = "".join(
-        f"""<li><strong>#{idea['rank']} ({idea['tier']}, score {idea['score']:.1f}, {idea['status']})</strong>
+        f"""<li><strong>#{idea['rank']} [{esc(idea['id'])}] ({idea['tier']}, score {idea['score']:.1f}, {idea['status']})</strong>
             {esc(idea['claim'])}<div class="prose-muted">{inline_markdown(idea['rationale'])}</div></li>"""
         for idea in ranked_ideas
     )

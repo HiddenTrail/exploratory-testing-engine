@@ -31,7 +31,7 @@ def _make_fakes(num_checkpoints_before_strong_enough):
     """Checkpoint verdicts are 'weak' until the Nth, then 'strong_enough'."""
     calls = {"casting": 0, "hypothesis": 0, "skeptic": 0}
 
-    def fake_casting_round(client, adapter, run_config, happy_day_example, casting_log, prior_feedback, *, test_budget, is_first_round):
+    def fake_casting_round(client, adapter, run_config, happy_day_example, casting_log, prior_feedback, *, test_budget, is_first_round, usage_sink=None):
         calls["casting"] += 1
         return {
             "give_up": False,
@@ -41,17 +41,16 @@ def _make_fakes(num_checkpoints_before_strong_enough):
             }],
         }
 
-    def fake_hypothesis(client, adapter, run_config, happy_day_example, casting_log, prior_skeptic_review=None):
+    def fake_hypothesis(client, adapter, run_config, happy_day_example, casting_log, prior_skeptic_review=None, usage_sink=None):
         calls["hypothesis"] += 1
         return {"observed_behavior": "b", "anomalies": [], "untested_areas": ["u"], "prior_gaps_response": []}
 
-    def fake_skeptic(client, run_config, hypothesis, prior_skeptic_review=None):
+    def fake_skeptic(client, run_config, hypothesis, prior_skeptic_review=None, usage_sink=None):
         calls["skeptic"] += 1
         verdict = "strong_enough" if calls["skeptic"] >= num_checkpoints_before_strong_enough else "weak"
         return {
-            "verdict": verdict, "gaps": ["g1", "g2"], "coverage_breadth_check": "c",
-            "inference_validity_check": "n/a", "anomaly_critique": "n/a",
-            "recommended_next_tests": ["t1", "t2"], "prior_critique_addressed": "n/a", "reasoning": "r",
+            "verdict": verdict, "gaps": ["g1", "g2"], "coverage_breadth": {"material": False, "note": "c"},
+            "anomaly_checks": [], "recommended_next_tests": ["t1", "t2"], "prior_critique_addressed": "n/a",
         }
 
     return calls, fake_casting_round, fake_hypothesis, fake_skeptic

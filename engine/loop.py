@@ -43,6 +43,34 @@ def _base_evidence(adapter: SUTAdapter, happy_day_example: dict) -> dict:
     }
 
 
+def _render_history_fragment(checkpoint_num: int, entries: list[dict]) -> str:
+    """One checkpoint's worth of redacted test entries, as a fragment meant to
+    be *appended* to a running list of fragments and never regenerated - see
+    the docstring-level note in run_checkpoint_loop for why that matters for
+    prompt caching. sort_keys pins the serialization so a fragment can't come
+    out byte-different for content that didn't change."""
+    return f"\n\n--- checkpoint {checkpoint_num} ---\n{json.dumps(entries, indent=2, sort_keys=True)}"
+
+
+def _cacheable_evidence_segments(
+    adapter: SUTAdapter, happy_day_example: dict, section_title: str, history_segments: list[str]
+) -> list[str]:
+    """The static evidence (schema, known accounts, oracle data, happy-day
+    example - identical for the whole run) followed by the growing test history,
+    as SEPARATE segments rather than one joined string: each becomes its own
+    request content block, and a cache entry can only begin or end at a block
+    boundary. Joined into one block, every previous call's boundary would fall
+    in the middle of this call's block - a place no entry can end - so nothing
+    would ever be read back no matter how append-only the text was. See
+    call_tool_with_retry's cached_segments and run_checkpoint_loop.
+    """
+    head = (
+        json.dumps(_base_evidence(adapter, happy_day_example), indent=2, sort_keys=True)
+        + f"\n\n=== {section_title} ==="
+    )
+    return [head, *history_segments]
+
+
 def get_happy_day_example(adapter: SUTAdapter) -> dict:
     request = {"method": "POST", "path": adapter.test_endpoint_path, "body": adapter.happy_day_request}
     response = call_sut_once(adapter.base_url, adapter.test_endpoint_path, adapter.happy_day_request)
@@ -54,29 +82,38 @@ def get_casting_round(
     adapter: SUTAdapter,
     run_config: RunConfig,
     happy_day_example: dict,
-    casting_log: list[dict],
+    history_segments: list[str],
     prior_checkpoint_feedback: dict | None = None,
     *,
     test_budget: int,
     is_first_round: bool,
+    usage_sink: list[dict] | None = None,
 ) -> dict:
-    evidence = {
-        **_base_evidence(adapter, happy_day_example),
-        "tests_tried_in_earlier_rounds": _redact(adapter, casting_log),
-    }
+    # Known and unavoidable: the casting system prompt varies with test_budget
+    # and is_first_round, and system renders BEFORE the messages, so checkpoint 2
+    # can't read checkpoint 1's cache however stable the evidence blocks are.
+    # Rounds 2..N share a prompt and do hit - measured 0 read at checkpoint 2,
+    # then ~14k at checkpoint 3 - so it costs one extra write per run, not one
+    # per checkpoint. Not worth flattening the prompt over.
+    cached_segments = _cacheable_evidence_segments(
+        adapter, happy_day_example, "TESTS TRIED IN EARLIER ROUNDS", history_segments
+    )
+    fresh_evidence = {}
     if prior_checkpoint_feedback is not None:
-        evidence["prior_checkpoint_feedback"] = prior_checkpoint_feedback
+        fresh_evidence["prior_checkpoint_feedback"] = prior_checkpoint_feedback
     return call_tool_with_retry(
         client,
         model=run_config.model,
         system=adapter.casting_system_prompt(test_budget, is_first_round),
         tools=[adapter.casting_tool_schema],
         tool_name="submit_casting_round",
-        user_message=json.dumps(evidence, indent=2),
+        cached_segments=cached_segments,
+        user_message=json.dumps(fresh_evidence, indent=2),
         validate_fn=adapter.validate_casting_response,
         max_tokens=adapter.casting_max_tokens(test_budget),
         max_attempts=run_config.max_attempts,
         cache_static_content=True,
+        usage_sink=usage_sink,
     )
 
 
@@ -85,31 +122,35 @@ def get_checkpoint_hypothesis(
     adapter: SUTAdapter,
     run_config: RunConfig,
     happy_day_example: dict,
-    casting_log: list[dict],
+    history_segments: list[str],
     prior_skeptic_review: dict | None = None,
+    usage_sink: list[dict] | None = None,
 ) -> dict:
-    evidence = {
-        **_base_evidence(adapter, happy_day_example),
-        "all_tests_this_session": _redact(adapter, casting_log),
-    }
+    cached_segments = _cacheable_evidence_segments(
+        adapter, happy_day_example, "ALL TESTS THIS SESSION", history_segments
+    )
+    fresh_evidence = {}
     if prior_skeptic_review is not None:
-        evidence["prior_skeptic_review"] = prior_skeptic_review
+        fresh_evidence["prior_skeptic_review"] = prior_skeptic_review
     return call_tool_with_retry(
         client,
         model=run_config.model,
         system=HYPOTHESIS_SYSTEM_PROMPT,
         tools=[HYPOTHESIS_TOOL],
         tool_name="submit_checkpoint_hypothesis",
-        user_message=json.dumps(evidence, indent=2),
+        cached_segments=cached_segments,
+        user_message=json.dumps(fresh_evidence, indent=2),
         validate_fn=validate_hypothesis_response,
         max_tokens=2560,
         max_attempts=run_config.max_attempts,
         cache_static_content=True,
+        usage_sink=usage_sink,
     )
 
 
 def get_skeptic_review(
-    client: Anthropic, run_config: RunConfig, hypothesis: dict, prior_skeptic_review: dict | None = None
+    client: Anthropic, run_config: RunConfig, hypothesis: dict, prior_skeptic_review: dict | None = None,
+    usage_sink: list[dict] | None = None,
 ) -> dict:
     evidence = {
         "observed_behavior": hypothesis["observed_behavior"],
@@ -126,9 +167,10 @@ def get_skeptic_review(
         tools=[SKEPTIC_TOOL],
         tool_name="submit_skeptic_review",
         user_message=json.dumps(evidence, indent=2),
-        validate_fn=validate_skeptic_response,
+        validate_fn=lambda data: validate_skeptic_response(data, expected_anomaly_count=len(hypothesis["anomalies"])),
         max_tokens=3072,
         max_attempts=run_config.max_attempts,
+        usage_sink=usage_sink,
     )
 
 
@@ -139,6 +181,7 @@ def run_checkpoint_loop(
     happy_day_example: dict,
     test_counter,
     on_checkpoint=None,
+    usage_sink: list[dict] | None = None,
 ):
     """Returns (casting_log, checkpoints, stopped_reason).
 
@@ -147,11 +190,32 @@ def run_checkpoint_loop(
     through (a non-retryable API error, an unexpected bug) doesn't discard
     checkpoints that already finished. Each call is a full, self-consistent
     snapshot; the caller decides what to do with it (e.g. write it to disk).
+
+    usage_sink, if given, is passed straight through to every Driver/Skeptic
+    call this makes - see call_tool_with_retry.
+
+    history_segments (below) is a growing LIST of per-checkpoint fragments, each
+    rendered once by _render_history_fragment and never touched again, rather
+    than either of the two things that came before it:
+
+    - Re-serializing the whole growing casting_log fresh every call reshuffles
+      JSON array/object closing punctuation every time it grows, so the text
+      isn't even append-only and prefix matching breaks almost entirely.
+    - Appending to a single growing *string* fixes that, but a cache entry can
+      only end at a request content-block boundary, and one string is one block:
+      the previous call's boundary lands mid-block this call, where no entry can
+      end. A live loop measured this still landing ~0 cache_read on the evidence.
+
+    Keeping the fragments separate means each one is its own content block, so
+    the previous call's boundary is a real boundary this call too - which is what
+    finally lets the cache credit the unchanged leading portion. See
+    _cacheable_evidence_segments and call_tool_with_retry's cached_segments.
     """
     casting_log = []
     checkpoints = []
     prior_feedback = None
     stopped_reason = "checkpoints_exhausted"
+    history_segments: list[str] = []
 
     for checkpoint_num in range(1, run_config.max_checkpoints + 1):
         is_first_checkpoint = checkpoint_num == 1
@@ -162,12 +226,14 @@ def run_checkpoint_loop(
             adapter,
             run_config,
             happy_day_example,
-            casting_log,
+            history_segments,
             prior_feedback,
             test_budget=test_budget,
             is_first_round=is_first_checkpoint,
+            usage_sink=usage_sink,
         )
 
+        entries_before = len(casting_log)
         if casting["give_up"]:
             print(f"  Claude gave up casting: {casting['reasoning']}")
         else:
@@ -187,22 +253,30 @@ def run_checkpoint_loop(
                     "round": 1,
                     "round_reasoning": casting["reasoning"],
                     "linked_hypothesis": linked,
+                    "oracle_claim_id": test.get("oracle_claim_id", ""),
                     **result,
                 })
                 result_detail = adapter.describe_result_for_log(result) if adapter.describe_result_for_log else str(result.get("response", {}).get("body", {}))
                 print(f"    actual: {result_detail} - prediction {'matched' if result['prediction_matched'] else 'MISSED'}")
 
+        new_entries = _redact(adapter, casting_log[entries_before:])
+        if new_entries:
+            history_segments.append(_render_history_fragment(checkpoint_num, new_entries))
+
         prior_skeptic_review = prior_feedback["skeptic_review"] if prior_feedback else None
 
         print(f"Checkpoint {checkpoint_num}: forming a hypothesis...")
-        hypothesis = get_checkpoint_hypothesis(client, adapter, run_config, happy_day_example, casting_log, prior_skeptic_review)
+        hypothesis = get_checkpoint_hypothesis(
+            client, adapter, run_config, happy_day_example, history_segments, prior_skeptic_review,
+            usage_sink=usage_sink,
+        )
         print(f"  observed_behavior: {hypothesis['observed_behavior']}")
         print(f"  anomalies noticed: {len(hypothesis['anomalies'])}")
         if hypothesis["prior_gaps_response"]:
             print(f"  prior gaps responded to: {len(hypothesis['prior_gaps_response'])}")
 
         print("Asking Skeptic for a cold review...")
-        skeptic_review = get_skeptic_review(client, run_config, hypothesis, prior_skeptic_review)
+        skeptic_review = get_skeptic_review(client, run_config, hypothesis, prior_skeptic_review, usage_sink=usage_sink)
         print(f"  skeptic verdict: {skeptic_review['verdict']}")
 
         checkpoints.append({"checkpoint": checkpoint_num, "hypothesis": hypothesis, "skeptic_review": skeptic_review})
@@ -226,6 +300,7 @@ def get_bug_reports(
     final_skeptic_review: dict,
     stopped_reason: str,
     casting_log: list[dict],
+    usage_sink: list[dict] | None = None,
 ) -> list[dict]:
     evidence = {
         "final_hypothesis": final_hypothesis,
@@ -243,6 +318,12 @@ def get_bug_reports(
         validate_fn=validate_bug_reports,
         max_tokens=3072,
         max_attempts=run_config.max_attempts,
+        # Measured as a no-op in practice: this call site's tools+system prefix
+        # is below the model's minimum cacheable length, so the marker is
+        # silently ignored (0 creation, 0 read), and it runs once per run anyway
+        # while caching only breaks even at two requests. Left on so a retry, or
+        # a future longer bug-report prompt, gets it for free.
         cache_static_content=True,
+        usage_sink=usage_sink,
     )
     return result["bugs"]

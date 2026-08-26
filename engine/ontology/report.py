@@ -50,6 +50,7 @@ def render_html(ranked: dict) -> str:
         rows.append(f"""
         <tr>
           <td>{idea['rank']}</td>
+          <td>{esc(idea['id'])}</td>
           <td>{idea['score']:.1f}</td>
           <td>{badge(idea['tier'], _TIER_KIND.get(idea['tier'], 'neutral'))}</td>
           <td>{badge(idea['status'], _status_kind(idea['status']))}</td>
@@ -69,7 +70,7 @@ def render_html(ranked: dict) -> str:
 <h1>Ranked oracle test ideas - {esc(ranked['sut'])}</h1>
 <div class="meta">Generated {esc(ranked['generated_at'])} - {len(ranked['ranked_ideas'])} ideas</div>
 <table>
-<thead><tr><th>Rank</th><th>Score</th><th>Tier</th><th>Status</th><th>Category</th><th>Claim</th><th>Rationale</th></tr></thead>
+<thead><tr><th>Rank</th><th>Id</th><th>Score</th><th>Tier</th><th>Status</th><th>Category</th><th>Claim</th><th>Rationale</th></tr></thead>
 <tbody>{"".join(rows)}</tbody>
 </table>
 </body>

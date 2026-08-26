@@ -155,6 +155,25 @@ def _render_checkpoint_conclusion(checkpoint_entry) -> str:
     else:
         anomalies_html = '<p class="prose-muted">No anomalies claimed this checkpoint.</p>'
 
+    coverage_breadth = skeptic.get("coverage_breadth", {})
+
+    anomaly_checks = skeptic.get("anomaly_checks", [])
+    if anomaly_checks:
+        check_items = "".join(f"""
+        <li>
+          <strong>{inline_markdown(check.get('anomaly_ref', ''))}</strong>
+          {bool_badge(check.get('discriminates_from_rival'), 'discriminates', "doesn't discriminate")}
+          {bool_badge(check.get('rival_is_genuine'), 'genuine rival', 'strawman rival')}
+          <div class="prose">{render_prose(check.get('note'))}</div>
+        </li>
+        """ for check in anomaly_checks)
+        anomaly_checks_html = f"""
+        <p><strong>Anomaly checks ({len(anomaly_checks)})</strong></p>
+        <ul>{check_items}</ul>
+        """
+    else:
+        anomaly_checks_html = '<p class="prose-muted">No anomalies were claimed this checkpoint, so nothing to check.</p>'
+
     return f"""
     <div class="exhibit">
       <p class="eyebrow">Checkpoint {checkpoint_entry['checkpoint']} hypothesis</p>
@@ -167,16 +186,12 @@ def _render_checkpoint_conclusion(checkpoint_entry) -> str:
       <h4>Skeptic review {verdict_badge(skeptic.get('verdict'))}</h4>
       <p><strong>Gaps identified</strong></p>
       <ul>{gaps}</ul>
-      <p><strong>Coverage breadth check</strong></p>
-      <div class="prose">{render_prose(skeptic.get('coverage_breadth_check'))}</div>
-      <p><strong>Inference validity check</strong></p>
-      <div class="prose">{render_prose(skeptic.get('inference_validity_check'))}</div>
-      <p><strong>Anomaly critique</strong></p>
-      <div class="prose">{render_prose(skeptic.get('anomaly_critique'))}</div>
+      <p><strong>Coverage breadth</strong> {bool_badge(coverage_breadth.get('material'), 'material', 'not material')}</p>
+      <div class="prose">{render_prose(coverage_breadth.get('note'))}</div>
+      {anomaly_checks_html}
       <p><strong>Recommended next tests</strong></p>
       <ul>{next_tests}</ul>
       {prior_critique_html}
-      <div class="prose prose-muted">{render_prose(skeptic.get('reasoning'))}</div>
     </div>
     """
 

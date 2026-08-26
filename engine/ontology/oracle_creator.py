@@ -40,7 +40,10 @@ def load_heuristics() -> list[dict[str, Any]]:
 
 def load_domain_claims(sut: str) -> list[dict[str, Any]]:
     """Flattens adapters/<sut>/oracle_library.json's {category: {vectors: [...]}}
-    shape into one list of {category, claim, rationale} dicts."""
+    shape into one list of {id, category, claim, rationale} dicts. id is a
+    stable, deterministic slug (category + position within it) - not the
+    claim text itself - so it survives the Driver paraphrasing the claim in
+    its own words when it cites one (see score_grounded_claim)."""
     path = ADAPTERS_DIR / sut / "oracle_library.json"
     if not path.exists():
         return []
@@ -49,8 +52,9 @@ def load_domain_claims(sut: str) -> list[dict[str, Any]]:
     for category, body in data.get("modeled", {}).items():
         if not body.get("applies", True):
             continue
-        for vector in body.get("vectors", []):
+        for index, vector in enumerate(body.get("vectors", []), start=1):
             claims.append({
+                "id": f"claim:{category}:{index:02d}",
                 "category": category,
                 "claim": vector["claim"],
                 "rationale": vector.get("rationale", ""),
@@ -65,9 +69,9 @@ def load_context(sut: str) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _find_result(claim: str, test_results: list[dict[str, Any]]) -> dict[str, Any] | None:
+def _find_result(claim_id: str, test_results: list[dict[str, Any]]) -> dict[str, Any] | None:
     for result in test_results:
-        if result.get("claim") == claim:
+        if result.get("claim_id") == claim_id:
             return result
     return None
 
@@ -84,7 +88,7 @@ def _jira_mentions(claim: str, jira_entries: list[dict[str, Any]]) -> bool:
 def score_grounded_claim(claim: dict[str, Any], context: dict[str, Any]) -> tuple[float, str]:
     """Returns (score, status) for one domain-grounded claim."""
     score = GROUNDED_BASE_SCORE
-    result = _find_result(claim["claim"], context.get("test_results", []))
+    result = _find_result(claim["id"], context.get("test_results", []))
     if result is None:
         score += UNTESTED_BONUS
         status = "untested"
@@ -112,6 +116,7 @@ def build_ranked_ideas(sut: str) -> dict[str, Any]:
     for claim in domain_claims:
         score, status = score_grounded_claim(claim, context)
         ideas.append({
+            "id": claim["id"],
             "tier": "grounded",
             "score": score,
             "status": status,
@@ -123,6 +128,7 @@ def build_ranked_ideas(sut: str) -> dict[str, Any]:
 
     for heuristic in heuristics:
         ideas.append({
+            "id": f"heuristic:{heuristic['id']}",
             "tier": "generic",
             "score": float(heuristic["base_weight"]),
             "status": "n/a",
