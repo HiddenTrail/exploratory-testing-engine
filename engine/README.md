@@ -27,10 +27,10 @@ If the final hypothesis claims anomalies, a bug report is written per claim -
 honestly marked `inconclusive` if the checkpoint budget ran out while the
 Skeptic still had objections, `corroborated` only if it was satisfied.
 
-**Known, accepted limitation:** the Skeptic's `inference_validity_check`
-doesn't account for realistic value rounding/precision when deciding whether
-cited evidence discriminates a claim from its rival - see the comment on
-that field in `engine/tools.py`. Carried forward deliberately, not fixed.
+**Known, accepted limitation:** the Skeptic's per-anomaly `discriminates_from_rival`
+check (in `anomaly_checks`) doesn't account for realistic value rounding/precision
+when deciding whether cited evidence discriminates a claim from its rival - see
+the comment on that field in `engine/tools.py`. Carried forward deliberately, not fixed.
 
 `engine/adapters/token_purchase/adapter.py` also pulls its onboarding
 evidence's oracle content from `engine/ontology/` - a ranked, prioritized

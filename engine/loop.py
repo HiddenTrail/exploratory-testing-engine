@@ -60,19 +60,21 @@ def get_casting_round(
     test_budget: int,
     is_first_round: bool,
 ) -> dict:
-    evidence = {
+    cached_evidence = {
         **_base_evidence(adapter, happy_day_example),
         "tests_tried_in_earlier_rounds": _redact(adapter, casting_log),
     }
+    fresh_evidence = {}
     if prior_checkpoint_feedback is not None:
-        evidence["prior_checkpoint_feedback"] = prior_checkpoint_feedback
+        fresh_evidence["prior_checkpoint_feedback"] = prior_checkpoint_feedback
     return call_tool_with_retry(
         client,
         model=run_config.model,
         system=adapter.casting_system_prompt(test_budget, is_first_round),
         tools=[adapter.casting_tool_schema],
         tool_name="submit_casting_round",
-        user_message=json.dumps(evidence, indent=2),
+        cached_content=json.dumps(cached_evidence, indent=2),
+        user_message=json.dumps(fresh_evidence, indent=2),
         validate_fn=adapter.validate_casting_response,
         max_tokens=adapter.casting_max_tokens(test_budget),
         max_attempts=run_config.max_attempts,
@@ -88,19 +90,21 @@ def get_checkpoint_hypothesis(
     casting_log: list[dict],
     prior_skeptic_review: dict | None = None,
 ) -> dict:
-    evidence = {
+    cached_evidence = {
         **_base_evidence(adapter, happy_day_example),
         "all_tests_this_session": _redact(adapter, casting_log),
     }
+    fresh_evidence = {}
     if prior_skeptic_review is not None:
-        evidence["prior_skeptic_review"] = prior_skeptic_review
+        fresh_evidence["prior_skeptic_review"] = prior_skeptic_review
     return call_tool_with_retry(
         client,
         model=run_config.model,
         system=HYPOTHESIS_SYSTEM_PROMPT,
         tools=[HYPOTHESIS_TOOL],
         tool_name="submit_checkpoint_hypothesis",
-        user_message=json.dumps(evidence, indent=2),
+        cached_content=json.dumps(cached_evidence, indent=2),
+        user_message=json.dumps(fresh_evidence, indent=2),
         validate_fn=validate_hypothesis_response,
         max_tokens=2560,
         max_attempts=run_config.max_attempts,
@@ -126,7 +130,7 @@ def get_skeptic_review(
         tools=[SKEPTIC_TOOL],
         tool_name="submit_skeptic_review",
         user_message=json.dumps(evidence, indent=2),
-        validate_fn=validate_skeptic_response,
+        validate_fn=lambda data: validate_skeptic_response(data, expected_anomaly_count=len(hypothesis["anomalies"])),
         max_tokens=3072,
         max_attempts=run_config.max_attempts,
     )

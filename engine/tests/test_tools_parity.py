@@ -34,24 +34,49 @@ def test_hypothesis_tool_schema_matches(original):
     assert engine_tools.HYPOTHESIS_TOOL == original.HYPOTHESIS_TOOL
 
 
-def test_skeptic_tool_schema_is_a_superset_of_the_original(original):
-    # Deliberate divergence: engine.tools added a required coverage_breadth_check
-    # field after a live run showed "strong_enough" firing on 5 narrow tests that
-    # never touched most of the documented interface - the Skeptic conceded real
-    # gaps in its own critique but the verdict schema had no way to weigh breadth
-    # of coverage, only depth of evidence for individual claims. Everything the
-    # original required must still be required; the new field is additive.
-    original_props = set(original.SKEPTIC_TOOL["input_schema"]["properties"])
-    engine_props = set(engine_tools.SKEPTIC_TOOL["input_schema"]["properties"])
-    assert original_props <= engine_props
-    assert "coverage_breadth_check" in engine_props - original_props
-
+def test_skeptic_tool_schema_covers_everything_the_original_required(original):
+    # History of deliberate divergence from the original, in order:
+    # 1. engine.tools added a required coverage_breadth_check field after a live run
+    #    showed "strong_enough" firing on 5 narrow tests that never touched most of
+    #    the documented interface - the original had no way to weigh breadth of
+    #    coverage, only depth of evidence for individual claims.
+    # 2. A later consistency pass measured real duplication across a live checkpoint
+    #    (reasoning and coverage_breadth_check independently restating the same 6
+    #    untested behaviors, ~1300 chars) and found inference_validity_check/
+    #    anomaly_critique were each one prose blob covering ALL claimed anomalies at
+    #    once, instead of checking each individually. Fix: drop the pure-restatement
+    #    'reasoning' field, and reshape coverage_breadth_check into an object
+    #    (coverage_breadth: {material, note}) and inference_validity_check +
+    #    anomaly_critique into one list with an entry per anomaly (anomaly_checks:
+    #    [{anomaly_ref, discriminates_from_rival, rival_is_genuine, note}]).
+    # So engine.tools is no longer a literal field-name superset of the original -
+    # it's a superset of what the original REQUIRED, reshaped for size/clarity, not
+    # a smaller or weaker check. Assert the substance survived under its new name.
     original_required = set(original.SKEPTIC_TOOL["input_schema"]["required"])
     engine_required = set(engine_tools.SKEPTIC_TOOL["input_schema"]["required"])
-    assert original_required <= engine_required
-    assert "coverage_breadth_check" in engine_required
+    # Every original required field maps onto something still required in engine.tools,
+    # either unchanged (verdict, gaps, recommended_next_tests, prior_critique_addressed)
+    # or reshaped (inference_validity_check/anomaly_critique -> anomaly_checks).
+    unchanged = {"verdict", "gaps", "recommended_next_tests", "prior_critique_addressed"}
+    assert unchanged <= original_required
+    assert unchanged <= engine_required
+    assert {"inference_validity_check", "anomaly_critique"} <= original_required
+    assert "anomaly_checks" in engine_required
 
-    assert engine_tools.SKEPTIC_TOOL["input_schema"]["properties"]["verdict"]["enum"] == ["weak", "strong_enough"]
+    # Both deliberate additions are present and required.
+    assert {"coverage_breadth", "anomaly_checks"} <= engine_required
+    assert "coverage_breadth_check" not in original_required  # confirms this really is an addition
+
+    engine_props = engine_tools.SKEPTIC_TOOL["input_schema"]["properties"]
+    assert set(engine_props["coverage_breadth"]["properties"]) == {"material", "note"}
+    assert set(engine_props["anomaly_checks"]["items"]["properties"]) == {
+        "anomaly_ref", "discriminates_from_rival", "rival_is_genuine", "note",
+    }
+    assert engine_props["verdict"]["enum"] == ["weak", "strong_enough"]
+
+    # The duplicative top-level 'reasoning' field the consistency pass measured as
+    # pure restatement is gone - a deliberate removal, not an oversight.
+    assert "reasoning" not in engine_props
 
 
 def test_bug_report_tool_schema_matches(original):
@@ -63,13 +88,19 @@ def test_hypothesis_system_prompt_matches(original):
 
 
 def test_skeptic_system_prompt_still_covers_the_original_material_reasons(original):
-    # Deliberately no longer byte-identical (see test_skeptic_tool_schema_is_a_superset_of_the_original)
-    # - check the original's core teaching content is still present, plus the new one.
-    for phrase in ("inference_validity_check", "your_own_prior_review"):
-        assert phrase in original.SKEPTIC_SYSTEM_PROMPT
+    # Deliberately no longer byte-identical (see
+    # test_skeptic_tool_schema_covers_everything_the_original_required) - check the
+    # original's core teaching content ('your_own_prior_review', the continuity
+    # check) is still present. 'inference_validity_check' itself was renamed away
+    # (see discriminates_from_rival below) so it's expected to disappear from the
+    # engine version - that's the deliberate reshape, not lost coverage.
+    assert "your_own_prior_review" in original.SKEPTIC_SYSTEM_PROMPT
+    assert "your_own_prior_review" in engine_tools.SKEPTIC_SYSTEM_PROMPT
+    assert "inference_validity_check" in original.SKEPTIC_SYSTEM_PROMPT
+
+    for phrase in ("coverage_breadth", "discriminates_from_rival", "anomaly_checks"):
         assert phrase in engine_tools.SKEPTIC_SYSTEM_PROMPT
-    assert "coverage_breadth_check" in engine_tools.SKEPTIC_SYSTEM_PROMPT
-    assert "coverage_breadth_check" not in original.SKEPTIC_SYSTEM_PROMPT
+        assert phrase not in original.SKEPTIC_SYSTEM_PROMPT
 
 
 def test_bug_report_system_prompt_matches(original):
@@ -94,21 +125,39 @@ def test_hypothesis_and_bug_report_validator_behavior_matches_on_sample_inputs(o
     assert engine_tools.validate_bug_reports(sample_bad_bugs) == original.validate_bug_reports(sample_bad_bugs)
 
 
-def test_skeptic_validator_requires_coverage_breadth_check():
-    sample_missing_new_field = {
+def test_skeptic_validator_requires_coverage_breadth_and_anomaly_checks():
+    sample_missing_new_fields = {
         "verdict": "weak",
         "gaps": ["a", "b"],
-        "inference_validity_check": "n/a",
-        "anomaly_critique": "x",
         "recommended_next_tests": ["a", "b"],
         "prior_critique_addressed": "n/a",
-        "reasoning": "x",
     }
-    errors = engine_tools.validate_skeptic_response(sample_missing_new_field)
-    assert "missing required field 'coverage_breadth_check'" in errors
+    errors = engine_tools.validate_skeptic_response(sample_missing_new_fields)
+    assert "missing required field 'coverage_breadth'" in errors
+    assert "missing required field 'anomaly_checks'" in errors
 
-    sample_complete = {**sample_missing_new_field, "coverage_breadth_check": "x"}
+    sample_complete = {
+        **sample_missing_new_fields,
+        "coverage_breadth": {"material": False, "note": "x"},
+        "anomaly_checks": [],
+    }
     assert engine_tools.validate_skeptic_response(sample_complete) == []
+
+
+def test_skeptic_validator_checks_anomaly_checks_count_against_hypothesis():
+    sample = {
+        "verdict": "weak",
+        "gaps": ["a", "b"],
+        "recommended_next_tests": ["a", "b"],
+        "prior_critique_addressed": "n/a",
+        "coverage_breadth": {"material": False, "note": "x"},
+        "anomaly_checks": [
+            {"anomaly_ref": "test 3", "discriminates_from_rival": False, "rival_is_genuine": True, "note": "n"},
+        ],
+    }
+    assert engine_tools.validate_skeptic_response(sample, expected_anomaly_count=1) == []
+    errors = engine_tools.validate_skeptic_response(sample, expected_anomaly_count=2)
+    assert any("exactly one entry per claimed anomaly" in e for e in errors)
 
 
 # --- token_purchase adapter's per-SUT pieces vs. the original ---

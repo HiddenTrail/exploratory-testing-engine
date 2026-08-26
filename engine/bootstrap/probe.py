@@ -15,10 +15,10 @@ one voice, not a different perspective, so splitting them would just be
 procedural fragmentation at ~50% more LLM cost per round for no real gain.
 
 Deliberately leaner than the bug-hunting SKEPTIC_TOOL (engine/tools.py),
-which grew its 8 fields (inference_validity_check, coverage_breadth_check,
-prior_critique_addressed, ...) incrementally in direct response to specific
-observed failures in that domain. This reviewer starts simple; harden it
-later if a real problem shows up here too, not speculatively now.
+which grew its fields (anomaly_checks, coverage_breadth, prior_critique_addressed,
+...) incrementally in direct response to specific observed failures in that
+domain. This reviewer starts simple; harden it later if a real problem shows
+up here too, not speculatively now.
 """
 
 import json

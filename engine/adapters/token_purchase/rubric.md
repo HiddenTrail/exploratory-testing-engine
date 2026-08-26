@@ -26,7 +26,7 @@ might not be one, or there might be several nobody anticipated.
    cited tests actually support the claim as described?
    `yes / partial / no`
 
-4. **Skeptic's critique is substantive, not decorative** - read `anomaly_critique`
+4. **Skeptic's critique is substantive, not decorative** - read `anomaly_checks`
    and `gaps` in the final checkpoint's `skeptic_review`. Does it propose a real
    alternative explanation and a concrete way to distinguish it from the Driver's
    claim (not just "more testing needed" in the abstract)?

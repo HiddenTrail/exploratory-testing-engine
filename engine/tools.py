@@ -102,7 +102,7 @@ SKEPTIC_TOOL = {
             "verdict": {
                 "type": "string",
                 "enum": ["weak", "strong_enough"],
-                "description": "'weak' only for a MATERIAL reason: an overconfident behavior characterization, an anomaly claim that isn't well justified, a suspicious absence of any anomaly claim given what's been tested, an anomaly whose evidence fails the inference_validity_check, a previously-raised gap that still hasn't been addressed, or a coverage-breadth problem (see coverage_breadth_check). 'strong_enough' whenever none of those apply - routine, low-stakes untested corners in 'gaps' do NOT by themselves require 'weak'; there's always something more you could test in open-ended exploration, and naming it is not the same as having a material objection. But a coverage-breadth problem IS material: concluding 'no anomaly found' or a general behavior characterization from a small slice of the interface, while whole documented behaviors or paths remain completely untouched, is not adequately supported no matter how clean that small slice looks.",
+                "description": "'weak' only for a MATERIAL reason: an overconfident behavior characterization, an anomaly claim that isn't well justified, a suspicious absence of any anomaly claim given what's been tested, an anomaly_checks entry with discriminates_from_rival=false, a previously-raised gap that still hasn't been addressed, or coverage_breadth.material=true. 'strong_enough' whenever none of those apply - routine, low-stakes untested corners in 'gaps' do NOT by themselves require 'weak'; there's always something more you could test in open-ended exploration, and naming it is not the same as having a material objection. But a coverage-breadth problem IS material: concluding 'no anomaly found' or a general behavior characterization from a small slice of the interface, while whole documented behaviors or paths remain completely untouched, is not adequately supported no matter how clean that small slice looks.",
             },
             "gaps": {
                 "type": "array",
@@ -110,52 +110,75 @@ SKEPTIC_TOOL = {
                 "description": "At least 2 concrete gaps, untested areas, or weak assumptions - things that, if tested, might change the picture. These are for the next checkpoint's planning; listing them does not by itself imply 'weak'.",
                 "minItems": 2,
             },
-            "coverage_breadth_check": {
-                "type": "string",
+            "coverage_breadth": {
+                "type": "object",
                 "description": (
                     "Look at gaps/untested_areas as a SET, not one at a time: roughly how many genuinely "
                     "distinct, documented behaviors or paths - not just parameter variations within a path "
-                    "that's already been tested - have zero test coverage so far? If that's a large "
-                    "fraction of what the interface actually offers, say so explicitly - that breadth gap "
-                    "is itself a material reason the overall characterization or a 'no anomaly found' "
-                    "conclusion isn't adequately supported yet, independent of how solid the small, "
-                    "already-tested slice looks. Testing a handful of easy, narrow checks and concluding "
-                    "the system is fine is not the same as testing broadly across the documented surface "
-                    "and finding nothing - don't let the former stand in for the latter."
+                    "that's already been tested - have zero test coverage so far? Testing a handful of "
+                    "easy, narrow checks and concluding the system is fine is not the same as testing "
+                    "broadly across the documented surface and finding nothing - don't let the former "
+                    "stand in for the latter."
                 ),
+                "properties": {
+                    "material": {
+                        "type": "boolean",
+                        "description": (
+                            "True if the untested fraction is large enough, on its own, to make the "
+                            "current characterization or a 'no anomaly found' conclusion unsupported - "
+                            "independent of how solid the small, already-tested slice looks."
+                        ),
+                    },
+                    "note": {
+                        "type": "string",
+                        "description": "1-2 sentences: which distinct behaviors/paths have zero coverage, and why that is or isn't material. Specific, not generic.",
+                    },
+                },
+                "required": ["material", "note"],
             },
-            # NOTE: a known, accepted limitation lives here - this check does not
-            # account for realistic value rounding/precision when deciding whether
-            # cited evidence "discriminates" a claim from its rival. Verified case:
-            # a claim that 101 credits costing $1.82 instead of $1.818 proves
-            # "marginal pricing" is actually just ordinary cent-rounding of a flat
-            # rate, but the Skeptic accepted it as discriminating evidence anyway.
-            # Deliberately not fixed here - carried forward as documented, known
-            # scope, not something to patch incidentally while touching this file.
-            "inference_validity_check": {
-                "type": "string",
+            "anomaly_checks": {
+                "type": "array",
                 "description": (
-                    "For each anomaly claimed (if any): does the cited evidence actually DISCRIMINATE "
-                    "the claimed mechanism from its own stated rival explanation - i.e. would the "
-                    "evidence have come out differently if the rival were true instead - or would the "
-                    "exact same observations show up under either explanation? Evidence that is merely "
-                    "CONSISTENT with a claim (but equally consistent with a real rival) does not actually "
-                    "support that claim, no matter how many data points there are. Concretely check: "
-                    "restate the claimed mechanism, restate the rival, and ask whether the specific "
-                    "numbers/outcomes cited would differ between them. Explicitly name any anomaly that "
-                    "fails this test, and say what a genuinely discriminating test would need to show "
-                    "instead. If no anomalies were claimed, write 'n/a'."
+                    "One entry per anomaly claimed in the hypothesis - empty list if none were claimed. "
+                    "For each: does the cited evidence actually DISCRIMINATE the claimed mechanism from "
+                    "its own stated rival explanation - i.e. would the evidence have come out differently "
+                    "if the rival were true instead - or would the exact same observations show up under "
+                    "either explanation? Evidence that is merely CONSISTENT with a claim (but equally "
+                    "consistent with a real rival) does not actually support that claim, no matter how "
+                    "many data points there are. Concretely check: restate the claimed mechanism, restate "
+                    "the rival, and ask whether the specific numbers/outcomes cited would differ between "
+                    "them."
+                    # NOTE: a known, accepted limitation lives here - this check does not
+                    # account for realistic value rounding/precision when deciding whether
+                    # cited evidence "discriminates" a claim from its rival. Verified case:
+                    # a claim that 101 credits costing $1.82 instead of $1.818 proves
+                    # "marginal pricing" is actually just ordinary cent-rounding of a flat
+                    # rate, but the Skeptic accepted it as discriminating evidence anyway.
+                    # Deliberately not fixed here - carried forward as documented, known
+                    # scope, not something to patch incidentally while touching this file.
                 ),
-            },
-            "anomaly_critique": {
-                "type": "string",
-                "description": (
-                    "If any anomalies were claimed: your independent alternative explanation for the same "
-                    "observation(s), and whether each claim's own competing explanation was genuine or a "
-                    "strawman, plus concrete ways to distinguish rival explanations from the claim. If no "
-                    "anomalies were claimed, briefly say whether that absence itself seems premature given "
-                    "what's been tested, or whether a genuinely clean result is plausible here."
-                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "anomaly_ref": {
+                            "type": "string",
+                            "description": "Which claimed anomaly this is about - quote enough of it to identify uniquely.",
+                        },
+                        "discriminates_from_rival": {
+                            "type": "boolean",
+                            "description": "False means the cited evidence is merely consistent with the claim, not evidence for it over its own stated rival.",
+                        },
+                        "rival_is_genuine": {
+                            "type": "boolean",
+                            "description": "Is the claim's own competing explanation a real, plausible alternative, or a strawman easily dismissed?",
+                        },
+                        "note": {
+                            "type": "string",
+                            "description": "1-2 sentences: your own independent alternative explanation, and/or what a genuinely discriminating test would need to show instead.",
+                        },
+                    },
+                    "required": ["anomaly_ref", "discriminates_from_rival", "rival_is_genuine", "note"],
+                },
             },
             "recommended_next_tests": {
                 "type": "array",
@@ -163,8 +186,8 @@ SKEPTIC_TOOL = {
                 "description": (
                     "At least 2 concrete, actionable test ideas the Driver should try next - specific "
                     "enough to run directly (what inputs, what outcome would be informative). Prioritize "
-                    "tests that would resolve a failed inference_validity_check or close a named gap over "
-                    "generic 'test more' suggestions."
+                    "tests that would resolve a discriminates_from_rival=false finding or close a named "
+                    "gap over generic 'test more' suggestions."
                 ),
                 "minItems": 2,
             },
@@ -183,12 +206,8 @@ SKEPTIC_TOOL = {
                     "review, write 'n/a'."
                 ),
             },
-            "reasoning": {"type": "string"},
         },
-        "required": [
-            "verdict", "gaps", "coverage_breadth_check", "inference_validity_check", "anomaly_critique",
-            "recommended_next_tests", "prior_critique_addressed", "reasoning",
-        ],
+        "required": ["verdict", "gaps", "coverage_breadth", "anomaly_checks", "recommended_next_tests", "prior_critique_addressed"],
     },
 }
 
@@ -209,14 +228,14 @@ observation would look any different under the rival "capacity is cumulative, an
 simply fit within whatever headroom remained." If the numbers involved (the decline amount, the prior
 spend, the smaller amounts) are consistent with the cumulative story too, the cited evidence does not
 actually discriminate between the two, and the claim is unsupported regardless of how confidently it's
-stated. This is exactly the kind of thing inference_validity_check exists to catch - work through it
-explicitly rather than treating "some evidence exists" as sufficient.
+stated. This is exactly what each anomaly_checks entry's discriminates_from_rival exists to catch -
+work through it explicitly rather than treating "some evidence exists" as sufficient.
 
 Do not conflate "I can name an untested corner" with "I have a material objection." Exploratory testing
 always has more you could try - that's what 'gaps' and 'recommended_next_tests' are for, feeding the
 next checkpoint's planning - but naming them is not itself a reason for "weak". Reserve "weak" for a
-genuine, specific reason to doubt the current hypothesis or a named anomaly claim: an inference_validity_check
-failure, an overconfident characterization the evidence doesn't support, a suspicious absence of any
+genuine, specific reason to doubt the current hypothesis or a named anomaly claim: a discriminates_from_rival=false
+finding, an overconfident characterization the evidence doesn't support, a suspicious absence of any
 anomaly claim given what's actually been tested, a coverage-breadth problem (see below), or (see further
 below) a previously-raised objection that was never addressed. If the strongest thing you can say is
 "there's always more to test," that is consistent with "strong_enough", not evidence against it.
@@ -231,7 +250,7 @@ example: five tests that each cleanly confirm one narrow, easy error path (wrong
 quantity, wrong secret) plus one single data point about pricing is not "a well-tested system with a
 couple of loose ends" - it's a small, easy fraction of the interface with almost everything else,
 including the paths most likely to hide a real bug, never touched even once. Say this explicitly in
-coverage_breadth_check and let it drive the verdict; don't let "the tested claims all held up" quietly
+coverage_breadth and let it drive the verdict; don't let "the tested claims all held up" quietly
 stand in for "the interface has actually been tested."
 
 If the evidence you're given includes 'your_own_prior_review' (your own critique from the checkpoint
@@ -246,25 +265,23 @@ tested further. An incredible claim, or silence on a gap you named, is itself a 
 "weak", independent of anything else.
 
 Give a verdict: "weak" only for one of the material reasons above, or "strong_enough" if none apply.
-Identify at least 2 concrete gaps, do the coverage_breadth_check honestly, and give at least 2 concrete
-recommended_next_tests specific enough to run directly. If anomalies were claimed, give your own
-independent alternative explanation and assess whether each one's own competing explanation is genuine
-or a strawman - you propose what's worth investigating further, the Driver decides what to actually
-test. Remember this implementation may genuinely have no bugs - don't manufacture doubt just to have
-something to say, but don't rubber-stamp a thin absence-of-anomalies claim either, and don't rubber-stamp
-a thin slice of the interface as if it were the whole thing.
+Identify at least 2 concrete gaps, fill in coverage_breadth honestly, and give at least 2 concrete
+recommended_next_tests specific enough to run directly. For EACH anomaly claimed, add one entry to
+anomaly_checks with your own independent alternative explanation and whether that claim's own competing
+explanation is genuine or a strawman - you propose what's worth investigating further, the Driver
+decides what to actually test. If no anomalies were claimed, leave anomaly_checks empty. Remember this
+implementation may genuinely have no bugs - don't manufacture doubt just to have something to say, but
+don't rubber-stamp a thin absence-of-anomalies claim either, and don't rubber-stamp a thin slice of the
+interface as if it were the whole thing.
 
 Call submit_skeptic_review with your answer."""
 
 
-def validate_skeptic_response(data) -> list[str]:
+def validate_skeptic_response(data, *, expected_anomaly_count=None) -> list[str]:
     errors = []
     if not isinstance(data, dict):
         return [f"expected an object, got {type(data).__name__}"]
-    required = (
-        "verdict", "gaps", "coverage_breadth_check", "inference_validity_check", "anomaly_critique",
-        "recommended_next_tests", "prior_critique_addressed", "reasoning",
-    )
+    required = ("verdict", "gaps", "coverage_breadth", "anomaly_checks", "recommended_next_tests", "prior_critique_addressed")
     for key in required:
         if key not in data:
             errors.append(f"missing required field '{key}'")
@@ -273,9 +290,36 @@ def validate_skeptic_response(data) -> list[str]:
     gaps = data.get("gaps")
     if not isinstance(gaps, list) or len(gaps) < 2 or not all(isinstance(g, str) for g in gaps):
         errors.append("'gaps' must be a list of at least 2 strings")
+
+    coverage_breadth = data.get("coverage_breadth")
+    if not isinstance(coverage_breadth, dict) or not isinstance(coverage_breadth.get("material"), bool) or not isinstance(coverage_breadth.get("note"), str):
+        errors.append("'coverage_breadth' must be an object with a boolean 'material' and a string 'note'")
+
+    anomaly_checks = data.get("anomaly_checks")
+    if not isinstance(anomaly_checks, list):
+        errors.append("'anomaly_checks' must be a list (empty if no anomalies were claimed)")
+    else:
+        for i, check in enumerate(anomaly_checks):
+            if not isinstance(check, dict):
+                errors.append(f"anomaly_checks[{i}] must be an object")
+                continue
+            for field in ("anomaly_ref", "note"):
+                if not isinstance(check.get(field), str):
+                    errors.append(f"anomaly_checks[{i}].{field} must be a string")
+            for field in ("discriminates_from_rival", "rival_is_genuine"):
+                if not isinstance(check.get(field), bool):
+                    errors.append(f"anomaly_checks[{i}].{field} must be a boolean")
+        if expected_anomaly_count is not None and len(anomaly_checks) != expected_anomaly_count:
+            errors.append(
+                f"'anomaly_checks' must have exactly one entry per claimed anomaly "
+                f"({expected_anomaly_count} claimed, got {len(anomaly_checks)})"
+            )
+
     next_tests = data.get("recommended_next_tests")
     if not isinstance(next_tests, list) or len(next_tests) < 2 or not all(isinstance(t, str) for t in next_tests):
         errors.append("'recommended_next_tests' must be a list of at least 2 strings")
+    if not isinstance(data.get("prior_critique_addressed"), str):
+        errors.append("'prior_critique_addressed' must be a string")
     return errors
 
 

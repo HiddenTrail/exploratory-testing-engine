@@ -49,7 +49,7 @@ def _cache_breakpoint(tools: list[dict], system: str) -> tuple[list[dict], list[
 
 def call_tool_with_retry(
     client, *, model, system, tools, tool_name, user_message, validate_fn, max_tokens,
-    max_attempts=DEFAULT_MAX_ATTEMPTS, cache_static_content=False,
+    max_attempts=DEFAULT_MAX_ATTEMPTS, cache_static_content=False, cached_content=None,
 ):
     """Retries are informed, not blind repeats: on failure, the model's own malformed call and
     the concrete validation errors are fed back as a tool_result before asking again, so a
@@ -62,11 +62,27 @@ def call_tool_with_retry(
     call sites where they're byte-identical across many calls in a run (e.g. every checkpoint),
     left off by default so opting a given call site in is a deliberate choice, not a silent
     blanket change to every call's request shape.
+
+    cached_content, if given, is placed as its own content block BEFORE user_message and marked
+    cacheable - for a call site whose evidence has a large, append-only-growing prefix (e.g. a
+    replayed test history) shared with the immediately preceding call of the same kind. Anthropic
+    caches by exact byte-prefix match, so this only pays off when cached_content is either
+    byte-identical to, or an extension of, what a recent call of the SAME call site already sent;
+    it does not share anything across different call sites (they have different system prompts
+    and content to begin with, so there is no prefix to match regardless). user_message stays the
+    small, call-specific remainder that changes every time and is never cached.
     """
     request_tools, request_system = (
         _cache_breakpoint(tools, system) if cache_static_content else (tools, system)
     )
-    messages = [{"role": "user", "content": user_message}]
+    if cached_content is not None:
+        content = [
+            {"type": "text", "text": cached_content, "cache_control": {"type": "ephemeral"}},
+            {"type": "text", "text": user_message},
+        ]
+    else:
+        content = user_message
+    messages = [{"role": "user", "content": content}]
     last_errors = ["no attempts made"]
     for attempt in range(1, max_attempts + 1):
         try:
