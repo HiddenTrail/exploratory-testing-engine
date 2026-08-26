@@ -47,3 +47,10 @@ runs/
 
 # Playwright MCP's own snapshot/trace output (recreated on every run)
 .playwright-mcp/
+
+# Install packages
+.source/*
+
+# Screenshots pulled out of the game to look at by hand. Regenerable from any
+# probe run, and a few MB of PNGs per session.
+experiments/game-screen-probe/pics/
