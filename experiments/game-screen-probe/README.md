@@ -118,9 +118,34 @@ line of it was paid for in wrong moves:
   tutorial message also spends a tile.
 - Tiles arrive from a visible vertical **queue** on the right; the tile staged
   beside the board is the next one out and the queue is the lookahead.
-- Running out of tiles ends the game ("no more tiles!"); `enter` afterwards
-  auto-restarts into a fresh tutorial game.
 - Level thresholds: 50 points for level 2, 140 for level 3.
+- Shuffling has a **cooldown**. Clicking faster than it does not shuffle faster;
+  the extra clicks are simply discarded, which is easy to mistake for a
+  successful speed-up because a click that does nothing returns immediately.
+
+### The state machine, as measured
+
+```
+main menu  --enter on NEW GAME-->  board
+board      --deck reaches 0---->   CHALLENGES
+CHALLENGES --any mouse click--->   main menu (NEW GAME pre-highlighted)
+```
+
+Corrections to earlier readings of this, each of which was wrong in a way that
+looked right:
+
+- **ESC does not leave the board.** It only advances the tutorial. A menu that
+  appeared right after an ESC had already been there before the keypress.
+- Running out of tiles does not "restart on enter". It raises **CHALLENGES**, the
+  game-over screen: score, best score, and 14 locked challenges. `enter`, `esc`
+  and `space` are all ignored there - **only a mouse click** dismisses it, and it
+  lands on the main menu with NEW GAME already highlighted.
+- So there *is* a reset primitive after all, without ever touching the exit icon:
+  spend the remaining tiles, click once, press enter. That is what
+  `bench_shuffle.py` uses to run itself repeatedly from any starting state.
+- The menu **wraps**, and ESC on the menu parks the highlight on **QUIT**. So
+  "press up a few times to reach the top" is not safe; the highlighted row has to
+  be read off the pixels before enter is pressed.
 
 Two hard rules for anything driving this game:
 
@@ -193,9 +218,49 @@ progress. Two ways out, both untried:
 
 - Set `SCREEN` to windowed in the game's own options menu (that setting is right
   there on this screen), which makes capture cooperative.
-- Skip pixels entirely and go the injected-control-channel route, which also
-  gives the reset primitive that pixel-driving lacks.
+- Skip pixels entirely and go the injected-control-channel route, which is
+  cheaper than driving the game's own menus for a reset.
 
-Also note there is no reset here: state can only be moved through the game's own
-menus, so anything built on this needs to record *which* state an observation
-came from before results can be compared across runs.
+State can only be moved through the game's own menus, so anything built on this
+needs to record *which* state an observation came from before results can be
+compared across runs. There *is* a usable reset (drain the deck, click,
+enter) - see the state machine above - but it costs a whole game to get one.
+
+## Speed: `bench_shuffle.py`
+
+One measured task - new game, shuffle until the deck counter hits 0, stop -
+re-run under six configurations, each stage removing one source of cost. Run
+`py experiments/game-screen-probe/bench_shuffle.py --stage N --cycles 3 --verify`.
+
+| # | Change | Cycle s | s / landed | Landed | Captures | KiB |
+|---|---|---|---|---|---|---|
+| 1 | baseline (the habits the earlier scripts had) | 26.19 | 3.417 | 100% | 465 | 1325 |
+| 2 | adaptive settle instead of a fixed 2.2s sleep | 24.04 | 2.773 | 79% | 536 | 1915 |
+| 3 | restore once per cycle, cache the client rect | 16.65 | 2.172 | 68% | 663 | 2018 |
+| 4 | closed loop: poll the counter, not the board | 9.21 | 1.152 | 73% | 546 | 1973 |
+| 5 | drop the 25-region fingerprint for one 16x16 read | 7.47 | 0.934 | 67% | 439 | 369 |
+| 6 | park the cursor, drop the pre-click hover | 6.15 | 0.683 | 64% | 324 | 294 |
+
+4.3x on wall clock, 5.0x per shuffle that actually landed, 4.5x fewer pixel bytes
+read per cycle (6.9x down from the peak at stage 3).
+
+Two things about that table are the actual lesson:
+
+- **`--verify` exists because a speed-up was fake.** Trimming the click hold from
+  80ms to 30ms improved seconds-per-click and made the run look faster, but the
+  landing rate fell to 44%: a click the game discards animates nothing, so the
+  settle poll returns instantly and a wasted iteration reads as a cheap success.
+  Any per-attempt metric rewards not doing the work. So the benchmark counts
+  clicks that **moved the counter** and reports seconds per landed shuffle, which
+  cannot be gamed that way.
+- **The stage order is not the order these were tried in.** Shrinking the reads
+  (5) and parking the cursor (6) were measured first and both came out *slower*
+  end to end, because of the shuffle cooldown: clicking sooner without knowing the
+  game is ready just spends clicks into the cooldown, and cheap reads buy latency
+  the loop then throws away waiting. Closing the loop on the counter first turns
+  both back into wins. Ordering the file by the causal dependency rather than by
+  the order of discovery is what makes every step monotone.
+
+Where the remaining time goes: 36% of clicks still land during the cooldown. The
+floor is the game's, not the harness's - the next win is timing the cooldown
+rather than probing for it.
