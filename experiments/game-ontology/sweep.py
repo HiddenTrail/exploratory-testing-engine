@@ -92,12 +92,20 @@ KILL_GRACE = 60.0
 _live: Controller | None = None
 
 
-def arm_kill_switch(deadline: float, budget: float) -> None:
+def arm_kill_switch(deadline: float, budget: float, live=None) -> None:
     """Kill the process if the budget plus its grace period runs out.
 
     A daemon thread rather than a signal or a timeout parameter, because what this
     protects against is precisely the call that is not watching a clock. Its job is to be
-    the one thing in the sweep that cannot be blocked."""
+    the one thing in the sweep that cannot be blocked.
+
+    `live` is a callable returning whichever controller currently owns a game window, or
+    None. A callable rather than the controller itself because the thread outlives any
+    particular one, and it is shared with `mission.py`: the failure being insured against
+    - a game left fullscreen on someone's desktop by a process that skipped every
+    `finally` - is not specific to sweeping."""
+    live = live or (lambda: _live)
+
     def watch() -> None:
         while True:
             left = deadline + KILL_GRACE - time.monotonic()
@@ -105,10 +113,11 @@ def arm_kill_switch(deadline: float, budget: float) -> None:
                 break
             time.sleep(min(left, 1.0))
         log(f"\nkill switch: {budget:.0f} minutes plus {KILL_GRACE:.0f}s of grace are "
-            f"gone and something is still running; killing the sweep")
-        if _live is not None:
+            f"gone and something is still running; killing the run")
+        owner = live()
+        if owner is not None:
             try:
-                _live.close()
+                owner.close()
             except OSError as error:
                 log(f"  could not close the game: {error}")
         os._exit(2)

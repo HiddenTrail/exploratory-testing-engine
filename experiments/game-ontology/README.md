@@ -38,6 +38,7 @@ py sweep.py --game Mitosis --budget 40      # a longer leash; passes fill it as 
 py sweep.py --game "tile tale" --no-model   # mechanics only; committing actions stay locked
 py recon.py --game Mitosis --minutes 3     # one pass on its own
 py describe.py out/<...>/pass5             # annotate the graph, rewrite the report
+py mission.py --game Mitosis               # plan against the newest map, then fly the plans
 py controller.py --game Mitosis            # smoke test: find it, own a window, read it, close it
 py selftest.py                             # no game at all: check the close-ups against a fake one
 ```
@@ -186,6 +187,48 @@ nothing the transition record does not already contain.
 locked and the session maps only what cursor moves and arrow keys reveal. On Tile Tale
 that is the main menu's highlight and nothing else. It is a real result about what
 this machinery can discover with no intelligence in the loop, and it is not much.
+
+## Missions: the map as an input
+
+`sweep.py` explores by a fixed policy - arrow keys, then this appearance's committing
+keys, then points the cursor was seen to react to, then breadth-first to the nearest
+screen with something untried. That policy is blind on purpose, since it has to work on a
+game nobody has looked at, and the price is that it cannot use what it just learned. A
+map saying "sc03 is the campaign screen and it has a Level 1 button at (0.31, 0.44)"
+reaches the explorer as four arrow keys and a hotspot list, because that is all the
+explorer can read.
+
+`mission.py` closes that loop. The model reads a digest of the map, the missions already
+flown, and a fresh screenshot of where the harness is standing, and writes **one**
+mission: a goal and a short list of steps - `go`, `press`, `click`, `hover`, `wait`,
+`restart`, `expect`. This program executes them literally and reports what each step
+actually did, then asks for the next one, briefed by what the last one proved.
+
+**The plan is a hypothesis and the executor is the referee.** Which is why a mission must
+contain at least one `expect` step, enforced in the validator rather than requested in the
+prompt: "click Campaign, then we should be somewhere new" is a claim that can be wrong,
+and when it is wrong the report says so at the step where it broke, naming the screen the
+harness was actually on. A plan with no expectation cannot fail, so it cannot teach
+anything either - it just moves the game around. A mission stops at its first failed step,
+because after that every later step is aimed at a screen the harness is not on.
+
+Nothing here is trusted more than in recon. Every step goes through `Recon.take`, so
+identity matching and transition recording are unchanged; every committing action goes
+through `Recon.permitted`, so the denylist and the modality gate are unchanged. The one
+new thing is where candidates come from: a plan may name a control the cursor never
+reacted to, which arrives with no verdict, so `Recon.ask_about` buys one. The model
+proposing a coordinate does not make it allowed - it makes it a question, asked with the
+same brief and answerable with "no".
+
+That is what should unlock the games the explorer cannot touch. Two of the three games
+this has been pointed at have screens that ignore the cursor entirely: nothing reacts, so
+there are no click candidates and only arrow keys to spend. The map still holds labelled
+coordinates for those screens, because the vetting call reports what it can read whether
+or not anything moved. A mission can click them.
+
+**Unproven.** As committed, this has never completed a run end to end - the machinery, the
+schema and the referee are written and read correctly, and no `missions.md` exists yet to
+show for it. Treat the paragraph above as the design, not as a result.
 
 ## Every behaviour claim is sourced
 
