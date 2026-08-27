@@ -129,15 +129,19 @@ def digest(data: dict, standing: str, flown: list[dict]) -> str:
                          f"way anything gets clicked on it.")
         # What the blind probes found, stated either way. "The wheel did nothing here"
         # is worth as much to a planner as the opposite: it is the reason not to spend a
-        # step scrolling a view that does not move. Absent from a map written before the
-        # explorer probed for either, which reads as "not known" rather than as "no".
+        # step scrolling a view that does not move. But only for a screen that was
+        # actually probed, and the flag cannot answer that: a map written before the
+        # explorer swept for either resumes with both flags restored to False, so absence
+        # of the flag lasts exactly until the first save. What survives is `tried`, which
+        # names the probes that were sent - so "no" is said off the evidence and silence
+        # means nobody looked.
         explored = screen.get("explored", {})
-        found = [name for name, flag in (("the mouse wheel", "wheel_does_something"),
-                                         ("dragging", "drag_does_something"))
-                 if explored.get(flag)]
-        blind = [name for name, flag in (("the mouse wheel", "wheel_does_something"),
-                                         ("dragging", "drag_does_something"))
-                 if flag in explored and not explored.get(flag)]
+        tried = explored.get("tried", [])
+        MODALITIES = (("the mouse wheel", "wheel_does_something", "scroll:"),
+                      ("dragging", "drag_does_something", "drag:"))
+        found = [name for name, flag, _ in MODALITIES if explored.get(flag)]
+        blind = [name for name, flag, prefix in MODALITIES
+                 if not explored.get(flag) and any(a.startswith(prefix) for a in tried)]
         if found:
             lines.append(f"\nThis screen reacts to {' and '.join(found)}.")
         if blind:
