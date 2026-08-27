@@ -56,7 +56,8 @@ from pathlib import Path
 import calibrate
 import recon
 import target as targets
-from controller import Controller, WindowLost, log, set_dpi_aware
+from controller import (Controller, WindowLost, log, readable_output,
+                        set_dpi_aware)
 
 PASSES = 5
 MINUTES = 3.0
@@ -268,6 +269,7 @@ def write_summary(out: Path, game: str, passes: list[dict], calibration: dict,
 
 
 def main() -> None:
+    readable_output()
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--game", required=True,
                         help="the game's name, as a person would write it")

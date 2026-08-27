@@ -226,9 +226,36 @@ there are no click candidates and only arrow keys to spend. The map still holds 
 coordinates for those screens, because the vetting call reports what it can read whether
 or not anything moved. A mission can click them.
 
-**Unproven.** As committed, this has never completed a run end to end - the machinery, the
-schema and the referee are written and read correctly, and no `missions.md` exists yet to
-show for it. Treat the paragraph above as the design, not as a result.
+**What three missions against Tile Tale actually did.** None of them achieved its goal,
+and the run is the most useful thing this experiment has produced in a day. All three set
+out to reach a Records screen the annotator had labelled but nothing had ever activated.
+
+1. Clicking Records by label was **refused** before it was sent. `ask_about` bought a
+   verdict for a control the explorer had never proposed, and the answer was no: the
+   vetter, looking at the whole window, judged that the map's coordinate for Records sits
+   near QUIT, and would not risk it. The model proposing a coordinate really is a question
+   rather than a permission.
+2. So the next plan hovered instead, at a coordinate it reasoned out from the screenshot.
+   Nothing happened - 0 of 576 cells - and its own `expect` step called it: "the previous
+   step changed nothing visible".
+3. So the third plan used the keyboard. `down` also did nothing, `enter` did something,
+   and the mission stopped on its last step with the harness on the puzzle screen rather
+   than on anything new.
+
+Two findings fell out of that, and they are worth more than a green tick. `key:down` moves
+the menu selection on this screen when the cursor is elsewhere and does nothing at all
+when the cursor is parked on the menu, which is the same one mechanism the sticky-hover
+work found from the other side: the mouse owns the selection and the arrow keys are
+arguing with it.
+
+And **the map has a wrong edge, which only a mission could have exposed.** It records
+`tr020 key:enter -> sc01, a different appearance, 42 cells` for the most consequential key
+on the main menu; that key starts the game. What happened is that the settle window closed
+while the game was still fading, so the frame that was graded was still mostly the menu.
+No sweep can catch this, because a sweep grades each transition once and never asks again -
+whereas a mission takes a fresh look one step later, and here the two observations of the
+same moment disagreed. Not yet fixed: the fix is in how `Recon.take` grades a settle, and
+it needs a re-sweep to show it did not break identity matching.
 
 ## Every behaviour claim is sourced
 
@@ -523,6 +550,18 @@ consumer can take the observed claims and leave the guesses.
     field the code reads with `[...]` rather than `.get` is now checked before the call is
     accepted, so a payload missing one costs a retry naming the field instead of a
     `KeyError` that ends the run and takes the screens after it down.
+
+25. **A model wrote an arrow and it killed a live run.** `UnicodeEncodeError: 'charmap'
+    codec can't encode character '→'` - between planning mission 2 and flying it, with
+    the game already launched. Windows hands a Python process a cp1252 stdout, `print`
+    raises rather than dropping the character, and every log line in this experiment can
+    contain a model's prose: why a mission was planned, why an action was refused, what it
+    called a control. The fix is `readable_output()`, called first in every entry point,
+    which is process-wide rather than a guard inside `log` because `log` is not the only
+    thing that prints model text - `engine/client.py` prints the validation errors it feeds
+    back on a retry, and those quote the payload. The general lesson is the cheap one: a
+    string that came from a model is untrusted input all the way to the console, and no
+    sentence it writes should be able to end a session that has a game open.
 
 ## What is reused, and what standalone means
 

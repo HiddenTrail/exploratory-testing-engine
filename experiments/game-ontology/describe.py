@@ -50,7 +50,7 @@ from engine.client import build_client, call_tool_with_retry, default_model  # n
 # What a coordinate has to look like to be aimable, from the file that defines the
 # coordinate system. Imported rather than restated so that this module cannot end up
 # accepting a coordinate `Controller.point` would refuse.
-from controller import is_fraction  # noqa: E402
+from controller import is_fraction, readable_output  # noqa: E402
 # The one thing shared with the session that produces the evidence: the order the
 # close-ups of an action go in. Imported rather than repeated, so a fourth slot cannot be
 # filmed and then quietly not shown. Safe as a top-level import because `recon` only ever
@@ -700,6 +700,7 @@ def annotate(out: Path, model: str | None = None, client=None, limit: int = 0) -
 
 
 def main() -> None:
+    readable_output()
     parser = argparse.ArgumentParser(description="Annotate a recon session's ontology.")
     parser.add_argument("out", help="a session directory containing ontology.json")
     parser.add_argument("--model", default=None)

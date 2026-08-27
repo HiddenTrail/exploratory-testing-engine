@@ -59,7 +59,8 @@ import calibrate
 import recon
 import sweep
 import target as targets
-from controller import Controller, WindowLost, is_fraction, log, set_dpi_aware
+from controller import (Controller, WindowLost, is_fraction, log, readable_output,
+                        set_dpi_aware)
 from probe import VK_NAMES
 from recon import UNVETTED, Action
 
@@ -505,6 +506,7 @@ def write_missions(out: Path, game: str, flown: list[dict], grew: dict) -> Path:
 
 
 def main() -> None:
+    readable_output()
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--game", required=True,
                         help="the game's name, as a person would write it")

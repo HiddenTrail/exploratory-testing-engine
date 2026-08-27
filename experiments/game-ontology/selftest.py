@@ -40,6 +40,7 @@ sys.path.insert(0, str(HERE))
 import describe  # noqa: E402
 import recon  # noqa: E402
 from probe import write_png  # noqa: E402  (importable because controller.py added its path)
+from controller import readable_output  # noqa: E402
 from recon import Action, Recon  # noqa: E402
 
 COLS, ROWS = 32, 18
@@ -218,6 +219,7 @@ def digest(path: Path) -> str:
 
 
 def main() -> None:
+    readable_output()
     # The measured settles are the run's whole cost and none of its substance. Cut here
     # rather than made configurable in `recon`, so no real pass can pick these up.
     recon.HOVER_SETTLE = 0.01

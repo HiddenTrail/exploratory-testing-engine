@@ -102,6 +102,31 @@ def log(message: str) -> None:
     print(message, flush=True)
 
 
+def readable_output() -> None:
+    """Make stdout able to carry what a model wrote. Call it first in every entry point.
+
+    Windows hands a Python process a cp1252 stdout, and every log line in this experiment
+    can contain a model's prose: the reason a mission was planned, the reason an action was
+    refused, the label it gave a control. A model writes arrows and em dashes, cp1252 has
+    no code point for either, and `print` raises rather than dropping the character. A live
+    mission run died exactly there - between planning mission 2 and flying it, with the
+    game already launched, on a `→` in a sentence explaining why.
+
+    Process-wide rather than a guard inside `log`, because `log` is not the only thing here
+    that prints model text: `engine/client.py` prints the validation errors it feeds back
+    on a retry, and those quote the payload. One line at startup covers every print in the
+    process, including the ones in code this experiment only borrows.
+
+    `errors="replace"` as well as UTF-8, so a console that still cannot encode something
+    loses that character and not the run - the whole point is that no sentence a model
+    writes should be able to end a session that has a game open."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, OSError):
+            pass  # not a reconfigurable stream (a pipe someone replaced, a test capture)
+
+
 def is_fraction(at) -> bool:
     """Whether `at` is a pair of fractions of the client area, and so a point on a window.
 

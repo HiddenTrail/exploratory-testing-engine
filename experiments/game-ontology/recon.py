@@ -61,7 +61,8 @@ from shutil import copyfile
 
 import target as targets
 from calibrate import MATCH_FLOOR, SLACK_CELLS
-from controller import Controller, WindowLost, log, set_dpi_aware
+from controller import (Controller, WindowLost, log, readable_output,
+                        set_dpi_aware)
 
 # 32x18 keeps the 16:9 aspect, so cells are square and a cell index maps back to a
 # screen position without correction. 576 cells is coarse enough that a whole
@@ -2213,6 +2214,7 @@ def write_report(data: dict, out: Path) -> Path:
 # --- cli --------------------------------------------------------------------
 
 def main() -> None:
+    readable_output()
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--game", required=True,
                         help="the game's name, as a person would write it")
