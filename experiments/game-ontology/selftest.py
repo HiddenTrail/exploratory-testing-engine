@@ -13,7 +13,9 @@ real game gives no second opinion about what its own buttons look like:
      a pair filmed across two occurrences, where the `before` is the state the previous
      occurrence already left behind and is therefore its own `after`;
   4. that a map with pictures in it round-trips through save and resume, keeping both the
-     files and the aim, so a later pass films what an earlier one could not.
+     files and the aim, so a later pass films what an earlier one could not;
+  5. that the blind modalities get swept and escalated - one wheel each way and one drag
+     on every screen, the rest only where those proved the screen answers them.
 
 **Not a CI test, and cannot become one.** `controller.py` imports `probe.py`, which calls
 `ctypes.WinDLL` at module scope, so importing `recon` needs Windows; the workflow in
@@ -32,6 +34,7 @@ import hashlib
 import json
 import sys
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -50,6 +53,19 @@ CLIENT = (3840, 2160)
 BUTTONS = [((10, 19), (5, 6), "play"), ((10, 19), (8, 9), "settings"),
            ((10, 19), (11, 12), "quit")]
 BACK = ((2, 6), (15, 16))
+# A panel on the second screen that the wheel scrolls and a drag pans, and a bar beside
+# it that shows how far. The menu answers neither, which is the half worth having: the
+# explorer spends one wheel and one drag everywhere and escalates only where they landed,
+# so a fake with a reacting screen and an inert one exercises the gate both ways.
+# It pans on either axis - a map rather than a list - because the first drag probe is
+# sideways, and a panel that only moved vertically would report itself unpannable.
+PANEL = ((8, 26), (2, 12))
+# The row of the panel that is highlighted, and how far it travels. Nine cells wide, so
+# a move changes 18 of 576 - enough for the harness to see a different appearance of the
+# screen, far too few for it to call it a different screen. All five positions sit inside
+# the close-up a blind probe aims at the middle of the window, which is what makes the
+# before and after pictures of a scroll two pictures instead of one.
+BAND_COLS, BAND_ROWS = (12, 20), (7, 11)
 
 
 class FakeGame:
@@ -58,7 +74,8 @@ class FakeGame:
     Every behaviour here is one the imaging code has to handle: a hover reaction that
     ends when the cursor leaves (so a resting picture exists and differs), a pressed
     state visible only while the button is down, a selection that survives navigation,
-    movement with no input at all, and a click that changes screen."""
+    movement with no input at all, a click that changes screen, and a view that answers
+    the wheel and the drag."""
 
     def __init__(self) -> None:
         self.screen = "menu"
@@ -66,11 +83,31 @@ class FakeGame:
         self.hovered: int | None = None
         self.pressed = False
         self.frame = 0
+        # How far the panel has been pushed, in cells, along whichever axis pushed it.
+        self.offset = 0
 
     def cell(self, col: int, row: int) -> tuple[int, int, int]:
         if self.screen == "settings":
             if BACK[0][0] <= col <= BACK[0][1] and BACK[1][0] <= row <= BACK[1][1]:
-                return (90, 90, 90)
+                # Lights under the cursor, which gives this screen a hotspot - and a
+                # hotspot is what the wheel escalation aims at once the middle of the
+                # window has answered. It ignores the wheel, because it is a button and
+                # not a list: an escalated probe that finds nothing is the common case
+                # and has to be recordable.
+                if self.pressed and self.hovered == 99:
+                    return (230, 230, 230)
+                return (160, 160, 160) if self.hovered == 99 else (90, 90, 90)
+            if PANEL[0][0] <= col <= PANEL[0][1] and PANEL[1][0] <= row <= PANEL[1][1]:
+                span = BAND_ROWS[1] - BAND_ROWS[0] + 1
+                if (BAND_COLS[0] <= col <= BAND_COLS[1]
+                        and row == BAND_ROWS[0] + self.offset % span):
+                    return (210, 210, 90)
+                # Lighter while a button is held over it, so a grabbed panel and a
+                # settled one are two different pictures. Without that the pressed and
+                # after crops of a drag would be one image filed twice, which is exactly
+                # the failure this file exists to notice - and a real game that dims a
+                # view under the hand is the reason to film the moment at all.
+                return (100, 60, 60) if self.pressed else (52, 24, 24)
             return (60, 20, 20)
         if 1 <= col <= 5 and row <= 1:                  # the animating logo
             shade = 100 + 50 * (self.frame % 3)
@@ -96,6 +133,26 @@ class FakeGame:
                 return index
         return None
 
+    def on_panel(self, fx: float, fy: float) -> bool:
+        col, row = int(fx * COLS), int(fy * ROWS)
+        return (self.screen == "settings"
+                and PANEL[0][0] <= col <= PANEL[0][1]
+                and PANEL[1][0] <= row <= PANEL[1][1])
+
+    def wheel(self, fx: float, fy: float, notches: int) -> None:
+        """A wheel over the panel moves it, and a wheel anywhere else does nothing.
+
+        The second half is the one worth having: the explorer escalates to a wheel over
+        every hotspot once the middle answered, and on this screen the only hotspot is a
+        button that ignores it."""
+        if self.on_panel(fx, fy):
+            self.offset -= notches
+
+    def pan(self, start: tuple[float, float], end: tuple[float, float]) -> None:
+        if self.on_panel(*start):
+            self.offset += (round((end[0] - start[0]) * COLS)
+                            + round((end[1] - start[1]) * ROWS))
+
     def render(self, width: int, height: int, region) -> bytes:
         """BGRA of a sub-rectangle of the client, at whatever size is asked for."""
         self.frame += 1
@@ -120,6 +177,10 @@ class FakeTarget:
     def forbids(fx: float, fy: float) -> str:
         return ""
 
+    @staticmethod
+    def forbids_path(start: tuple[float, float], end: tuple[float, float]) -> str:
+        return ""
+
 
 class FakeController:
     """Everything `Recon` asks of a controller, and nothing else.
@@ -131,6 +192,7 @@ class FakeController:
     def __init__(self, game: FakeGame) -> None:
         self.game = game
         self.target = FakeTarget()
+        self.held: list[str] = []
         self.notes: list[str] = []
         self.handovers = 0
         self.restarts = 0
@@ -169,7 +231,7 @@ class FakeController:
     def hover(self, fx: float, fy: float, settle: float = 0.0) -> None:
         self.game.hovered = self.game.hit(fx, fy)
 
-    def click(self, fx: float, fy: float, button: str = "left",
+    def click(self, fx: float, fy: float, button: str = "left", modifiers=(),
               hover: float = 0.0, hold: float = 0.0, during=None) -> None:
         self.game.hovered = self.game.hit(fx, fy)
         self.game.pressed = True
@@ -181,6 +243,38 @@ class FakeController:
             self.game.screen = "settings"
         elif hit == 99:
             self.game.screen = "menu"
+
+    def drag(self, start: tuple[float, float], end: tuple[float, float],
+             button: str = "left", modifiers=(), hover: float = 0.0, during=None) -> None:
+        """Panned before the shutter, because by the time the far end is reached a real
+        view has already moved - so what `during` films is a moved panel with the hand
+        still down, and the after picture is the same panel let go of."""
+        self.game.hovered = self.game.hit(*start)
+        self.game.pressed = True
+        self.game.pan(start, end)
+        if during is not None:
+            during()
+        self.game.pressed = False
+
+    def scroll(self, fx: float, fy: float, notches: int, horizontal: bool = False,
+               modifiers=(), hover: float = 0.0) -> None:
+        self.game.hovered = self.game.hit(fx, fy)
+        # A sideways wheel does nothing here: the panel takes the vertical one, and a
+        # modality a game ignores is a result the explorer has to be able to record.
+        if not horizontal:
+            self.game.wheel(fx, fy, notches)
+
+    @contextmanager
+    def holding(self, *keys: str):
+        """Unreachable from the explorer, which sends no modified key - reached from a
+        mission, whose planner can. Here so the day one arrives it is not an
+        AttributeError in the middle of a run."""
+        self.held.extend(keys)
+        try:
+            yield
+        finally:
+            for key in reversed(keys):
+                self.held.remove(key)
 
     def press(self, key: str) -> None:
         if key == "down":
@@ -244,15 +338,32 @@ def main() -> None:
         print(f"\n{screen['id']}: {len(screen['animation'])} animation frames, "
               f"{len(screen['hover'].get('sticky_points') or [])} sticky points")
         print(f"  crop_boxes: {json.dumps(screen['hover']['crop_boxes'])[:200]}")
+        explored = screen["explored"]
+        blind = [a for a in explored["tried"] if a.startswith(("scroll:", "drag:"))]
+        print(f"  wheel answered: {explored['wheel_does_something']}, "
+              f"drag answered: {explored['drag_does_something']}, "
+              f"blind actions tried: {blind}")
 
     print("\ntransitions with close-ups, and whether their pictures differ:")
     for t in data["transitions"]:
         if not t["crops"]:
             continue
         marks = {slot: digest(out / path) for slot, path in t["crops"].items()}
-        verdict = ("all differ" if len(set(marks.values())) == len(marks)
-                   else "SAME PICTURE FILED TWICE")
-        print(f"  {t['id']} {t['action']['id']:<28} box={[round(v, 3) for v in t['crop_box']]} "
+        if len(set(marks.values())) == len(marks):
+            verdict = "all differ"
+        elif t["action"]["kind"] in ("scroll", "drag"):
+            # Not a failure, and the only case where it is not. A blind probe is filmed at
+            # the point it was sent to, because that is the only place anything is known
+            # about, and what it moves can be anywhere on the screen or nowhere at all.
+            # Which of the two it was is in the cell count, not in this pair.
+            verdict = "same pair - nothing moved where the blind probe was aimed"
+        else:
+            verdict = "SAME PICTURE FILED TWICE"
+        # The source screen is printed because the ids are numbered in the order the
+        # transitions were found, which is not the order the screens are listed in - a
+        # table without it reads as if the first rows belonged to the first screen.
+        print(f"  {t['id']} {t['from']} {t['action']['id']:<28} "
+              f"box={[round(v, 3) for v in t['crop_box']]} "
               f"{ {s: marks[s] for s in recon.CROP_SLOTS if s in marks} } {verdict}")
 
     print("\nwhat the vetter was sent:")
@@ -300,7 +411,7 @@ def _referenced(data: dict) -> set[str]:
         for variant in screen["variants"]:
             refs.add(variant["image"])
             refs.add(variant.get("differs_image") or "")
-        for entry in (screen.get("click_verdicts") or {}).values():
+        for entry in (screen.get("mouse_verdicts") or {}).values():
             if isinstance(entry, dict) and entry.get("image"):
                 refs.add(entry["image"])
     for transition in data["transitions"]:

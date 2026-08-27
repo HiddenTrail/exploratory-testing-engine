@@ -63,8 +63,16 @@ MOUSEEVENTF_RIGHTDOWN = 0x0008
 MOUSEEVENTF_RIGHTUP = 0x0010
 MOUSEEVENTF_MIDDLEDOWN = 0x0020
 MOUSEEVENTF_MIDDLEUP = 0x0040
+MOUSEEVENTF_WHEEL = 0x0800
+MOUSEEVENTF_HWHEEL = 0x1000
 MOUSEEVENTF_VIRTUALDESK = 0x4000
 MOUSEEVENTF_ABSOLUTE = 0x8000
+
+# One notch of a standard wheel, as Windows defines it. A game may treat any
+# non-zero delta as one tick or may accumulate until it crosses this, so a
+# fraction of it is not a smaller scroll - it is a scroll that some games will
+# not see at all.
+WHEEL_DELTA = 120
 
 BUTTON_FLAGS = {
     "left": (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP),
@@ -88,6 +96,11 @@ EXTENDED_VKS = frozenset({0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x2D, 
 VK_NAMES = {
     "space": 0x20, "enter": 0x0D, "esc": 0x1B, "tab": 0x09,
     "left": 0x25, "up": 0x26, "right": 0x27, "down": 0x28,
+    # The unsided modifiers. Named here so they can be held as a chord prefix
+    # (shift+scroll, ctrl+click) as well as pressed alone. MapVirtualKeyW resolves
+    # each to its left-hand scancode, which is not extended - so unlike the arrow
+    # cluster these need no special flag.
+    "shift": 0x10, "ctrl": 0x11, "alt": 0x12,
 }
 
 
@@ -516,8 +529,14 @@ def send_input(*inputs: INPUT) -> None:
         raise OSError(f"SendInput sent {sent} of {len(inputs)} events (error {ctypes.get_last_error()})")
 
 
-def mouse_input(flags: int, dx: int = 0, dy: int = 0) -> INPUT:
-    return INPUT(type=INPUT_MOUSE, value=_INPUTUNION(mi=MOUSEINPUT(dx=dx, dy=dy, dwFlags=flags)))
+def mouse_input(flags: int, dx: int = 0, dy: int = 0, data: int = 0) -> INPUT:
+    """One mouse event. `data` is `mouseData`, which is only read for a wheel or an
+    X-button: for MOUSEEVENTF_WHEEL it is the signed delta, positive away from the
+    user. Masked to 32 bits because the field is a DWORD and a scroll down is
+    negative, and an unmasked negative would depend on ctypes' conversion rather
+    than on something this file states."""
+    return INPUT(type=INPUT_MOUSE, value=_INPUTUNION(
+        mi=MOUSEINPUT(dx=dx, dy=dy, mouseData=data & 0xFFFFFFFF, dwFlags=flags)))
 
 
 def mouse_move_to(x: int, y: int) -> None:

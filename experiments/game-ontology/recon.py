@@ -161,6 +161,30 @@ CROP_SLOTS = ("before", "pressed", "after")
 
 NAV_KEYS = ("up", "down", "left", "right")
 COMMIT_KEYS = ("enter", "space", "esc")
+# The kinds that name their target by position rather than by whatever is selected,
+# and so are ruled on per screen and checked against the coordinate denylist.
+MOUSE_KINDS = ("click", "drag", "scroll")
+
+# --- the blind modalities ---------------------------------------------------
+#
+# Clicks have evidence behind them: the hover sweep says which points react, so a click
+# candidate is a measured guess. Drag and scroll have no equivalent. A scrollable list
+# looks exactly like an unscrollable one, and a draggable thing looks exactly like a
+# fixed one until the button is already down - so there is nothing to sweep for, and a
+# probe is the only way to find out. Which makes the policy question "how few probes can
+# answer it", and the answer is: one, then escalate on evidence, the same shape the hover
+# sweep already uses.
+SCROLL_NOTCHES = 3       # per probe. One notch may be under a game's own threshold, and
+                         # the probe's job is to be sure nothing moved rather than to
+                         # scroll gently.
+DRAG_SPAN = 0.25         # how far a probe drag travels, as a fraction of the window.
+                         # Long enough that a camera pan or a marquee is unmistakable,
+                         # short enough to stay inside the window from a hotspot.
+PROBE_AT = (0.5, 0.5)    # where a blind probe happens: the middle, which is the one
+                         # point on any screen that is not a guess about the layout.
+# Ordered, and only the first is tried unprompted. Right before down because a
+# horizontal drag is the one a vertical menu is least likely to react to by accident.
+DRAG_DIRECTIONS = ((1, 0), (0, 1), (-1, 0), (0, -1))
 
 # The one refusal that is temporary: it describes this session, not the control.
 UNVETTED = "screen not vetted, so committing actions stay locked"
@@ -172,6 +196,17 @@ SAVE_EVERY = 20          # actions between JSON flushes; a killed session keeps 
 # missing the masks and the tried sets, and every one of them absent reads as a
 # plausible default - an unswept screen, an unprotected split - so a quiet degrade would
 # hand a resumed pass a map that is wrong in exactly the places that are expensive.
+#
+# **Deliberately not bumped for drag and scroll**, which is the harder call. Adding action
+# kinds does grow the format, and an older checkout reading a map with a drag edge in it
+# builds a drag with no end point - but it *fails loudly* the moment it tries to route
+# through that edge, rather than quietly exploring a game it thinks it has already
+# covered. That is the distinction this constant is for. Bumping would have refused every
+# map already on disk, thrown away the transitions and the paid-for verdicts in them, and
+# made the next pass of a mapped game start from nothing: a certain cost, to insure
+# against a loud failure in a checkout nobody is running. Read the other way round, a map
+# written before this change resumes perfectly - the new flags default to "not probed
+# yet", which is exactly what those screens are.
 SCHEMA = "game-ontology/2"
 
 
@@ -340,6 +375,18 @@ def point_key(at: tuple[float, float]) -> str:
     return f"{at[0]:.3f},{at[1]:.3f}"
 
 
+def probe_drag(start: tuple[float, float], direction: tuple[int, int]) -> Action:
+    """A drag of `DRAG_SPAN` from a point, clamped to stay on the window.
+
+    Clamped rather than skipped when it would run off the edge: a drag from a hotspot
+    near the right edge is still worth trying, it just travels less far. A drag that
+    left the window would be refused by `Controller.point`, and correctly."""
+    dx, dy = direction
+    end = (min(1.0, max(0.0, start[0] + dx * DRAG_SPAN)),
+           min(1.0, max(0.0, start[1] + dy * DRAG_SPAN)))
+    return Action("drag", at=start, to=end)
+
+
 def shot_name(screen_id: str, action: Action) -> str:
     """A stable file stem for one action on one screen.
 
@@ -353,15 +400,49 @@ def shot_name(screen_id: str, action: Action) -> str:
 
 @dataclass(frozen=True)
 class Action:
-    kind: str                       # "hover" | "key" | "click"
+    kind: str                       # "hover" | "key" | "click" | "drag" | "scroll"
     key: str = ""
     at: tuple[float, float] | None = None
+    # Where a drag ends. The start is `at`, so everything keyed on `at` - the crop box,
+    # the denylist point check, `point_key` - goes on working for a drag without
+    # knowing what one is, and aims at the place the drag began, which is where the
+    # thing being dragged was.
+    to: tuple[float, float] | None = None
+    button: str = "left"
+    # Wheel notches, signed: positive away from the user. Not a count of some smaller
+    # unit - see `Controller.scroll` on why three notches is three events.
+    notches: int = 0
+    horizontal: bool = False
+    # Keys held down for the duration. A tuple because `Action` is frozen and hashed,
+    # and because the order is part of the identity of the chord as written.
+    modifiers: tuple[str, ...] = ()
 
     @property
     def id(self) -> str:
+        """A stable name, used as a dict key in five places that outlive the process.
+
+        `screen.tried`, `variant.tried`, the vetting verdicts, the crop-box table and
+        the image filenames are all keyed on this text, and a resumed map has to keep
+        matching. So the forms that existed before drag and scroll did are unchanged to
+        the byte: a plain left click with no modifier is still `click:0.500,0.600`, and
+        only the parts that differ from that default appear. A scheme that decorated
+        every id with its button and modifiers would have been tidier and would have
+        orphaned every verdict in every map already on disk."""
+        chord = "+".join(self.modifiers)
+        prefix = f"{chord}+" if chord else ""
         if self.kind == "key":
-            return f"key:{self.key}"
-        return f"{self.kind}:{self.at[0]:.3f},{self.at[1]:.3f}"
+            return f"key:{prefix}{self.key}"
+        where = f"{self.at[0]:.3f},{self.at[1]:.3f}"
+        if self.kind == "drag":
+            button = "" if self.button == "left" else f"{self.button}:"
+            return f"drag:{prefix}{button}{where}>{self.to[0]:.3f},{self.to[1]:.3f}"
+        if self.kind == "scroll":
+            axis = "right" if self.notches > 0 else "left"
+            if not self.horizontal:
+                axis = "up" if self.notches > 0 else "down"
+            return f"scroll:{prefix}{axis}{abs(self.notches)}:{where}"
+        button = "" if self.button == "left" else f"{self.button}:"
+        return f"{self.kind}:{prefix}{button}{where}"
 
     @property
     def committing(self) -> bool:
@@ -369,13 +450,37 @@ class Action:
 
         Cursor moves and arrow keys are excluded on the grounds that a UI which
         destroys data on a hover or an arrow press is broken in a way no explorer
-        can defend against anyway. Everything else needs permission."""
-        return not (self.kind == "hover" or (self.kind == "key" and self.key in NAV_KEYS))
+        can defend against anyway. Everything else needs permission.
+
+        A wheel is deliberately *not* added to that list, though it is tempting: on
+        most screens it zooms or scrolls and is as harmless as a hover. But a wheel
+        over a number is how a quantity is chosen - how many to buy, how many to sell,
+        how many troops to commit - and a harness that cannot read the number cannot
+        tell that screen from a map. The exemption has to be defensible for every
+        screen the modality can land on, and this one is not.
+
+        A drag is committing for a plainer reason: it is a click that also travels."""
+        return not (self.kind == "hover" or (self.kind == "key" and self.key in NAV_KEYS
+                                            and not self.modifiers))
 
     def describe(self) -> str:
+        """What the vetting call is shown, so it has to read as an instruction to a
+        person rather than as an identifier. This is the only description of an action
+        the model ever sees."""
+        chord = "".join(f"{m}+" for m in self.modifiers)
         if self.kind == "key":
-            return f"press {self.key}"
-        return f"{self.kind} at ({self.at[0]:.3f}, {self.at[1]:.3f})"
+            return f"press {chord}{self.key}"
+        where = f"({self.at[0]:.3f}, {self.at[1]:.3f})"
+        if self.kind == "drag":
+            return (f"{chord}drag with the {self.button} button held, from {where} to "
+                    f"({self.to[0]:.3f}, {self.to[1]:.3f})")
+        if self.kind == "scroll":
+            axis = ("right" if self.notches > 0 else "left") if self.horizontal \
+                else ("up" if self.notches > 0 else "down")
+            return (f"{chord}scroll the wheel {axis} {abs(self.notches)} "
+                    f"notch{'es' if abs(self.notches) != 1 else ''} at {where}")
+        button = "" if self.button == "left" else f"{self.button}-"
+        return f"{chord}{button}{self.kind} at {where}"
 
 
 @dataclass
@@ -473,6 +578,15 @@ class Screen:
     hover_probed: bool = False
     hover_inert: bool = False
     hover_probe_count: int = 0
+    # Whether the blind modalities turned out to do anything here, set by `_record` the
+    # first time one of them changes the picture. These are what the escalation in
+    # `screen_actions` reads: one probe of each is spent on every screen, and the rest
+    # are only spent where the first one proved there was something to find. Kept on the
+    # screen rather than recomputed from the transitions because they are policy input
+    # on every call to `screen_actions`, which the frontier search runs over every screen
+    # it walks past.
+    scrolls: bool = False
+    drags: bool = False
     vetting: dict | None = None
     degenerate: bool = False
     vet_budget: int = 0
@@ -1051,12 +1165,16 @@ class Recon:
         selected in it, so it gets one crop of the cells that differ from the screen's
         first sighting, which is where the selection has to be."""
         crops: list[dict] = []
-        wanted = {a.id for a in candidates if a.kind == "click"}
+        # By point rather than by action id: a hotspot's measured rest/hover pair is
+        # evidence about the *place*, so it is the right close-up for whichever mouse
+        # action is being ruled on there - a click on it, or a wheel over it.
+        wanted = {tuple(a.at) for a in candidates
+                  if a.kind in MOUSE_KINDS and a.at is not None}
         for point, cells in sorted(zip(screen.hotspots, screen.hover_reactions),
                                    key=lambda pair: -pair[1]):
             if len(crops) >= VET_CROPS * 2:
                 break
-            if Action("click", at=point).id not in wanted:
+            if tuple(point) not in wanted:
                 continue
             shots = self.shots.get(shot_name(screen.id, Action("hover", at=point)), {})
             # A sticky point has no resting picture and its single crop must not claim to
@@ -1091,10 +1209,17 @@ class Recon:
         whatever happens to be selected."""
         if not action.committing:
             return True, ""
-        if action.kind == "click":
+        if action.kind in MOUSE_KINDS:
             if not self.allow_clicks:
-                return False, "clicks are disabled for this session"
+                return False, "mouse actions are disabled for this session (--no-clicks)"
             why = self.controller.target.forbids(*action.at)
+            if not why and action.kind == "drag":
+                # Both ends and the line between them, because a drag holds the button
+                # down all the way across - see `Target.forbids_path`. Checked here as
+                # well as in the controller so the refusal is a recorded finding with a
+                # reason, rather than a PermissionError mid-mission.
+                why = (self.controller.target.forbids(*action.to)
+                       or self.controller.target.forbids_path(action.at, action.to))
             if why:
                 return False, why
             source = screen.vetting
@@ -1110,9 +1235,35 @@ class Recon:
         return True, ""
 
     def screen_actions(self, screen: Screen) -> list[Action]:
-        """Actions whose meaning does not depend on what is selected."""
-        return ([Action("key", key=k) for k in NAV_KEYS]
-                + [Action("click", at=point) for point in screen.hotspots])
+        """Actions whose meaning does not depend on what is selected.
+
+        Ordered by how much evidence is behind them, because `next_action` takes the
+        first one it may have. Arrow keys need no permission. Clicks are aimed at points
+        the cursor was measured to react to. Then the blind probes, which are aimed at
+        nothing but the middle of the window - so they go last, and a screen with plenty
+        of measured candidates spends its budget on those first.
+
+        The escalation is the interesting half. One wheel probe each way and one drag are
+        offered on every screen; the rest are offered only where those proved the screen
+        responds. Without that gate a hover-inert screen with eight hotspots would carry
+        twenty blind candidates, every one of them needing a verdict and a settle, on a
+        screen that ignores the wheel entirely - and the frontier search would keep
+        travelling back to it because they were all still untried."""
+        actions = ([Action("key", key=k) for k in NAV_KEYS]
+                   + [Action("click", at=point) for point in screen.hotspots]
+                   + [Action("scroll", at=PROBE_AT, notches=-SCROLL_NOTCHES),
+                      Action("scroll", at=PROBE_AT, notches=SCROLL_NOTCHES),
+                      probe_drag(PROBE_AT, DRAG_DIRECTIONS[0])])
+        if screen.scrolls:
+            # A screen that scrolls in the middle may scroll differently over a control -
+            # a list inside a panel, a value under the cursor - and the hotspots are the
+            # only places on it anything is known to be.
+            for point in screen.hotspots:
+                actions += [Action("scroll", at=point, notches=-SCROLL_NOTCHES),
+                            Action("scroll", at=point, notches=SCROLL_NOTCHES)]
+        if screen.drags:
+            actions += [probe_drag(PROBE_AT, d) for d in DRAG_DIRECTIONS[1:]]
+        return actions
 
     @staticmethod
     def variant_actions() -> list[Action]:
@@ -1260,7 +1411,18 @@ class Recon:
         if action.kind == "hover":
             self.controller.hover(*action.at)
         elif action.kind == "click":
-            self.controller.click(*action.at, during=during)
+            self.controller.click(*action.at, button=action.button,
+                                  modifiers=action.modifiers, during=during)
+        elif action.kind == "drag":
+            self.controller.drag(action.at, action.to, button=action.button,
+                                 modifiers=action.modifiers, during=during)
+        elif action.kind == "scroll":
+            self.controller.scroll(*action.at, action.notches,
+                                   horizontal=action.horizontal,
+                                   modifiers=action.modifiers)
+        elif action.modifiers:
+            with self.controller.holding(*action.modifiers):
+                self.controller.press(action.key)
         else:
             self.controller.press(action.key)
 
@@ -1270,7 +1432,8 @@ class Recon:
                 ) -> tuple[Transition, bool]:
         before_variant = next((v for v in screen.variants.values()
                                if not diff_cells(before_fp, v.fp, self.cell_delta)), None)
-        changed = len(diff_cells(before_fp, after_fp, self.cell_delta))
+        differing = diff_cells(before_fp, after_fp, self.cell_delta)
+        changed = len(differing)
 
         if changed == 0 and before_variant is not None:
             # An identical picture cannot be a different place, and classifying it again
@@ -1292,6 +1455,20 @@ class Recon:
             kind = "variant"
         else:
             kind = "none"
+
+        # Whether the blind modalities do anything here, which is what decides how many
+        # more of them are worth spending - see `screen_actions`. Recorded on the screen
+        # the action was sent *from*, and only on a real effect: a probe that changed
+        # nothing is the answer "this screen does not do that", and it is the whole point
+        # of spending one probe before offering eight.
+        #
+        # Cells the screen moves on its own do not count, and `kind` is not the test.
+        # A shimmering logo makes every action on the screen look like it did something -
+        # it is enough to leave the before frame matching no known appearance, which is
+        # then classified as a variant change of *zero* cells. Taken as evidence, an
+        # animated screen would open the gate on every one of its own probes.
+        if action.kind in ("scroll", "drag") and differing - screen.animated:
+            setattr(screen, "scrolls" if action.kind == "scroll" else "drags", True)
 
         self.standing = after_screen.id
         key = f"{screen.id}|{action.id}|{kind}|{after_screen.id}"
@@ -1380,6 +1557,21 @@ class Recon:
         taken: dict[str, str] = {}
         box = None if stem in self.filmed else self.crop_box(screen, action)
 
+        if action.kind in ("scroll", "drag"):
+            # The cursor has to travel to the target before either of these can be sent,
+            # and on a game whose controls light under the hand that journey repaints part
+            # of the window. Measured on the synthetic menu in `selftest.py`: a wheel probe
+            # at the middle of the window came back with 40 changed cells, every one of
+            # them a button lighting up and going dark, and not one of them the wheel.
+            #
+            # So the before frame is read *after* the journey, which makes the pair say
+            # what the modality did rather than that the cursor arrived. It matters more
+            # here than for a click, where the hover reaction is part of what the click
+            # did: for a blind probe the difference is the entire evidence, and it decides
+            # whether the screen gets eight more probes or none.
+            self.controller.hover(*action.at, settle=HOVER_SETTLE)
+            before_fp = fingerprint(self.controller)
+
         if box is not None:
             shots["before"] = taken["before"] = self._crop(f"{stem}-before.png", box)
         # A pressed control springs back before the release, so the frame everything else
@@ -1389,7 +1581,7 @@ class Recon:
         # the file is written below, once the click is over.
         held: list[tuple[bytes, int, int]] = []
         self.perform(action, during=(lambda: held.append(self.controller.capture(box)))
-                     if action.kind == "click" and box is not None else None)
+                     if action.kind in ("click", "drag") and box is not None else None)
         settle = self.controller.wait_stable()
         after_fp = fingerprint(self.controller)
         for frame in held:
@@ -1810,12 +2002,21 @@ class Recon:
                 vet_budget=explored.get("vetting_calls_left", 0),
                 split_from=entry.get("split_from") or "",
                 split_name=entry.get("split_name") or "",
+                scrolls=explored.get("wheel_does_something", False),
+                drags=explored.get("drag_does_something", False),
             )
             if explored.get("vetted"):
                 screen.vetting = {"name": entry.get("name") or "",
                                   "purpose": entry.get("purpose") or "",
                                   "elements": entry.get("elements", []),
-                                  "actions": entry.get("click_verdicts", {})}
+                                  # `click_verdicts` is the name this block had before
+                                  # drag and scroll existed. Read as well as the current
+                                  # one, and not instead: a map written by an earlier pass
+                                  # holds real verdicts that were paid for with real
+                                  # calls, and dropping them on a rename would make every
+                                  # resumed session re-buy them.
+                                  "actions": (entry.get("mouse_verdicts")
+                                              or entry.get("click_verdicts", {}))}
             # A screen that has no vetting budget left and no vetter this pass is not
             # the same as one nobody has looked at, and `wants_vetting` reads the two
             # off different fields, so both are restored rather than recomputed.
@@ -1841,9 +2042,15 @@ class Recon:
 
         for record in data["transitions"]:
             at = record["action"].get("at")
+            to = record["action"].get("to")
             action = Action(kind=record["action"]["kind"],
                             key=record["action"].get("key", ""),
-                            at=tuple(at) if at else None)
+                            at=tuple(at) if at else None,
+                            to=tuple(to) if to else None,
+                            button=record["action"].get("button", "left"),
+                            notches=record["action"].get("notches", 0),
+                            horizontal=record["action"].get("horizontal", False),
+                            modifiers=tuple(record["action"].get("modifiers", ())))
             transition = Transition(
                 id=record["id"], source=record["from"], dest=record["to"],
                 action=action, kind=record["effect"],
@@ -1981,11 +2188,20 @@ class Recon:
                         "vetting_calls_left": max(screen.vet_budget, 0),
                         "arbitrations_spent": screen.arbitrations,
                         "next_variant_number": screen.variant_seq + 1,
+                        # What the blind probes found, so a later pass does not re-derive
+                        # it by spending them again - and so the escalated candidates are
+                        # on the table from its first step on this screen.
+                        "wheel_does_something": screen.scrolls,
+                        "drag_does_something": screen.drags,
                     },
-                    "click_verdicts": {
+                    # Every verdict that was bought for a *position* rather than for
+                    # whatever is selected: clicks, drags and wheels alike. Named for the
+                    # modality group rather than for `click:` because that is what the
+                    # scope actually is - `permitted` looks all three up on the screen.
+                    "mouse_verdicts": {
                         action_id: verdict
                         for action_id, verdict in (screen.vetting or {}).get("actions", {}).items()
-                        if action_id.startswith("click:")
+                        if not action_id.startswith("key:")
                     },
                     "variants": [
                         {"id": v.id, "image": v.image, "observations": v.observations,
@@ -2033,9 +2249,22 @@ class Recon:
             "transitions": [
                 {
                     "id": t.id, "from": t.source, "to": t.dest, "effect": t.kind,
+                    # Written out in full rather than reconstructed from `id`, because the
+                    # id is a name and parsing a name back into an action is how the two
+                    # drift apart. Only the fields that are not at their default appear,
+                    # so a keypress and a plain click serialise exactly as they did before
+                    # drag and scroll existed - and a map written by this code stays
+                    # readable to the pass that wrote the one before it.
                     "action": {"kind": t.action.kind, "key": t.action.key,
                                "at": list(t.action.at) if t.action.at else None,
-                               "id": t.action.id},
+                               "id": t.action.id,
+                               **({"to": list(t.action.to)} if t.action.to else {}),
+                               **({"button": t.action.button}
+                                  if t.action.button != "left" else {}),
+                               **({"notches": t.action.notches} if t.action.notches else {}),
+                               **({"horizontal": True} if t.action.horizontal else {}),
+                               **({"modifiers": list(t.action.modifiers)}
+                                  if t.action.modifiers else {})},
                     "from_variant": t.from_variant, "to_variant": t.to_variant,
                     "before_image": self._variant_image(t.source, t.from_variant),
                     "after_image": self._variant_image(t.dest, t.to_variant),

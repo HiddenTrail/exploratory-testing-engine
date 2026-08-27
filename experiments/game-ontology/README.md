@@ -47,7 +47,9 @@ py selftest.py                             # no game at all: check the close-ups
 session against a synthetic menu built to have the behaviours the imaging code reasons
 about, and prints what was filmed, where it was aimed and whether each before/after pair
 is actually two pictures - which a real game cannot tell you, because it has no second
-opinion about what its own buttons look like. It takes about a second and a half. It is
+opinion about what its own buttons look like. Its second screen answers the wheel and the
+drag while its first ignores both, which is how the escalation in item 26 gets checked in
+both directions. It takes about two seconds. It is
 not in CI and cannot be: `probe.py` calls `ctypes.WinDLL` at import, so importing `recon`
 needs Windows, and the workflow runs on ubuntu.
 
@@ -157,10 +159,13 @@ eventually find the control that quits the game, and it takes the rest of the
 session's budget with it.
 
 1. **A coordinate denylist** in `target.py`, enforced inside `Controller.click` so no
-   policy above it can route around it.
-2. **Modality gating.** Cursor moves and arrow keys are safe by construction and need
-   no permission. `enter`, `space`, `esc` and every click are *committing* and need a
-   verdict first.
+   policy above it can route around it. For a drag it is a *path* test and not two point
+   tests: the button is down the whole way across, so the ends being clear says nothing
+   about the middle.
+2. **Modality gating.** Cursor moves and unmodified arrow keys are safe by construction
+   and need no permission. `enter`, `space`, `esc`, every click, every drag, every turn of
+   the wheel and any arrow key with a modifier held are *committing* and need a verdict
+   first.
 3. **Vetting.** A new appearance is read by the model before anything may be
    committed on it. This is the only layer that can protect a keyboard-driven menu,
    where the dangerous action is `enter` on a row whose position nothing knows in
@@ -191,8 +196,9 @@ this machinery can discover with no intelligence in the loop, and it is not much
 ## Missions: the map as an input
 
 `sweep.py` explores by a fixed policy - arrow keys, then this appearance's committing
-keys, then points the cursor was seen to react to, then breadth-first to the nearest
-screen with something untried. That policy is blind on purpose, since it has to work on a
+keys, then points the cursor was seen to react to, then two turns of the wheel and a drag
+at the middle of the window, then breadth-first to the nearest screen with something
+untried. That policy is blind on purpose, since it has to work on a
 game nobody has looked at, and the price is that it cannot use what it just learned. A
 map saying "sc03 is the campaign screen and it has a Level 1 button at (0.31, 0.44)"
 reaches the explorer as four arrow keys and a hotspot list, because that is all the
@@ -200,9 +206,11 @@ explorer can read.
 
 `mission.py` closes that loop. The model reads a digest of the map, the missions already
 flown, and a fresh screenshot of where the harness is standing, and writes **one**
-mission: a goal and a short list of steps - `go`, `press`, `click`, `hover`, `wait`,
-`restart`, `expect`. This program executes them literally and reports what each step
-actually did, then asks for the next one, briefed by what the last one proved.
+mission: a goal and a short list of steps - `go`, `press`, `click`, `hover`, `drag`,
+`scroll`, `wait`, `restart`, `expect`. This program executes them literally and reports
+what each step actually did, then asks for the next one, briefed by what the last one
+proved. A step that aims can also name a mouse button and modifiers to hold, so
+`ctrl+scroll` and `shift+click` are things a plan can say.
 
 **The plan is a hypothesis and the executor is the referee.** Which is why a mission must
 contain at least one `expect` step, enforced in the validator rather than requested in the
@@ -563,10 +571,68 @@ consumer can take the observed claims and leave the guesses.
     string that came from a model is untrusted input all the way to the console, and no
     sentence it writes should be able to end a session that has a game open.
 
+26. **The harness could send three of the five things a mouse does.** Hover, click, and a
+    key - so a game that pans a map, scrolls a list, or drags a unit somewhere was
+    unreachable by construction, and `shift+click` was not a sentence a plan could write.
+    The missing part was never the plumbing (`SendInput` with `MOUSEEVENTF_WHEEL` is four
+    lines) but four things above it.
+
+    **A denylist that is a point test cannot vet a drag.** Every other input touches
+    exactly where it was aimed; a drag holds the button down along a line, and the two ends
+    being clear is no statement at all about what is between them. So `Target.forbids_path`
+    clips the segment against each forbidden box exactly, rather than sampling points along
+    it - with sampling, the step size silently becomes the real safety limit, and the box
+    you drove a drag straight through is the one that was smaller than the step.
+
+    **`Action.id` is on-disk identity, so a new field cannot change an old id.** The ids
+    key `screen.tried`, the vetting verdicts, the crop-box table and the image filenames of
+    every map already saved. Two kinds and five fields were added and every pre-existing id
+    is still byte-identical, because the new parts only appear when they are not the
+    default: `click:0.500,0.600` is unchanged and `click:ctrl+right:0.500,0.600` is new. One
+    thing did have to be renamed - the saved verdicts were called `click_verdicts` and
+    filtered on the `click:` prefix, which would have silently dropped every drag and scroll
+    verdict on the way to disk, so they are `mouse_verdicts` and the reader accepts both
+    names. `SCHEMA` is deliberately *not* bumped: an old checkout reading a new map fails
+    loudly the first time it routes through a drag edge, while bumping would refuse every
+    map on disk today - a certain loss, to insure against a loud failure in a checkout
+    nobody is running.
+
+    **The wheel and the drag are blind, and hover is not.** Click candidates come from a
+    hover sweep, which is evidence; nothing tells you a list scrolls until the wheel has
+    already turned. A screen therefore gets one wheel each way and one drag, aimed at the
+    middle of the window and nothing else, and the eight escalated probes - the wheel over
+    every hotspot, the other three drag directions - are spent only where those landed.
+    Without the gate a hover-inert screen carries twenty untried candidates, each wanting a
+    verdict and a settle, and the frontier search keeps travelling back to it because they
+    are all still untried.
+
+    **And then the measurement of "did it land" was polluted by the aiming.** The cursor has
+    to travel to the target before a wheel can be sent, and on a game whose controls light
+    under the hand that journey repaints part of the window. On the synthetic menu a wheel
+    probe at the middle came back with 40 changed cells: every one of them a button lighting
+    up and going dark, not one of them the wheel. The before frame is now read *after* the
+    journey. A screen that animates was the same failure from the other side - its own
+    shimmer was enough to leave the before frame matching no known appearance, which was
+    then classified as a variant change of *zero cells* and taken as proof that the screen
+    drags. So the evidence is the changed cells minus the screen's animation mask, and not
+    the classification.
+
+    The one input that fails invisibly is a held modifier: it does not error, it changes the
+    meaning of every input for the rest of the session. `holding` releases in reverse order
+    in a `finally`, and attempts every release even if an earlier one throws.
+
+    None of this has been run against a real game yet. What it has been run against is the
+    fake one, which now has a panel that the wheel scrolls and a drag pans beside a screen
+    that ignores both, and a scripted mission that drags, scrolls at the default target,
+    scrolls at a named one, and is refused when it drags to a pixel coordinate.
+
 ## What is reused, and what standalone means
 
-`probe.py` is imported as-is for capture, input, PNG writing and window finding - it
-was already fully general. `bench_shuffle.py` and `game_session.py`'s constants are
+`probe.py` is imported for capture, input, PNG writing and window finding - it was
+already fully general, and it stayed that way through one addition: the wheel, and the
+three modifier keys, which are input primitives no game knowledge went into. Everything
+above them - what a drag is made of, where it may go, whether it is worth trying - is
+here. `bench_shuffle.py` and `game_session.py`'s constants are
 Tile Tale knowledge and are deliberately not reused (they are the output this
 experiment is trying to produce); the parts of the latter worth
 keeping (Steam library discovery, the foreground-lock retry, WM_CLOSE-then-force) are

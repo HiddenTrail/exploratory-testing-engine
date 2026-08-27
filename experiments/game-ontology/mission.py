@@ -127,6 +127,22 @@ def digest(data: dict, standing: str, flown: list[dict]) -> str:
                          f"were hovered and nothing reacted, so the explorer had no click "
                          f"candidates here at all. Naming a control by label is the only "
                          f"way anything gets clicked on it.")
+        # What the blind probes found, stated either way. "The wheel did nothing here"
+        # is worth as much to a planner as the opposite: it is the reason not to spend a
+        # step scrolling a view that does not move. Absent from a map written before the
+        # explorer probed for either, which reads as "not known" rather than as "no".
+        explored = screen.get("explored", {})
+        found = [name for name, flag in (("the mouse wheel", "wheel_does_something"),
+                                         ("dragging", "drag_does_something"))
+                 if explored.get(flag)]
+        blind = [name for name, flag in (("the mouse wheel", "wheel_does_something"),
+                                         ("dragging", "drag_does_something"))
+                 if flag in explored and not explored.get(flag)]
+        if found:
+            lines.append(f"\nThis screen reacts to {' and '.join(found)}.")
+        if blind:
+            lines.append(f"\nProbed and nothing happened: {' and '.join(blind)}. "
+                         f"A step that tries it again will most likely do nothing.")
         outgoing = [t for t in data["transitions"] if t["from"] == screen["id"]]
         if outgoing:
             lines.append("\nWhat has been sent from here:")
@@ -240,8 +256,10 @@ class Mission:
         if step.get("element"):
             return self._element(step["element"], screen)
         at = step.get("at")
-        if at and len(at) == 2:
+        if is_fraction(at):
             return (float(at[0]), float(at[1])), ""
+        if at:
+            return None, (f"the plan aims at {at}, which is not a fraction of the window")
         return None, "no target given"
 
     def _route(self, here: str, there: str) -> tuple[list[Action], str]:
@@ -377,7 +395,44 @@ class Mission:
                 outcome = {"ok": False, "from": screen.id, "to": screen.id,
                            "happened": f"could not be aimed - {why}"}
             else:
-                outcome = self._act(Action(verb, at=at))
+                outcome = self._act(Action(verb, at=at, button=step.get("button", "left"),
+                                           modifiers=tuple(step.get("modifiers") or ())))
+        elif verb == "drag":
+            at, why = self._target(step, screen)
+            end = step.get("to")
+            if at is None:
+                outcome = {"ok": False, "from": screen.id, "to": screen.id,
+                           "happened": f"could not be aimed - {why}"}
+            elif not is_fraction(end):
+                # The validator already refused a plan without a usable `to`, so this is
+                # the second layer rather than the first: a mission read back from a file,
+                # or one written before the validator checked, must not reach the
+                # controller with half a drag in it.
+                outcome = {"ok": False, "from": screen.id, "to": screen.id,
+                           "happened": f"a drag needs an end point and {end!r} is not one"}
+            else:
+                outcome = self._act(Action(
+                    "drag", at=at, to=(float(end[0]), float(end[1])),
+                    button=step.get("button", "left"),
+                    modifiers=tuple(step.get("modifiers") or ())))
+        elif verb == "scroll":
+            # The only aimed verb with a default target: the middle, which is where the
+            # explorer probes, so a plan that says "scroll this screen" and a probe that
+            # already happened are the same action and share one verdict.
+            at, why = (self._target(step, screen) if step.get("element") or step.get("at")
+                       else (recon.PROBE_AT, ""))
+            notches = int(step.get("notches") or 0)
+            if at is None:
+                outcome = {"ok": False, "from": screen.id, "to": screen.id,
+                           "happened": f"could not be aimed - {why}"}
+            elif not notches:
+                outcome = {"ok": False, "from": screen.id, "to": screen.id,
+                           "happened": "a scroll of no notches is not an input"}
+            else:
+                outcome = self._act(Action(
+                    "scroll", at=at, notches=notches,
+                    horizontal=bool(step.get("horizontal")),
+                    modifiers=tuple(step.get("modifiers") or ())))
         else:
             outcome = {"ok": False, "from": screen.id, "to": screen.id,
                        "happened": f"{verb!r} is not something this harness can do"}
@@ -426,11 +481,30 @@ def describe_step(step: dict) -> str:
     if verb == "press":
         times = int(step.get("times", 1) or 1)
         return f"press {step.get('key')}" + (f" x{times}" if times > 1 else "")
-    if verb in ("click", "hover"):
+    chord = "".join(f"{m}+" for m in (step.get("modifiers") or []))
+    button = "" if step.get("button", "left") == "left" else f"{step['button']}-"
+    if verb in ("click", "hover", "drag", "scroll"):
         if step.get("element"):
-            return f"{verb} {step['element']!r}"
-        at = step.get("at") or [0, 0]
-        return f"{verb} at ({at[0]:.3f}, {at[1]:.3f})"
+            where = repr(step["element"])
+        elif step.get("at"):
+            at = step["at"]
+            where = f"({at[0]:.3f}, {at[1]:.3f})"
+        else:
+            where = "the middle of the window"
+        if verb == "drag":
+            to = step.get("to") or [0, 0]
+            # "drag from (0.500, 0.500)" reads as a journey and "drag 'the map'" reads as
+            # a thing being moved, which is the difference between the two ways a plan can
+            # name where a drag starts.
+            start = where if step.get("element") else f"from {where}"
+            return f"{chord}{button}drag {start} to ({to[0]:.3f}, {to[1]:.3f})"
+        if verb == "scroll":
+            notches = int(step.get("notches") or 0)
+            axis = ("right" if notches > 0 else "left") if step.get("horizontal") \
+                else ("up" if notches > 0 else "down")
+            return f"{chord}scroll {axis} {abs(notches)} at {where}"
+        preposition = "" if step.get("element") else "at "
+        return f"{chord}{button}{verb} {preposition}{where}"
     if verb == "expect":
         if step.get("screen"):
             return f"expect to be on {step['screen']}"

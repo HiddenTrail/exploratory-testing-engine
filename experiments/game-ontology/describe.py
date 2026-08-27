@@ -50,7 +50,7 @@ from engine.client import build_client, call_tool_with_retry, default_model  # n
 # What a coordinate has to look like to be aimable, from the file that defines the
 # coordinate system. Imported rather than restated so that this module cannot end up
 # accepting a coordinate `Controller.point` would refuse.
-from controller import is_fraction, readable_output  # noqa: E402
+from controller import MODIFIERS, MOUSE_BUTTONS, is_fraction, readable_output  # noqa: E402
 # The one thing shared with the session that produces the evidence: the order the
 # close-ups of an action go in. Imported rather than repeated, so a fourth slot cannot be
 # filmed and then quietly not shown. Safe as a top-level import because `recon` only ever
@@ -86,6 +86,20 @@ desktop, an installer, anything belonging to the person whose machine this is - 
 Typing into somebody's work is the worst thing this explorer can do, and you are the only
 part of it that can read the screen well enough to notice.
 
+Some candidates are not clicks or keys. Judge each for what it actually does:
+
+- A DRAG presses at one point, travels to another with the button held, and releases.
+  Ask what it would carry, pan or sweep out. It is usually reversible - a view that
+  scrolled can scroll back - but on a screen that arranges things it can move a piece
+  somewhere it cannot be put back, and where it *starts* is what it picks up.
+- A WHEEL scroll over a point. Usually a view moving, and harmless. Refuse it where a
+  wheel would set a value rather than move a view - a quantity to buy, sell or commit -
+  because a number changed by a wheel is a decision, and this explorer cannot read it
+  well enough to change it back.
+- Both are aimed by the explorer at the MIDDLE of the window, blind, because nothing in
+  a picture says what can be dragged or scrolled. So they usually arrive with no
+  close-up. Judge them on the full window and on what is likely to be under that point.
+
 You must return a verdict for every action you are given, using the exact action_id
 strings supplied.
 
@@ -113,7 +127,14 @@ Describe each interactive element you can identify, and for each one record its
 behaviour SEPARATELY PER INPUT MODALITY. This matters more than anything else in the
 task: a control reached by keyboard and a control reached by clicking are different
 behaviours of the same thing, and a game may respond to one and ignore the other. Use
-modality strings like "click", "hover", "key:down", "key:enter".
+modality strings like "click", "hover", "key:down", "key:enter", "drag", "scroll".
+
+Drag and scroll evidence deserves particular care, because it is what the explorer knows
+least about. It probes both blind, in the middle of the window, so a drag that moved
+something is a finding about the whole screen - the view pans, the background is a
+draggable surface - and not about a control. Say which of the two you mean, and if a
+wheel did nothing, record that: a screen whose content is taller than its frame and does
+not scroll is worth knowing about.
 
 Rules on evidence, which are enforced and will cause your call to be rejected:
 
@@ -306,6 +327,9 @@ def make_vetter(model: str | None = None, client=None):
 # --- direction (between sessions) -------------------------------------------
 
 PLAN_MAX_TOKENS = 2500
+# Wheel notches allowed in one step. Named up here because the schema quotes it. Past
+# this a scroll stops being a probe and becomes a way to lose the top of a list.
+MAX_NOTCHES = 10
 
 # The step vocabulary, defined here because it is what the model is told it may write
 # and in `mission.py` it is what the executor knows how to do. One list, so a verb
@@ -315,8 +339,18 @@ STEP_VERBS = {
           "Give `screen`.",
     "press": "send a key. Give `key`, and `times` if it should be repeated.",
     "click": "click a control. Give `element` (a label from the map, preferred) or "
-             "`at` as fractional [x, y].",
+             "`at` as fractional [x, y]. Optionally `button` ('right' or 'middle') "
+             "and `modifiers` (e.g. ['shift']).",
     "hover": "move the cursor onto something without pressing. Same targeting as click.",
+    "drag": "press at one point, travel to another with the button held, release. "
+            "Target the start with `element` or `at`, and give `to` as fractional "
+            "[x, y] for the end. This is the only way to pan a view, move a slider, "
+            "or carry something somewhere - a click cannot do any of them, and neither "
+            "can a click followed by a click.",
+    "scroll": "turn the mouse wheel over a point. Give `notches`: positive is up, away "
+              "from you; negative is down. Target as for click, or give no target to "
+              "scroll over the middle of the window. Set `horizontal` for a sideways "
+              "wheel. Use this when a screen looks like it has more content than fits.",
     "expect": "no input at all - a check. Give `screen` for 'we should now be on this "
               "screen', or `that` = 'new' for 'this should be somewhere not yet on the "
               "map', or 'changed' for 'the picture should have changed'.",
@@ -349,6 +383,13 @@ nothing to click; a route the map suggests but has never traversed; getting into
 gameplay rather than menus, if the map shows a way in. Say which of these you are doing
 in `why`, and refer to the screens by id.
 
+You can also drag and scroll, and you are better placed to use them than the explorer is.
+It probes them blind, in the middle of the window, because nothing about a picture says
+what is draggable - but you can see the screen. A list with its last row cut off, a map
+larger than its frame, a slider, a card or a piece that has to go somewhere: those are all
+things only a drag or a wheel can operate, and a plan that clicks them instead will report
+that clicking did nothing, which is true and useless.
+
 {SAFETY_BRIEF}
 Every committing action in your plan is separately vetted before it is sent, by the same
 standard, and may be refused - which ends the mission there. Do not plan around that by
@@ -377,7 +418,25 @@ PLAN_TOOL = {
                         "key": {"type": "string"},
                         "times": {"type": "integer"},
                         "element": {"type": "string", "description": "A label from the map."},
-                        "at": {"type": "array", "items": {"type": "number"}},
+                        "at": {"type": "array", "items": {"type": "number"},
+                               "description": "Fractional [x, y], both 0.0 to 1.0. "
+                                              "Never pixels."},
+                        "to": {"type": "array", "items": {"type": "number"},
+                               "description": "Where a drag ends, as fractional [x, y]."},
+                        "notches": {"type": "integer",
+                                    "description": f"Wheel notches for `scroll`: "
+                                                   f"-{MAX_NOTCHES} to {MAX_NOTCHES}, "
+                                                   f"positive up. Not zero."},
+                        "horizontal": {"type": "boolean",
+                                       "description": "Scroll sideways instead of up."},
+                        "button": {"type": "string", "enum": list(MOUSE_BUTTONS),
+                                   "description": "Mouse button for `click` or `drag`; "
+                                                  "left if omitted."},
+                        "modifiers": {"type": "array",
+                                      "items": {"type": "string", "enum": list(MODIFIERS)},
+                                      "description": "Keys held down while the action is "
+                                                     "sent, e.g. ['shift'] for a "
+                                                     "shift+scroll."},
                         "that": {"type": "string", "enum": ["new", "changed"]},
                         "seconds": {"type": "number"},
                         "note": {"type": "string",
@@ -448,9 +507,12 @@ def make_director(model: str | None = None, client=None):
                     if not 1 <= int(step.get("times", 1) or 1) <= MAX_REPEAT:
                         errors.append(f"{where} repeats {step.get('times')} times; "
                                       f"1 to {MAX_REPEAT} allowed")
-                if verb in ("click", "hover"):
+                if verb in ("click", "hover", "drag", "scroll"):
                     label, at = step.get("element"), step.get("at")
-                    if not label and not at:
+                    # A scroll is the one aimed action with a sensible default target:
+                    # the middle of the window, which is where the explorer probes and
+                    # what "scroll this screen" means when nothing is named.
+                    if not label and not at and verb != "scroll":
                         errors.append(f"{where} has no target: give `element` or `at`")
                     if label and label.strip().lower() not in known["labels"]:
                         errors.append(
@@ -459,6 +521,32 @@ def make_director(model: str | None = None, client=None):
                     if at and not is_fraction(at):
                         errors.append(f"{where} targets {at}, which is not a fractional "
                                       f"[x, y] inside the window")
+                    bad = [m for m in (step.get("modifiers") or []) if m not in MODIFIERS]
+                    if bad:
+                        errors.append(f"{where} holds {', '.join(map(str, bad))}; this "
+                                      f"harness holds {', '.join(MODIFIERS)}")
+                    if step.get("button") and step["button"] not in MOUSE_BUTTONS:
+                        errors.append(f"{where} uses the {step['button']!r} button; this "
+                                      f"harness has {', '.join(MOUSE_BUTTONS)}")
+                if verb == "drag":
+                    end = step.get("to")
+                    if not end:
+                        errors.append(f"{where} is a drag with no `to`, so it is a click "
+                                      f"with extra steps. Give where it ends.")
+                    elif not is_fraction(end):
+                        errors.append(f"{where} drags to {end}, which is not a fractional "
+                                      f"[x, y] inside the window")
+                    elif at and list(map(float, at)) == list(map(float, end)):
+                        errors.append(f"{where} drags from {at} to the same point, which "
+                                      f"sends no motion at all")
+                if verb == "scroll":
+                    notches = step.get("notches")
+                    if not notches:
+                        errors.append(f"{where} scrolls {notches!r} notches; give a "
+                                      f"non-zero number, positive for up")
+                    elif abs(int(notches)) > MAX_NOTCHES:
+                        errors.append(f"{where} scrolls {notches} notches; "
+                                      f"-{MAX_NOTCHES} to {MAX_NOTCHES} allowed")
                 if verb == "wait" and not 0 < float(step.get("seconds", 0) or 0) <= MAX_WAIT:
                     errors.append(f"{where} waits {step.get('seconds')}s; up to "
                                   f"{MAX_WAIT:.0f} allowed")

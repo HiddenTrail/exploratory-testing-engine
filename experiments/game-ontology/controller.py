@@ -52,6 +52,7 @@ import sys
 import time
 import winreg
 from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -60,8 +61,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "game-screen-probe"
 import probe  # noqa: E402
 from probe import (  # noqa: E402
     BUTTON_FLAGS,
+    MOUSEEVENTF_HWHEEL,
+    MOUSEEVENTF_WHEEL,
     SW_RESTORE,
     VK_NAMES,
+    WHEEL_DELTA,
     client_rect_on_screen,
     grab_thumbnail,
     key_input,
@@ -90,6 +94,30 @@ FOCUS_TIMEOUT = 20.0
 # transient that covers a small part of the screen. It is a fraction of the grid that
 # decides, so the size does not have to agree with anything else.
 READY_COLS, READY_ROWS = 64, 36
+
+# The mouse buttons and the chord prefixes this harness can send, named here because
+# `describe.py` has to offer exactly these to a model and `recon.py` has to record them.
+# Derived from `probe.BUTTON_FLAGS` rather than restated, so a fourth button cannot be
+# offered to a planner that the input layer would then fail to send.
+MOUSE_BUTTONS = tuple(BUTTON_FLAGS)
+MODIFIERS = ("shift", "ctrl", "alt")
+
+# How a drag is shaped. These are input-shaping constants of the same kind as
+# `click`'s hover and hold - general facts about how synthetic input has to look to be
+# seen, not per-game measurements, which is why they are here rather than on `Target`.
+DRAG_STEPS = 12          # moves between the two ends. Enough that a game integrating
+                         # motion per frame gets several samples, at any frame rate a
+                         # person would play at.
+DRAG_GRAB = 0.06         # after the press, before the first move. A UI that decides
+                         # what is being picked up does it on the press, and a move
+                         # arriving in the same frame can be attributed to nothing.
+DRAG_GLIDE = 0.012       # between moves: ~0.15s of travel in total, which reads as a
+                         # brisk hand rather than a teleport.
+DRAG_SETTLE = 0.10       # held still at the far end before the release, so a drop
+                         # read on button-up is read at the position it was aimed at.
+SCROLL_GAP = 0.03        # between wheel notches. A real wheel does not emit three
+                         # messages in one frame, and a game that coalesces per frame
+                         # would see one scroll where three were sent.
 
 # Below this, the frame is a flat fill: a dead or not-yet-rendering window. The
 # specific failure this catches is the expensive one from the probe's notes - a
@@ -125,6 +153,30 @@ def readable_output() -> None:
             stream.reconfigure(encoding="utf-8", errors="replace")
         except (AttributeError, OSError):
             pass  # not a reconfigurable stream (a pipe someone replaced, a test capture)
+
+
+def segment_hits_box(start: tuple[float, float], end: tuple[float, float],
+                     box: tuple[float, float, float, float]) -> bool:
+    """Whether the straight line from `start` to `end` touches a fractional box.
+
+    Liang-Barsky slab clipping: the segment enters the box's x-range over some span
+    of the line and its y-range over another, and it touches the box exactly when
+    those two spans overlap inside the segment. Exact and about ten lines, which is
+    why `forbids_path` does not sample points along the line instead."""
+    (x0, y0), (x1, y1) = start, end
+    bx, by, bw, bh = box
+    lo, hi = 0.0, 1.0
+    for origin, delta, low, high in ((x0, x1 - x0, bx, bx + bw),
+                                     (y0, y1 - y0, by, by + bh)):
+        if delta == 0:
+            if not low <= origin <= high:
+                return False        # parallel to this slab and outside it
+            continue
+        first, second = (low - origin) / delta, (high - origin) / delta
+        lo, hi = max(lo, min(first, second)), min(hi, max(first, second))
+        if lo > hi:
+            return False
+    return True
 
 
 def is_fraction(at) -> bool:
@@ -588,6 +640,25 @@ class Target:
         for entry in self.denylist:
             x, y, w, h = entry["box"]
             if x <= fx <= x + w and y <= fy <= y + h:
+                return entry.get("why", "denylisted")
+        return None
+
+    def forbids_path(self, start: tuple[float, float],
+                     end: tuple[float, float]) -> str | None:
+        """The reason a drag between these two points is off limits, or None.
+
+        A drag is the one input that touches somewhere it was not aimed at. It holds
+        the button down along a line, so a drag whose ends are both clear can still
+        pass straight through a denylisted box with the button held - which on a game
+        whose forbidden box is a quit button is the exact thing the box exists to
+        prevent. Checking the ends only would leave the hard floor with a hole in the
+        middle of it.
+
+        An exact segment-rectangle test rather than samples along the line, because
+        the sampling density would become the real safety limit: coarse enough to be
+        cheap is coarse enough to step over a small box."""
+        for entry in self.denylist:
+            if segment_hits_box(start, end, entry["box"]):
                 return entry.get("why", "denylisted")
         return None
 
@@ -1296,6 +1367,7 @@ class Controller:
         time.sleep(settle)
 
     def click(self, fx: float, fy: float, button: str = "left",
+              modifiers: tuple[str, ...] = (),
               hover: float = 0.20, hold: float = 0.08, during=None) -> None:
         """Move, wait, press, hold, release - deliberately slow.
 
@@ -1316,24 +1388,158 @@ class Controller:
         why = self.target.forbids(fx, fy)
         if why:
             raise PermissionError(f"({fx:.3f}, {fy:.3f}) is denylisted: {why}")
-        mouse_move_to(*self.point(fx, fy))
-        time.sleep(hover)
-        down, up = BUTTON_FLAGS[button]
-        send_input(mouse_input(down))
-        started = time.monotonic()
-        if during is not None:
-            during()
-        time.sleep(max(0.0, hold - (time.monotonic() - started)))
-        send_input(mouse_input(up))
+        with self.holding(*modifiers):
+            mouse_move_to(*self.point(fx, fy))
+            time.sleep(hover)
+            down, up = BUTTON_FLAGS[button]
+            send_input(mouse_input(down))
+            started = time.monotonic()
+            if during is not None:
+                during()
+            time.sleep(max(0.0, hold - (time.monotonic() - started)))
+            send_input(mouse_input(up))
+
+    def drag(self, start: tuple[float, float], end: tuple[float, float],
+             button: str = "left", modifiers: tuple[str, ...] = (),
+             hover: float = 0.20, during=None) -> None:
+        """Press at one point, travel to another with the button held, release.
+
+        The travel is the reason this cannot be built out of `click` and `hover`. A
+        drag that jumps straight from one point to the other sends a single move
+        event, and almost nothing responds to it: a camera pans by integrating motion,
+        a slider follows the pointer frame by frame, and a drag-and-drop UI decides
+        what is being carried from the moves that arrive *after* the press. One jump
+        looks to all three like a press and a release somewhere else.
+
+        `DRAG_SETTLE` at the far end before the release is load-bearing for the
+        opposite reason: a UI that drops what it is carrying on button-up reads the
+        position it has, and releasing in the same input frame as the last move is
+        how a drop lands one move short of where it was aimed.
+
+        The denylist is checked against the whole path, not the two ends - see
+        `Target.forbids_path`. Both ends are checked too, and separately, so the
+        refusal message can say which end was the problem when it is one of them.
+
+        `during` fires with the button still down at the far end, which is the drag's
+        equivalent of a pressed control: the close-up is aimed at where the drag
+        *started*, so what that frame shows is whether the thing being dragged has
+        left its origin - the one question a before/after pair cannot answer, because
+        by the after frame the drag has finished either way."""
+        for label, (fx, fy) in (("start", start), ("end", end)):
+            why = self.target.forbids(fx, fy)
+            if why:
+                raise PermissionError(
+                    f"a drag {label} of ({fx:.3f}, {fy:.3f}) is denylisted: {why}")
+        why = self.target.forbids_path(start, end)
+        if why:
+            raise PermissionError(
+                f"a drag from ({start[0]:.3f}, {start[1]:.3f}) to "
+                f"({end[0]:.3f}, {end[1]:.3f}) passes through a denylisted box: {why}")
+
+        with self.holding(*modifiers):
+            mouse_move_to(*self.point(*start))
+            time.sleep(hover)
+            down, up = BUTTON_FLAGS[button]
+            send_input(mouse_input(down))
+            time.sleep(DRAG_GRAB)
+            for step in range(1, DRAG_STEPS + 1):
+                fraction = step / DRAG_STEPS
+                mouse_move_to(*self.point(
+                    start[0] + (end[0] - start[0]) * fraction,
+                    start[1] + (end[1] - start[1]) * fraction))
+                time.sleep(DRAG_GLIDE)
+            time.sleep(DRAG_SETTLE)
+            if during is not None:
+                during()
+            send_input(mouse_input(up))
+
+    def scroll(self, fx: float, fy: float, notches: int,
+               horizontal: bool = False, modifiers: tuple[str, ...] = (),
+               hover: float = 0.20) -> None:
+        """Turn the wheel over a point. Positive is away from the user - up, or right.
+
+        Sent as `notches` separate events rather than one event of `notches * 120`,
+        because the two are not the same input. A list that advances one row per wheel
+        message advances one row for either, so a single large delta is a scroll a game
+        may round back down to one step - and the point of scrolling three notches is
+        to be sure something moved at all.
+
+        The cursor is moved first and given the same settle a click gets: a wheel
+        message goes to whatever is under the pointer, so a wheel sent without the
+        move scrolls whatever the game still thinks the pointer is over.
+
+        The denylist applies, though nothing about a wheel is destructive on its own.
+        A hand-written box means "do not put input into this part of the window", and
+        the cost of reading it that broadly is a scroll nobody needed; the cost of
+        reading it narrowly is discovering the exception the hard way."""
+        why = self.target.forbids(fx, fy)
+        if why:
+            raise PermissionError(f"({fx:.3f}, {fy:.3f}) is denylisted: {why}")
+        if not notches:
+            raise ValueError("a scroll of no notches is not an input")
+        flag = MOUSEEVENTF_HWHEEL if horizontal else MOUSEEVENTF_WHEEL
+        step = WHEEL_DELTA if notches > 0 else -WHEEL_DELTA
+        with self.holding(*modifiers):
+            mouse_move_to(*self.point(fx, fy))
+            time.sleep(hover)
+            for index in range(abs(notches)):
+                send_input(mouse_input(flag, data=step))
+                if index + 1 < abs(notches):
+                    time.sleep(SCROLL_GAP)
+
+    @staticmethod
+    def _vk(key: str) -> int:
+        vk = VK_NAMES.get(key.lower()) or (ord(key.upper()) if len(key) == 1 else None)
+        if vk is None:
+            raise ValueError(f"unknown key {key!r}")
+        return vk
 
     def press(self, key: str) -> None:
         """Scancode input, via `probe.key_input`: game runtimes routinely read the
         keyboard at a level where a virtual-key-only synthetic event is invisible,
         and the arrow cluster needs its extended flag or it arrives as the numpad."""
-        vk = VK_NAMES.get(key.lower()) or (ord(key.upper()) if len(key) == 1 else None)
-        if vk is None:
-            raise ValueError(f"unknown key {key!r}")
+        vk = self._vk(key)
         send_input(key_input(vk, keyup=False), key_input(vk, keyup=True))
+
+    def hold(self, key: str) -> None:
+        """Send a key down and leave it down. Prefer `holding`."""
+        send_input(key_input(self._vk(key), keyup=False))
+
+    def release(self, key: str) -> None:
+        send_input(key_input(self._vk(key), keyup=True))
+
+    @contextmanager
+    def holding(self, *keys: str) -> Iterator[None]:
+        """Hold keys down for the duration of the block - how a chord is sent.
+
+        `press` cannot express one: it sends down and up in a single batch, so nothing
+        can arrive between them, and shift+scroll or ctrl+click are unreachable by
+        construction rather than by omission.
+
+        The `finally` is the whole reason this is a context manager and not two calls.
+        A modifier left down does not fail visibly - it silently changes the meaning
+        of every input for the rest of the session, so a keypress that raises in the
+        middle of a chord would turn into a run whose remaining hundred actions were
+        all secretly shift-something. Released in reverse order, and each release
+        attempted even if an earlier one throws, because a half-released chord is the
+        same failure."""
+        unknown = [k for k in keys if k not in MODIFIERS]
+        if unknown:
+            # Refused rather than held, because anything can be held down and the failure
+            # of holding the wrong thing is silent: `enter` held for the duration of a
+            # block is a key repeat, not a chord.
+            raise ValueError(f"{', '.join(unknown)} cannot be held as a modifier; "
+                             f"this harness holds {', '.join(MODIFIERS)}")
+        for key in keys:
+            self.hold(key)
+        try:
+            yield
+        finally:
+            for key in reversed(keys):
+                try:
+                    self.release(key)
+                except Exception as error:              # noqa: BLE001
+                    self.note(f"could not release {key}: {error}")
 
 
 # --- small pixel helpers ----------------------------------------------------
