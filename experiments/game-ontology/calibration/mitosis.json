@@ -13,20 +13,20 @@
       "restores_needed": 0
     },
     "screen_match": {
-      "screen_match": 0.894,
+      "screen_match": 0.918,
       "kept": false,
-      "widest_same_place": 59,
-      "smallest_screen_change": 329,
+      "widest_same_place": 45,
+      "smallest_screen_change": 324,
       "cells": 576,
       "populations_overlap": false,
       "admissible_range": [
-        0.429,
-        0.894
+        0.438,
+        0.918
       ],
-      "why": "the widest same-place move changed 59 of 576 cells and the smallest screen change 329"
+      "why": "the widest same-place move changed 45 of 576 cells and the smallest screen change 324"
     }
   },
   "startup_quiet": 4.6,
   "window_title": "Mitosis",
-  "screen_match": 0.894
+  "screen_match": 0.918
 }

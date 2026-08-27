@@ -437,6 +437,29 @@ consumer can take the observed claims and leave the guesses.
     chose. Both now do the same thing with a malformed payload that the evidence check
     already did with a fabricated transition id: hand it back and let the retry fix it.
 
+23. **The worst bug in this experiment so far: it drove somebody's editor.** `py sweep.py
+    --game Mitosis` attached to a Visual Studio Code window and spent a minute hovering,
+    clicking and pressing keys in it. The game was not running; the remembered title
+    `Mitosis` was matched as a substring against every visible window, and the editor
+    happened to be showing a file called `mitosis-last-run.log`. Two independent paths had
+    the same hole - `running_window`, which attaches at the start, and `_belongs`, which
+    adopts a window mid-session when a launcher hands over - and both were phrased as *the
+    game's name appears in this title*, which is true of every window naming a file, a
+    folder or a branch after the game.
+
+    Two things are worth keeping about how it failed. **None of the three safety layers
+    could have caught it**: the coordinate denylist, the modality gate and the vetting call
+    all answer "is this action allowed on this screen", and not one of them asks whether the
+    screen belongs to the game. The vetting call actually *read* the screen correctly - it
+    named it `VS Code Editor - game-ontology project`, reported the selected item as
+    `mitosis-last-run.log`, and then cleared 14 of 14 actions as safe, because nothing in
+    its brief said that "this is not a game" is an answer it is allowed to give. It says so
+    now. **And the check that fixes it was already in the file**: `_belongs` had the right
+    relation - the window's process is the executable that would have been launched, or
+    lives under its folder - it just let a title match stand as an alternative to it rather
+    than as a fallback for when the process image cannot be read at all. A weak piece of
+    evidence in the same `or` as a strong one is not a fallback; it is the rule.
+
 ## What is reused, and what standalone means
 
 `probe.py` is imported as-is for capture, input, PNG writing and window finding - it

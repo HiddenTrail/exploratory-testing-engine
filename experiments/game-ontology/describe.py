@@ -75,6 +75,13 @@ would erase progress or quit, refuse it. Do not refuse a key merely because some
 again about that entry when it is the one selected.
 
 {SAFETY_BRIEF}
+First, though: this is supposed to be a video game, and the explorer cannot tell whether
+it is. If what you are looking at is not a game - an editor, a browser, a file manager, a
+desktop, an installer, anything belonging to the person whose machine this is - say so in
+`name` and refuse EVERY action, explaining that the explorer is not looking at the game.
+Typing into somebody's work is the worst thing this explorer can do, and you are the only
+part of it that can read the screen well enough to notice.
+
 You must return a verdict for every action you are given, using the exact action_id
 strings supplied.
 

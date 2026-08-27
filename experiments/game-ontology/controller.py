@@ -662,6 +662,21 @@ class Controller:
         series instead of the one asked for. Preferring an exact hit costs one pass over a
         list that is already in memory.
 
+        A title match is additionally required to come from the game's own install, and
+        that requirement is the most important line in this method. Without it, asking for
+        Mitosis on a machine where an editor happened to be showing `mitosis-last-run.log`
+        attached to the editor: the remembered title `Mitosis` is a substring of that
+        window's, nothing downstream re-checks what it is driving, and a session then spent
+        a minute sending clicks and keypresses into somebody's editor. Nothing about that
+        is specific to editors - any window naming a file, a folder or a branch after the
+        game matches - and none of the safety layers can catch it, because they are about
+        which action is allowed on a screen and not about whether the screen is the game's.
+        The check is the same relation `_belongs` uses: the window's process is the file
+        that would have been launched, or lives under its folder, which keeps the case this
+        fallback exists for - a launcher whose game window belongs to a differently-named
+        executable beside it. When an exe could not be resolved at all there is nothing to
+        check against and the title is the only evidence there is.
+
         Owned windows are skipped - those are dialogs belonging to something else - but
         size deliberately is not checked: a fullscreen game minimizes itself when it loses
         focus, reports a 0x0 client rect while it is down, and is exactly the running
@@ -670,17 +685,38 @@ class Controller:
         needle = self.target.window_title.lower()
         exact: tuple[int, str, str] | None = None
         loose: tuple[int, str, str] | None = None
+        strangers: list[str] = []
         for hwnd, title in visible_windows().items():
             if window_owner(hwnd):
                 continue
             if exe is not None and process_image(window_pid(hwnd)) == exe:
                 return hwnd, title, f"already running {exe.name}"
             if needle and needle in title.lower():
+                if exe is not None and not self._same_install(window_pid(hwnd), exe):
+                    strangers.append(title)
+                    continue
                 if title.lower() == needle and exact is None:
                     exact = (hwnd, title, f"the remembered title {title!r}")
                 elif loose is None:
                     loose = (hwnd, title, f"a title containing {self.target.window_title!r}")
+        for title in strangers:
+            # Loud even though it is the safe outcome. The window it declined is the one a
+            # person would have to be told about, and the alternative to saying so is a
+            # launch that looks unexplained.
+            self.note(f"{title!r} matches the remembered title but belongs to another "
+                      f"program, not to {exe.name}; not attaching to it")
         return exact or loose
+
+    @staticmethod
+    def _same_install(pid: int | None, exe: Path | None) -> bool:
+        """Whether a window's process is the game's own, or something beside it.
+
+        Unreadable images count as false: a window whose owner cannot be established is
+        not a window to start sending input to."""
+        if pid is None or exe is None:
+            return False
+        image = process_image(pid)
+        return image is not None and (image == exe or exe.parent in image.parents)
 
     def _launch(self) -> None:
         exe = self.target.resolve_exe()
@@ -791,8 +827,18 @@ class Controller:
                 # launcher's. It is not universal - a launcher can install anywhere - but
                 # where it holds it is unambiguous.
                 return f"{image.name}, under the launcher's own folder"
+            # Readable, and neither of those: this is a different program, and the title is
+            # not allowed to argue with that. It would - `_squash` reduces a title to its
+            # letters and asks whether the game's name is in there, which is true of every
+            # window naming a file or a folder after the game. An editor showing
+            # `mitosis-last-run.log` qualified as a *promoted* window of Mitosis on exactly
+            # this line, and a promoted window is one this harness starts typing into.
+            return ""
         wanted, seen = _squash(self.target.name), _squash(title)
         if seen and (wanted in seen or seen in wanted):
+            # Only reachable with no exe resolved or an unreadable image - a protected or
+            # another user's process, where there is no image relation to be had and the
+            # title is the only evidence there is.
             return f"its title {title!r} is the name of the game"
         return ""
 
