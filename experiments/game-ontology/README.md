@@ -49,7 +49,9 @@ about, and prints what was filmed, where it was aimed and whether each before/af
 is actually two pictures - which a real game cannot tell you, because it has no second
 opinion about what its own buttons look like. Its second screen answers the wheel and the
 drag while its first ignores both, which is how the escalation in item 26 gets checked in
-both directions. It takes about two seconds. It is
+both directions - counting the probes that were *sent*, since an action retired for good is
+retired by adding its id to the same set that records the ones that happened. It takes
+about two seconds. It is
 not in CI and cannot be: `probe.py` calls `ctypes.WinDLL` at import, so importing `recon`
 needs Windows, and the workflow runs on ubuntu.
 
@@ -621,10 +623,42 @@ consumer can take the observed claims and leave the guesses.
     meaning of every input for the rest of the session. `holding` releases in reverse order
     in a `finally`, and attempts every release even if an earlier one throws.
 
-    None of this has been run against a real game yet. What it has been run against is the
-    fake one, which now has a panel that the wheel scrolls and a drag pans beside a screen
-    that ignores both, and a scripted mission that drags, scrolls at the default target,
-    scrolls at a named one, and is refused when it drags to a pixel coordinate.
+    **The escalation then did not fire once, and the map said so plainly enough that
+    nobody read it.** Five passes at Tile Tale, 27 minutes, and the wheel turned out to do
+    something after all - 1 to 3 cells on each of its settings menus, against a prediction
+    that a keyboard game would ignore it. But of the 19 blind probes recorded against one
+    of those screens only 3 were ever sent. The vetting call carries the screen's
+    candidates *once*, on the first appearance (`vet`, `if first:`), and the escalated
+    probes are minted afterwards by definition - the gate that mints them opens on evidence
+    the first call predates. So they arrived with no verdict, and a missing verdict is not
+    a temporary refusal: `prune_blocked` retires everything except `UNVETTED` permanently,
+    and `tried` is on the map, so all 16 were retired unsent forever. `blocked_actions` in
+    that map contains twenty rows reading `no verdict for this action`, which is the bug
+    stated in full, written down at the time and skimmed past twice.
+
+    The escalated probes now buy their own verdict at the moment the gate opens, through
+    the same `ask_about` a mission uses for a control the cursor never reacted to. What the
+    call will not rule on is retired with the reason spelled out rather than left to be
+    re-offered every step - worded so it cannot be mistaken for the model's own judgement -
+    and a call that fails outright retires nothing, so a later pass asks again.
+
+    The selftest had reported this feature working. It printed `screen.tried` as "blind
+    actions tried", and retiring an action for good is done by *putting its id in
+    `screen.tried`* - so a probe that was refused and never sent was indistinguishable
+    from one that was sent and filmed. It now counts the transitions, which is the only
+    record that a probe actually happened, and prints what was retired without being sent
+    as its own line. Five of the fake game's eight escalated probes had been dying there in
+    silence the whole time.
+
+    What is verified against a real game, from that sweep: the aiming no longer pollutes
+    the measurement (every probe that found nothing recorded exactly 0 changed cells, where
+    before the fix it was ~40), the path denylist and the modality gate both hold, and the
+    refusals are legible - a drag was refused on five of nine screens, one of them because
+    *"a horizontal drag starting near the centre (around MUSIC: 20% or SCREEN: FULLSCREEN)
+    could adjust a slider value"*. The animation half of the evidence test was not
+    exercised: no Tile Tale screen animates at all. And `drag_does_something` is cruder
+    than it sounds - the screen that set it did so with a drag that hit a control and left
+    for the main menu, which is not the panning it is meant to detect.
 
 ## What is reused, and what standalone means
 

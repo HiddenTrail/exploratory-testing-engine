@@ -15,7 +15,11 @@ real game gives no second opinion about what its own buttons look like:
   4. that a map with pictures in it round-trips through save and resume, keeping both the
      files and the aim, so a later pass films what an earlier one could not;
   5. that the blind modalities get swept and escalated - one wheel each way and one drag
-     on every screen, the rest only where those proved the screen answers them.
+     on every screen, the rest only where those proved the screen answers them - and that
+     the escalated ones are actually *sent*. This is checked against the transitions
+     rather than against `screen.tried`, because a permanently refused action is retired
+     by putting its id in `tried` too: reading that set as "probes sent" is what once made
+     an escalation that never fired look like one that worked.
 
 **Not a CI test, and cannot become one.** `controller.py` imports `probe.py`, which calls
 `ctypes.WinDLL` at module scope, so importing `recon` needs Windows; the workflow in
@@ -302,9 +306,16 @@ def fake_vetter(seen: list[dict]):
     def vet(image_path, screen, variant, candidates, crops=()):
         seen.append({"screen": screen.id, "variant": variant.id,
                      "crops": [c["label"] for c in crops]})
+        # One escalated probe is left unruled on purpose, so the branch that retires an
+        # action the model was shown and would not rule on runs too, rather than only the
+        # happy path. The last one, which is arbitrary but deterministic.
+        escalated = [a for a in candidates if a.kind in ("scroll", "drag")
+                     and tuple(a.at or ()) != recon.PROBE_AT]
+        unruled = {escalated[-1].id} if len(escalated) > 1 else set()
         return {"name": f"{screen.id} menu", "purpose": "a fake screen",
                 "highlighted": "", "elements": [],
-                "actions": {a.id: {"safe": True, "why": "fake"} for a in candidates}}
+                "actions": {a.id: {"safe": True, "why": "fake"}
+                            for a in candidates if a.id not in unruled}}
     return vet
 
 
@@ -339,10 +350,17 @@ def main() -> None:
               f"{len(screen['hover'].get('sticky_points') or [])} sticky points")
         print(f"  crop_boxes: {json.dumps(screen['hover']['crop_boxes'])[:200]}")
         explored = screen["explored"]
-        blind = [a for a in explored["tried"] if a.startswith(("scroll:", "drag:"))]
+        blind = {a for a in explored["tried"] if a.startswith(("scroll:", "drag:"))}
+        # Sent and retired are printed apart because `tried` holds both, and reading it as
+        # "sent" is how a dead escalation looked like a working one: an action refused for
+        # good is retired by adding its id to exactly this set. What proves a probe
+        # happened is a transition, which is the only thing here that took a picture.
+        sent = {t["action"]["id"] for t in data["transitions"]
+                if t["from"] == screen["id"] and t["action"]["kind"] in ("scroll", "drag")}
         print(f"  wheel answered: {explored['wheel_does_something']}, "
               f"drag answered: {explored['drag_does_something']}, "
-              f"blind actions tried: {blind}")
+              f"blind probes sent: {len(sent)}")
+        print(f"  retired without being sent: {sorted(blind - sent) or 'none'}")
 
     print("\ntransitions with close-ups, and whether their pictures differ:")
     for t in data["transitions"]:

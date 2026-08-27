@@ -185,6 +185,12 @@ PROBE_AT = (0.5, 0.5)    # where a blind probe happens: the middle, which is the
 # Ordered, and only the first is tried unprompted. Right before down because a
 # horizontal drag is the one a vertical menu is least likely to react to by accident.
 DRAG_DIRECTIONS = ((1, 0), (0, 1), (-1, 0), (0, -1))
+# Attempts per screen, per pass, at buying verdicts for the escalated probes. Two: the
+# first can fail on one bad response and the second is the retry, while a third would mean
+# the call itself is failing rather than the answer being unlucky - and a call retried
+# every step spends the pass on it. Deliberately not written to the map, so a later pass
+# tries again; a call that failed is a fact about a moment, not about the screen.
+ESCALATION_ASKS = 2
 
 # The one refusal that is temporary: it describes this session, not the control.
 UNVETTED = "screen not vetted, so committing actions stay locked"
@@ -641,6 +647,9 @@ class Recon:
         self.actions_taken = 0
         self.blocked: dict[str, str] = {}
         self.repeats: dict[str, dict[str, int]] = defaultdict(dict)
+        # Calls spent asking about escalated probes, per screen. In memory only - see
+        # `ESCALATION_ASKS`.
+        self.escalation_asks: dict[str, int] = defaultdict(int)
         self.actions_at_recovery = -1
         self.screen_match = controller.target.screen_match
         self.cell_delta = controller.target.cell_delta
@@ -1611,8 +1620,8 @@ class Recon:
         self.pending = (screen, action, before_fp, int(settle * 1000))
         return transition, found_something, int(settle * 1000)
 
-    def ask_about(self, screen: Screen, variant: Variant,
-                  actions: list[Action]) -> bool:
+    def ask_about(self, screen: Screen, variant: Variant, actions: list[Action],
+                  retire_unruled: bool = False) -> bool:
         """Buy a verdict for actions nobody has ruled on yet.
 
         The explorer only ever proposes actions it measured - arrow keys and points the
@@ -1626,7 +1635,15 @@ class Recon:
         Every point named gets a close-up of itself, which matters more here than anywhere
         else. On a screen the cursor is inert on, the only reason to believe there is a
         control at (0.500, 0.720) is a plan that said so, and a 43-pixel-wide patch of a
-        scaled-down frame does not give the model enough to disagree with it."""
+        scaled-down frame does not give the model enough to disagree with it.
+
+        `retire_unruled` files a refusal for anything the call came back without a verdict
+        for, said in words that make clear it is not the model's judgement. Off for a
+        mission, whose planner can name the same control again next time and should get a
+        real answer rather than an inherited shrug; on for the explorer, where the
+        alternative is a candidate that is offered, refused and re-offered forever. It also
+        keeps the close-up the question was asked with attached to something in the map,
+        which an unruled action would otherwise leave orphaned on disk."""
         if self.vetter is None:
             return False
         asked: dict[str, str] = {}
@@ -1648,7 +1665,14 @@ class Recon:
         for action in actions:
             entry = verdict.get("actions", {}).get(action.id)
             if entry is None:
-                continue
+                if not retire_unruled:
+                    continue
+                # Not a verdict, and worded so nobody reads it as one. A model that was
+                # shown the point and would not rule on it has still settled the question
+                # for this session, and leaving the gap open instead means the action is
+                # offered, refused for want of a verdict, and offered again every step.
+                entry = {"safe": False,
+                         "why": "shown to the model, which returned no verdict for it"}
             scope = variant if action.committing and action.kind == "key" else screen
             if scope.vetting is None:
                 # Everything else on the screen stays locked: this is one verdict, not
@@ -1665,6 +1689,40 @@ class Recon:
             log(f"  verdict for {action.id} on {scope.id}: "
                 f"{'cleared' if entry.get('safe') else 'refused'} - {entry.get('why', '')}")
         return True
+
+    def ask_about_escalated(self, screen: Screen, variant: Variant) -> None:
+        """Buy verdicts for the blind probes that exist only because the gate opened.
+
+        Every other candidate the explorer proposes is known before the screen's vetting
+        call: the arrow keys are fixed and the hotspot clicks come out of the hover map,
+        which finishes first. The escalated wheel and drag probes are the one exception -
+        they are minted by `screen_actions` only after a probe proved the screen answers
+        the modality, which is necessarily *after* the vetting call has been paid for. So
+        they arrive with no verdict, and a missing verdict is not a temporary refusal:
+        `prune_blocked` retires everything except `UNVETTED` permanently, and a retired id
+        stays retired through every later pass because `tried` is on the map. Measured on
+        Tile Tale: all 16 escalated wheel probes on its settings menu were retired unsent
+        on first offer, so the escalation never once fired.
+
+        Restricted to the blind modalities on purpose. A hotspot click with no verdict
+        would mean the hover map grew after vetting, which is a different bug, and buying
+        it a call here would hide it.
+
+        A call that fails outright leaves everything as locked as it was, and is bounded by
+        `ESCALATION_ASKS` within the pass rather than retired, so the next pass tries
+        again. Anything the call answers with silence is retired by `retire_unruled`."""
+        if self.vetter is None or screen.vetting is None:
+            return
+        known = screen.vetting.get("actions", {})
+        fresh = [a for a in self.screen_actions(screen)
+                 if a.kind in ("scroll", "drag")
+                 and a.id not in known and a.id not in screen.tried]
+        if not fresh or self.escalation_asks[screen.id] >= ESCALATION_ASKS:
+            return
+        self.escalation_asks[screen.id] += 1
+        log(f"  {screen.id} answered the wheel or the drag, so {len(fresh)} escalated "
+            f"probes need a verdict nobody has been asked for")
+        self.ask_about(screen, variant, fresh, retire_unruled=True)
 
     def step(self) -> str:
         screen, variant, before_fp = self.look()
@@ -1684,6 +1742,10 @@ class Recon:
             # to, or the action gets recorded against the place it was mistaken for.
             screen = self.vet(screen, variant)
 
+        # Before pruning, not after: pruning is what retires a candidate with no verdict,
+        # and the escalated probes are the only candidates that can be minted after the
+        # vetting call that would have covered them.
+        self.ask_about_escalated(screen, variant)
         self.prune_blocked(screen, variant)
         action = self.next_action(screen, variant) or self.route_to_frontier(screen)
         if action is None:
