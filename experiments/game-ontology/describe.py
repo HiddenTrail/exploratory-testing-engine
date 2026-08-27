@@ -265,6 +265,13 @@ def _evidence_text(screen: dict, transitions: list[dict], screens: list[dict]) -
              "so something dynamic lives there):"]
     lines += screen["volatile_map"]
     lines.append("")
+    if screen.get("animated_cells"):
+        # Said explicitly because the map above cannot distinguish them, and a reader
+        # who cannot will attribute a mascot's next frame to whatever was pressed.
+        lines.append(f"{screen['animated_cells']} cells were measured moving with no input "
+                     f"at all, so a change confined to them is not something an action did:")
+        lines += screen["animated_map"]
+        lines.append("")
     if screen["hover"]["inert"]:
         lines.append(f"The cursor was swept over {screen['hover']['probed']} points and "
                      f"nothing reacted: this screen ignores hover entirely.")

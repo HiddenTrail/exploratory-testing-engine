@@ -1,0 +1,31 @@
+{
+  "game": "Tile Tale",
+  "measured": {
+    "startup": {
+      "startup_quiet": 3.1,
+      "watched_seconds": 14.2,
+      "change_at": [
+        0.27,
+        1.84,
+        2.38,
+        2.64,
+        2.9,
+        3.16,
+        3.42,
+        4.76,
+        5.07
+      ],
+      "longest_interior_gap": 1.57,
+      "settled": true,
+      "restores_needed": 0
+    },
+    "screen_match": {
+      "screen_match": 0.925,
+      "kept": true,
+      "why": "this pass recorded no screen changes, so there is nothing to cut between"
+    }
+  },
+  "startup_quiet": 3.1,
+  "window_title": "Tile Tale",
+  "screen_match": 0.925
+}

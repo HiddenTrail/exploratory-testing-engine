@@ -1,74 +1,81 @@
-"""Target definitions: the only file in this experiment that may name a game.
+"""Targets: the only file in this experiment that may name a game.
 
-Everything here is either something the operating system needs (what to launch,
-what the window is called) or a safety rule someone had to decide (what must never
-be clicked). Explicitly *not* here: anything about how the game works, what its
-screens are, or where its buttons live. Those are the experiment's output. Putting
-a board rectangle in this file would make the recon session grade its own homework.
+It used to be a registry, and a registry was the thing that made "point this at a
+game it has never seen" untrue. Adding a game meant writing down its window title,
+its executable, how long it takes to start and how much of a frame has to agree for
+two frames to be one screen - four facts, three of them measurable, and every one of
+them a reason a new game could not simply be run. Those are now produced: the
+executable is found from the game's name (`controller.find_game`), the window title
+is whatever the launch turned out to open, and the two numbers are measured and written
+back by `calibrate.py`.
 
-The denylist is the hard floor, checked inside `Controller.click` so no policy above
-it can route around it. It exists because exploration is not free: a session runs
-unattended and an explorer that pokes at an unmapped UI will eventually find the
-control that ends the run, and by then it has taken the whole remaining budget with
-it. Coordinates are fractions of the client area, which is what makes them survive
-the resolution change a fullscreen game performs on every launch.
+What is left here is the part measurement cannot produce: a safety rule a person
+decided. `DENYLISTS` is the hard floor, enforced inside `Controller.click` so no policy
+above it can route around it. It is keyed loosely by name and it is empty for a game
+nobody has watched yet - which is honest rather than convenient, and it is why the
+other two safety layers exist. An unmapped game is protected by modality gating and by
+the vetting call that reads a screen before anything may be committed on it; a denylist
+can only be written *after* a session has found the control that deserves one, and its
+coordinates are the one thing a report cannot re-cut on its own.
 
-What a coordinate denylist cannot protect is a keyboard-driven menu, where the
-dangerous action is `enter` on a row whose position is not known in advance. That
-gap is closed in `recon.py` by the vetting pass, which reads each new screen before
-the explorer is allowed to commit to anything on it - see `SAFETY_BRIEF`.
+Explicitly *not* here, and never: what a game's screens are, where its buttons live, or
+what any input does. Those are the output. Putting a board rectangle in this file would
+make a recon session grade its own homework.
 """
 
 from __future__ import annotations
 
-from controller import Target
+from controller import Target, _squash, find_game, log
 
-TARGETS: dict[str, dict] = {
-    "tile-tale": {
-        "window_title": "Tile Tale",
-        "install_dir": "Tile Tale",
-        "exe_name": "tile_tale.exe",
-        "denylist": [
-            {
-                "box": (0.86, 0.87, 0.10, 0.09),
-                "why": "the lower-right exit icon - two clicks here quit the game, "
-                       "which ends the session and forfeits the rest of its budget",
-            },
-        ],
-        # Measured, not guessed: this game opens windowed 1280x720 and switches to
-        # fullscreen 3840x2160 about 3.3s later. Anything under that returns a rect
-        # the game is about to discard.
-        "startup_quiet": 4.0,
-        # Also measured, from sessions' own transitions - and the measurement says no
-        # value is right. "Same place, different appearance" ran 11 to 41 changed cells
-        # of 576 (main menu highlight 11, hover 16, settings menu highlight 41) while
-        # "different place" ran 42 to 89 (main menu -> settings 42, settings -> the
-        # board 89). The populations abut at 42/41, so a threshold cut anywhere either
-        # files the settings menu as the main menu or files each settings row as its
-        # own screen. Both happened. So this is cut loose enough to admit the widest
-        # same-place move (41 cells, 0.929) and the naming disagreement separates what
-        # that also lets in - see `Recon.split_screen`.
-        "screen_match": 0.92,
-    },
+# Fractional boxes that must never be clicked, per game, because someone looked at the
+# game and decided. Keyed on the squashed name discovery settled on (see `_squash` and
+# `find_game`) - a Steam directory or a Start-menu shortcut - so "Tile Tale" and
+# "tile_tale" find the same entry.
+#
+# Fractions rather than pixels because a fullscreen game picks its resolution at launch
+# and a coordinate in pixels is wrong the first time it picks a different one.
+DENYLISTS: dict[str, list[dict]] = {
+    "tiletale": [
+        {
+            "box": (0.86, 0.87, 0.10, 0.09),
+            "why": "the lower-right exit icon - two clicks here quit the game, "
+                   "which ends the session and forfeits the rest of its budget",
+        },
+    ],
 }
 
 
-def load(name: str | None = None) -> Target:
-    name = name or default_name()
-    if name not in TARGETS:
-        raise SystemExit(f"unknown target {name!r}; known: {', '.join(sorted(TARGETS))}")
-    return Target(name=name, **TARGETS[name])
+def resolve(game: str, calibration: dict | None = None) -> Target:
+    """A Target for a game named the way a person would name it.
 
+    Everything about the game itself is discovered; everything remembered is passed in
+    through `calibration`, which is a file written by a previous session and not code.
+    The alternatives the executable was chosen over are logged, because that choice is
+    a guess and a guess nobody can see is a guess nobody can correct."""
+    name, exe, runners_up = find_game(game)
+    # Relative to the executable's own folder, not to an install root: a game found
+    # through the Start menu has no install root to be relative to, and the folder is
+    # what the names need to be read against either way.
+    log(f"{name}: {exe.name} in {exe.parent}"
+        + (f" (over {', '.join(p.name for p in runners_up)})" if runners_up else ""))
 
-def default_name() -> str:
-    """The target to use when the command line does not say.
-
-    Resolved from the registry rather than written as a default in each script's
-    argparse: a literal there would put a game's name in two general-purpose modules
-    to save one word of typing."""
-    if len(TARGETS) == 1:
-        return next(iter(TARGETS))
-    raise SystemExit(f"--target is required; known: {', '.join(sorted(TARGETS))}")
+    remembered = calibration or {}
+    target = Target(name=name, exe=str(exe),
+                    window_title=remembered.get("window_title", ""),
+                    denylist=DENYLISTS.get(_squash(name), []))
+    for measured in ("startup_quiet", "screen_match", "cell_delta"):
+        if measured in remembered:
+            setattr(target, measured, remembered[measured])
+    if remembered:
+        log(f"  calibration: startup_quiet {target.startup_quiet}s, "
+            f"screen_match {target.screen_match}"
+            + (f", re-attaching to {target.window_title!r}" if target.window_title else ""))
+    else:
+        log(f"  no calibration for this game yet; measuring it this pass")
+    if not target.denylist:
+        log("  no coordinate denylist: nothing has been forbidden by hand for this "
+            "game, so safety rests on modality gating and vetting")
+    return target
 
 
 # Handed to the model on every vetting call. Phrased as categories rather than as a

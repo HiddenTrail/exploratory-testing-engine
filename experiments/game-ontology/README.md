@@ -1,7 +1,13 @@
 # game-ontology
 
-Point this at a game it has never seen, let it run for ten minutes, and get back a
-map of the game's screens, what each input does to them, and pictures of all of it.
+```bash
+py sweep.py --game Mitosis
+```
+
+Name a game the way you would say it out loud, and get back a map of its screens, what
+each input does to them, and pictures of all of it. Nothing else is supplied: not the
+executable, not the window title, not how long it takes to start, not what any of its
+screens look like. Those are found, measured, or discovered.
 
 Sibling experiment to `game-screen-probe`, aimed at the opposite question. That one
 asked "can a harness read and drive this specific game", and the answer came as
@@ -10,41 +16,95 @@ separates a forest tile from a bush. Every one of those cost calibration work, a
 each is worth nothing for the next game. This one asks whether that work can be
 *produced* instead of paid for.
 
-So the rule here is that no file may contain a fact about Tile Tale except
-`target.py`, and even there only what the OS needs (what to launch, what the window
-is called), safety rules a person decided, and per-game calibration that a session's
-own report shows how to re-cut. Screens, buttons, layouts and behaviours are output. If
+So the rule here is that no file may contain a fact about a specific game except
+`target.py`, and even there only safety rules a person decided - which coordinates
+must never be clicked, and why. Screens, buttons, layouts and behaviours are output. If
 a board rectangle ever appears in this directory, the experiment has stopped testing
 what it claims to.
 
 That rule is easy to break by accident, because a tuning constant does not look like
-game knowledge. Two did: how long to wait for a window to settle (this game opens
-windowed and switches to fullscreen ~3.3s later) and how much of a screen must agree
-for two frames to be the same screen (measured off one session's own transitions).
-Both were plain module constants in the general code, which is how one game's
-calibration silently becomes every game's default. They now live on `Target`, next to
-the measurement that justifies them.
+game knowledge. Two did: how long to wait for a window to settle, and how much of a
+screen must agree for two frames to be the same screen. Both started as module
+constants in the general code, which is how one game's calibration silently becomes
+every game's default; both then became fields on `Target`, which is honest but still
+means a new game needs a person to fill them in. They are now **measured**, which is
+the version the experiment was actually claiming - see `calibrate.py`.
 
 ## Running it
 
 ```bash
-py recon.py --minutes 10                 # explore, vetting each new appearance
-py recon.py --minutes 10 --no-model      # mechanics only; committing actions stay locked
-py describe.py out/tile-tale-<stamp>     # annotate the graph, rewrite the report
-py controller.py                         # smoke test: own a window, read it, close it
+py sweep.py --game Mitosis                 # up to five 3-minute passes, 15 minutes all in
+py sweep.py --game Mitosis --budget 40      # a longer leash; passes fill it as they fit
+py sweep.py --game "tile tale" --no-model   # mechanics only; committing actions stay locked
+py recon.py --game Mitosis --minutes 3     # one pass on its own
+py describe.py out/<...>/pass5             # annotate the graph, rewrite the report
+py controller.py --game Mitosis            # smoke test: find it, own a window, read it, close it
 ```
 
-Output lands in `out/<target>-<stamp>/` (gitignored):
+The name is matched loosely against two lists pooled together - installed Steam games
+across every library, and every Start-menu shortcut that resolves to an executable - so
+`mitos`, `Mitosis` and `mitosis` all work, a game that came from its publisher's own
+launcher rather than from Steam is found at all, and an ambiguous name lists what it
+matched, and from where, instead of guessing. Output lands in `out/<game>-sweep-<stamp>/` (gitignored):
 
 | file | what it is |
 |---|---|
-| `ontology.json` | the whole finding: screens, appearances, transitions, refusals |
-| `images/*.png` | one per appearance; `ontology.json` references these by relative path |
-| `report.md` | the same thing to read, with the images inline |
+| `sweep.md` | what each pass *added*, and the measurements behind the calibration |
+| `passN/ontology.json` | the whole finding: screens, appearances, transitions, refusals |
+| `passN/images/*.png` | one per appearance; the JSON references these by relative path |
+| `passN/report.md` | the same thing to read, with the images inline |
+
+The last pass's ontology is the whole sweep, not a fifth of it - each pass inherits the
+one before. `calibration/<game>.json` is the exception to the gitignore: it is a
+measurement this machine made, and it is what makes the second sweep of a game cheaper
+than the first.
 
 `recon.py` writes navigation and structure; `describe.py` adds the names and the
 per-modality behaviour. The JSON is the artifact, the report is derived - if they ever
 disagree, the JSON is right.
+
+## Passes, not one long run
+
+A recon session degrades as it goes. It wanders into a submenu with no route back, the
+window breaks, a dialog it cannot read swallows every input. The one move that reliably
+returns an unknown game to a known state is a cold launch - and inside a long session
+that can only ever be spent as a *recovery*, after the time is already gone.
+
+So the relaunch is the plan instead. Five passes of three minutes: each starts at the
+title screen, dies however it dies, and hands everything it learned to the next one.
+Both halves of that are load-bearing.
+
+**The map carries.** `recon.py --resume` reloads a previous pass's ontology - screens,
+appearances, every key already answered, every verdict already bought, and the cell
+masks exactly as they were. Pass 4 rejoins the game knowing the routes and spends its
+three minutes past them. The masks have to round-trip precisely rather than
+approximately: the protected-cell set is the only reason a screen split stays split, so
+a pass that guessed at it would re-merge what its predecessor separated and then pay
+for the same split again.
+
+**The calibration carries, and improves.** Each pass recuts `screen_match` from every
+transition recorded so far, so the number is standing on more evidence each time.
+
+**The 15 minutes is a ceiling, not a sum.** `--budget` is wall clock over the whole sweep,
+counted from before the game is even resolved, and it governs `--passes` and `--minutes`
+rather than being derived from them. That product is not the same promise: it counts only
+time inside the exploration loop, while a sweep also pays per pass for a cold launch, a
+readiness wait, a report write and a shutdown - about a third again on top, measured. So
+each pass is handed whatever is left minus a reserve for its own ends, a pass that cannot
+get 45 seconds of exploring is not started, and the summary reports the wall clock it
+actually took against the budget it was given.
+
+Behind that is a kill switch: a daemon thread that closes the game and force-exits one
+minute past the budget. Trimming a pass only disciplines code that checks a clock, and the
+runs worth insuring against are the ones that do not - a launch that never settles, a model
+call that never returns. It is the one part of the sweep that cannot be blocked.
+
+The sweep stops after two consecutive passes that add nothing - no new screen, no new
+transition. Not on "exhausted", which a session reports while merely stuck, and not on a
+fixed count, which either wastes passes on a small game or truncates a large one. Two,
+because one is fooled by a single unlucky pass that spent its budget lost in a menu. The
+summary says which of the two reasons stopped it, because "it stopped finding things"
+and "it ran out of passes" are different results and only one means the map is done.
 
 ## The unit is a transition, not an image
 
@@ -184,6 +244,14 @@ consumer can take the observed claims and leave the guesses.
    14 widely-spread probes is abandoned - and the probe order is strided, so bailing
    early has still sampled the whole screen instead of the top rows.
 
+   The cost of that choice shows up on a screen that has controls and no hover feedback.
+   Mitosis's new-game screen was swept, reacted nowhere, and therefore had no click
+   candidates at all - so the sweep stalled at two screens while the vetting call for that
+   same screen was describing a *"glowing teal play button in the bottom-right corner"*.
+   Taking the coordinate from the model would fix it and would also collapse the two
+   judgements the safety design keeps apart: the call that proposes where to click would be
+   the call that clears it.
+
 8. **A pixel threshold filed the settings menu as the main menu, and the model had
    already said otherwise.** Pressing `enter` changed 42 of 576 cells - 0.927
    agreement, above the 0.88 threshold in use - so the settings menu was recorded as
@@ -194,7 +262,126 @@ consumer can take the observed claims and leave the guesses.
    now the signal: the name splits the screen, and the threshold is left to be
    approximately right.
 
-9. **Capture reads the screen DC clipped to the client rect** (inherited from
+9. **A hover reaction that fades in is invisible to a probe that reads the frame
+   straight after moving the cursor.** The sweep reported *1 reacting of 40* on a menu
+   that visibly lights up under the mouse. Measured at 50ms steps: of eight reactive
+   points, two moved instantly and five faded in over 400-700ms, so a zero-wait probe
+   found exactly the instant ones. The probe now holds 0.5s and then keeps looking while
+   the diff is still *growing*, capped at 1s - which finds 7-10 of 40 and costs about
+   47s a screen, amortized because a swept screen stays swept across passes.
+
+10. **`wait_stable`'s threshold is a per-cell delta, not a count of changed cells.** The
+    first fix for the above passed `threshold=1` meaning "one cell may differ" and got
+    "any cell that moved by one unit counts", so the frame was never quiet and all forty
+    probes burned their full timeout to conclude nothing. Two numbers in the same
+    function, both small integers, one a colour distance and one a cell count.
+
+11. **A screen's animation cannot all be measured before anything on it is selected.**
+    `screen.animated` is sampled on first sighting, which is the only moment nothing can
+    be credited to an input - but a pulsing glow on a *selected* row does not exist yet
+    at that moment, so those cells later read as a new appearance every time they were
+    caught at a different point in the pulse. There is now a third mask, measured
+    per-appearance and never unioned into the screen's, because "this look shimmers" is
+    not the same claim as "this place shimmers".
+
+12. **Per-key caps and the frontier route were enforced through different sets.** The cap
+    on pressing one arrow key lives in `screen.tried`, and the route that crosses an
+    intra-screen frontier deliberately ignores `tried` (see 5) - so a key retired for
+    revealing nothing came straight back as the move to the next appearance, forever. It
+    took one budget over *all* navigation on a screen to close, which is the general
+    shape of the bug: two rules with a shared subject and no shared counter.
+
+13. **A pass that inherits the last one inherits its mistakes, and no later evidence
+    removes them.** On a game whose menu buttons repaint 40-odd cells, run at the 0.94
+    threshold measured on a game whose highlight moves 16, the hover sweep filed its own
+    first reaction as a *new screen* at 0.938 - and with five passes resuming each other
+    that screen is then in the map permanently. The threshold has to be right before
+    anything is recorded, and the evidence is already there: a cursor move commits to
+    nothing, so a frame it produces is by construction "the same place, changed". Widen
+    on it, one direction only. The number to widen on is the frame's distance from the
+    screen's *first sighting*, not the size of the reaction just caused - the previous
+    highlight is gone and the animation has moved on, so an 18-cell reaction can sit 36
+    cells from the representative, and relaxing on the reaction clears the frame by luck.
+
+14. **The midpoint of an admissible range is not a safe threshold.** Recutting
+    `screen_match` between "widest same-place move" and "smallest screen change" brackets
+    [0.44, 0.90] on a busy game, and the midpoint of that, 0.67, means a frame need only
+    reproduce two thirds of a screen to be filed as it. The two errors are not
+    comparable: too tight invents a screen per highlight, which is a cluttered map, while
+    too loose lets one screen absorb its neighbours and its volatile mask then grows over
+    the cells that would have told them apart. The cut is at the tight end of the range.
+
+15. **A screen change of *zero* cells, and it cost a whole game's calibration.** Two
+    screens with large volatile masks - a puzzle grid, and the same grid one move on -
+    both match almost anything, so which one a frame is filed under comes down to a
+    tiebreak the pixels have no say in. An arrow key that moved nothing therefore got
+    recorded as travel from one to the other. The mislabel is not the damage: it enters
+    the evidence as a screen change of 0 cells, so the recut sees a population of screen
+    changes starting *below* every same-place move, concludes no threshold can separate
+    them, and hands the whole game over to the model's naming. An identical picture cannot
+    be a different place, so classification is now skipped entirely when nothing moved -
+    and the recut discards zero-cell screen edges as well, because a resumed map carries
+    whatever an earlier pass wrote and one such edge from pass 1 would govern every recut
+    after it. With it dropped, Tile Tale's populations still overlap (smallest screen
+    change 15 cells, widest same-place move 42) - which is a real finding about a puzzle
+    grid rather than an artifact.
+
+16. **Two screens that both match everything swap the frame between them, and a
+    `hover` edge is the tell.** Same cause as 15 and a wider symptom: once two places have
+    accumulated large volatile masks, nearly every frame qualifies for both, and which one
+    takes it is decided by a raw-distance tiebreak that can go either way frame to frame.
+    Tile Tale's map filled with `sc05 -> sc04` edges on six different hover points - and a
+    cursor move commits to nothing, so it cannot have gone anywhere. The fix is hysteresis:
+    among qualifying screens, the one already occupied wins, carried across the step
+    boundary as well as within an action. That is only asserting what the threshold was
+    asked to decide, and its failure mode is a screen left merged, which the naming still
+    splits.
+
+17. **The window that was launched is not always the window the game is in.** A game
+    installed by its publisher's own launcher has no Steam directory to search, so it is
+    found through its Start-menu shortcut - and what that shortcut starts is the launcher.
+    The game arrives in a *separate window of a separate process*, whenever something in
+    the launcher gets clicked, which is long after `_launched_window` has returned. The
+    failure is silent and total rather than partial: the harness goes on asserting the
+    foreground for the window it knows, so it reads and maps the launcher for its whole
+    budget while the game it was pointed at sits in front of it, unread. Three signals
+    that look obvious were measured and rejected. *Process lineage*: by the time the game
+    had a window, its parent PID pointed at a launcher process that had already exited, so
+    there was no chain left from our PID to its. *Size*: the game's window here is
+    **narrower** than the launcher's (2048x1536 against 2160x1368) and larger only by
+    area, so "bigger is the game" would have been a rule that worked on one machine at one
+    resolution. *Title*: the launcher's own title changed from `supercell-launcher` to
+    `Boom Beach Launcher` seconds after it opened. What does work is the executable's
+    image path - readable unelevated via `QueryFullProcessImageNameW` with
+    `PROCESS_QUERY_LIMITED_INFORMATION`, where a WMI query returned it blank - and the fact
+    that the launcher keeps the games it installs under its own folder. That test is
+    directional (the launcher started the game, never the reverse), which is what stops a
+    handover from oscillating; the window handed over from is sidelined, never a candidate
+    again, and closed at shutdown *after* the game, because a launcher is often the game's
+    parent process and closing it first is a kill dressed up as a shutdown.
+
+18. **A `.lnk` stores its target in two halves and one of them looks like an answer.**
+    Reading a shortcut's `LocalBasePath` alone returned `C:\Users\` - a directory, not a
+    program - and the resolver concluded the game was not installed. The path is that
+    field *plus* `CommonPathSuffix`; a shortcut written on a machine with a network view
+    of its own drive splits it there. Parsed rather than resolved through the shell
+    because the alternative is a COM call or a PowerShell subprocess per shortcut and
+    there are around a hundred of them on an ordinary machine.
+
+19. **Half of Steam's game directories were not games.** Twelve of the 23 directories under
+    `steamapps/common` on this machine hold no executable at all: Steam leaves the folder
+    behind when a game is uninstalled, and two of them (`Steam Controller Configs`,
+    `Steamworks Shared`) were never a game. Listing directories is therefore not a listing
+    of what is installed, and the difference is not cosmetic - asking for `Dying Light`
+    answered "no plausible executable under ..." (a bug report about the resolver) where the
+    truth was "that game is not installed" (an answer). The pool now admits a Steam
+    directory only if something in it could be started, which is a recursive walk that stops
+    at the first hit: the folders that have to be walked to the end are the empty ones.
+    Across the 71 programs that survive, all three exact-ish forms of every name resolve to
+    that same program, and the only remaining refusals are genuinely ambiguous first words
+    (`Git`, `AMD`, `The`), where naming all the candidates is the intended answer.
+
+20. **Capture reads the screen DC clipped to the client rect** (inherited from
    `probe.py`, and worth restating): an occluded window returns whatever is on top of
    it as a clean, plausible frame of the wrong application. There is no error. That is
    why foreground is asserted *before* a frame is trusted rather than after something

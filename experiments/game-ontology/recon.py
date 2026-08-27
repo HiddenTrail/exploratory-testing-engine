@@ -55,9 +55,12 @@ import re
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
+from itertools import zip_longest
 from pathlib import Path
+from shutil import copyfile
 
 import target as targets
+from calibrate import MATCH_FLOOR, SLACK_CELLS
 from controller import Controller, WindowLost, log, set_dpi_aware
 
 # 32x18 keeps the 16:9 aspect, so cells are square and a cell index maps back to a
@@ -98,9 +101,39 @@ ARBITRATION_CALLS = 4    # extra calls a screen may spend on appearances far fro
                          # and once the budget is gone, nothing else ever notices
 NAV_REPEAT = 12          # hard cap on presses of one navigation key on one screen
 NAV_STALE = 3            # consecutive presses revealing nothing new before moving on
+NAV_BUDGET = 40          # navigation presses of *any* key on one screen, ever. The per-key
+                         # caps above are enforced through `screen.tried`, and the frontier
+                         # route deliberately bypasses that set - so without one number over
+                         # the whole thing, an arrow key retired for doing nothing comes
+                         # straight back as the move to the next appearance. 40 is above what
+                         # four keys at their per-key caps can legitimately spend
+ANIMATION_SAMPLES = 3    # frames taken with no input, to see what a screen does unprompted
+ANIMATION_GAP = 0.3      # seconds between them; long enough for a slow loop to advance
+PULSE_LIMIT = NCELLS // 8  # cells an *appearance* may move on its own and still be believed.
+                         # Past this the reading is not "it shimmers" but "the game moved on
+                         # while it was being sampled", and excusing that many cells would let
+                         # one appearance match whatever came next
 HOVER_COLS, HOVER_ROWS = 8, 5
-HOVER_PATIENCE = 14      # probes with no reaction at all before a screen is called hover-inert
-HOVER_STRIDE = 7         # spreads the probe order, so an early bail has still sampled widely
+HOVER_PATIENCE = 14      # probes with no reaction at all before a screen is called hover-inert.
+                         # Sound only because of the order below: 14 of 40 points is a third of
+                         # the grid, so what makes the bail a statement about the screen rather
+                         # than about the first third of it is that the prefix reaches every
+                         # quadrant - at least three probes in each
+HOVER_STRIDE = 7         # spreads the probe order *within* a quadrant, so a prefix is not a row
+HOVER_SETTLE = 0.5       # cursor held this long before the frame is read. The floor on every
+                         # probe, so it is what decides whether forty of them are affordable.
+                         # Measured: at 0.5s, seven of eight reactive points on a real menu
+                         # have moved at least two cells - against two of eight at 0.3s
+HOVER_GROWTH = 0.2       # between later looks at a point that *is* reacting, while the
+                         # reaction keeps getting bigger
+HOVER_REACTION = 1.0     # cap on that. A fade measured at 700ms is why the hold is not zero,
+                         # which is what it effectively was; the cap is what stops a screen
+                         # that animates on its own from spending a whole pass in the sweep
+HOVER_SAME_PLACE = NCELLS // 4   # a frame this far from the screen the cursor is sitting on
+                         # is not a highlight, so it is not evidence about how far a frame may
+                         # drift and still be the same screen - a mouse-over menu that opens a
+                         # submenu really has gone somewhere else, and `relax_match` must not
+                         # learn from it
 
 NAV_KEYS = ("up", "down", "left", "right")
 COMMIT_KEYS = ("enter", "space", "esc")
@@ -109,6 +142,13 @@ COMMIT_KEYS = ("enter", "space", "esc")
 UNVETTED = "screen not vetted, so committing actions stay locked"
 
 SAVE_EVERY = 20          # actions between JSON flushes; a killed session keeps its findings
+
+# Bumped from /1 when the ontology became something a later pass reads back rather than
+# only something a person reads. `resume` refuses anything else: the earlier shape is
+# missing the masks and the tried sets, and every one of them absent reads as a
+# plausible default - an unswept screen, an unprotected split - so a quiet degrade would
+# hand a resumed pass a map that is wrong in exactly the places that are expensive.
+SCHEMA = "game-ontology/2"
 
 
 # --- fingerprints -----------------------------------------------------------
@@ -126,6 +166,32 @@ def fingerprint(controller: Controller) -> bytes:
     for i in range(0, len(raw), 4):
         out += raw[i:i + 3]
     return bytes(out)
+
+
+def hover_order(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """The order to sweep the cursor in, such that any prefix covers the whole window.
+
+    This exists because the sweep is allowed to give up early, and a bail is only
+    honest if what it has seen so far represents the screen. Striding alone does not
+    give that. A stride visits every Nth point of a row-major list, which spreads the
+    prefix across rows but keeps it in list order overall, so the last corner of the
+    window is still probed near the end - and a game whose only controls sit in that
+    corner gets recorded as ignoring the cursor entirely. That happened: four menu
+    buttons in the bottom right, every one of them hover-reactive, on a screen the
+    sweep called inert after fourteen probes that never went below the middle.
+
+    So the points are bucketed by half of the window in each axis and taken round
+    robin, which makes "probes so far" cover the four quadrants evenly at every
+    length. Within a quadrant the stride still applies, so a prefix there is scattered
+    rather than one row.
+    """
+    buckets: dict[tuple[bool, bool], list[tuple[float, float]]] = {}
+    for point in points:
+        buckets.setdefault((point[0] >= 0.5, point[1] >= 0.5), []).append(point)
+    strided = [[bucket[i] for offset in range(HOVER_STRIDE)
+                for i in range(offset, len(bucket), HOVER_STRIDE)]
+               for _, bucket in sorted(buckets.items())]
+    return [point for row in zip_longest(*strided) for point in row if point is not None]
 
 
 def diff_cells(a: bytes, b: bytes, delta: int) -> set[int]:
@@ -186,6 +252,14 @@ def volatile_map(volatile: set[int]) -> list[str]:
                     for c in range(GRID_COLS)) for r in range(GRID_ROWS)]
 
 
+def cell_set(rows: list[str]) -> set[int]:
+    """`volatile_map` read back. The claim that shape makes - legible in both
+    directions - is only true if something actually reads it, and a resumed pass has to
+    restore these masks exactly rather than approximately."""
+    return {r * GRID_COLS + c for r, row in enumerate(rows)
+            for c, mark in enumerate(row) if mark == "#"}
+
+
 # --- what an action is ------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -234,6 +308,20 @@ class Variant:
     tried: set[str] = field(default_factory=set)
     vetting: dict | None = None
     highlighted: str = ""
+    # What moves while *this* appearance is the one on screen, sampled with no input in
+    # flight. On the variant rather than on the screen because the movement that breaks
+    # appearance identity is usually caused by the selection: a highlight that pulses
+    # does not exist until something is highlighted, so a mask measured on the screen's
+    # first sighting - nothing selected yet - comes out empty and catches nothing.
+    #
+    # Unioning per-appearance masks into the screen would be worse than useless. The
+    # cells that pulse are exactly the cells that say *which* row is selected, so a
+    # screen-wide union of them makes "nothing selected" and "Sandbox selected"
+    # indistinguishable, which is the one distinction the whole variant mechanism
+    # exists to draw. Kept per appearance, it does the opposite: a frame at a different
+    # phase of this row's glow is this appearance, while a frame with the glow on the
+    # next row differs *outside* this mask and is correctly a new one.
+    animated: set[int] = field(default_factory=set)
 
 
 @dataclass
@@ -257,7 +345,20 @@ class Screen:
     # on an image file and in recorded transitions.
     variant_seq: int = 0
     arbitrations: int = 0
+    # Cells this screen moves on its own, sampled with no input in flight - a mascot,
+    # a shimmer on a logo, a drifting background. Distinct from `volatile`, and the
+    # difference is not where the cells are but how they were found: `volatile`
+    # accumulates everything that ever differed while this was still called the same
+    # place, so by the time a frame is being filed its own changes are already in
+    # there, and subtracting it would make every frame the same appearance. This is
+    # measured before any action is taken, so it can be subtracted safely.
+    animated: set[int] = field(default_factory=set)
     hotspots: list[tuple[float, float]] = field(default_factory=list)
+    # Cells each reacting point moved. How loud this screen's hover feedback is, which is
+    # what separates a game whose buttons merely underline from one whose buttons repaint
+    # a quarter of the window - and the second kind is why `screen_match` cannot be one
+    # number for every game.
+    hover_reactions: list[int] = field(default_factory=list)
     hover_probed: bool = False
     hover_inert: bool = False
     hover_probe_count: int = 0
@@ -310,26 +411,46 @@ class Recon:
         self.cell_delta = controller.target.cell_delta
         self.splits = 0
         self.match_scores: list[float] = []
+        self.resumed_from = ""
+        # Which screen the last classified frame was filed as, so the *next* frame can be
+        # judged against the place we are standing in. Without it the incumbent
+        # preference in `_match_screen` only holds inside a single recorded action, and
+        # two mutually-qualifying screens still swap places across the step boundary.
+        self.standing = ""
+        # The last action taken, with what the screen looked like before it and how long
+        # it took to settle: (screen, action, fingerprint, settle_ms). Kept for exactly one
+        # purpose - an action can open a window that does not exist yet when its result is
+        # read, and when that window turns up the action has to be credited with it. See
+        # the handover in `step`.
+        self.pending: tuple[Screen, Action, bytes, int] | None = None
+        # Why the loop ended. Kept because the two endings are different results: a pass
+        # that ran out of time was still finding things, while one that ran out of moves
+        # has hit the limits of what modality gating and vetting let it reach, and only
+        # the second means a longer pass would not have helped.
+        self.stopped = ""
         self.started = time.monotonic()
         self.images.mkdir(parents=True, exist_ok=True)
 
     # -- perception ---------------------------------------------------------
 
-    def observe(self, fp: bytes | None = None) -> tuple[Screen, Variant, bytes, bool]:
+    def observe(self, fp: bytes | None = None,
+                holding: Screen | None = None) -> tuple[Screen, Variant, bytes, bool]:
         """Classify a frame: which screen, which appearance, and whether that
         appearance is one nobody has seen before.
 
         `fp` lets a caller that has already grabbed a frame classify *that* frame.
         Re-grabbing instead would sample a later moment and quietly attribute it to
         the earlier one, which is how a transition ends up recorded against an
-        appearance that was never on screen when the action landed."""
+        appearance that was never on screen when the action landed.
+
+        `holding` is the screen we were on before this frame, if the caller knows it."""
         if fp is None:
             fp = fingerprint(self.controller)
-        screen = self._match_screen(fp)
+        screen = self._match_screen(fp, holding)
         variant, is_new = self._touch_variant(screen, fp)
         return screen, variant, fp, is_new
 
-    def _match_screen(self, fp: bytes) -> Screen:
+    def _match_screen(self, fp: bytes, holding: Screen | None = None) -> Screen:
         """Which known screen this frame is an appearance of, if any.
 
         Two separate questions, decided by two separate measures, because one measure
@@ -357,6 +478,20 @@ class Recon:
                 qualified.append((len(differing), -stable, screen, score, differing))
 
         if qualified:
+            # Among screens that qualify, the one we were already on wins. Without that,
+            # two places whose masks have grown large - a puzzle grid and the same grid
+            # one move on - both qualify for nearly every frame, and which of them takes
+            # it is settled by a raw-distance tiebreak that can go either way from one
+            # frame to the next. The map then fills with edges between them, including
+            # `hover` edges, which is a contradiction: a cursor move commits to nothing,
+            # so it cannot have gone anywhere.
+            #
+            # This is hysteresis, and it is the cheap direction on purpose. Qualifying
+            # already means "close enough to be the same place", so preferring the
+            # incumbent is only asserting what the threshold was asked to decide; the
+            # cost is a screen left merged, which the model's naming still splits.
+            if holding is not None and any(c[2] is holding for c in qualified):
+                qualified = [c for c in qualified if c[2] is holding]
             _, _, best, best_score, best_diff = min(qualified, key=lambda c: c[:2])
             self.match_scores.append(best_score)
             best.observations += 1
@@ -385,9 +520,11 @@ class Recon:
     def _touch_variant(self, screen: Screen, fp: bytes) -> tuple[Variant, bool]:
         # Checked against the stored fingerprints before hashing, because a hash
         # answers "identical" and the question is "indistinguishable". A cell mean
-        # of 127 against 128 is not a new appearance of anything.
+        # of 127 against 128 is not a new appearance of anything, and neither is a
+        # mascot two frames further into its loop - which is what `animated` removes.
         for variant in screen.variants.values():
-            if not diff_cells(fp, variant.fp, self.cell_delta):
+            if not (diff_cells(fp, variant.fp, self.cell_delta)
+                    - screen.animated - variant.animated):
                 variant.observations += 1
                 return variant, False
 
@@ -408,9 +545,111 @@ class Recon:
         self.controller.save_png(self.images / name)
         variant.image = f"images/{name}"
         screen.variants[key] = variant
+        self._measure_pulse(screen, variant)
         return variant, True
 
+    def _measure_pulse(self, screen: Screen, variant: Variant) -> None:
+        """Find what this appearance moves on its own, now that it is on screen.
+
+        Costs two frames, paid once per stored appearance, and it is self-limiting in
+        exactly the case that needs it: a pulsing highlight costs 0.6s the first time
+        the row is selected, and every later frame of that pulse is then recognised for
+        free instead of minting another appearance. Without it the arithmetic goes the
+        other way - one measured run spent 47 presses of a dead `up` key, two thirds of
+        the session, because each press produced a "new" appearance and nothing could
+        conclude the key did nothing.
+
+        Two guards on believing the result. Nothing may be in flight, which is true at
+        every call site: appearances are filed either from an idle observation or after
+        `wait_stable` has returned. And a mask wider than `PULSE_LIMIT` is discarded,
+        because at that size the honest reading is not "this appearance shimmers" but
+        "the game moved on while it was being sampled", and writing that in would give
+        this appearance a licence to swallow whatever came next.
+
+        Measured once, deliberately. Growing the mask on every match would repeat the
+        volatile mask's mistake: everything that ever differed while we still called it
+        this appearance ends up excused, and every frame collapses into one appearance."""
+        frames = []
+        for _ in range(ANIMATION_SAMPLES - 1):
+            time.sleep(ANIMATION_GAP)
+            frames.append(fingerprint(self.controller))
+        mask: set[int] = set()
+        for earlier, later in zip([variant.fp] + frames, frames):
+            mask |= diff_cells(earlier, later, self.cell_delta)
+        if len(mask) > PULSE_LIMIT:
+            self.controller.note(
+                f"{variant.id} changed {len(mask)} of {NCELLS} cells while being "
+                f"sampled with no input in flight - too much to call animation, so it "
+                f"is not excused from telling appearances apart")
+            return
+        variant.animated = mask - screen.animated
+        if variant.animated:
+            log(f"  {variant.id} animates {len(variant.animated)} cells of its own "
+                f"(beyond {screen.id}'s {len(screen.animated)})")
+
     # -- hover mapping ------------------------------------------------------
+
+    def map_animation(self, screen: Screen) -> None:
+        """Find what this screen moves on its own, before anything is done to it.
+
+        Without this, an animated screen has no stable notion of an appearance at all.
+        Appearance identity is exact - two frames are the same appearance when no cell
+        differs - so a menu with a looping mascot on it mints a new appearance on every
+        single frame, and the consequences are not cosmetic: navigation stops when a
+        run of presses reveals nothing new, and nothing is ever not-new, so the
+        explorer presses the same dead key until its per-screen cap, comes back through
+        the frontier and does it again. Measured on the real thing: `up` on a
+        mouse-driven main menu did nothing 47 times, and those 47 presses were two
+        thirds of the session.
+
+        Three samples rather than two because one pair can land on two identical frames
+        of a slow loop and conclude the screen is still.
+        """
+        frames = []
+        for _ in range(ANIMATION_SAMPLES):
+            frames.append(fingerprint(self.controller))
+            time.sleep(ANIMATION_GAP)
+        for earlier, later in zip(frames, frames[1:]):
+            screen.animated |= diff_cells(earlier, later, self.cell_delta)
+        if screen.animated:
+            log(f"  {screen.id} animates {len(screen.animated)} of {NCELLS} cells "
+                f"with no input; they do not count towards a new appearance")
+
+    def _hover_reaction(self, screen: Screen,
+                        before: bytes) -> tuple[bytes, set[int]]:
+        """Hold the cursor still and return the frame once the reaction has arrived.
+
+        A hover highlight is not on the next frame. Measured across eight points of a
+        mouse-driven menu: two of them light up within 50ms, and five more *fade* in
+        over 400 to 700ms. Sampling immediately - which is what this did - found the two
+        and filed the screen as having one reactive point out of forty. Every point it
+        missed is a click candidate that never existed, on a game whose only inputs are
+        clicks, so the sweep was reporting the harness's own impatience as a fact about
+        the game.
+
+        The test is whether the difference from `before` is still *growing*, not whether
+        the screen has gone quiet. Quiet is the wrong question twice over: a slow fade
+        moves each cell by so little between consecutive frames that it reads as already
+        still, and a screen with a mascot on it never goes quiet at all, so waiting for
+        quiet spends the full timeout at all forty points. Growth is the thing actually
+        being measured, and it terminates on both.
+
+        Cost is the sweep's whole budget, so it is deliberately asymmetric: a point that
+        does nothing costs one hold and stops, while only a point that is visibly
+        reacting is allowed to spend more."""
+        time.sleep(HOVER_SETTLE)
+        after = fingerprint(self.controller)
+        ignore = screen.volatile | screen.animated
+        reaction = diff_cells(before, after, self.cell_delta) - ignore
+        deadline = time.monotonic() + HOVER_REACTION
+        while reaction and time.monotonic() < deadline:
+            time.sleep(HOVER_GROWTH)
+            later = fingerprint(self.controller)
+            grown = diff_cells(before, later, self.cell_delta) - ignore
+            if len(grown) <= len(reaction):
+                break
+            after, reaction = later, grown
+        return after, reaction
 
     def map_hover(self, screen: Screen) -> None:
         """Find what reacts to the cursor, without clicking anything.
@@ -419,14 +658,12 @@ class Recon:
         being safe to sweep blind across a UI nobody has mapped - so this runs
         before any committing action, and its results are what the click candidates
         are drawn from. Games that ignore hover entirely are the common case, so a
-        screen that has not reacted after `HOVER_PATIENCE` widely-spread probes is
-        abandoned rather than swept to the end; the probe order is strided so that
-        bailing early has still sampled the whole screen rather than the top rows."""
+        screen that has not reacted after `HOVER_PATIENCE` probes is abandoned rather
+        than swept to the end - which is only a claim about the screen because
+        `hover_order` makes every prefix cover all of it."""
         screen.hover_probed = True
-        points = [((c + 0.5) / HOVER_COLS, (r + 0.5) / HOVER_ROWS)
-                  for r in range(HOVER_ROWS) for c in range(HOVER_COLS)]
-        order = [points[i] for offset in range(HOVER_STRIDE)
-                 for i in range(offset, len(points), HOVER_STRIDE)]
+        order = hover_order([((c + 0.5) / HOVER_COLS, (r + 0.5) / HOVER_ROWS)
+                             for r in range(HOVER_ROWS) for c in range(HOVER_COLS)])
 
         started = time.monotonic()
         for fx, fy in order:
@@ -434,10 +671,16 @@ class Recon:
                 continue
             before = fingerprint(self.controller)
             self.controller.hover(fx, fy)
-            after = fingerprint(self.controller)
+            after, reaction = self._hover_reaction(screen, before)
             screen.hover_probe_count += 1
-            if len(diff_cells(before, after, self.cell_delta) - screen.volatile) >= 2:
+            if len(reaction) >= 2:
                 screen.hotspots.append((fx, fy))
+                screen.hover_reactions.append(len(reaction))
+                # Before the recording, not after the sweep. `_record` is what files a
+                # frame as a screen, so a threshold corrected once the sweep is over has
+                # already let the sweep's own first reaction invent a screen - and with
+                # passes inheriting each other, that screen is then permanent.
+                self.relax_match(screen, after)
                 self._record(screen, Action("hover", at=(fx, fy)), before, after, 0)
             if not screen.hotspots and screen.hover_probe_count >= HOVER_PATIENCE:
                 screen.hover_inert = True
@@ -445,7 +688,58 @@ class Recon:
 
         log(f"  hover map for {screen.id}: {len(screen.hotspots)} reacting of "
             f"{screen.hover_probe_count} probed in {time.monotonic() - started:.1f}s"
+            + (f", widest {max(screen.hover_reactions)} cells" if screen.hover_reactions
+               else "")
             + (" (inert, stopped early)" if screen.hover_inert else ""))
+
+    def relax_match(self, screen: Screen, fp: bytes) -> None:
+        """Loosen the screen-identity threshold if this sweep proved it is too tight.
+
+        The threshold a pass *starts* with is the one problem `calibrate.py` cannot
+        solve, because it recuts from transitions a pass has to have recorded first. That
+        was survivable when a session was one long run and its mistakes died with it.
+        With passes that inherit each other it is not: a screen invented on the third
+        action of pass 1 - one that is really a menu with a button lit - is in the map
+        every later pass resumes, and no evidence arriving afterwards removes it.
+
+        A hover sweep is the fix, because of what it is: the cursor moved and nothing was
+        committed, so every reaction it recorded is by construction *the same place,
+        changed*. That is precisely the population the recut needs a maximum from, it is
+        available before any committing action has been taken, and it is measured on this
+        game rather than inherited from another one. Measured here: a game whose menu
+        buttons light up by 42 cells, run at the 0.94 cut of a game whose highlight moves
+        by 16, filed its own hover reactions as travel to another screen.
+
+        One direction only. A sweep that stays well inside the threshold is no evidence
+        that the threshold is too loose - it says the reactions were small, not that
+        nothing bigger belongs to this screen - and tightening on it would split screens
+        on the strength of an absence.
+
+        What is measured is the frame's distance from the screen's *first sighting*, not
+        the size of the reaction the cursor just caused. Those are different numbers and
+        only the first is the one the threshold is compared against: the previous probe's
+        highlight is still gone, and anything the screen animates on its own has moved
+        further along, so a 18-cell reaction can sit 36 cells from the representative.
+        Relaxing on the reaction size measures the wrong gap and clears it by luck."""
+        score, stable, differing = agreement(fp, screen.representative,
+                                            screen.volatile, self.cell_delta)
+        # The masked count, which is the one the score is built from and therefore the one
+        # the threshold judges. Using the raw diff instead relaxes on frames that already
+        # passed comfortably, because everything the screen has ever been seen to move is
+        # in there and none of it counted against the frame.
+        drift = len(differing - screen.volatile)
+        if stable < MIN_STABLE_CELLS or drift > HOVER_SAME_PLACE:
+            return
+        needed = round(1.0 - (drift + SLACK_CELLS) / stable, 3)
+        if needed >= self.screen_match:
+            return
+        loosened = max(needed, MATCH_FLOOR)
+        self.controller.note(
+            f"screen_match {self.screen_match} -> {loosened}: a cursor move on "
+            f"{screen.id} left a frame {drift} of {stable} identifying cells away "
+            f"({score:.3f}) without committing to anything, so a frame that far from "
+            f"this screen is still this screen")
+        self.screen_match = loosened
 
     # -- policy -------------------------------------------------------------
 
@@ -528,10 +822,23 @@ class Recon:
         for action in self.variant_actions():
             if action.id not in variant.tried and self.permitted(screen, variant, action)[0]:
                 return action
-        if any(v is not variant and self.variant_has_work(screen, v)
-               for v in screen.variants.values()):
+        if self.nav_spent(screen) < NAV_BUDGET and any(
+                v is not variant and self.variant_has_work(screen, v)
+                for v in screen.variants.values()):
             return self.navigator(screen)
         return None
+
+    def nav_spent(self, screen: Screen) -> int:
+        """How many navigation presses this screen has absorbed, all keys together.
+
+        The clause in `next_action` that returns a navigator is the one hole in the
+        per-key caps: it exists to cross an *intra-screen* frontier and so it must be
+        able to hand back a key that `screen.tried` has retired. That is right when the
+        key walks a list, and unbounded when it does not - a dead key still produces
+        appearances the harness cannot tell apart, each of them with untried committing
+        keys, each of them therefore evidence that navigating is worth another press.
+        One total makes the hole finite without taking away what it is for."""
+        return self.repeats[screen.id].get("!nav", 0)
 
     def navigator(self, screen: Screen) -> Action | None:
         """An arrow key already observed to change this screen's appearance.
@@ -617,10 +924,23 @@ class Recon:
 
     def _record(self, screen: Screen, action: Action, before_fp: bytes,
                 after_fp: bytes, settle_ms: int) -> tuple[Transition, bool]:
-        after_screen, after_variant, _, is_new = self.observe(after_fp)
         before_variant = next((v for v in screen.variants.values()
                                if not diff_cells(before_fp, v.fp, self.cell_delta)), None)
         changed = len(diff_cells(before_fp, after_fp, self.cell_delta))
+
+        if changed == 0 and before_variant is not None:
+            # An identical picture cannot be a different place, and classifying it again
+            # can say otherwise: two screens with large volatile masks - a puzzle grid
+            # and the same grid one move on - each match almost anything, so which one
+            # wins is decided by a tiebreak the pixels have no say in, and an action that
+            # moved nothing gets recorded as travel between them. That is not a cosmetic
+            # mislabel. It enters the evidence as a screen change of zero cells, and the
+            # recut then sees a population of screen changes that starts below every
+            # same-place move, concludes no threshold separates them, and gives up on
+            # geometry for the whole game.
+            after_screen, after_variant, is_new = screen, before_variant, False
+        else:
+            after_screen, after_variant, _, is_new = self.observe(after_fp, holding=screen)
 
         if after_screen.id != screen.id:
             kind = "screen"
@@ -629,6 +949,7 @@ class Recon:
         else:
             kind = "none"
 
+        self.standing = after_screen.id
         key = f"{screen.id}|{action.id}|{kind}|{after_screen.id}"
         existing = self.transitions.get(key)
         if existing:
@@ -648,13 +969,39 @@ class Recon:
         return transition, is_new
 
     def step(self) -> str:
+        handovers = self.controller.handovers
         self.controller.ensure_readable()
-        screen, variant, before_fp, _ = self.observe()
+        screen, variant, before_fp, _ = self.observe(
+            holding=self.screens.get(self.standing))
+
+        if self.controller.handovers > handovers and self.pending is not None:
+            # The game moved to a window nobody was driving, and the action that made it
+            # happen was the last one taken - a click on a launcher's play button, whose
+            # window did not exist yet when the click's result was read 0.4s later. It was
+            # measured at 2.8s on the launcher this was written for.
+            #
+            # Waiting for it at the time was the other option and it is much worse: the
+            # wait would have to be paid after *every* committing action, most of which
+            # start nothing, and at this game's own measured startup that is a third of a
+            # pass spent watching for a window that is not coming. Crediting it late costs
+            # nothing and records the same edge.
+            #
+            # Without this the handover is a discontinuity rather than a route: the click
+            # is recorded as a change to the launcher's own picture, the game's screen
+            # arrives with no edge leading into it, and every later pass concludes there
+            # is no way back to it - which is what the first sweep of a launcher-based
+            # game actually recorded.
+            source, action, source_fp, settle = self.pending
+            self._record(source, action, source_fp, before_fp, settle)
+            self.pending = None
 
         if not screen.hover_probed:
-            # Hover first, then vet: the click candidates handed to the vetting call
-            # are exactly the points that were seen to react, so mapping has to
-            # finish before there is anything to ask about.
+            # Animation first, then hover, then vet. Each needs the one before it: a
+            # hover reaction is "cells changed that do not change by themselves", and
+            # the click candidates handed to the vetting call are exactly the points
+            # seen to react, so both maps have to finish before there is anything to
+            # ask about.
+            self.map_animation(screen)
             self.map_hover(screen)
 
         if self.wants_vetting(screen, variant):
@@ -676,6 +1023,8 @@ class Recon:
         after_fp = fingerprint(self.controller)
         transition, found_something = self._record(screen, action, before_fp, after_fp,
                                                    int(settle * 1000))
+        # Held in case this action started something that has not appeared yet.
+        self.pending = (screen, action, before_fp, int(settle * 1000))
 
         # A navigation key that changed something is walking a list, and one press
         # only ever reveals one entry of it - so it goes back in the pool and keeps
@@ -687,16 +1036,28 @@ class Recon:
         # known. That reads as exhausted while most of the menu is still unvisited.
         # So it stops on a *run* of presses that reveal nothing new, which is what
         # actually happens at the end of a list or when a key does nothing here.
-        if action.kind == "key" and action.key in NAV_KEYS and transition.kind != "none":
+        if action.kind == "key" and action.key in NAV_KEYS:
             counts = self.repeats[screen.id]
-            counts[action.id] = counts.get(action.id, 0) + 1
-            stale_key = f"{action.id}!stale"
-            counts[stale_key] = 0 if found_something else counts.get(stale_key, 0) + 1
-            if counts[action.id] < NAV_REPEAT and counts[stale_key] < NAV_STALE:
-                screen.tried.discard(action.id)
-            elif counts[action.id] >= NAV_REPEAT:
-                log(f"    {action.key} on {screen.id} capped at {NAV_REPEAT} presses "
-                    f"while still finding new appearances; moving on")
+            # Counted whatever the press achieved, including nothing. The per-key rules
+            # below only see presses that changed something, which is correct for
+            # deciding whether a key walks a list - and is exactly why they cannot bound
+            # the total: a press that does nothing visible is the cheapest one to repeat
+            # forever.
+            counts["!nav"] = counts.get("!nav", 0) + 1
+            if counts["!nav"] == NAV_BUDGET:
+                self.controller.note(
+                    f"{screen.id} has absorbed {NAV_BUDGET} navigation presses; no more "
+                    f"will be spent reaching its other appearances")
+
+            if transition.kind != "none":
+                counts[action.id] = counts.get(action.id, 0) + 1
+                stale_key = f"{action.id}!stale"
+                counts[stale_key] = 0 if found_something else counts.get(stale_key, 0) + 1
+                if counts[action.id] < NAV_REPEAT and counts[stale_key] < NAV_STALE:
+                    screen.tried.discard(action.id)
+                elif counts[action.id] >= NAV_REPEAT:
+                    log(f"    {action.key} on {screen.id} capped at {NAV_REPEAT} presses "
+                        f"while still finding new appearances; moving on")
         return "ok"
 
     def wants_vetting(self, screen: Screen, variant: Variant) -> bool:
@@ -890,9 +1251,11 @@ class Recon:
             if result == "exhausted":
                 if not self.recover_frontier():
                     log("  nothing left to try and no way back to anything new; stopping")
+                    self.stopped = "nothing left to try"
                     return
             if self.actions_taken and self.actions_taken % SAVE_EVERY == 0:
                 self.save()
+        self.stopped = "time up"
         log(f"\ntime is up after {self.actions_taken} actions")
 
     def recover_frontier(self) -> bool:
@@ -919,11 +1282,121 @@ class Recon:
         self.controller.start()
         return True
 
+    # -- resuming -----------------------------------------------------------
+
+    def resume(self, data: dict, source: Path) -> str:
+        """Reload a previous pass's map so this one extends it instead of redoing it.
+
+        The point of short passes is that each one starts from a cold launch, which is
+        the only move that reliably returns an unknown game to a known state - and the
+        cost of a cold start is that everything learned is on the floor. This is what
+        makes that cost optional. A resumed pass rejoins the game already knowing which
+        keys it has answered on which appearance, which controls the model cleared, and
+        which cells tell two screens apart, so its three minutes go into territory the
+        earlier passes did not reach.
+
+        Nothing here is inferred. Every field is one a pass wrote down, and the maps
+        round-trip exactly, because a resumed screen with a rebuilt-from-scratch mask is
+        a different screen wearing the same id: the protected cells in particular are
+        the whole reason a split stays split, and a pass that guessed at them would
+        re-merge the screens its predecessor separated and then re-pay for the split.
+
+        Images are copied rather than referenced. A pass directory that cannot render
+        its own report is not an artifact, and the alternative - paths reaching back
+        into a sibling directory - breaks the moment one is moved or pruned."""
+        if data.get("schema") != SCHEMA:
+            raise SystemExit(f"cannot resume from schema {data.get('schema')!r}, "
+                             f"this is {SCHEMA}")
+        for image in (source / "images").glob("*.png"):
+            copyfile(image, self.images / image.name)
+
+        for entry in data["screens"]:
+            explored = entry.get("explored", {})
+            screen = Screen(
+                id=entry["id"],
+                representative=base64.b64decode(entry["fingerprint_b64"]),
+                first_seen=entry.get("first_seen_action", 0),
+                observations=entry.get("observations", 1),
+                volatile=cell_set(entry.get("volatile_map", [])),
+                protected=cell_set(entry.get("protected_map", [])),
+                animated=cell_set(entry.get("animated_map", [])),
+                unstored_variants=entry.get("variants_not_stored", 0),
+                tried=set(explored.get("tried", [])),
+                variant_seq=max(explored.get("next_variant_number", 1) - 1, 0),
+                arbitrations=explored.get("arbitrations_spent", 0),
+                hotspots=[tuple(p) for p in entry.get("hover", {}).get("reacting_points", [])],
+                hover_reactions=entry.get("hover", {}).get("reaction_cells", []),
+                hover_probed=entry.get("hover", {}).get("swept", False),
+                hover_inert=entry.get("hover", {}).get("inert", False),
+                hover_probe_count=entry.get("hover", {}).get("probed", 0),
+                degenerate=entry.get("identity_is_weak", False),
+                vet_budget=explored.get("vetting_calls_left", 0),
+                split_from=entry.get("split_from") or "",
+                split_name=entry.get("split_name") or "",
+            )
+            if explored.get("vetted"):
+                screen.vetting = {"name": entry.get("name") or "",
+                                  "purpose": entry.get("purpose") or "",
+                                  "elements": entry.get("elements", []),
+                                  "actions": entry.get("click_verdicts", {})}
+            # A screen that has no vetting budget left and no vetter this pass is not
+            # the same as one nobody has looked at, and `wants_vetting` reads the two
+            # off different fields, so both are restored rather than recomputed.
+            for record in entry.get("variants", []):
+                fp = base64.b64decode(record["fingerprint_b64"])
+                variant = Variant(
+                    id=record["id"], key=variant_key(fp), fp=fp,
+                    observations=record.get("observations", 1),
+                    image=record.get("image", ""),
+                    first_seen=record.get("first_seen_action", 0),
+                    tried=set(record.get("tried", [])),
+                    highlighted=record.get("selected") or "",
+                    animated=cell_set(record.get("animated_map", [])),
+                )
+                if record.get("vetted"):
+                    variant.vetting = {"actions": record.get("key_verdicts", {}),
+                                       "highlighted": variant.highlighted,
+                                       "name": entry.get("name") or ""}
+                screen.variants[variant.key] = variant
+            self.screens[screen.id] = screen
+            self.repeats[screen.id]["!nav"] = explored.get("navigation_presses", 0)
+
+        for record in data["transitions"]:
+            at = record["action"].get("at")
+            action = Action(kind=record["action"]["kind"],
+                            key=record["action"].get("key", ""),
+                            at=tuple(at) if at else None)
+            transition = Transition(
+                id=record["id"], source=record["from"], dest=record["to"],
+                action=action, kind=record["effect"],
+                from_variant=record.get("from_variant", ""),
+                to_variant=record.get("to_variant", ""),
+                changed=record.get("changed_cells", 0),
+                settle_ms=record.get("settle_ms", 0),
+                count=record.get("times_taken", 1),
+                first_seen=record.get("first_seen_action", 0))
+            # Rebuilt to the same key `_record` would compute, so a transition taken
+            # again this pass increments the count it already had rather than being
+            # filed as a second edge between the same two screens.
+            self.transitions[f"{transition.source}|{action.id}|"
+                             f"{transition.kind}|{transition.dest}"] = transition
+
+        self.blocked = {entry["what"]: entry["why"]
+                        for entry in data.get("blocked_actions", [])
+                        # A refusal that only described the previous session is not
+                        # carried: it would present "we ran out of vetting budget" as a
+                        # property of the control forever.
+                        if entry["why"] != UNVETTED}
+        self.resumed_from = source.name
+        return (f"resumed {len(self.screens)} screens, "
+                f"{sum(len(s.variants) for s in self.screens.values())} appearances and "
+                f"{len(self.transitions)} transitions from {source.name}")
+
     # -- output -------------------------------------------------------------
 
     def to_json(self) -> dict:
         return {
-            "schema": "game-ontology/1",
+            "schema": SCHEMA,
             "target": {
                 "name": self.controller.target.name,
                 "window_title": self.controller.target.window_title,
@@ -936,6 +1409,10 @@ class Recon:
             "session": {
                 "seconds": round(time.monotonic() - self.started, 1),
                 "actions": self.actions_taken,
+                # Which pass this one stood on. Without it, a map with forty screens in
+                # it looks like the work of three minutes.
+                "resumed_from": self.resumed_from or None,
+                "stopped": self.stopped or "cut short",
                 "restarts": self.controller.restarts,
                 "vetted_by_model": self.vetter is not None,
                 "clicks_enabled": self.allow_clicks,
@@ -963,14 +1440,58 @@ class Recon:
                     "protected_cells": len(screen.protected),
                     "identity_is_weak": screen.degenerate,
                     "volatile_map": volatile_map(screen.volatile),
+                    # The masks as maps rather than counts, because a later pass has to
+                    # restore them exactly: the protected set is what stops a resumed
+                    # screen from re-absorbing the neighbour a split separated it from,
+                    # and rediscovering it costs the same split all over again.
+                    "protected_map": volatile_map(screen.protected),
+                    # Two different statements about movement, both worth keeping. The
+                    # volatile map is everything that ever differed between visits, so it
+                    # includes content an input moved; this is only what moved with
+                    # nothing in flight, which is the part no action can be credited for.
+                    "animated_cells": len(screen.animated),
+                    "animated_map": volatile_map(screen.animated),
                     "hover": {
                         "probed": screen.hover_probe_count,
                         "inert": screen.hover_inert,
                         "reacting_points": [list(p) for p in screen.hotspots],
+                        "reaction_cells": screen.hover_reactions,
+                        # Distinct from `probed > 0`: a screen whose every probe point
+                        # is denylisted is swept without a single probe being taken,
+                        # and a later pass must not read that as unswept and pay for
+                        # the sweep again.
+                        "swept": screen.hover_probed,
+                    },
+                    # What the exploration of this screen has already spent and what it
+                    # was told. Carried so a later pass continues the session instead of
+                    # restarting it: without the tried sets it re-presses every key it
+                    # has already answered, and without the verdicts it re-buys every
+                    # vetting call it has already paid for.
+                    "explored": {
+                        "vetted": screen.vetting is not None,
+                        "tried": sorted(screen.tried),
+                        "navigation_presses": self.repeats[screen.id].get("!nav", 0),
+                        "vetting_calls_left": max(screen.vet_budget, 0),
+                        "arbitrations_spent": screen.arbitrations,
+                        "next_variant_number": screen.variant_seq + 1,
+                    },
+                    "click_verdicts": {
+                        action_id: verdict
+                        for action_id, verdict in (screen.vetting or {}).get("actions", {}).items()
+                        if action_id.startswith("click:")
                     },
                     "variants": [
                         {"id": v.id, "image": v.image, "observations": v.observations,
                          "first_seen_action": v.first_seen,
+                         "tried": sorted(v.tried),
+                         # Stated rather than inferred from an empty verdict list: "the
+                         # model has ruled on this appearance and cleared nothing" and
+                         # "nobody has asked" permit the same actions today and must not
+                         # cost the same call tomorrow.
+                         "vetted": v.vetting is not None,
+                         # Only what this appearance moves beyond what the whole screen
+                         # does, which is usually the highlight on the selected row.
+                         "animated_map": volatile_map(v.animated),
                          # What the model read as selected in this appearance. The
                          # label a keypress would have acted on, which is the only
                          # thing that makes a per-variant key verdict meaningful
@@ -1079,6 +1600,10 @@ def write_report(data: dict, out: Path) -> Path:
                      f"{screen['first_seen_action']}. "
                      f"{screen['stable_cells']} of {GRID_COLS * GRID_ROWS} cells held still"
                      + (" - **identity is weak**" if screen["identity_is_weak"] else "") + ".\n")
+        if screen.get("animated_cells"):
+            lines.append(f"{screen['animated_cells']} of {GRID_COLS * GRID_ROWS} cells move "
+                         f"with no input at all, so two frames differing only there are the "
+                         f"same appearance.\n")
         if screen["image"]:
             lines.append(f"![{screen['id']}]({screen['image']})\n")
 
@@ -1132,18 +1657,24 @@ def write_report(data: dict, out: Path) -> Path:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    # No default here: the registry decides, so the one game this has been pointed at
-    # so far does not get its name written into the general-purpose half.
-    parser.add_argument("--target", default=None)
-    parser.add_argument("--minutes", type=float, default=10.0)
+    parser.add_argument("--game", required=True,
+                        help="the game's name, as a person would write it")
+    # Three rather than ten. A pass is not a budget any more, it is one attempt that
+    # keeps what it learned - `sweep.py` runs several and each starts from a cold launch,
+    # which is the one move that reliably returns an unknown game to a known state.
+    parser.add_argument("--minutes", type=float, default=3.0)
     parser.add_argument("--out", default="")
+    parser.add_argument("--resume", default="",
+                        help="a previous pass's directory, whose map this pass extends")
     parser.add_argument("--no-model", action="store_true",
                         help="no vetting call, so committing actions stay locked")
     parser.add_argument("--no-clicks", action="store_true")
     parser.add_argument("--keep-open", action="store_true")
     args = parser.parse_args()
 
-    target = targets.load(args.target)
+    import calibrate
+
+    target = targets.resolve(args.game, calibrate.load(args.game))
     stamp = time.strftime("%Y%m%d-%H%M%S")
     out = Path(args.out) if args.out else Path(__file__).parent / "out" / f"{target.name}-{stamp}"
     out.mkdir(parents=True, exist_ok=True)
@@ -1156,6 +1687,10 @@ def main() -> None:
     set_dpi_aware()
     controller = Controller(target)
     session = Recon(controller, out, vetter=vetter, allow_clicks=not args.no_clicks)
+    if args.resume:
+        source = Path(args.resume)
+        log(session.resume(json.loads((source / "ontology.json").read_text(
+            encoding="utf-8")), source))
     try:
         controller.start()
         session.run(args.minutes)
