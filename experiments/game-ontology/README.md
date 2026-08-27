@@ -39,7 +39,16 @@ py sweep.py --game "tile tale" --no-model   # mechanics only; committing actions
 py recon.py --game Mitosis --minutes 3     # one pass on its own
 py describe.py out/<...>/pass5             # annotate the graph, rewrite the report
 py controller.py --game Mitosis            # smoke test: find it, own a window, read it, close it
+py selftest.py                             # no game at all: check the close-ups against a fake one
 ```
+
+`selftest.py` is the one check that needs neither a game nor a model. It drives the real
+session against a synthetic menu built to have the behaviours the imaging code reasons
+about, and prints what was filmed, where it was aimed and whether each before/after pair
+is actually two pictures - which a real game cannot tell you, because it has no second
+opinion about what its own buttons look like. It takes about a second and a half. It is
+not in CI and cannot be: `probe.py` calls `ctypes.WinDLL` at import, so importing `recon`
+needs Windows, and the workflow runs on ubuntu.
 
 The name is matched loosely against two lists pooled together - installed Steam games
 across every library, and every Start-menu shortcut that resolves to an executable - so
@@ -381,11 +390,52 @@ consumer can take the observed claims and leave the guesses.
     that same program, and the only remaining refusals are genuinely ambiguous first words
     (`Git`, `AMD`, `The`), where naming all the candidates is the intended answer.
 
-20. **Capture reads the screen DC clipped to the client rect** (inherited from
+20. **The model was being asked about buttons it could not see.** Every call carried one
+    picture: the whole window, scaled so its longest side is 1400px. On a 3840x2160 client
+    that is a 2.7x reduction, so one grid cell - 120x120 real pixels - arrives 43px across,
+    and the two cells a menu button lights up by are about 87x43 in the only image the
+    model gets. That is why a vetter could describe where the controls were and never say
+    what hovering did to one, and why `hover` behaviour in the ontology was almost always
+    a hypothesis. The fix is not a bigger picture but a smaller one: a crop is saved at
+    native resolution, so the same button arrives 600x480 at a tenth of the pixels. Three
+    per action - before, mid-press, after - plus a rest/hover pair per reacting control and
+    three frames of whatever a screen moves on its own. Two things had to be measured
+    before they could be aimed, and both are why this is cheap: a control's extent is the
+    cells that reacted when the cursor arrived, and a keypress's extent is the cells it
+    moved *last* time, which is why the first press of a key has an after picture and no
+    before. Writing a PNG is a Python loop over every pixel (43ms for 600x480, 172ms for a
+    full window), so the shutter that fires with the mouse button still down grabs pixels
+    and nothing else - the file is written after the release, or the 80ms hold would become
+    130ms and the harness would be measuring a click nobody else sends.
+
+    The first real game it ran against then produced a pair of pixel-identical pictures
+    labelled `at rest` and `with the cursor on it`, which is a statement that the cursor
+    does nothing - the opposite of what the sweep had just measured. The cursor there does
+    not light a button, it *moves the selection*, and the selection stays where the cursor
+    left it, so there is no resting state to photograph while the game is in that state.
+    Detected by comparing the two files byte for byte (sound only because both came out of
+    one encoder at one size from one box), and kept rather than thrown away: which points
+    behave this way is the fact that the mouse and the arrow keys are driving one mechanism.
+    Such a point gets one close-up, said to be one, and no pair.
+
+21. **Capture reads the screen DC clipped to the client rect** (inherited from
    `probe.py`, and worth restating): an occluded window returns whatever is on top of
    it as a clean, plausible frame of the wrong application. There is no error. That is
    why foreground is asserted *before* a frame is trusted rather than after something
    downstream looks wrong.
+
+22. **A tool schema is a request, not a guarantee, and the validator has to survive being
+    wrong about that.** Two ways this bit in one run of `describe.py`. A property declared
+    as `{"type": "string"}` with no description got filled in from context: the annotator
+    named every screen after the id the evidence referred to it by, `sc01`, overwriting the
+    readable name the vetting call had already got right. A property whose meaning matters
+    has to say what it means, even when its type is obvious. Then one call returned a bare
+    string where an element object belongs, and `validate` - the function that exists to
+    reject exactly that - died inside itself on `'str' object has no attribute 'get'`,
+    taking the three screens after it down with it. A validator that assumes the shape it
+    is checking is not one; every access on a payload is on data an unrelated process
+    chose. Both now do the same thing with a malformed payload that the evidence check
+    already did with a fabricated transition id: hand it back and let the retry fix it.
 
 ## What is reused, and what standalone means
 

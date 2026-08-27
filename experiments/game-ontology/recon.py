@@ -135,6 +135,29 @@ HOVER_SAME_PLACE = NCELLS // 4   # a frame this far from the screen the cursor i
                          # submenu really has gone somewhere else, and `relax_match` must not
                          # learn from it
 
+# Every model call has so far seen exactly one picture: the whole window, scaled so its
+# longest side is 1400px. On a 3840x2160 client that is a 2.7x reduction, and one grid
+# cell - 120x120 real pixels - arrives 43px across. So the two cells a menu button lights
+# up by are about 87x43 in the only image the model is given, which is why a vetter can
+# say where the buttons are and never say what hovering did to one. A crop is saved at
+# native resolution, because `save_png` only ever scales *down*, so the same button
+# arrives 240x120: the same evidence, 2.7x sharper, at a tenth of the pixels.
+CROP_MARGIN = 1          # cells of context around what moved. A crop of exactly the cells
+                         # that changed is a highlight with nothing to attach it to
+CROP_MIN = (5, 4)        # smallest crop, in cells, grown around the change rather than
+                         # taken tight to it - a 1-cell crop is legible to the pixel test
+                         # and to nobody else
+CROP_MAX_AREA = 0.45     # a change wider than this is not a control reacting, it is the
+                         # screen changing, and a crop of it is the frame again - which
+                         # already exists as that appearance's own image
+VET_CROPS = 3            # controls a vetting call carries close-ups of, widest reaction
+                         # first, at two pictures each. The cap is tokens: the call
+                         # already carries the whole window
+# In time order, which is not the order they are taken in - the after frame of a hover is
+# the only one available while the cursor is on the point, and the before frames of every
+# control on a screen are taken together at the end of the sweep.
+CROP_SLOTS = ("before", "pressed", "after")
+
 NAV_KEYS = ("up", "down", "left", "right")
 COMMIT_KEYS = ("enter", "space", "esc")
 
@@ -260,6 +283,71 @@ def cell_set(rows: list[str]) -> set[int]:
             for c, mark in enumerate(row) if mark == "#"}
 
 
+# --- where to point the camera ----------------------------------------------
+
+def _grow(low: int, high: int, least: int, limit: int) -> tuple[int, int]:
+    """Widen a span of cells to at least `least`, centred, and clamp it to the grid.
+
+    Clamping second and re-widening after it, because a control against an edge is the
+    common case - a menu title in the top row, a Back button in the corner - and a span
+    that loses half its margin to the edge would come out half the intended size."""
+    short = least - (high - low)
+    if short > 0:
+        low, high = low - (short + 1) // 2, high + short // 2
+    low, high = max(0, low), min(limit, high)
+    if high - low < least:
+        low, high = (0, min(limit, least)) if low == 0 else (max(0, high - least), high)
+    return low, high
+
+
+def cell_box(cells: set[int]) -> tuple[float, float, float, float] | None:
+    """A fractional crop rectangle around a set of grid cells.
+
+    None when there is nothing worth cropping to: no cells, or so many of them that the
+    crop would be most of the window. The second case is not a failure, it is the
+    difference between a control reacting and the game changing screens, and the caller
+    is expected to fall back on the full-window picture that already exists."""
+    if not cells:
+        return None
+    cols = [c % GRID_COLS for c in cells]
+    rows = [c // GRID_COLS for c in cells]
+    left, right = _grow(min(cols) - CROP_MARGIN, max(cols) + 1 + CROP_MARGIN,
+                        CROP_MIN[0], GRID_COLS)
+    top, bottom = _grow(min(rows) - CROP_MARGIN, max(rows) + 1 + CROP_MARGIN,
+                        CROP_MIN[1], GRID_ROWS)
+    if (right - left) * (bottom - top) >= CROP_MAX_AREA * NCELLS:
+        return None
+    return (left / GRID_COLS, top / GRID_ROWS,
+            (right - left) / GRID_COLS, (bottom - top) / GRID_ROWS)
+
+
+def point_box(fx: float, fy: float) -> tuple[float, float, float, float]:
+    """A crop around a point nothing has been measured at.
+
+    The case this exists for is a control named by a plan on a screen that ignores the
+    cursor: there is no reaction to take the extent from, so the crop is a default-sized
+    box centred on the point. Weaker evidence than a measured one and deliberately the
+    same shape, so it can be shown to the model the same way."""
+    col = min(int(fx * GRID_COLS), GRID_COLS - 1)
+    row = min(int(fy * GRID_ROWS), GRID_ROWS - 1)
+    return cell_box({row * GRID_COLS + col}) or (0.0, 0.0, 1.0, 1.0)
+
+
+def point_key(at: tuple[float, float]) -> str:
+    """How a point is named in the crop-box table - the same text `Action.id` uses, so a
+    box measured by a hover can be found again by the click that follows it."""
+    return f"{at[0]:.3f},{at[1]:.3f}"
+
+
+def shot_name(screen_id: str, action: Action) -> str:
+    """A stable file stem for one action on one screen.
+
+    Stable rather than sequential on purpose: an action that is taken forty times
+    overwrites its own three pictures instead of leaving forty copies, and a resumed pass
+    writes to the same names the pass it inherited from used."""
+    return f"{screen_id}-" + "".join(c if c.isalnum() else "-" for c in action.id)
+
+
 # --- what an action is ------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -322,6 +410,11 @@ class Variant:
     # phase of this row's glow is this appearance, while a frame with the glow on the
     # next row differs *outside* this mask and is correctly a new one.
     animated: set[int] = field(default_factory=set)
+    # A close-up of what makes this appearance different from the screen's first sighting,
+    # which on a menu is the selection. Taken for the vetting call that has to name what is
+    # selected, and kept because a picture handed to the model and then thrown away is
+    # evidence nobody can check.
+    differs_image: str = ""
 
 
 @dataclass
@@ -353,12 +446,29 @@ class Screen:
     # there, and subtracting it would make every frame the same appearance. This is
     # measured before any action is taken, so it can be subtracted safely.
     animated: set[int] = field(default_factory=set)
+    # Three frames of it, cropped to those cells. What one still picture cannot say:
+    # whether the movement is a spinner, a countdown running down, or a mascot waving -
+    # and the first two are facts about the game's state, not decoration.
+    animation: list[str] = field(default_factory=list)
     hotspots: list[tuple[float, float]] = field(default_factory=list)
+    # Where each reacting point's control actually is, as a fractional crop rectangle
+    # keyed by `point_key`. Measured, not assumed: the cells that moved when the cursor
+    # arrived are the control's own extent, which is what makes a close-up of it evidence
+    # rather than a guess about where a button might be. Shared by the hover that found
+    # it and every later click at the same point.
+    crop_boxes: dict[str, list[float]] = field(default_factory=dict)
     # Cells each reacting point moved. How loud this screen's hover feedback is, which is
     # what separates a game whose buttons merely underline from one whose buttons repaint
     # a quarter of the window - and the second kind is why `screen_match` cannot be one
     # number for every game.
     hover_reactions: list[int] = field(default_factory=list)
+    # Points whose reaction outlived the cursor leaving, by `point_key`. Found by trying
+    # to photograph them at rest and getting the hovered picture back, pixel for pixel:
+    # on a menu of this kind the cursor does not light a button, it moves the selection,
+    # and the selection stays where it was left. Worth keeping rather than discarding as a
+    # failed photograph - it says the mouse and the arrow keys drive one mechanism, and it
+    # is the reason such a point has one close-up instead of a pair.
+    sticky: list[str] = field(default_factory=list)
     hover_probed: bool = False
     hover_inert: bool = False
     hover_probe_count: int = 0
@@ -389,6 +499,16 @@ class Transition:
     settle_ms: int
     count: int = 1
     first_seen: int = 0
+    # Close-ups of the thing this action touched: `before`, `pressed`, `after`. The
+    # full-window pair either side of a transition is already in the map, and it is the
+    # wrong picture for the commonest edge in it - an action that changed 4 cells of 576.
+    # A slot is filmed at most once, so these are pictures of one specific occurrence and
+    # not a composite of forty.
+    crops: dict[str, str] = field(default_factory=dict)
+    # Where those pictures were aimed. Kept because it is the only thing that lets a
+    # *later* pass film the before frame of a keypress: what a key moves is not known
+    # until it has been pressed once, and without this the answer dies with the session.
+    crop_box: list[float] = field(default_factory=list)
 
 
 # --- the session ------------------------------------------------------------
@@ -428,6 +548,20 @@ class Recon:
         # has hit the limits of what modality gating and vetting let it reach, and only
         # the second means a longer pass would not have helped.
         self.stopped = ""
+        # Which close-ups have already been taken, keyed by `shot_name`. Read before every
+        # capture so a slot is filmed once and not once per occurrence: the arrow key that
+        # is pressed forty times is exactly the one whose pictures would otherwise be
+        # forty copies of the same two cells.
+        self.shots: dict[str, dict[str, str]] = {}
+        # Which of them are finished, meaning a before/after pair was taken on one
+        # occurrence with one aim. Separate from `shots` because a stem can hold a
+        # provisional picture and still be waiting for its pair - see `take`.
+        self.filmed: set[str] = set()
+        # Where to aim on the *next* occurrence of an action whose target is not a point.
+        # A keypress has no place on the screen until it has been pressed once, so the
+        # first press gets an after picture and no before, and every press after that gets
+        # both - the box being the cells the key moved last time.
+        self.boxes: dict[str, list[float]] = {}
         self.started = time.monotonic()
         self.images.mkdir(parents=True, exist_ok=True)
 
@@ -614,6 +748,7 @@ class Recon:
         if screen.animated:
             log(f"  {screen.id} animates {len(screen.animated)} of {NCELLS} cells "
                 f"with no input; they do not count towards a new appearance")
+            self._film_animation(screen)
 
     def _hover_reaction(self, screen: Screen,
                         before: bytes) -> tuple[bytes, set[int]]:
@@ -676,15 +811,26 @@ class Recon:
             if len(reaction) >= 2:
                 screen.hotspots.append((fx, fy))
                 screen.hover_reactions.append(len(reaction))
+                # The control's extent, measured while the evidence for it is on screen.
+                # A reaction too wide to crop still gets a box, because the point of this
+                # one is to photograph what is under the cursor, not what moved.
+                box = cell_box(reaction) or point_box(fx, fy)
+                screen.crop_boxes[point_key((fx, fy))] = list(box)
+                action = Action("hover", at=(fx, fy))
+                shots = self.shots.setdefault(shot_name(screen.id, action), {})
+                shots.setdefault("after",
+                                 self._crop(f"{shot_name(screen.id, action)}-after.png", box))
                 # Before the recording, not after the sweep. `_record` is what files a
                 # frame as a screen, so a threshold corrected once the sweep is over has
                 # already let the sweep's own first reaction invent a screen - and with
                 # passes inheriting each other, that screen is then permanent.
                 self.relax_match(screen, after)
-                self._record(screen, Action("hover", at=(fx, fy)), before, after, 0)
+                self._record(screen, action, before, after, 0,
+                             crops={"after": shots["after"]}, box=box)
             if not screen.hotspots and screen.hover_probe_count >= HOVER_PATIENCE:
                 screen.hover_inert = True
                 break
+        self._film_resting(screen)
 
         log(f"  hover map for {screen.id}: {len(screen.hotspots)} reacting of "
             f"{screen.hover_probe_count} probed in {time.monotonic() - started:.1f}s"
@@ -740,6 +886,198 @@ class Recon:
             f"({score:.3f}) without committing to anything, so a frame that far from "
             f"this screen is still this screen")
         self.screen_match = loosened
+
+    # -- close-ups ----------------------------------------------------------
+
+    def _crop(self, name: str, box: tuple[float, float, float, float]) -> str:
+        """Save a crop of the live frame and return its path inside this session."""
+        return self._crop_frame(name, lambda: self.controller.capture(box))
+
+    def _crop_frame(self, name: str, frame) -> str:
+        """Write an already-grabbed crop, or one grabbed by calling `frame`.
+
+        Failures are swallowed deliberately. A missing picture makes the report worse; an
+        exception raised here would abandon the action that was being recorded, and losing
+        the transition in order to save the photograph of it is the wrong trade."""
+        try:
+            self.controller.write_capture(self.images / name,
+                                          frame() if callable(frame) else frame)
+        except Exception as error:                      # noqa: BLE001
+            self.controller.note(f"could not crop {name}: {error}")
+            return ""
+        return f"images/{name}"
+
+    def crop_box(self, screen: Screen, action: Action) -> tuple[float, float, float, float] | None:
+        """Where to aim before an action is sent, or None if there is nowhere to aim yet.
+
+        Three sources, in descending order of how much was measured. A click or hover on a
+        point the cursor was seen to react to is filmed on the cells that reacted, which is
+        the control itself. A point nobody has measured - a control named by a plan on a
+        screen that ignores the cursor - gets a default box around it. A key gets the cells
+        it moved the last time it was sent here, and nothing on its first press."""
+        if action.at is not None:
+            measured = screen.crop_boxes.get(point_key(action.at))
+            if measured:
+                return tuple(measured)                  # type: ignore[return-value]
+            return point_box(*action.at)
+        learned = self.boxes.get(shot_name(screen.id, action))
+        return tuple(learned) if learned else None      # type: ignore[return-value]
+
+    def _film_resting(self, screen: Screen) -> None:
+        """Photograph every reacting control with the cursor off it.
+
+        The sweep can only take the hovered picture. At the moment a point is known to
+        react the cursor is already sitting on it, and the frame from before the move is
+        gone - so the resting pictures are taken together at the end, with the cursor
+        parked somewhere that reacted to nothing. One settle for the whole screen instead
+        of one per control, which is the difference between 0.5s and 20s on a menu with
+        forty reacting points.
+
+        The pair is the point. A picture of a lit button on its own is a picture of a
+        button; next to the same pixels unlit, it is a statement about what the cursor
+        does to it, and that statement is the one thing the full-window frame cannot make
+        at 43 pixels to a cell."""
+        if not screen.hotspots:
+            return
+        park = self._parking_spot(screen)
+        if park is None:
+            self.controller.note(f"every free point on {screen.id} reacts to the cursor, so "
+                                 f"there is nowhere to park it and its controls have no "
+                                 f"resting picture")
+            return
+        self.controller.hover(*park)
+        time.sleep(HOVER_SETTLE)
+        for point in screen.hotspots:
+            action = Action("hover", at=point)
+            shots = self.shots.setdefault(shot_name(screen.id, action), {})
+            box = screen.crop_boxes.get(point_key(point))
+            if "before" in shots or not box or point_key(point) in screen.sticky:
+                continue
+            resting = self._crop(f"{shot_name(screen.id, action)}-before.png",
+                                 tuple(box))
+            if resting and self._identical(resting, shots.get("after", "")):
+                # Not a resting picture at all - see `Screen.sticky`. Kept out of the
+                # pair, because two of the same picture labelled `at rest` and `with the
+                # cursor on it` is a statement that the cursor does nothing, which is the
+                # opposite of what was measured when this point was found.
+                (self.out / resting).unlink(missing_ok=True)
+                screen.sticky.append(point_key(point))
+                self.filmed.add(shot_name(screen.id, action))
+                continue
+            shots["before"] = resting
+            self._file_crop(screen.id, action.id, "before", shots["before"])
+            # Finished, so a later cursor move to the same point does not re-film it. That
+            # would be a pair whose before frame was taken with the cursor already on the
+            # control, which is the same picture twice.
+            self.filmed.add(shot_name(screen.id, action))
+        if screen.sticky:
+            self.controller.note(
+                f"{len(screen.sticky)} of {len(screen.hotspots)} reacting points on "
+                f"{screen.id} look identical with the cursor parked elsewhere, so the "
+                f"cursor is moving this screen's selection rather than lighting a control")
+
+    def _identical(self, one: str, other: str) -> bool:
+        """Whether two saved crops are the same picture, byte for byte.
+
+        Sound only because both went through the same encoder at the same size from the
+        same box, which is true of every pair this asks about; it is not a general image
+        comparison."""
+        if not one or not other:
+            return False
+        try:
+            return (self.out / one).read_bytes() == (self.out / other).read_bytes()
+        except OSError:
+            return False
+
+    def _parking_spot(self, screen: Screen) -> tuple[float, float] | None:
+        """A probe point that is allowed and as far as possible from anything reactive.
+
+        Chosen from the hover grid rather than from a corner, because a corner is not
+        automatically safe: the denylist exists precisely because some points must never be
+        touched, and a hard-coded parking place is a per-game fact in a file that is not
+        allowed to hold one."""
+        free = [((c + 0.5) / HOVER_COLS, (r + 0.5) / HOVER_ROWS)
+                for r in range(HOVER_ROWS) for c in range(HOVER_COLS)]
+        free = [p for p in free
+                if not self.controller.target.forbids(*p) and p not in screen.hotspots]
+        if not free:
+            return None
+        return max(free, key=lambda p: min(abs(p[0] - h[0]) + abs(p[1] - h[1])
+                                           for h in screen.hotspots))
+
+    def _film_animation(self, screen: Screen) -> None:
+        """Take pictures of what the measurement just found moving on its own.
+
+        A second pass rather than keeping the frames the measurement used, because which
+        cells move is only known once all three fingerprints have been compared and a crop
+        has to be aimed before it is taken. It costs one more sampling cycle, paid only on
+        a screen that was measured to move at all, so a still menu pays nothing."""
+        if screen.animation:
+            return
+        box = cell_box(screen.animated)
+        if box is None:
+            self.controller.note(
+                f"{screen.id} moves {len(screen.animated)} of {NCELLS} cells with no input "
+                f"- too much of the window to crop, so its own image is the picture of it")
+            return
+        for index in range(ANIMATION_SAMPLES):
+            shot = self._crop(f"{screen.id}-anim{index + 1}.png", box)
+            if shot:
+                screen.animation.append(shot)
+            time.sleep(ANIMATION_GAP)
+
+    def _file_crop(self, screen_id: str, action_id: str, slot: str, path: str) -> None:
+        """Attach a picture taken after the fact to the edges it belongs to.
+
+        The resting pictures are the case: the transition was recorded during the sweep,
+        and the frame it wants was taken minutes later with the cursor parked. Filed with
+        `setdefault`, so a picture never replaces one taken on the occasion itself."""
+        if not path:
+            return
+        for transition in self.transitions.values():
+            if transition.source == screen_id and transition.action.id == action_id:
+                transition.crops.setdefault(slot, path)
+
+    def candidate_crops(self, screen: Screen, variant: Variant,
+                        candidates: list[Action]) -> list[dict]:
+        """Close-ups to send with a vetting call, as {label, path} pairs.
+
+        Two kinds, and which one is available says what the call is for. The first
+        appearance of a screen is being asked what its controls are, so it gets the
+        measured rest/hover pairs of the points it is ruling on - capped, widest reaction
+        first, since a wide reaction is the best available evidence that a point is a
+        control rather than a stray repaint. A later appearance is being asked what is
+        selected in it, so it gets one crop of the cells that differ from the screen's
+        first sighting, which is where the selection has to be."""
+        crops: list[dict] = []
+        wanted = {a.id for a in candidates if a.kind == "click"}
+        for point, cells in sorted(zip(screen.hotspots, screen.hover_reactions),
+                                   key=lambda pair: -pair[1]):
+            if len(crops) >= VET_CROPS * 2:
+                break
+            if Action("click", at=point).id not in wanted:
+                continue
+            shots = self.shots.get(shot_name(screen.id, Action("hover", at=point)), {})
+            # A sticky point has no resting picture and its single crop must not claim to
+            # be half of a pair, or the model reads the absent one as evidence of nothing.
+            hovered = ("with the cursor on it, and it stayed this way after the cursor left"
+                       if point_key(point) in screen.sticky else "with the cursor on it")
+            for slot, what in (("before", "at rest"), ("after", hovered)):
+                if shots.get(slot) and (self.out / shots[slot]).exists():
+                    crops.append({"label": f"({point[0]:.3f}, {point[1]:.3f}) {what}, "
+                                           f"{cells} cells reacted",
+                                  "path": self.out / shots[slot]})
+        if screen.vetting is not None:
+            differs = diff_cells(variant.fp, screen.representative,
+                                 self.cell_delta) - screen.animated
+            box = cell_box(differs)
+            if box is not None:
+                variant.differs_image = self._crop(f"{variant.id}-differs.png", box)
+                if variant.differs_image:
+                    crops.append({"label": f"the {len(differs)} cells where this appearance "
+                                           f"differs from {screen.id}'s first sighting",
+                                  "path": self.out / variant.differs_image})
+        return crops
 
     # -- policy -------------------------------------------------------------
 
@@ -914,16 +1252,21 @@ class Recon:
 
     # -- acting -------------------------------------------------------------
 
-    def perform(self, action: Action) -> None:
+    def perform(self, action: Action, during=None) -> None:
+        """Send one action. `during` is a camera shutter for the moment a mouse button is
+        held down, which is the only moment a pressed control exists - see
+        `Controller.click`. Ignored for anything that has no such moment."""
         if action.kind == "hover":
             self.controller.hover(*action.at)
         elif action.kind == "click":
-            self.controller.click(*action.at)
+            self.controller.click(*action.at, during=during)
         else:
             self.controller.press(action.key)
 
     def _record(self, screen: Screen, action: Action, before_fp: bytes,
-                after_fp: bytes, settle_ms: int) -> tuple[Transition, bool]:
+                after_fp: bytes, settle_ms: int, crops: dict | None = None,
+                box: tuple[float, float, float, float] | None = None
+                ) -> tuple[Transition, bool]:
         before_variant = next((v for v in screen.variants.values()
                                if not diff_cells(before_fp, v.fp, self.cell_delta)), None)
         changed = len(diff_cells(before_fp, after_fp, self.cell_delta))
@@ -951,9 +1294,15 @@ class Recon:
 
         self.standing = after_screen.id
         key = f"{screen.id}|{action.id}|{kind}|{after_screen.id}"
+        pictures = {slot: path for slot, path in (crops or {}).items() if path}
         existing = self.transitions.get(key)
         if existing:
             existing.count += 1
+            # Only pictures taken on *this* occurrence are passed in, so this fills the
+            # slots an earlier one could not - the before frame of a key, which does not
+            # exist until the key has been pressed once and the camera knows where to aim.
+            existing.crops.update(pictures)
+            existing.crop_box = existing.crop_box or list(box or ())
             return existing, is_new
 
         transition = Transition(
@@ -961,14 +1310,21 @@ class Recon:
             action=action, kind=kind,
             from_variant=before_variant.id if before_variant else "",
             to_variant=after_variant.id, changed=changed, settle_ms=settle_ms,
-            first_seen=self.actions_taken)
+            first_seen=self.actions_taken, crops=pictures, crop_box=list(box or ()))
         self.transitions[key] = transition
         if kind != "none":
             log(f"    {action.describe()} -> {kind} "
                 f"({screen.id} -> {after_screen.id}, {changed} cells, {settle_ms}ms)")
         return transition, is_new
 
-    def step(self) -> str:
+    def look(self) -> tuple[Screen, Variant, bytes]:
+        """Make the window readable, classify what is on it, and settle the books.
+
+        Split out of `step` so that anything driving this session - the explorer, or a
+        mission executing someone else's plan - perceives through one code path. A
+        second implementation of "where are we" is a second place for the handover
+        credit below to be forgotten, and forgetting it does not fail loudly: it files
+        an edge under the wrong action."""
         handovers = self.controller.handovers
         self.controller.ensure_readable()
         screen, variant, before_fp, _ = self.observe(
@@ -994,6 +1350,131 @@ class Recon:
             source, action, source_fp, settle = self.pending
             self._record(source, action, source_fp, before_fp, settle)
             self.pending = None
+        return screen, variant, before_fp
+
+    def take(self, screen: Screen, variant: Variant, before_fp: bytes,
+             action: Action) -> tuple[Transition, bool, int]:
+        """Do one action and record what it did. The only way anything is ever sent.
+
+        Marks the action tried *before* performing it, so an action that kills the
+        window is not the first thing the next pass tries again. Which set it is marked
+        in follows what the action names: a committing key acts on whatever is
+        selected, so it belongs to the appearance, and everything else to the screen.
+
+        Up to three close-ups are taken around it - the target untouched, the target with
+        the mouse button still down, and the target afterwards - and the rule for when is
+        the only interesting part. They are filmed together, on the first occurrence where
+        there is somewhere to aim *before* the action is sent, and never again. Filling the
+        slots piecemeal across occurrences was the first attempt and it produced a lie: a
+        key whose before frame could only be taken on the second press ended up with a
+        before picture of the state the first press had already left the screen in, which
+        is pixel-for-pixel its own after picture, filed as a pair. Until an action has a
+        box, each occurrence records a provisional `after` aimed at whatever moved, which
+        is the one thing that can always be aimed because it is aimed at the answer."""
+        (variant.tried if action.committing and action.kind == "key"
+         else screen.tried).add(action.id)
+        self.actions_taken += 1
+        stem = shot_name(screen.id, action)
+        shots = self.shots.setdefault(stem, {})
+        taken: dict[str, str] = {}
+        box = None if stem in self.filmed else self.crop_box(screen, action)
+
+        if box is not None:
+            shots["before"] = taken["before"] = self._crop(f"{stem}-before.png", box)
+        # A pressed control springs back before the release, so the frame everything else
+        # reads is taken too late to contain it. This is the only shutter that fires while
+        # an input is in flight, and what it does there is grab pixels and nothing else:
+        # writing the PNG takes most of the 80ms the button is meant to be down for, so
+        # the file is written below, once the click is over.
+        held: list[tuple[bytes, int, int]] = []
+        self.perform(action, during=(lambda: held.append(self.controller.capture(box)))
+                     if action.kind == "click" and box is not None else None)
+        settle = self.controller.wait_stable()
+        after_fp = fingerprint(self.controller)
+        for frame in held:
+            shots["pressed"] = taken["pressed"] = self._crop_frame(
+                f"{stem}-pressed.png", frame)
+
+        moved = diff_cells(before_fp, after_fp, self.cell_delta) - screen.animated
+        after_box = cell_box(moved)
+        if box is not None:
+            # Deliberately the same box as the before frame rather than the one the diff
+            # suggests. A pair of pictures of two different rectangles is not a pair, and
+            # what this pair is evidence about is the control - where the effect landed is
+            # already recorded as a cell count and as the two full-window frames.
+            shots["after"] = taken["after"] = self._crop(f"{stem}-after.png", box)
+            self.filmed.add(stem)
+        elif after_box is not None and stem not in self.filmed:
+            shots["after"] = taken["after"] = self._crop(f"{stem}-after.png", after_box)
+        if after_box is not None:
+            # Where to aim next time. Not overwritten once set: the aim has to be the same
+            # on the occurrence that films the pair as on the one that measured it.
+            self.boxes.setdefault(stem, list(after_box))
+
+        transition, found_something = self._record(
+            screen, action, before_fp, after_fp, int(settle * 1000),
+            crops=taken, box=box or after_box)
+        # Held in case this action started something that has not appeared yet.
+        self.pending = (screen, action, before_fp, int(settle * 1000))
+        return transition, found_something, int(settle * 1000)
+
+    def ask_about(self, screen: Screen, variant: Variant,
+                  actions: list[Action]) -> bool:
+        """Buy a verdict for actions nobody has ruled on yet.
+
+        The explorer only ever proposes actions it measured - arrow keys and points the
+        cursor was seen to react to - so its vetting call can carry every candidate at
+        once. A plan can name a control the cursor never reacted to, which is the whole
+        reason mission mode exists for a game that ignores hover, and that action
+        arrives with no verdict. So it gets its own call, merged into the same verdict
+        dictionaries `permitted` already reads. Nothing here can unlock anything on its
+        own: a failed call leaves the action exactly as locked as it was.
+
+        Every point named gets a close-up of itself, which matters more here than anywhere
+        else. On a screen the cursor is inert on, the only reason to believe there is a
+        control at (0.500, 0.720) is a plan that said so, and a 43-pixel-wide patch of a
+        scaled-down frame does not give the model enough to disagree with it."""
+        if self.vetter is None:
+            return False
+        asked: dict[str, str] = {}
+        for action in actions:
+            if action.at is None:
+                continue
+            shot = self._crop(f"ask-{shot_name(screen.id, action)}.png",
+                              self.crop_box(screen, action) or point_box(*action.at))
+            if shot:
+                asked[action.id] = shot
+        crops = [{"label": f"{action_id}, the point this asks about", "path": self.out / shot}
+                 for action_id, shot in asked.items()]
+        try:
+            verdict = self.vetter(self.out / variant.image, screen, variant, actions, crops)
+        except Exception as error:                      # noqa: BLE001
+            self.controller.note(f"could not get a verdict for "
+                                 f"{', '.join(a.id for a in actions)} ({error})")
+            return False
+        for action in actions:
+            entry = verdict.get("actions", {}).get(action.id)
+            if entry is None:
+                continue
+            scope = variant if action.committing and action.kind == "key" else screen
+            if scope.vetting is None:
+                # Everything else on the screen stays locked: this is one verdict, not
+                # the screen's vetting call, and the name and elements it came back with
+                # are not recorded here for the same reason.
+                scope.vetting = {"actions": {}}
+            # The picture the verdict was bought with, kept on the verdict. This is the
+            # only route by which a close-up reaches the map without a transition to hang
+            # it on - the action may well never be permitted, and "here is what the model
+            # was looking at when it refused" is the part worth being able to check.
+            if action.id in asked:
+                entry["image"] = asked[action.id]
+            scope.vetting.setdefault("actions", {})[action.id] = entry
+            log(f"  verdict for {action.id} on {scope.id}: "
+                f"{'cleared' if entry.get('safe') else 'refused'} - {entry.get('why', '')}")
+        return True
+
+    def step(self) -> str:
+        screen, variant, before_fp = self.look()
 
         if not screen.hover_probed:
             # Animation first, then hover, then vet. Each needs the one before it: a
@@ -1015,16 +1496,7 @@ class Recon:
         if action is None:
             return "exhausted"
 
-        (variant.tried if action.committing and action.kind == "key"
-         else screen.tried).add(action.id)
-        self.actions_taken += 1
-        self.perform(action)
-        settle = self.controller.wait_stable()
-        after_fp = fingerprint(self.controller)
-        transition, found_something = self._record(screen, action, before_fp, after_fp,
-                                                   int(settle * 1000))
-        # Held in case this action started something that has not appeared yet.
-        self.pending = (screen, action, before_fp, int(settle * 1000))
+        transition, found_something, _ = self.take(screen, variant, before_fp, action)
 
         # A navigation key that changed something is walking a list, and one press
         # only ever reveals one entry of it - so it goes back in the pool and keeps
@@ -1100,7 +1572,8 @@ class Recon:
         if first:
             candidates += [a for a in self.screen_actions(screen) if a.committing]
         try:
-            verdict = self.vetter(self.out / variant.image, screen, variant, candidates)
+            verdict = self.vetter(self.out / variant.image, screen, variant, candidates,
+                                  self.candidate_crops(screen, variant, candidates))
         except Exception as error:                      # noqa: BLE001
             # A failed vetting call must not unlock anything. Left as None, which
             # `permitted` reads as "committing actions stay locked" - the session
@@ -1326,6 +1799,9 @@ class Recon:
                 arbitrations=explored.get("arbitrations_spent", 0),
                 hotspots=[tuple(p) for p in entry.get("hover", {}).get("reacting_points", [])],
                 hover_reactions=entry.get("hover", {}).get("reaction_cells", []),
+                crop_boxes=entry.get("hover", {}).get("crop_boxes", {}),
+                sticky=entry.get("hover", {}).get("sticky_points", []),
+                animation=entry.get("animation", []),
                 hover_probed=entry.get("hover", {}).get("swept", False),
                 hover_inert=entry.get("hover", {}).get("inert", False),
                 hover_probe_count=entry.get("hover", {}).get("probed", 0),
@@ -1348,6 +1824,7 @@ class Recon:
                     id=record["id"], key=variant_key(fp), fp=fp,
                     observations=record.get("observations", 1),
                     image=record.get("image", ""),
+                    differs_image=record.get("differs_image", ""),
                     first_seen=record.get("first_seen_action", 0),
                     tried=set(record.get("tried", [])),
                     highlighted=record.get("selected") or "",
@@ -1374,7 +1851,24 @@ class Recon:
                 changed=record.get("changed_cells", 0),
                 settle_ms=record.get("settle_ms", 0),
                 count=record.get("times_taken", 1),
-                first_seen=record.get("first_seen_action", 0))
+                first_seen=record.get("first_seen_action", 0),
+                crops=record.get("crops", {}),
+                crop_box=record.get("crop_box", []))
+            # What this action was measured to move, restored as the aim for this pass's
+            # close-ups. This is the only way the before frame of a keypress is ever taken
+            # on the *first* press of a session: the box is a fact the previous pass paid
+            # for, and rediscovering it costs the same press again.
+            if transition.crop_box:
+                self.boxes.setdefault(shot_name(transition.source, action),
+                                      transition.crop_box)
+            # Merged rather than replaced: one action on one screen can have two recorded
+            # outcomes, and the pictures of it are shared between them.
+            stem = shot_name(transition.source, action)
+            self.shots.setdefault(stem, {}).update(transition.crops)
+            if {"before", "after"} <= set(transition.crops):
+                # Already a complete pair. Re-filming it would work and would cost two
+                # captures per inherited action per pass, for pictures of the same thing.
+                self.filmed.add(stem)
             # Rebuilt to the same key `_record` would compute, so a transition taken
             # again this pass increments the count it already had rather than being
             # filed as a second edge between the same two screens.
@@ -1451,11 +1945,23 @@ class Recon:
                     # nothing in flight, which is the part no action can be credited for.
                     "animated_cells": len(screen.animated),
                     "animated_map": volatile_map(screen.animated),
+                    # Frames of that movement, cropped to it. A reader - or a model - can
+                    # tell a spinner from a countdown from these and from nothing else in
+                    # the map, and the difference is whether the screen is waiting or busy.
+                    "animation": screen.animation,
                     "hover": {
                         "probed": screen.hover_probe_count,
                         "inert": screen.hover_inert,
                         "reacting_points": [list(p) for p in screen.hotspots],
                         "reaction_cells": screen.hover_reactions,
+                        # Each reacting control's own extent, so a later pass aims its
+                        # close-ups at what was measured here instead of at a default box
+                        # around the point.
+                        "crop_boxes": screen.crop_boxes,
+                        # Points where the cursor moves the selection instead of lighting
+                        # a control, measured rather than assumed: their hovered and
+                        # resting close-ups came out pixel-identical.
+                        "sticky_points": screen.sticky,
                         # Distinct from `probed > 0`: a screen whose every probe point
                         # is denylisted is swept without a single probe being taken,
                         # and a later pass must not read that as unswept and pay for
@@ -1482,6 +1988,10 @@ class Recon:
                     },
                     "variants": [
                         {"id": v.id, "image": v.image, "observations": v.observations,
+                         # The close-up the vetting call was given to read the selection
+                         # off, when there was one. Recorded so the answer in `selected`
+                         # can be checked against the picture it came from.
+                         "differs_image": v.differs_image,
                          "first_seen_action": v.first_seen,
                          "tried": sorted(v.tried),
                          # Stated rather than inferred from an empty verdict list: "the
@@ -1528,6 +2038,11 @@ class Recon:
                     "from_variant": t.from_variant, "to_variant": t.to_variant,
                     "before_image": self._variant_image(t.source, t.from_variant),
                     "after_image": self._variant_image(t.dest, t.to_variant),
+                    # The two above are the whole window either side of this edge. These
+                    # are the same event at native resolution, cropped to the part that
+                    # took part in it - which for most edges in a map is 4 cells of 576.
+                    "crops": t.crops,
+                    "crop_box": t.crop_box,
                     "changed_cells": t.changed, "settle_ms": t.settle_ms,
                     "times_taken": t.count, "first_seen_action": t.first_seen,
                 }
@@ -1606,6 +2121,11 @@ def write_report(data: dict, out: Path) -> Path:
                          f"same appearance.\n")
         if screen["image"]:
             lines.append(f"![{screen['id']}]({screen['image']})\n")
+        if screen.get("animation"):
+            lines.append(f"What moves on its own, {len(screen['animation'])} frames "
+                         f"{ANIMATION_GAP}s apart, cropped to the cells that move:\n")
+            lines.append(" ".join(f"![frame {n + 1}]({shot})"
+                                  for n, shot in enumerate(screen["animation"])) + "\n")
 
         for element in screen["elements"]:
             lines.append(f"- **{element.get('label', '?')}** - {element.get('what', '')}")
@@ -1626,13 +2146,39 @@ def write_report(data: dict, out: Path) -> Path:
         lines.append("```\n")
 
         if outgoing.get(screen["id"]):
-            lines.append("| action | effect | goes to | cells | settle | times |")
-            lines.append("|---|---|---|---|---|---|")
+            lines.append("| action | effect | goes to | cells | settle | times | close-ups |")
+            lines.append("|---|---|---|---|---|---|---|")
             for t in sorted(outgoing[screen["id"]], key=lambda x: x["action"]["id"]):
                 dest = t["to"] if t["effect"] == "screen" else "-"
+                # Inline in the table rather than in a gallery below it. A crop is only
+                # evidence about the action it was taken for, and 30px pictures next to the
+                # row that names the action is the one layout where that stays true.
+                shots = " ".join(f"[{slot}]({(t.get('crops') or {})[slot]})"
+                                 for slot in CROP_SLOTS if (t.get("crops") or {}).get(slot))
                 lines.append(f"| `{t['action']['id']}` | {EFFECT_WORDS[t['effect']]} | {dest} "
-                             f"| {t['changed_cells']} | {t['settle_ms']}ms | {t['times_taken']} |")
+                             f"| {t['changed_cells']} | {t['settle_ms']}ms | {t['times_taken']} "
+                             f"| {shots or '-'} |")
             lines.append("")
+            pairs = [t for t in outgoing[screen["id"]]
+                     if (t.get("crops") or {}).get("before") and t["crops"].get("after")]
+            if pairs:
+                lines.append("Before and after, at full resolution, cropped to what took "
+                             "part:\n")
+                for t in sorted(pairs, key=lambda x: x["action"]["id"]):
+                    lines.append(f"- `{t['action']['id']}`: "
+                                 + " ".join(f"![{slot}]({t['crops'][slot]})"
+                                            for slot in CROP_SLOTS
+                                            if t["crops"].get(slot)))
+                lines.append("")
+
+            sticky = screen["hover"].get("sticky_points") or []
+            if sticky:
+                lines.append(f"{len(sticky)} of "
+                             f"{len(screen['hover']['reacting_points'])} reacting points "
+                             f"looked the same once the cursor had left them, so they have "
+                             f"one close-up and not a pair: the cursor moves this screen's "
+                             f"selection rather than lighting a control. "
+                             f"`{'`, `'.join(sticky)}`\n")
 
         if len(screen["variants"]) > 1:
             lines.append(f"{len(screen['variants'])} appearances stored"
@@ -1641,6 +2187,17 @@ def write_report(data: dict, out: Path) -> Path:
             for variant in screen["variants"]:
                 lines.append(f"![{variant['id']}]({variant['image']}) ")
             lines.append("")
+            # The close-up beside the appearance it was taken from, and what the model
+            # read off it. Together they are checkable; either alone is not.
+            selections = [v for v in screen["variants"] if v.get("differs_image")]
+            if selections:
+                lines.append("What is different about each of them, at full resolution:\n")
+                for variant in selections:
+                    lines.append(f"- {variant['id']}"
+                                 + (f", selected {variant['selected']!r}"
+                                    if variant.get("selected") else "")
+                                 + f": ![{variant['id']}]({variant['differs_image']})")
+                lines.append("")
 
     if data["blocked_actions"]:
         lines.append("## What was not tried, and why\n")

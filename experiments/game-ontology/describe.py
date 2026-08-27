@@ -1,6 +1,6 @@
 """The intelligence half: look at what recon collected and say what it means.
 
-Two jobs, deliberately separate because they answer to different pressures.
+Three jobs, deliberately separate because they answer to different pressures.
 
 **Vetting** runs inside the loop, once per newly discovered screen, and exists to
 decide what the explorer is allowed to press. It is a safety gate, so it is small,
@@ -11,6 +11,12 @@ not cost the same, and that uncertainty resolves toward "dangerous".
 - names, roles, and for each element what it does *per input modality*, since
 "clicked" and "scrolled to with the keyboard" are different behaviours of the same
 control and a description that merges them has lost the thing worth knowing.
+
+**Direction** runs between sessions and is the only one of the three that decides what
+the harness *does*. It reads the map and writes the next mission: a goal and a short
+list of steps that `mission.py` executes literally. It is the same discipline pointed
+forward - a mission must contain at least one `expect` step, so the plan carries its
+own test and the harness can call it wrong.
 
 The one rule that makes the output trustworthy: **every behaviour claim either cites
 the transitions that witnessed it, or is marked a hypothesis.** This is enforced in
@@ -41,6 +47,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from engine.client import build_client, call_tool_with_retry, default_model  # noqa: E402
+# The one thing shared with the session that produces the evidence: the order the
+# close-ups of an action go in. Imported rather than repeated, so a fourth slot cannot be
+# filmed and then quietly not shown. Safe as a top-level import because `recon` only ever
+# reaches for this module inside a function.
+from recon import CROP_SLOTS  # noqa: E402
 from target import SAFETY_BRIEF  # noqa: E402
 
 VET_MAX_TOKENS = 1500
@@ -66,6 +77,12 @@ again about that entry when it is the one selected.
 {SAFETY_BRIEF}
 You must return a verdict for every action you are given, using the exact action_id
 strings supplied.
+
+You may be given close-ups as well as the whole window: the same frame at full
+resolution, cropped to cells that were measured to change. A pair labelled `at rest` and
+`with the cursor on it` is one control photographed twice, and the difference between
+them is the only direct evidence anyone has about what that point does. The full-window
+image is scaled down, so where it and a close-up disagree, the close-up is right.
 """
 
 ANNOTATE_SYSTEM = """\
@@ -73,6 +90,13 @@ You are writing the ontology of a video game's user interface from evidence gath
 by an automated explorer. You get one screen at a time: images of how it looked, and
 the complete list of transitions observed from it - which input was sent, and whether
 it changed nothing, changed the screen's appearance, or moved to a different screen.
+
+Some transitions also come with close-ups: the same frames at full resolution, cropped
+to the part of the window that changed. Those are the reliable evidence about small
+effects. The full-window images are scaled down far enough that a highlight, a tick or a
+digit changing is a few pixels in them, so where a close-up and your reading of the full
+frame disagree, the close-up is right. A crop labelled `pressed` was taken with the mouse
+button still held down, which is a state no other picture in the evidence contains.
 
 Describe each interactive element you can identify, and for each one record its
 behaviour SEPARATELY PER INPUT MODALITY. This matters more than anything else in the
@@ -142,7 +166,11 @@ ANNOTATE_TOOL = {
     "input_schema": {
         "type": "object",
         "properties": {
-            "name": {"type": "string"},
+            # Described, or the model names it after the id the evidence refers to it by -
+            # and this pass overwrites the name the vetting call had already got right.
+            "name": {"type": "string", "description":
+                     "What a person would call this screen, e.g. 'main menu'. Never an "
+                     "identifier like 'sc03'."},
             "role": {"type": "string", "description": "e.g. 'menu', 'gameplay', 'modal dialog', 'settings'."},
             "description": {"type": "string",
                             "description": "The screen in context: what it is for, how you reach it, how you leave."},
@@ -190,7 +218,7 @@ def image_block(path: Path) -> dict:
 # --- vetting (in the loop) --------------------------------------------------
 
 def make_vetter(model: str | None = None, client=None):
-    """A callable for `Recon`: (image path, screen, candidate actions) -> verdict dict.
+    """A callable for `Recon`: (image path, screen, candidate actions, crops) -> verdict.
 
     Built as a closure so the client is constructed once for the session rather than
     per screen, and so `recon.py` can be handed a plain callable and stay unaware of
@@ -198,7 +226,7 @@ def make_vetter(model: str | None = None, client=None):
     client = client or build_client()
     model = model or default_model()
 
-    def vet(image_path: Path, screen, variant, candidates) -> dict:
+    def vet(image_path: Path, screen, variant, candidates, crops=()) -> dict:
         listing = "\n".join(
             f"- {action.id}  ({action.describe()})" for action in candidates)
         hotspots = ", ".join(f"({x:.2f}, {y:.2f})" for x, y in screen.hotspots) or "none"
@@ -214,11 +242,24 @@ def make_vetter(model: str | None = None, client=None):
                    if seen else "")
                 + "\n\nHere it is:"},
             image_block(image_path),
+        ]
+        # The full window is scaled to fit 1400px, which on a 4K client shrinks a menu
+        # button to a few dozen pixels - readable enough to locate, not to judge. These are
+        # the same pixels uncompressed, cropped to what was measured to move, and they are
+        # what makes "what does hovering do here" an answerable question.
+        if crops:
+            content.append({"type": "text", "text":
+                            "Close-ups of the same frame, at full resolution, cropped to "
+                            "the cells that were measured to change. Each is labelled with "
+                            "the point it belongs to:"})
+            for crop in crops:
+                content.append({"type": "text", "text": crop["label"]})
+                content.append(image_block(Path(crop["path"])))
+        content.append(
             {"type": "text", "text":
                 f"Rule on each of these candidate actions:\n{listing}\n\n"
                 f"Return a verdict for every action_id above, exactly as written, and "
-                f"report what is currently selected."},
-        ]
+                f"report what is currently selected."})
 
         def validate(payload: dict) -> list[str]:
             given = {entry.get("action_id") for entry in payload.get("actions", [])}
@@ -246,6 +287,175 @@ def make_vetter(model: str | None = None, client=None):
         }
 
     return vet
+
+
+# --- direction (between sessions) -------------------------------------------
+
+PLAN_MAX_TOKENS = 2500
+
+# The step vocabulary, defined here because it is what the model is told it may write
+# and in `mission.py` it is what the executor knows how to do. One list, so a verb
+# cannot be offered without being implemented or implemented without being offered.
+STEP_VERBS = {
+    "go": "travel to a screen already on the map, by a route the harness has observed. "
+          "Give `screen`.",
+    "press": "send a key. Give `key`, and `times` if it should be repeated.",
+    "click": "click a control. Give `element` (a label from the map, preferred) or "
+             "`at` as fractional [x, y].",
+    "hover": "move the cursor onto something without pressing. Same targeting as click.",
+    "expect": "no input at all - a check. Give `screen` for 'we should now be on this "
+              "screen', or `that` = 'new' for 'this should be somewhere not yet on the "
+              "map', or 'changed' for 'the picture should have changed'.",
+    "wait": "let the game run without input. Give `seconds`.",
+    "restart": "close the game and launch it cold, to get back to a known state.",
+}
+
+DIRECTOR_SYSTEM = f"""\
+You are directing an automated harness that drives a video game it does not understand.
+Everything it knows was measured from pixels by a blind explorer: it pressed keys and
+clicked points, and recorded which screens it could tell apart and which inputs moved
+between them. You are given that map, a screenshot of where the harness is standing
+right now, and the missions already flown.
+
+Your job is to write the NEXT MISSION: one goal, and the steps that would achieve it.
+
+The steps are executed literally, in order, by a program with no judgement. It stops at
+the first step that fails. So:
+
+- Name only screens and element labels that appear in the map you were given.
+- Prefer `go` over re-deriving a route: the harness knows the edges it has observed.
+- A mission must contain at least one `expect` step. That is what makes it a test rather
+  than a wish - the harness reports whether your expectation held, and a mission that
+  cannot be wrong teaches nothing. Put one where your reasoning is most likely to break.
+- Keep it short. Five well-aimed steps that settle one question beat twelve that drift.
+
+What is worth a mission, in rough order: a screen the map reaches but never explored; a
+control the explorer could not use because the game ignores the cursor and there was
+nothing to click; a route the map suggests but has never traversed; getting into actual
+gameplay rather than menus, if the map shows a way in. Say which of these you are doing
+in `why`, and refer to the screens by id.
+
+{SAFETY_BRIEF}
+Every committing action in your plan is separately vetted before it is sent, by the same
+standard, and may be refused - which ends the mission there. Do not plan around that by
+disguising an action; a refusal is a finding and is recorded as one.
+"""
+
+PLAN_TOOL = {
+    "name": "plan_mission",
+    "description": "Set the next mission for the harness: one goal, and the steps to try.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "goal": {"type": "string",
+                     "description": "One line: what this mission is for."},
+            "why": {"type": "string",
+                    "description": "What in the map suggests it, by screen id."},
+            "steps": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "do": {"type": "string", "enum": sorted(STEP_VERBS),
+                               "description": "\n".join(f"{verb}: {what}" for verb, what
+                                                        in STEP_VERBS.items())},
+                        "screen": {"type": "string", "description": "A screen id, e.g. 'sc02'."},
+                        "key": {"type": "string"},
+                        "times": {"type": "integer"},
+                        "element": {"type": "string", "description": "A label from the map."},
+                        "at": {"type": "array", "items": {"type": "number"}},
+                        "that": {"type": "string", "enum": ["new", "changed"]},
+                        "seconds": {"type": "number"},
+                        "note": {"type": "string",
+                                 "description": "What you expect this step to do."},
+                    },
+                    "required": ["do"],
+                },
+            },
+            "success": {"type": "string",
+                        "description": "What would show the mission achieved its goal."},
+            "abandon_if": {"type": "string",
+                           "description": "What would show it is not worth continuing."},
+        },
+        "required": ["goal", "why", "steps", "success"],
+    },
+}
+
+MAX_STEPS = 12
+# Repeats of one key in a single step, and seconds of doing nothing. Both are here to
+# keep a plan from spending a whole mission inside one step: a plan that needs fifty
+# presses has misunderstood something, and the report is more useful if it says so.
+MAX_REPEAT = 12
+MAX_WAIT = 15.0
+
+
+def make_director(model: str | None = None, client=None):
+    """A callable: (message content, what the map contains) -> a mission dict.
+
+    Validation is where this earns its keep. A plan that names a screen or a control
+    that does not exist is not a plan the harness can execute, and the failure would
+    otherwise land at step 4 of 6 with the game halfway through a menu. Rejecting the
+    tool call hands the model its own invented names back and costs a retry instead."""
+    client = client or build_client()
+    model = model or default_model()
+
+    def plan(content: list[dict], known: dict) -> dict:
+        def validate(payload: dict) -> list[str]:
+            steps = payload.get("steps") or []
+            errors = []
+            if not steps:
+                errors.append("a mission needs at least one step")
+            if len(steps) > MAX_STEPS:
+                errors.append(f"{len(steps)} steps is more than the {MAX_STEPS} allowed")
+            if not any(step.get("do") == "expect" for step in steps):
+                errors.append("no `expect` step: a mission has to be able to fail, so "
+                              "state what you expect to be true and where")
+            for index, step in enumerate(steps, 1):
+                verb = step.get("do")
+                where = f"step {index} ({verb})"
+                if verb in ("go",) and step.get("screen") not in known["screens"]:
+                    errors.append(f"{where} names screen {step.get('screen')!r}, which is "
+                                  f"not on the map. Known: {', '.join(sorted(known['screens']))}")
+                if verb == "expect" and not step.get("screen") and not step.get("that"):
+                    errors.append(f"{where} checks nothing: give `screen` or `that`")
+                if verb == "expect" and step.get("screen") \
+                        and step["screen"] not in known["screens"]:
+                    errors.append(f"{where} expects screen {step['screen']!r}, which is not "
+                                  f"on the map - use `that`: 'new' for somewhere unmapped")
+                if verb == "press":
+                    key = (step.get("key") or "").lower()
+                    # A single character is sent by its virtual-key code, so 'w' or '1'
+                    # work on a game that binds them; anything longer has to be a name
+                    # the harness knows.
+                    if key not in known["keys"] and len(key) != 1:
+                        errors.append(f"{where} sends {step.get('key')!r}; this harness can "
+                                      f"send {', '.join(sorted(known['keys']))} or a single "
+                                      f"character")
+                    if not 1 <= int(step.get("times", 1) or 1) <= MAX_REPEAT:
+                        errors.append(f"{where} repeats {step.get('times')} times; "
+                                      f"1 to {MAX_REPEAT} allowed")
+                if verb in ("click", "hover"):
+                    label, at = step.get("element"), step.get("at")
+                    if not label and not at:
+                        errors.append(f"{where} has no target: give `element` or `at`")
+                    if label and label.strip().lower() not in known["labels"]:
+                        errors.append(
+                            f"{where} targets {label!r}, which is not a label the map "
+                            f"records. Known: {', '.join(sorted(known['labels'])) or '(none)'}")
+                    if at and not (len(at) == 2 and all(0.0 <= float(v) <= 1.0 for v in at)):
+                        errors.append(f"{where} targets {at}, which is not a fractional "
+                                      f"[x, y] inside the window")
+                if verb == "wait" and not 0 < float(step.get("seconds", 0) or 0) <= MAX_WAIT:
+                    errors.append(f"{where} waits {step.get('seconds')}s; up to "
+                                  f"{MAX_WAIT:.0f} allowed")
+            return errors
+
+        return call_tool_with_retry(
+            client, model=model, system=DIRECTOR_SYSTEM, tools=[PLAN_TOOL],
+            tool_name="plan_mission", user_message=content, validate_fn=validate,
+            max_tokens=PLAN_MAX_TOKENS, cache_static_content=True)
+
+    return plan
 
 
 # --- annotation (after the session) ----------------------------------------
@@ -292,6 +502,42 @@ def _evidence_text(screen: dict, transitions: list[dict], screens: list[dict]) -
     return "\n".join(lines)
 
 
+ANNOTATE_CROPS = 8       # close-ups one screen's description may carry, on top of its
+                         # appearances. The cap is the image budget; the ordering below is
+                         # what makes the cap cheap to live with
+
+
+def _crop_blocks(out: Path, mine: list[dict]) -> list[dict]:
+    """Close-ups of the transitions this screen is being described from.
+
+    Smallest change first, which is the opposite of what looks natural and is the whole
+    reason these exist: a transition that repainted 300 cells is already legible in the
+    full-window pictures, while the 4-cell one - a checkbox ticking, a counter advancing,
+    a button going dark - is the one the model has been describing blind. Those are also
+    exactly the transitions whose `effect` is easiest to get wrong in prose."""
+    ranked = sorted((t for t in mine if (t.get("crops") or {})),
+                    key=lambda t: t["changed_cells"])
+    blocks: list[dict] = []
+    spent = 0
+    for transition in ranked:
+        slots = [(slot, out / transition["crops"][slot])
+                 for slot in CROP_SLOTS
+                 if transition["crops"].get(slot)]
+        slots = [(slot, path) for slot, path in slots if path.exists()]
+        if not slots or spent + len(slots) > ANNOTATE_CROPS:
+            continue
+        spent += len(slots)
+        blocks.append({"type": "text", "text":
+                       f"\n{transition['id']} ({transition['action']['id']}, "
+                       f"{transition['changed_cells']} cells changed) at full resolution, "
+                       f"cropped to the part of the window that took part - "
+                       + ", then ".join(slot for slot, _ in slots)
+                       + ". `pressed` is the frame with the mouse button still down:"})
+        for _, path in slots:
+            blocks.append(image_block(path))
+    return blocks
+
+
 def annotate(out: Path, model: str | None = None, client=None, limit: int = 0) -> Path:
     """Read a session's ontology.json, describe every screen, write it back.
 
@@ -318,6 +564,14 @@ def annotate(out: Path, model: str | None = None, client=None, limit: int = 0) -
             if image.exists():
                 content.append({"type": "text", "text": f"\nAppearance `{image.stem}`:"})
                 content.append(image_block(image))
+        for shot in (out / rel for rel in screen.get("animation", [])):
+            if shot.exists():
+                content.append({"type": "text", "text":
+                                f"\nFrame {shot.stem[-1]} of what this screen moves with no "
+                                f"input at all, cropped to the cells that move:"})
+                content.append(image_block(shot))
+        content += _crop_blocks(out, [t for t in data["transitions"]
+                                      if t["from"] == screen["id"]])
         content.append({"type": "text", "text":
                         "\nDescribe this screen and its elements. Cite only these "
                         f"transition IDs: {', '.join(sorted(mine)) or '(none available)'}. "
@@ -327,7 +581,20 @@ def annotate(out: Path, model: str | None = None, client=None, limit: int = 0) -
         def validate(payload: dict, allowed: set[str] = mine) -> list[str]:
             errors = []
             for element in payload.get("elements", []):
+                # A schema is a request, not a guarantee: one call returned a bare string
+                # where an element object belongs and this pass died inside its own
+                # validator, taking the screens after it with it. Said back to the model
+                # instead, which is what the retry is for.
+                if not isinstance(element, dict):
+                    errors.append(f"elements contains {element!r}, which is not an object "
+                                  f"with label, what and behaviour")
+                    continue
                 for entry in element.get("behaviour", []):
+                    if not isinstance(entry, dict):
+                        errors.append(f"element {element.get('label', '?')!r} has behaviour "
+                                      f"entry {entry!r}, which is not an object with "
+                                      f"modality, effect and evidence")
+                        continue
                     cited = entry.get("evidence") or []
                     bad = [c for c in cited if c not in allowed]
                     if bad:

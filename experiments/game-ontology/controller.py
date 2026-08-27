@@ -1116,6 +1116,31 @@ class Controller:
                               max(1, int(width * fw)), max(1, int(height * fh)),
                               cols, rows)
 
+    def capture(self, region=(0.0, 0.0, 1.0, 1.0),
+                longest: int = 1400) -> tuple[bytes, int, int]:
+        """The pixels of a region now, at up to `longest` on the longest side.
+
+        Split from `save_png` because the two halves cost wildly different amounts of
+        time and only one of them is urgent. This half is a GDI blit - measured in
+        milliseconds - while encoding the PNG is a Python loop over every pixel, measured
+        at 43ms for a 600x480 crop and 172ms for a full window. A caller that has to
+        photograph a moment (a button with the mouse still down, which lasts 80ms) grabs
+        here and writes the file afterwards."""
+        left, top, width, height = self.rect
+        fx, fy, fw, fh = region
+        rw, rh = max(1, int(width * fw)), max(1, int(height * fh))
+        scale = min(1.0, longest / max(rw, rh))
+        ow, oh = max(1, int(rw * scale)), max(1, int(rh * scale))
+        return grab_thumbnail(left + int(width * fx), top + int(height * fy),
+                              rw, rh, ow, oh), ow, oh
+
+    @staticmethod
+    def write_capture(path: Path, frame: tuple[bytes, int, int]) -> tuple[int, int]:
+        pixels, width, height = frame
+        path.parent.mkdir(parents=True, exist_ok=True)
+        write_png(str(path), pixels, width, height)
+        return width, height
+
     def save_png(self, path: Path, region=(0.0, 0.0, 1.0, 1.0), longest: int = 1400) -> tuple[int, int]:
         """Full-resolution capture, scaled so its longest side is `longest`.
 
@@ -1123,15 +1148,7 @@ class Controller:
         downsampled to 1280x720 shrinks a small UI element to a few pixels - enough
         to see that it changed, not enough for anything, human or model, to say what
         it became."""
-        left, top, width, height = self.rect
-        fx, fy, fw, fh = region
-        rw, rh = max(1, int(width * fw)), max(1, int(height * fh))
-        scale = min(1.0, longest / max(rw, rh))
-        ow, oh = max(1, int(rw * scale)), max(1, int(rh * scale))
-        path.parent.mkdir(parents=True, exist_ok=True)
-        write_png(str(path), grab_thumbnail(left + int(width * fx), top + int(height * fy),
-                                            rw, rh, ow, oh), ow, oh)
-        return ow, oh
+        return self.write_capture(path, self.capture(region, longest))
 
     def wait_stable(self, cols: int = 32, rows: int = 18, threshold: int = 6,
                     quiet: float = 0.25, timeout: float = 3.0) -> float:
@@ -1169,14 +1186,23 @@ class Controller:
         time.sleep(settle)
 
     def click(self, fx: float, fy: float, button: str = "left",
-              hover: float = 0.20, hold: float = 0.08) -> None:
+              hover: float = 0.20, hold: float = 0.08, during=None) -> None:
         """Move, wait, press, hold, release - deliberately slow.
 
         Both pauses are load-bearing. A press arriving in the same input frame as
         the move gets hit-tested against wherever the pointer used to be, and a
         down/up pair sent in one batch can be sampled by a game that polls once a
         frame as no click at all. Both failures look identical from outside: the
-        click is simply ignored, which reads as "not a button"."""
+        click is simply ignored, which reads as "not a button".
+
+        `during` is called with the button still down, which is the only moment a
+        pressed control can be seen: the frame everything else reads is taken after the
+        release, by which time the control has sprung back. Whatever it costs is taken
+        *out* of the hold rather than added to it, so the 80ms a game may be polling
+        for is still 80ms - a capture that silently tripled the hold would be measuring
+        a click nobody else sends. It is the caller's job to keep it short; `capture`
+        exists for that and takes single-digit milliseconds, where writing the file
+        would take fifty."""
         why = self.target.forbids(fx, fy)
         if why:
             raise PermissionError(f"({fx:.3f}, {fy:.3f}) is denylisted: {why}")
@@ -1184,7 +1210,10 @@ class Controller:
         time.sleep(hover)
         down, up = BUTTON_FLAGS[button]
         send_input(mouse_input(down))
-        time.sleep(hold)
+        started = time.monotonic()
+        if during is not None:
+            during()
+        time.sleep(max(0.0, hold - (time.monotonic() - started)))
         send_input(mouse_input(up))
 
     def press(self, key: str) -> None:
