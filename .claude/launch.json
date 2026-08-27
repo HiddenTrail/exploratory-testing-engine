@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "experiments/playwright-gui-poc/frontend", "run", "dev"],
       "port": 5173
+    },
+    {
+      "name": "wiki-generator-poc-site",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8743", "--directory", "experiments/wiki-generator-poc/results/site"],
+      "port": 8743
     }
   ]
 }

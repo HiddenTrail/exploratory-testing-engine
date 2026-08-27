@@ -76,3 +76,10 @@ they were keyed by claim text under the old, non-functional scheme.
 - Service split (Oracle vs. Driver as independent services) — gated on the
   Oracle having a stable, versioned output contract, which this Phase 0 work
   is what's establishing.
+- **Possible future "signal layer"** (not started, not designed) — static
+  code analysis, unit test coverage, churn metrics, etc. Would likely sit
+  alongside or feed into layer 3 (fast-changing, per-SUT), but whether it's
+  a genuinely distinct layer or just another context source hasn't been
+  thought through. Flagged 2026-08-27 during the layer-3 documentation pass
+  (see `docs/ontology-layer-reference.md`) as an idea worth returning to,
+  explicitly deferred.

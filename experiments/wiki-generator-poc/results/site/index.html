@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wiki</title>
+<link rel="stylesheet" href="assets/style.css">
+
+</head>
+<body>
+<h1>Wiki</h1><input id="filter-box" type="text" placeholder="Filter pages…"><h2 class="group-heading">Summaries (1)</h2><ul class="page-list"><li data-search="funny picture a test page that embeds an image, to prove the html renderer handles them. fixture"><a href="summaries/funny-picture.html">Funny picture</a><span class="badge status-draft">draft</span><div class="desc">A test page that embeds an image, to prove the HTML renderer handles them.</div></li></ul><h2 class="group-heading">Concepts (1)</h2><ul class="page-list"><li data-search="sample product model a tiny hand-made concept page for testing the renderer, not real product content. fixture product-model"><a href="concepts/sample-product-model.html">Sample product model</a><span class="badge status-draft">draft</span><div class="desc">A tiny hand-made concept page for testing the renderer, not real product content.</div></li></ul>
+<script>
+document.getElementById('filter-box').addEventListener('input', function (e) {
+  var q = e.target.value.toLowerCase();
+  document.querySelectorAll('ul.page-list li').forEach(function (li) {
+    li.style.display = li.dataset.search.indexOf(q) === -1 ? 'none' : '';
+  });
+});
+</script>
+
+</body>
+</html>

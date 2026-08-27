@@ -1,0 +1,32 @@
+
+:root { color-scheme: light dark; }
+body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; max-width: 860px; margin: 0 auto; padding: 2rem 1.25rem 4rem; line-height: 1.55; }
+a { color: #2563eb; }
+@media (prefers-color-scheme: dark) { a { color: #7db1ff; } }
+nav.top { margin-bottom: 1.5rem; font-size: 0.9rem; }
+nav.top a { text-decoration: none; }
+.meta-box { border: 1px solid rgba(127,127,127,0.35); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.5rem; font-size: 0.9rem; }
+.badge { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; margin-right: 0.35rem; }
+.badge.type { background: #dbeafe; color: #1e3a8a; }
+.badge.status-draft { background: #fef3c7; color: #92400e; }
+.badge.status-stable { background: #dcfce7; color: #166534; }
+.badge.status-deprecated { background: #fee2e2; color: #991b1b; }
+@media (prefers-color-scheme: dark) {
+  .badge.type { background: #1e3a5f; color: #bfdbfe; }
+  .badge.status-draft { background: #4b3a0a; color: #fde68a; }
+  .badge.status-stable { background: #0f3d24; color: #bbf7d0; }
+  .badge.status-deprecated { background: #4a1414; color: #fecaca; }
+}
+.tag { display: inline-block; background: rgba(127,127,127,0.15); border-radius: 4px; padding: 0.05rem 0.4rem; font-size: 0.75rem; margin-right: 0.3rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+th, td { border: 1px solid rgba(127,127,127,0.35); padding: 0.4rem 0.6rem; text-align: left; font-size: 0.9rem; }
+img { max-width: 100%; border-radius: 4px; }
+.sources-list { font-size: 0.85rem; }
+.sources-list code { font-size: 0.8rem; }
+.footnote-ref a { text-decoration: none; }
+.broken-image { color: #b91c1c; font-size: 0.85rem; }
+#filter-box { width: 100%; padding: 0.5rem 0.75rem; font-size: 1rem; margin-bottom: 1rem; box-sizing: border-box; }
+ul.page-list { list-style: none; padding: 0; }
+ul.page-list li { padding: 0.5rem 0; border-bottom: 1px solid rgba(127,127,127,0.2); }
+ul.page-list .desc { color: rgba(127,127,127,0.9); font-size: 0.9rem; }
+h2.group-heading { margin-top: 2rem; }
