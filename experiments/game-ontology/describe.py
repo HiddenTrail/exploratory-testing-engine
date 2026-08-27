@@ -47,6 +47,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from engine.client import build_client, call_tool_with_retry, default_model  # noqa: E402
+# What a coordinate has to look like to be aimable, from the file that defines the
+# coordinate system. Imported rather than restated so that this module cannot end up
+# accepting a coordinate `Controller.point` would refuse.
+from controller import is_fraction  # noqa: E402
 # The one thing shared with the session that produces the evidence: the order the
 # close-ups of an action go in. Imported rather than repeated, so a fourth slot cannot be
 # filmed and then quietly not shown. Safe as a top-level import because `recon` only ever
@@ -188,7 +192,10 @@ ANNOTATE_TOOL = {
                     "properties": {
                         "label": {"type": "string"},
                         "what": {"type": "string"},
-                        "at": {"type": "array", "items": {"type": "number"}},
+                        "at": {"type": "array", "items": {"type": "number"}, "description":
+                               "Where it is, as fractions of the window: [x, y] with both "
+                               "between 0.0 and 1.0, so [0.5, 0.5] is the centre. Never "
+                               "pixels. Omit it if you cannot place the element."},
                         "behaviour": {
                             "type": "array",
                             "items": {
@@ -449,7 +456,7 @@ def make_director(model: str | None = None, client=None):
                         errors.append(
                             f"{where} targets {label!r}, which is not a label the map "
                             f"records. Known: {', '.join(sorted(known['labels'])) or '(none)'}")
-                    if at and not (len(at) == 2 and all(0.0 <= float(v) <= 1.0 for v in at)):
+                    if at and not is_fraction(at):
                         errors.append(f"{where} targets {at}, which is not a fractional "
                                       f"[x, y] inside the window")
                 if verb == "wait" and not 0 < float(step.get("seconds", 0) or 0) <= MAX_WAIT:
@@ -587,6 +594,15 @@ def annotate(out: Path, model: str | None = None, client=None, limit: int = 0) -
 
         def validate(payload: dict, allowed: set[str] = mine) -> list[str]:
             errors = []
+            # Every field the code below this call reads with `[...]` rather than `.get`.
+            # Checked here so that a payload missing one costs a retry with the name of the
+            # field in it, instead of a KeyError that ends the whole pass and takes the
+            # screens after this one with it - which is how the `'str' object has no
+            # attribute 'get'` failure played out, from the same cause: work done on a
+            # payload the validator had not established the shape of.
+            for field in ("name", "role", "description"):
+                if not payload.get(field):
+                    errors.append(f"no {field!r}, which is required")
             for element in payload.get("elements", []):
                 # A schema is a request, not a guarantee: one call returned a bare string
                 # where an element object belongs and this pass died inside its own
@@ -596,12 +612,32 @@ def annotate(out: Path, model: str | None = None, client=None, limit: int = 0) -
                     errors.append(f"elements contains {element!r}, which is not an object "
                                   f"with label, what and behaviour")
                     continue
+                for field in ("label", "what"):
+                    if not element.get(field):
+                        errors.append(f"an element has no {field!r}: "
+                                      f"{json.dumps(element)[:120]}")
+                at = element.get("at")
+                if at is not None and not is_fraction(at):
+                    # A coordinate is the one field in here that something downstream
+                    # *acts* on: a mission clicks an element by label and gets sent
+                    # wherever this says. One real map came back with `at: [697, 190]`,
+                    # pixels of a 1400px-wide screenshot, which as a fraction is a
+                    # thousand windows to the right of the game. A wrong description is
+                    # read by a person; a wrong coordinate is pressed.
+                    errors.append(f"element {element.get('label', '?')!r} is at {at!r}, "
+                                  f"which is not [x, y] with both between 0.0 and 1.0. "
+                                  f"Those look like pixels; divide by the image's width "
+                                  f"and height, or omit `at` if you cannot place it")
                 for entry in element.get("behaviour", []):
                     if not isinstance(entry, dict):
                         errors.append(f"element {element.get('label', '?')!r} has behaviour "
                                       f"entry {entry!r}, which is not an object with "
                                       f"modality, effect and evidence")
                         continue
+                    for field in ("modality", "effect"):
+                        if not entry.get(field):
+                            errors.append(f"element {element.get('label', '?')!r} has a "
+                                          f"behaviour entry with no {field!r}")
                     cited = entry.get("evidence") or []
                     bad = [c for c in cited if c not in allowed]
                     if bad:

@@ -59,7 +59,7 @@ import calibrate
 import recon
 import sweep
 import target as targets
-from controller import Controller, WindowLost, log, set_dpi_aware
+from controller import Controller, WindowLost, is_fraction, log, set_dpi_aware
 from probe import VK_NAMES
 from recon import UNVETTED, Action
 
@@ -113,8 +113,12 @@ def digest(data: dict, standing: str, flown: list[dict]) -> str:
                          "clicked; one without cannot be targeted):")
             for element in elements:
                 at = element.get("at")
-                where = f"at ({at[0]:.3f}, {at[1]:.3f})" if at and len(at) == 2 \
-                    else "no coordinates recorded"
+                # An unaimable coordinate is reported as absent rather than printed.
+                # Printing it would offer the planner a control it cannot click - the step
+                # would be refused - and `at: [697, 190]` reads as a perfectly good target
+                # right up to the point where something tries to aim at it.
+                where = f"at ({at[0]:.3f}, {at[1]:.3f})" if is_fraction(at) \
+                    else "no usable coordinates recorded"
                 lines.append(f"- {element['label']!r} {where}: {element.get('what', '')}")
         hover = screen.get("hover", {})
         if hover.get("inert"):
@@ -211,8 +215,17 @@ class Mission:
         for element in (screen.vetting or {}).get("elements", []):
             if (element.get("label") or "").strip().lower() == wanted:
                 at = element.get("at")
-                if at and len(at) == 2:
+                if is_fraction(at):
                     return (float(at[0]), float(at[1])), ""
+                if at:
+                    # A coordinate that is not a fraction, which is what a map written
+                    # before `describe.py` checked for it can contain: one real one holds
+                    # `at: [697, 190]`, pixels of the screenshot the annotator was shown.
+                    # Refused here rather than left to `Controller.point`, so it costs the
+                    # step that aimed at it instead of the mission it was in, and so the
+                    # report says which control the map is wrong about.
+                    return None, (f"the map puts {label!r} at {at}, which is not a "
+                                  f"fraction of the window, so there is nothing to aim at")
                 return None, (f"the map records {label!r} on {screen.id} but never located "
                               f"it, so there is no coordinate to click")
         for other in self.session.screens.values():

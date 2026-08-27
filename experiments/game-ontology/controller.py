@@ -102,6 +102,26 @@ def log(message: str) -> None:
     print(message, flush=True)
 
 
+def is_fraction(at) -> bool:
+    """Whether `at` is a pair of fractions of the client area, and so a point on a window.
+
+    Lives here because this file defines that coordinate system - everything the harness
+    aims at is a fraction, so that a game which picks a different resolution at launch does
+    not invalidate every coordinate anyone recorded. It is shared with `describe.py`, which
+    refuses to write a non-fraction into a map, and `mission.py`, which refuses to aim at
+    one an older map already holds; three copies of this rule would be three chances for
+    one of them to be laxer than `point`.
+
+    Tolerant of any shape rather than assuming a pair of numbers, because every caller is
+    checking something a model chose: a string, a dict or a three-element list all have to
+    come back False and be reported, not raise inside the check meant to catch them."""
+    try:
+        x, y = at
+        return 0.0 <= float(x) <= 1.0 and 0.0 <= float(y) <= 1.0
+    except (TypeError, ValueError):
+        return False
+
+
 # --- windows ----------------------------------------------------------------
 
 def window_pid(hwnd: int) -> int:
@@ -1221,6 +1241,25 @@ class Controller:
     # -- action -------------------------------------------------------------
 
     def point(self, fx: float, fy: float) -> tuple[int, int]:
+        """A fraction of the client area as a screen coordinate.
+
+        The range check is here because this is the one place every hover and every click
+        passes through, and a fraction outside it is not a point on this window at all.
+        The arithmetic below is happy to compute one - `0.5, 697` lands thousands of pixels
+        below the game, `mouse_move_to` sends the cursor there, Windows clamps it to the
+        edge of the desktop, and the click arrives on whatever is sitting at that edge.
+        That is the editor bug again with a different first move: input leaving the game.
+
+        Not hypothetical, and not the explorer's doing - the explorer builds its own
+        fractions from a grid. The annotator wrote `at: [697, 190]` into a real map,
+        pixels where fractions belong, and a mission that clicked that control by label
+        would have sent it here. Both ends are fixed too: `describe.py` refuses the
+        out-of-range coordinate when the map is written, and `mission.py` refuses to aim
+        at one that an older map already contains. This is the guarantee under those, and
+        it holds for a caller nobody has written yet."""
+        if not is_fraction((fx, fy)):
+            raise ValueError(f"({fx}, {fy}) is not a fraction of the client area; "
+                             f"both must be between 0 and 1")
         left, top, width, height = self.rect
         return left + int(width * fx), top + int(height * fy)
 

@@ -503,6 +503,27 @@ consumer can take the observed claims and leave the guesses.
     than as a fallback for when the process image cannot be read at all. A weak piece of
     evidence in the same `or` as a strong one is not a fallback; it is the rule.
 
+24. **Nothing checked that a coordinate was inside the window.** The annotator wrote
+    `at: [697, 190]` for a control - pixels of the screenshot it was shown, where fractions
+    belong - and that value sat in a committed map, describing a real button, waiting for
+    something to aim at it. `Controller.point` would have computed `left + width * 697`,
+    `mouse_move_to` would have sent the cursor thousands of pixels below the game, Windows
+    would have clamped it to the edge of the desktop, and the click would have landed on
+    whatever was sitting there. That is the editor bug again with a different first move:
+    input leaving the game, and no layer noticing, because all three safety layers ask
+    whether an *action* is allowed and none of them asks whether a *coordinate* is real.
+    Fixed in three places on purpose - `describe.py` refuses to write one, `mission.py`
+    refuses to aim at one an older map already holds, and `point` refuses to convert one,
+    which is the guarantee under the other two and holds for a caller nobody has written
+    yet. One `is_fraction` shared between them, from the file that defines the coordinate
+    system, because three copies of a rule is three chances for one to be laxer than the
+    one that matters.
+
+    The same pass hardened the rest of that validator, for the reason in item 22: every
+    field the code reads with `[...]` rather than `.get` is now checked before the call is
+    accepted, so a payload missing one costs a retry naming the field instead of a
+    `KeyError` that ends the run and takes the screens after it down.
+
 ## What is reused, and what standalone means
 
 `probe.py` is imported as-is for capture, input, PNG writing and window finding - it
