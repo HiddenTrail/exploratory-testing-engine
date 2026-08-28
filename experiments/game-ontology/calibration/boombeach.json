@@ -1,0 +1,33 @@
+{
+  "game": "Boom Beach Launcher",
+  "measured": {
+    "startup": {
+      "startup_quiet": 4.1,
+      "watched_seconds": 12.7,
+      "change_at": [
+        0.59,
+        3.16,
+        3.44
+      ],
+      "longest_interior_gap": 2.57,
+      "settled": true,
+      "restores_needed": 0
+    },
+    "screen_match": {
+      "screen_match": 0.953,
+      "kept": false,
+      "widest_same_place": 25,
+      "smallest_screen_change": 90,
+      "cells": 576,
+      "populations_overlap": false,
+      "admissible_range": [
+        0.844,
+        0.953
+      ],
+      "why": "the widest same-place move changed 25 of 576 cells and the smallest screen change 90"
+    }
+  },
+  "startup_quiet": 4.1,
+  "window_title": "Boom Beach Launcher",
+  "screen_match": 0.953
+}

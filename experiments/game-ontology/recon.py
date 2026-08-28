@@ -62,7 +62,7 @@ from shutil import copyfile
 import target as targets
 from calibrate import MATCH_FLOOR, SLACK_CELLS
 from controller import (Controller, WindowLost, log, readable_output,
-                        set_dpi_aware)
+                        set_dpi_aware, is_fraction)
 
 # 32x18 keeps the 16:9 aspect, so cells are square and a cell index maps back to a
 # screen position without correction. 576 cells is coarse enough that a whole
@@ -120,6 +120,8 @@ HOVER_PATIENCE = 14      # probes with no reaction at all before a screen is cal
                          # the grid, so what makes the bail a statement about the screen rather
                          # than about the first third of it is that the prefix reaches every
                          # quadrant - at least three probes in each
+HOVER_RESCUE_PROBES = 18  # extra shifted probes after an inert first pass. This catches
+                          # text-sized controls that sit between coarse cell centres.
 HOVER_STRIDE = 7         # spreads the probe order *within* a quadrant, so a prefix is not a row
 HOVER_SETTLE = 0.5       # cursor held this long before the frame is read. The floor on every
                          # probe, so it is what decides whether forty of them are affordable.
@@ -257,6 +259,21 @@ def hover_order(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
                 for i in range(offset, len(bucket), HOVER_STRIDE)]
                for _, bucket in sorted(buckets.items())]
     return [point for row in zip_longest(*strided) for point in row if point is not None]
+
+
+def hover_rescue_points() -> list[tuple[float, float]]:
+    """A shifted sweep for screens that looked inert on the coarse pass.
+
+    The primary sweep samples cell centres. This one samples quarter-offset points in
+    the same balanced order, so thin controls and text links between centres still get
+    a chance before the screen is declared hover-inert.
+    """
+    points = []
+    for r in range(HOVER_ROWS):
+        for c in range(HOVER_COLS):
+            points.append(((c + 0.25) / HOVER_COLS, (r + 0.25) / HOVER_ROWS))
+            points.append(((c + 0.75) / HOVER_COLS, (r + 0.75) / HOVER_ROWS))
+    return hover_order(points)
 
 
 def diff_cells(a: bytes, b: bytes, delta: int) -> set[int]:
@@ -924,36 +941,54 @@ class Recon:
         order = hover_order([((c + 0.5) / HOVER_COLS, (r + 0.5) / HOVER_ROWS)
                              for r in range(HOVER_ROWS) for c in range(HOVER_COLS)])
 
-        started = time.monotonic()
-        for fx, fy in order:
-            if self.controller.target.forbids(fx, fy):
-                continue
+        def probe_point(fx: float, fy: float) -> None:
             before = fingerprint(self.controller)
             self.controller.hover(fx, fy)
             after, reaction = self._hover_reaction(screen, before)
             screen.hover_probe_count += 1
-            if len(reaction) >= 2:
-                screen.hotspots.append((fx, fy))
-                screen.hover_reactions.append(len(reaction))
-                # The control's extent, measured while the evidence for it is on screen.
-                # A reaction too wide to crop still gets a box, because the point of this
-                # one is to photograph what is under the cursor, not what moved.
-                box = cell_box(reaction) or point_box(fx, fy)
-                screen.crop_boxes[point_key((fx, fy))] = list(box)
-                action = Action("hover", at=(fx, fy))
-                shots = self.shots.setdefault(shot_name(screen.id, action), {})
-                shots.setdefault("after",
-                                 self._crop(f"{shot_name(screen.id, action)}-after.png", box))
-                # Before the recording, not after the sweep. `_record` is what files a
-                # frame as a screen, so a threshold corrected once the sweep is over has
-                # already let the sweep's own first reaction invent a screen - and with
-                # passes inheriting each other, that screen is then permanent.
-                self.relax_match(screen, after)
-                self._record(screen, action, before, after, 0,
-                             crops={"after": shots["after"]}, box=box)
+            if len(reaction) < 2:
+                return
+            screen.hotspots.append((fx, fy))
+            screen.hover_reactions.append(len(reaction))
+            # The control's extent, measured while the evidence for it is on screen.
+            # A reaction too wide to crop still gets a box, because the point of this
+            # one is to photograph what is under the cursor, not what moved.
+            box = cell_box(reaction) or point_box(fx, fy)
+            screen.crop_boxes[point_key((fx, fy))] = list(box)
+            action = Action("hover", at=(fx, fy))
+            shots = self.shots.setdefault(shot_name(screen.id, action), {})
+            shots.setdefault("after",
+                             self._crop(f"{shot_name(screen.id, action)}-after.png", box))
+            # Before the recording, not after the sweep. `_record` is what files a
+            # frame as a screen, so a threshold corrected once the sweep is over has
+            # already let the sweep's own first reaction invent a screen - and with
+            # passes inheriting each other, that screen is then permanent.
+            self.relax_match(screen, after)
+            self._record(screen, action, before, after, 0,
+                         crops={"after": shots["after"]}, box=box)
+
+        started = time.monotonic()
+        for fx, fy in order:
+            if self.controller.target.forbids(fx, fy):
+                continue
+            probe_point(fx, fy)
             if not screen.hotspots and screen.hover_probe_count >= HOVER_PATIENCE:
-                screen.hover_inert = True
                 break
+
+        if not screen.hotspots:
+            rescue = 0
+            for fx, fy in hover_rescue_points():
+                if rescue >= HOVER_RESCUE_PROBES:
+                    break
+                if self.controller.target.forbids(fx, fy):
+                    continue
+                probe_point(fx, fy)
+                rescue += 1
+                if screen.hotspots:
+                    break
+
+        if not screen.hotspots:
+            screen.hover_inert = True
         self._film_resting(screen)
 
         log(f"  hover map for {screen.id}: {len(screen.hotspots)} reacting of "
@@ -1258,11 +1293,32 @@ class Recon:
         twenty blind candidates, every one of them needing a verdict and a settle, on a
         screen that ignores the wheel entirely - and the frontier search would keep
         travelling back to it because they were all still untried."""
-        actions = ([Action("key", key=k) for k in NAV_KEYS]
-                   + [Action("click", at=point) for point in screen.hotspots]
-                   + [Action("scroll", at=PROBE_AT, notches=-SCROLL_NOTCHES),
-                      Action("scroll", at=PROBE_AT, notches=SCROLL_NOTCHES),
-                      probe_drag(PROBE_AT, DRAG_DIRECTIONS[0])])
+        actions = [Action("key", key=k) for k in NAV_KEYS]
+
+        # Text-labeled controls often do not react to hover, so use vetted element
+        # coordinates first and keep hotspots as a fallback sweep.
+        seen_clicks: set[str] = set()
+        if screen.vetting is not None:
+            for element in screen.vetting.get("elements", []):
+                at = element.get("at")
+                if not is_fraction(at):
+                    continue
+                point = (float(at[0]), float(at[1]))
+                key = point_key(point)
+                if key in seen_clicks:
+                    continue
+                seen_clicks.add(key)
+                actions.append(Action("click", at=point))
+        for point in screen.hotspots:
+            key = point_key(point)
+            if key in seen_clicks:
+                continue
+            seen_clicks.add(key)
+            actions.append(Action("click", at=point))
+
+        actions += [Action("scroll", at=PROBE_AT, notches=-SCROLL_NOTCHES),
+                    Action("scroll", at=PROBE_AT, notches=SCROLL_NOTCHES),
+                    probe_drag(PROBE_AT, DRAG_DIRECTIONS[0])]
         if screen.scrolls:
             # A screen that scrolls in the middle may scroll differently over a control -
             # a list inside a panel, a value under the cursor - and the hotspots are the

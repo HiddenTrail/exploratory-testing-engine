@@ -59,6 +59,19 @@ import target as targets
 from controller import (Controller, WindowLost, log, readable_output,
                         set_dpi_aware)
 
+
+def annotate_pass(out: Path) -> None:
+    """Describe screens from pass evidence and refresh the readable report.
+
+    This runs after each pass so element coordinates found in screenshots are written
+    back to ontology.json before the next pass resumes from it.
+    """
+    import describe
+
+    describe.annotate(out)
+    data = json.loads((out / "ontology.json").read_text(encoding="utf-8"))
+    recon.write_report(data, out)
+
 PASSES = 5
 MINUTES = 3.0
 # Consecutive passes that add nothing before the sweep is called finished. One is too
@@ -345,6 +358,18 @@ def main() -> None:
         result = run_pass(target, out / f"pass{index}", previous, minutes,
                           vetter, not args.no_clicks)
         result["minutes"] = minutes
+
+        if vetter is not None:
+            try:
+                log("  post-pass analysis: describing screenshots and extracting element coordinates")
+                annotate_pass(out / f"pass{index}")
+                # Keep the in-memory copy aligned with ontology.json, so any summary
+                # written from `result` includes the annotated fields.
+                result["ontology"] = json.loads(
+                    ((out / f"pass{index}") / "ontology.json").read_text(encoding="utf-8"))
+            except Exception as error:                  # noqa: BLE001
+                log(f"  ! post-pass analysis failed: {error}")
+
         results.append(result)
         log(f"  pass {index}: +{result['new_screens']} screens, "
             f"+{result['new_transitions']} transitions "

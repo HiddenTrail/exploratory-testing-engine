@@ -23,14 +23,14 @@
       "screen_match": 0.924,
       "kept": false,
       "widest_same_place": 42,
-      "smallest_screen_change": 16,
+      "smallest_screen_change": 27,
       "cells": 576,
       "populations_overlap": true,
       "admissible_range": [
-        0.972,
+        0.953,
         0.924
       ],
-      "why": "the widest same-place move changed 42 of 576 cells and the smallest screen change 16, which overlap - no threshold separates them, so this game's screens are told apart by the model's naming and not by geometry"
+      "why": "the widest same-place move changed 42 of 576 cells and the smallest screen change 27, which overlap - no threshold separates them, so this game's screens are told apart by the model's naming and not by geometry"
     }
   },
   "startup_quiet": 3.1,
