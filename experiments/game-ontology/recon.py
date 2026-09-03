@@ -523,6 +523,58 @@ def pad_box(box: tuple[float, float, float, float], pad: float,
             or (0.0, 0.0, 1.0, 1.0))
 
 
+def _axis(start: float, length: float, patch_start: float, patch_length: float,
+          low: float, high: float, low_open: bool,
+          high_open: bool) -> tuple[float, float]:
+    """Where one axis of a control is, from what the trim could and could not measure.
+
+    `start`/`length` are the described extent on this axis, `patch_start`/`patch_length`
+    the padded patch the trim read, and `low`/`high` the content's edges as fractions of
+    that patch. An edge is *open* when the content reached the patch there, which means it
+    continues past it and nothing on that side was measured. Three cases:
+
+    - **both edges measured** - the measurement, converted back to fractions of the
+      window. Nothing to decide.
+    - **neither measured** - the content crosses the whole patch on this axis, so there is
+      no measurement here at all and the description stands. Widening to the patch instead
+      would return the hint grown by the margin, which is measurably *worse* than the box
+      it replaced.
+    - **one measured** - the interesting one, and the reason this is a function. What is
+      known is that one real edge is at the measured place and the control continues past
+      the patch on the other side. So position comes from the measurement and size from
+      the description: the described length, laid against the edge that was measured, and
+      clipped to the patch because that is the whole of what was looked at.
+
+      The described length rather than the visible one, and this is the part with a trap in
+      it. An open edge means the content reaches the patch there, so the *visible* length
+      on this axis is always "as far as the patch goes" - taking it would return the hint
+      grown by the margin, with a neighbouring control inside it, on every element with an
+      open edge. The open side carries no measurement of extent at all. It only says which
+      way the control runs.
+
+    That last rule is a fix for a live failure and not a refinement. Keeping the described
+    edge on the open side instead - the obvious reading of "that side was not measured" -
+    produces a box that is provably too small, because content was seen right up to the
+    patch's edge and the box stops short of it. Clash Royale's battle-result screen put its
+    OK button's described box 0.03 of the window low; the bottom edge measured, the top ran
+    off the patch, and the surviving 0.025-tall strip had its centre on the button's own
+    bottom border. Sixteen taps in a row reported "nothing visible changed", the pass could
+    not dismiss the screen it was standing on, and a hand tap at the button's real centre
+    dismissed it first try. Anchoring puts the aim 0.013 higher, inside the plate.
+    """
+    measured_low = patch_start + patch_length * low
+    measured_high = patch_start + patch_length * high
+    if low_open and high_open:
+        return start, start + length
+    if not low_open and not high_open:
+        return measured_low, measured_high
+    # Never past the patch. Where the described length would reach beyond it, what is left
+    # is the whole visible span, which is the most that can be claimed from one edge.
+    if low_open:
+        return max(patch_start, measured_high - length), measured_high
+    return measured_low, min(patch_start + patch_length, measured_low + length)
+
+
 def box_cells(box: tuple[float, float, float, float]) -> set[int]:
     """The grid cells a fractional box covers, so a rectangle can be compared with a mask.
 
@@ -1287,12 +1339,12 @@ class Recon:
           panel, so either the model put it in the wrong place or the control it named is
           not drawn right now. The hint is kept and said out loud.
         - **The content runs off a side of the padded patch.** Whatever is in there
-          continues past the margin, so *that side* was not measured, and the hint's own
-          edge is kept there. Handled per edge rather than per box or per axis, because the
-          common case is one edge: a button in a column of identical buttons has its
-          neighbour inside the margin, and a trim that took the neighbour's far edge would
-          report one control where there are two. Only when all four sides run off is
-          nothing measured, and then the hint is kept whole and said out loud.
+          continues past the margin, so *that side* was not measured and `_axis` decides
+          what to put there. Handled per edge rather than per box, because the common case
+          is one edge: a button in a column of identical buttons has its neighbour inside
+          the margin, and a trim that took the neighbour's far edge would report one
+          control where there are two. Only when all four sides run off is nothing
+          measured, and then the hint is kept whole and said out loud.
         - **The trimmed box is under `ELEMENT_SHRINK` of the area described.** The trim found
           a detail inside the element - a label, a highlighted row - and not its edges.
         - **The trimmed centre moved further than `ELEMENT_DRIFT`.** The trim locked on to
@@ -1318,18 +1370,17 @@ class Recon:
                           "either it is somewhere else or it is not drawn on this frame"), ()
         left, top, right, bottom = found
         # Per edge. An edge of the content sitting on an edge of the patch means the content
-        # continues out of frame, so nothing was measured on that side and the hint's own
-        # edge is kept - not the patch's, which is the hint grown by the margin and a box
-        # measurably worse than the one it replaced. `found` is half-open, hence `>=`.
+        # continues out of frame, so nothing was measured on that side. `found` is
+        # half-open, hence `>=`.
         open_sides = {"left": left <= 0, "top": top <= 0,
                       "right": right >= width, "bottom": bottom >= height}
-        x0 = hint[0] if open_sides["left"] else padded[0] + padded[2] * left / width
-        x1 = (hint[0] + hint[2] if open_sides["right"]
-              else padded[0] + padded[2] * right / width)
-        y0 = hint[1] if open_sides["top"] else padded[1] + padded[3] * top / height
-        y1 = (hint[1] + hint[3] if open_sides["bottom"]
-              else padded[1] + padded[3] * bottom / height)
         kept = tuple(side for side, out in open_sides.items() if out)
+        x0, x1 = _axis(hint[0], hint[2], padded[0], padded[2],
+                       left / width, right / width,
+                       open_sides["left"], open_sides["right"])
+        y0, y1 = _axis(hint[1], hint[3], padded[1], padded[3],
+                       top / height, bottom / height,
+                       open_sides["top"], open_sides["bottom"])
         if len(kept) == 4:
             return hint, ("its contents reach every edge of the margin around it - "
                           "either it is drawn on the game's own artwork rather than on a "
@@ -1367,9 +1418,11 @@ class Recon:
 
         - `trimmed` - the model drew a box and the pixels inside it found its edges.
         - `trimmed except left`, and the other three sides - the same, on every side but
-          those, where the thing inside the box ran off the margin and the model's own edge
-          was kept. Named rather than folded into `trimmed`, because which side is unmeasured
-          is exactly what a reader checking a crop against a screenshot needs to know.
+          those, where the thing inside the box ran off the margin and so has no measured
+          edge there; `_axis` says what goes in its place. Named rather than folded into
+          `trimmed`, because which side is unmeasured is exactly what a reader checking a
+          crop against a screenshot needs to know - and, since the box is only anchored
+          where it was measured, how much of its position to believe.
         - `measured movement` - an animation, whose extent comes from `Screen.animated`
           rather than from a trim. See `ELEMENT_KINDS` on why trimming it would be wrong.
         - `described` - the box is the model's, unchanged, because the trim reported one of

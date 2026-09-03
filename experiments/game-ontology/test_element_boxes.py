@@ -322,23 +322,81 @@ def test_content_at_every_edge_is_reported_rather_than_taken(tmp_path):
     assert "reach every edge" in why
 
 
-def test_one_side_running_off_the_patch_keeps_that_edge_and_measures_the_rest(tmp_path):
+def test_one_side_running_off_the_patch_anchors_the_box_to_the_side_that_did_not(tmp_path):
     """The case the per-edge rule exists for: a button in a column of identical buttons, whose
     neighbour is inside the margin. Content flush against the top of the patch continues past
-    it, so the top is unmeasurable and the description stands there - while the other three
-    edges are real and get taken. Handled per axis instead, this box would have kept the
-    hint's whole height and thrown away a measured bottom edge; handled per box, it would
-    have kept the hint entirely."""
+    it, so the top is unmeasurable - while the other three edges are real and get taken.
+
+    What goes in the top's place is the described *height*, hung off the measured bottom.
+    Keeping the hint's own top instead leaves a box that is provably too short: content was
+    seen up to the patch's edge and the box stops short of it. See `_axis`."""
     recon = session(tmp_path, FakeController(drawing=(100, 100, (20, 0, 80, 60))))
     hint = (0.40, 0.70, 0.20, 0.08)
     box, why, kept = recon.snap_box(hint)
     assert why == ""
     assert kept == ("top",)
     padded = trim_patch(hint)
-    assert box[1] == pytest.approx(hint[1])            # the side that ran off
-    assert box == pytest.approx((padded[0] + padded[2] * 0.20, hint[1],
-                                 padded[2] * 0.60,
-                                 padded[1] + padded[3] * 0.60 - hint[1]), abs=1e-3)
+    bottom = padded[1] + padded[3] * 0.60
+    assert box == pytest.approx((padded[0] + padded[2] * 0.20, bottom - hint[3],
+                                 padded[2] * 0.60, hint[3]), abs=1e-3)
+    # The measured edge is the one that is trusted, so it is exactly where the pixels put it
+    # and the unmeasured one is a described length away from it.
+    assert box[1] + box[3] == pytest.approx(bottom, abs=1e-3)
+
+
+def test_a_half_measured_axis_does_not_take_the_visible_length_as_the_control(tmp_path):
+    """The trap in anchoring, pinned. An open edge means the content reaches the patch
+    there, so the *visible* length on that axis is always "as far as the patch goes" -
+    which is the hint plus its own margin, with whatever neighbour is in that margin
+    included. Here the content fills nine tenths of the patch against a hint a tenth of
+    it: the box stays the described height, and the only thing the pixels contribute is
+    where to hang it."""
+    recon = session(tmp_path, FakeController(drawing=(100, 100, (20, 0, 80, 90))))
+    hint = (0.40, 0.70, 0.20, 0.02)
+    box, why, kept = recon.snap_box(hint)
+    assert why == ""
+    assert kept == ("top",)
+    padded = trim_patch(hint)
+    assert box[3] == pytest.approx(hint[3], abs=1e-3)
+    assert box[3] < padded[3] * 0.90
+    assert box[1] + box[3] == pytest.approx(padded[1] + padded[3] * 0.90, abs=1e-3)
+
+
+def test_an_anchored_box_stays_inside_the_patch_that_was_read(tmp_path):
+    """The clamp, which is not decoration: a hint far larger than the content it named would
+    otherwise hang the described length off a measured edge and out of the region anything
+    was measured in. What is left when the description does not fit is the visible span, and
+    that is the most one edge can support."""
+    recon = session(tmp_path, FakeController(drawing=(100, 100, (20, 0, 80, 50))))
+    hint = (0.40, 0.70, 0.20, 0.08)
+    box, why, kept = recon.snap_box(hint)
+    padded = trim_patch(hint)
+    assert kept == ("top",) and why == ""
+    assert box[3] < hint[3]
+    assert box[1] == pytest.approx(padded[1], abs=1e-3)
+    assert box[1] + box[3] == pytest.approx(padded[1] + padded[3] * 0.50, abs=1e-3)
+
+
+def test_the_aim_lands_on_the_plate_of_a_button_described_too_low(tmp_path):
+    """The live failure, in the numbers it happened in. Clash Royale's battle-result screen
+    got its OK button described 0.03 of the window below where it is; the bottom edge
+    measured, the top ran off the patch, and the old rule's box was a 0.025-tall strip whose
+    centre sat on the button's bottom border. Sixteen taps on that screen reported "nothing
+    visible changed" and the pass could not leave the screen it was standing on.
+
+    The plate here is where the real one is - y 0.908 to 0.953 of a 1993px window - and the
+    assertion is the only one that matters to a pass: the point a tap is sent to is on it."""
+    top, bottom = 0.908, 0.953
+    # The patch is what `snap_box` will read, so the drawing is expressed in it: a plate
+    # whose bottom edge is inside the patch and whose top is above it.
+    hint = (0.38, 0.940, 0.28, 0.05)
+    padded = trim_patch(hint)
+    rows = 100
+    cut = int(round((bottom - padded[1]) / padded[3] * rows))
+    recon = session(tmp_path, FakeController(drawing=(100, rows, (10, 0, 90, cut))))
+    box, why, kept = recon.snap_box(hint)
+    assert why == "" and "top" in kept
+    assert top <= box_centre(box)[1] <= bottom
 
 
 def test_a_trim_that_finds_a_detail_inside_the_element_is_refused(tmp_path):
