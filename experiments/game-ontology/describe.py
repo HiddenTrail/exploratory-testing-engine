@@ -50,7 +50,8 @@ from engine.client import build_client, call_tool_with_retry, default_model  # n
 # What a coordinate has to look like to be aimable, from the file that defines the
 # coordinate system. Imported rather than restated so that this module cannot end up
 # accepting a coordinate `Controller.point` would refuse.
-from controller import MODIFIERS, MOUSE_BUTTONS, is_fraction, readable_output  # noqa: E402
+from controller import (MODIFIERS, MOUSE_BUTTONS, is_fraction, log,  # noqa: E402
+                        readable_output)
 # The one thing shared with the session that produces the evidence: the order the
 # close-ups of an action go in. Imported rather than repeated, so a fourth slot cannot be
 # filmed and then quietly not shown. Safe as a top-level import because `recon` only ever
@@ -361,10 +362,46 @@ def make_vetter(model: str | None = None, client=None):
                 f"report what is currently selected."})
 
         def validate(payload: dict) -> list[str]:
-            given = {entry.get("action_id") for entry in payload.get("actions", [])}
-            missing = [a.id for a in candidates if a.id not in given]
-            unknown = [i for i in given if i not in {a.id for a in candidates}]
+            """Every field the verdict below reads, checked before it reads it.
+
+            Including the ones `VET_TOOL` marks required, which sounds redundant and is
+            not: a tool call cut off at `max_tokens` arrives as *partial* JSON - schema
+            shaped, missing whatever came last - and a partial payload that happened to
+            hold a complete `actions` list used to pass this and then raise out of the
+            return statement. Two of those on one five-minute pass cost two batches of
+            candidates: `KeyError('name')`, and from a verdict list that came back as bare
+            strings, `'str' object has no attribute 'get'` - raised inside this function,
+            where it could not even be reported as a bad answer.
+
+            Checking here is what reaches the machinery already built for it:
+            `call_tool_with_retry` tells a truncated reply from a wrong one and asks for a
+            terser answer rather than for the same overlong one again.
+            """
             errors = []
+            for field in ("name", "purpose"):
+                value = payload.get(field)
+                if not isinstance(value, str) or not value.strip():
+                    errors.append(f"{field!r} must be a non-empty string, got {value!r}")
+            entries = payload.get("actions")
+            if not isinstance(entries, list):
+                return errors + [f"'actions' must be a list of verdicts, got {entries!r}"]
+            given: set[str] = set()
+            for index, entry in enumerate(entries, start=1):
+                if not isinstance(entry, dict):
+                    errors.append(f"verdict {index} is a {type(entry).__name__} "
+                                  f"({entry!r}), not an object with action_id, safe "
+                                  f"and why")
+                    continue
+                for field, want in (("action_id", str), ("safe", bool), ("why", str)):
+                    if not isinstance(entry.get(field), want):
+                        errors.append(
+                            f"verdict {index}, for "
+                            f"{entry.get('action_id', 'an unnamed action')!r}, needs "
+                            f"{field} as a {want.__name__} and has {entry.get(field)!r}")
+                if isinstance(entry.get("action_id"), str):
+                    given.add(entry["action_id"])
+            missing = [a.id for a in candidates if a.id not in given]
+            unknown = sorted(given - {a.id for a in candidates})
             if missing:
                 errors.append(f"no verdict for: {', '.join(missing)}")
             if unknown:
@@ -376,11 +413,24 @@ def make_vetter(model: str | None = None, client=None):
             tool_name="vet_screen", user_message=content, validate_fn=validate,
             max_tokens=VET_MAX_TOKENS, cache_static_content=True)
 
+        # `elements` is the one field a malformed entry does not have to cost a retry, and
+        # the difference is what the field is for. The verdicts decide what may be pressed
+        # and have all been insisted on above; an element is a *description*, and losing
+        # one costs a label and a crop on a screen whose actions are ruled on either way.
+        # So a bad entry is dropped by name and the rest of the answer is kept - the same
+        # trade `locate_elements` makes for an element it cannot measure.
+        described = payload.get("elements")
+        described = described if isinstance(described, list) else []
+        elements = [e for e in described if isinstance(e, dict)]
+        if len(elements) != len(described):
+            log(f"  dropped {len(described) - len(elements)} of {len(described)} described "
+                f"elements on {screen.id}: not objects with a label and a box")
+
         return {
             "name": payload["name"],
             "purpose": payload["purpose"],
             "highlighted": payload.get("highlighted", ""),
-            "elements": payload.get("elements", []),
+            "elements": elements,
             "actions": {entry["action_id"]: {"safe": entry["safe"], "why": entry["why"]}
                         for entry in payload["actions"]},
         }
