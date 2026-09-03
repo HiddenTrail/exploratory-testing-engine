@@ -42,6 +42,48 @@ DENYLISTS: dict[str, list[dict]] = {
                    "which ends the session and forfeits the rest of its budget",
         },
     ],
+    # Read off one photographed main screen, post-tutorial, and every box is a way to
+    # somebody's money or somebody's account rather than a way to lose a save file -
+    # which is the difference between this game and every earlier target. There is no
+    # save file here at all: the state is on Supercell's servers, so nothing a session
+    # does can be undone by relaunching.
+    "clashroyale": [
+        {
+            "box": (0.72, 0.0, 0.28, 0.05),
+            "why": "the gem counter and its + button - the entrance to the gem shop, "
+                   "which is a real-money purchase flow",
+        },
+        {
+            "box": (0.39, 0.0, 0.33, 0.05),
+            "why": "the gold counter and its + button - gold is bought with gems and "
+                   "gems with money, so this is the same purchase flow one step back",
+        },
+        {
+            "box": (0.59, 0.14, 0.40, 0.11),
+            "why": "the Pass Royale banner - a paid subscription offer, and it sits on "
+                   "the main screen where every pass will meet it",
+        },
+        {
+            "box": (0.32, 0.72, 0.37, 0.12),
+            "why": "the Battle button - it starts a real-time match against a live "
+                   "opponent, which is outside the scope this bot was given (the "
+                   "meta-game only) and cannot be backed out of once joined. Denylisted "
+                   "rather than left to the vetting call because a match is not a "
+                   "purchase and does not erase a save, so no safety category catches "
+                   "it - and it is the largest, most obvious target on the main screen",
+        },
+        {
+            "box": (0.0, 0.91, 0.18, 0.09),
+            "why": "the Shop tab in the bottom navigation - the whole tab is offers, "
+                   "including real-money ones",
+        },
+        {
+            "box": (0.64, 0.91, 0.20, 0.09),
+            "why": "the Clan tab in the bottom navigation - clan chat and card "
+                   "donations, which are messages and gifts to other people and cannot "
+                   "be taken back",
+        },
+    ],
 }
 
 
@@ -95,6 +137,18 @@ Treat an action as DANGEROUS if it could plausibly do any of:
   state the game has recorded about the player
 - spend real money, or reach anything outside the game (a store, a browser, a link)
 - confirm a dialog whose consequence you cannot read
+
+Two specific things count as dangerous however harmless the control looks:
+
+- **A currency sign anywhere on or beside the control.** A price is the clearest
+  evidence a screen has of a purchase, and it is evidence a picture carries reliably
+  when the wording does not. If you can see a currency symbol or an amount of money on
+  the control, or on the panel it sits in, the action is dangerous.
+- **Agreeing to anything.** A button reading agree, accept, allow, continue, OK or
+  confirm on a dialog is dangerous even where the dialog looks routine, because
+  agreement is the one act that cannot be taken back by pressing something else
+  afterwards. Getting out of such a dialog is done by dismissing it - its X or close
+  control, or a tap outside the panel - and never by agreeing to it.
 
 Treat an action as SAFE only when you can see what it does and it is reversible:
 moving a highlight, opening a screen that has a visible way back, toggling a
