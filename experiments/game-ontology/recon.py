@@ -54,14 +54,15 @@ import json
 import re
 import time
 from collections import defaultdict, deque
+from collections.abc import Iterator
 from dataclasses import dataclass, field
-from itertools import zip_longest
+from itertools import islice, zip_longest
 from pathlib import Path
 from shutil import copyfile
 
 import target as targets
 from calibrate import MATCH_FLOOR, SLACK_CELLS
-from controller import (Controller, WindowLost, log, readable_output,
+from controller import (Controller, WindowLost, content_box, log, readable_output,
                         set_dpi_aware, is_fraction)
 
 # 32x18 keeps the 16:9 aspect, so cells are square and a cell index maps back to a
@@ -160,6 +161,86 @@ VET_CROPS = 3            # controls a vetting call carries close-ups of, widest 
 # the only one available while the cursor is on the point, and the before frames of every
 # control on a screen are taken together at the end of the sweep.
 CROP_SLOTS = ("before", "pressed", "after")
+
+# --- one control's own rectangle --------------------------------------------
+#
+# Everything above aims a camera at *cells*: the grid squares that moved, grown to a
+# legible minimum. That is the right unit for "what did this input touch", and the wrong
+# one for "where is this button". A cell of this grid is 35x111 real pixels on the window
+# measured here, so the smallest crop the grid can express is 175x444 - a rectangle that
+# holds a button, a slice of the panel behind it and usually a neighbour. Cropped that way,
+# every close-up on a screen looks like the same neighbourhood, and the coordinate that
+# comes out of it is the middle of a neighbourhood rather than the middle of a control.
+#
+# So an element gets its own rectangle, off the grid entirely, in three steps: the vetting
+# call draws a box around what it can see, the pixels inside that box decide where its
+# edges actually are (`controller.content_box`), and the tap point becomes the centre of
+# the result. The division of labour is the same one the rest of this file uses - the model
+# says what a thing is and roughly where, and a measurement says exactly where - and it is
+# why the box the model drew is kept alongside the snapped one whenever the two disagree.
+ELEMENT_PAD = 0.4        # of the hint box's own width and height, grabbed around it per
+                         # side before trimming. Margin is what makes the trim possible at
+                         # all: `content_box` reads the background off the edge of the
+                         # patch, so a patch cut exactly to the control has the control's
+                         # own colour as its background and finds nothing in it.
+ELEMENT_PAD_MAX = 0.04   # of the window, per side, whatever `ELEMENT_PAD` works out to.
+                         # A margin proportional to the box is right for a button and wrong
+                         # for a panel: 40% of a box 0.6 wide is 0.24 of the screen of
+                         # margin, and the trim then measures the bounding box of the panel
+                         # *and* everything within a quarter of a screen of it. Measured on
+                         # the fake game, this is the difference between placing its list at
+                         # 0.06 and placing it at 0.25, where it is.
+ELEMENT_SAMPLES = 140    # longest side, in samples, that the patch is trimmed at. The trim
+                         # is a Python loop over every pixel, so this is a time budget: at
+                         # 140 a patch costs about 15ms and a screen of twenty elements a
+                         # third of a second. It is also plenty of precision - one sample
+                         # is under 0.3% of the window, and a finger is wider than that.
+ELEMENT_THIN = 24        # samples the *shorter* side gets at least, when `ELEMENT_SAMPLES`
+                         # on the longer one would leave it thinner than this. A text slot
+                         # is a wide, short strip: asking only for a longest side hands it
+                         # back four pixels tall, `content_box` refuses anything under three
+                         # either way, and even at five the top and bottom edges it is
+                         # supposed to be measuring are a fifth of the patch apart. This is
+                         # the constant that makes a text slot croppable at all.
+ELEMENT_SAMPLES_MAX = 640  # ceiling on the longer side once `ELEMENT_THIN` has stretched it,
+                         # so a 30:1 sliver is still one blit and one bounded loop. Cost is
+                         # the product of the sides and these two budgets are deliberately
+                         # alike: 140x140 is 19600 samples, 640x24 is 15360.
+ELEMENT_MIN_SIDE = 0.008  # a snapped side thinner than this is a hairline, not a control,
+                         # and taking it would aim a tap at the edge of the thing rather
+                         # than at the thing
+ELEMENT_MAX_AREA = 0.5   # a box larger than half the window is the screen, not an element
+ELEMENT_DEFAULT = (0.09, 0.045)   # the box assumed for an element located by a point and
+                         # no rectangle. Roughly a menu button on a portrait phone window,
+                         # and deliberately a bit small: it is the seed for a trim that can
+                         # only shrink from `ELEMENT_PAD` around it.
+ELEMENT_SHRINK = 0.15    # of the hint's area, under which the trim is read as having found
+                         # something *inside* the element rather than the element itself: the
+                         # label on a panel, the highlighted row of a list, the icon on a
+                         # plate. A hint twice too big on both axes still trims to a quarter
+                         # of its own area, so this only fires on an order-of-magnitude
+                         # shrink. Cut against the fake game's borderless list, whose panel
+                         # is within `INK_DELTA` of the screen behind it and whose only
+                         # visible mark is one highlighted row: without this the map placed
+                         # that row and called it the list, measured and unqualified, which
+                         # is worse than the loose box it started from.
+ELEMENT_DRIFT = 0.6      # how far the snapped centre may move from the hint's, as a
+                         # fraction of the hint's own size. Past this the trim has locked
+                         # on to something else - the neighbour, or the panel edge - and
+                         # the hint is kept, because a rectangle around the wrong control
+                         # is worse than a coarse one around the right one.
+# What an element is, as far as this harness cares - and it cares because each wants a
+# different picture. A button is trimmed to its plate. Text is trimmed the same way, and
+# the trim is the more valuable of the two there: a label's box is the answer to "did this
+# number change" for every later pass. An animation is *not* trimmed, because trimming one
+# frame of moving content crops it to whatever that frame happened to contain; its extent
+# is already measured elsewhere, in `Screen.animated`, so that measurement is used instead.
+ELEMENT_KINDS = ("button", "text", "icon", "animation", "meter", "panel", "other")
+ELEMENT_LOCATES = 2      # attempts per screen, per pass, at locating its elements. A
+                         # locate needs the screen still to be on display, so the one way
+                         # it fails is the screen having moved on between the vetting call
+                         # and this - which is a fact about a moment, so it is retried on a
+                         # later occurrence rather than recorded. Not written to the map.
 
 NAV_KEYS = ("up", "down", "left", "right")
 COMMIT_KEYS = ("enter", "space", "esc")
@@ -390,6 +471,99 @@ def point_box(fx: float, fy: float) -> tuple[float, float, float, float]:
     col = min(int(fx * GRID_COLS), GRID_COLS - 1)
     row = min(int(fy * GRID_ROWS), GRID_ROWS - 1)
     return cell_box({row * GRID_COLS + col}) or (0.0, 0.0, 1.0, 1.0)
+
+
+def as_box(value) -> tuple[float, float, float, float] | None:
+    """A model's `[x, y, w, h]` read as a fractional rectangle, or None.
+
+    Tolerant of any shape for the same reason `is_fraction` is: every caller is checking
+    something a model chose, so a string, a dict or a five-element list all have to come
+    back None and be reported rather than raise inside the check meant to catch them.
+
+    Clamped to the window rather than refused for overhanging it, because a box drawn
+    slightly off the edge is the commonest way to describe a control *against* the edge -
+    a back arrow in the corner, a bottom navigation bar - and those are the ones worth
+    having. A box that misses the window entirely has nothing left after clamping and is
+    refused by the side check."""
+    try:
+        x, y, w, h = (float(v) for v in value)
+    except (TypeError, ValueError):
+        return None
+    left, top = min(max(x, 0.0), 1.0), min(max(y, 0.0), 1.0)
+    right, bottom = min(max(x + w, 0.0), 1.0), min(max(y + h, 0.0), 1.0)
+    w, h = right - left, bottom - top
+    if w < ELEMENT_MIN_SIDE or h < ELEMENT_MIN_SIDE or w * h > ELEMENT_MAX_AREA:
+        return None
+    return left, top, w, h
+
+
+def box_centre(box: tuple[float, float, float, float]) -> tuple[float, float]:
+    """Where to aim at a rectangle. The one place this is decided, so the point in the map
+    and the point a click is sent to cannot drift apart."""
+    return box[0] + box[2] / 2, box[1] + box[3] / 2
+
+
+def box_around(at: tuple[float, float],
+               size: tuple[float, float]) -> tuple[float, float, float, float]:
+    """A rectangle of `size` centred on a point, clamped to the window."""
+    return as_box((at[0] - size[0] / 2, at[1] - size[1] / 2, *size)) or (0.0, 0.0, 1.0, 1.0)
+
+
+def pad_box(box: tuple[float, float, float, float], pad: float,
+            most: float = 1.0) -> tuple[float, float, float, float]:
+    """A box grown by `pad` of its own size on every side, clamped to the window.
+
+    `most` caps the growth in fractions of the window, and exists because a margin
+    proportional to the box stops being a margin once the box is large: 40% of a panel
+    0.6 wide reaches a quarter of the screen in each direction and swallows every control
+    around it. See `ELEMENT_PAD_MAX`."""
+    x, y, w, h = box
+    grow_x, grow_y = min(w * pad, most), min(h * pad, most)
+    return (as_box((x - grow_x, y - grow_y, w + 2 * grow_x, h + 2 * grow_y))
+            or (0.0, 0.0, 1.0, 1.0))
+
+
+def box_cells(box: tuple[float, float, float, float]) -> set[int]:
+    """The grid cells a fractional box covers, so a rectangle can be compared with a mask.
+
+    Only used to check a claim against a measurement - "the model called this an animation,
+    do any cells here actually move" - and never to build a box, because going through the
+    grid is exactly the precision this rectangle exists to avoid."""
+    x, y, w, h = box
+    # Half-open, hence the epsilon: a box exactly one cell wide ends on the boundary
+    # between two cells, and `int` on that boundary claims the cell on the far side of it.
+    # Left in, the smallest box this file can express covers four cells instead of one.
+    first_col = min(int(x * GRID_COLS), GRID_COLS - 1)
+    first_row = min(int(y * GRID_ROWS), GRID_ROWS - 1)
+    last_col = min(max(int((x + w) * GRID_COLS - 1e-9), first_col), GRID_COLS - 1)
+    last_row = min(max(int((y + h) * GRID_ROWS - 1e-9), first_row), GRID_ROWS - 1)
+    return {row * GRID_COLS + col
+            for row in range(first_row, last_row + 1)
+            for col in range(first_col, last_col + 1)}
+
+
+def _inside(box: tuple[float, float, float, float], at: tuple[float, float]) -> bool:
+    return (box[0] <= at[0] <= box[0] + box[2]
+            and box[1] <= at[1] <= box[1] + box[3])
+
+
+def _intersect(one: tuple[float, float, float, float],
+               two: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
+    """The overlap of two boxes, which `as_box` refuses when there is none."""
+    left, top = max(one[0], two[0]), max(one[1], two[1])
+    right = min(one[0] + one[2], two[0] + two[2])
+    bottom = min(one[1] + one[3], two[1] + two[3])
+    return left, top, right - left, bottom - top
+
+
+def element_kind(element: dict) -> str:
+    """The element's kind, restricted to `ELEMENT_KINDS`.
+
+    A free-text field would work everywhere except the one place it is read - the choice
+    of how to measure the box - so anything unrecognised becomes "other" and is measured
+    the ordinary way rather than silently taking the animation path."""
+    kind = str(element.get("kind", "")).strip().lower()
+    return kind if kind in ELEMENT_KINDS else "other"
 
 
 def point_key(at: tuple[float, float]) -> str:
@@ -667,6 +841,9 @@ class Recon:
         # Calls spent asking about escalated probes, per screen. In memory only - see
         # `ESCALATION_ASKS`.
         self.escalation_asks: dict[str, int] = defaultdict(int)
+        # Attempts spent measuring where a screen's elements are - see `ELEMENT_LOCATES`.
+        # In memory only for the same reason, and with the same shape.
+        self.locates: dict[str, int] = defaultdict(int)
         self.actions_at_recovery = -1
         self.screen_match = controller.target.screen_match
         self.cell_delta = controller.target.cell_delta
@@ -1082,6 +1259,234 @@ class Recon:
         learned = self.boxes.get(shot_name(screen.id, action))
         return tuple(learned) if learned else None      # type: ignore[return-value]
 
+    # -- one control's own rectangle ----------------------------------------
+
+    def patch_samples(self, region: tuple[float, float, float, float]) -> int:
+        """The `longest` to ask `capture` for, so both of `region`'s sides are measurable.
+
+        `capture` scales to a longest side, which is the right rule for a picture and the
+        wrong one for a measurement: a trim counts ink along rows *and* columns, so a wide
+        short strip asked for at `ELEMENT_SAMPLES` comes back a few pixels tall and has no
+        rows to find a top edge in. The window's own shape is part of the sum - a region
+        that is square in fractions is nowhere near square in pixels on a portrait phone
+        window - so this reads the client rather than the fractions."""
+        _, _, width, height = self.controller.last_good_rect
+        wide, high = max(1.0, width * region[2]), max(1.0, height * region[3])
+        aspect = max(wide, high) / min(wide, high)
+        return int(min(ELEMENT_SAMPLES_MAX,
+                       max(ELEMENT_SAMPLES, ELEMENT_THIN * aspect)))
+
+    def snap_box(self, hint: tuple[float, float, float, float]) -> tuple[tuple, str]:
+        """Trim a box the model drew to where the pixels put the control's edges.
+
+        Returns the box and a sentence about it, empty when the trim was ordinary. The
+        sentence is the reason this is not a silent improvement: three things can go wrong
+        and each of them is a finding about the screen rather than a failure to handle.
+
+        - **Nothing in the patch differs from its own background.** The box is on flat
+          panel, so either the model put it in the wrong place or the control it named is
+          not drawn right now. The hint is kept and said out loud.
+        - **The content runs off a side of the padded patch.** Whatever is in there
+          continues past the margin, so *that side* was not measured, and the hint's own
+          edge is kept there. Handled per edge rather than per box or per axis, because the
+          common case is one edge: a button in a column of identical buttons has its
+          neighbour inside the margin, and a trim that took the neighbour's far edge would
+          report one control where there are two. Only when all four sides run off is
+          nothing measured, and then the hint is kept whole and said out loud.
+        - **The trimmed box is under `ELEMENT_SHRINK` of the area described.** The trim found
+          a detail inside the element - a label, a highlighted row - and not its edges.
+        - **The trimmed centre moved further than `ELEMENT_DRIFT`.** The trim locked on to
+          a neighbour or a panel edge. The hint is kept, for the reason on that constant.
+
+        Read off the live window, so it is only meaningful while the screen it belongs to
+        is the one on display - which is `locate_elements`' job to establish, not this
+        method's.
+
+        Returns `(box, why, kept)`, where `kept` names the sides the trim could not measure
+        and left as described. Empty on an ordinary trim, and worth carrying rather than
+        discarding: a box measured on three sides is better than the hint and is not the
+        same claim as one measured on four."""
+        padded = pad_box(hint, ELEMENT_PAD, ELEMENT_PAD_MAX)
+        try:
+            pixels, width, height = self.controller.capture(padded,
+                                                           self.patch_samples(padded))
+        except Exception as error:                      # noqa: BLE001
+            return hint, f"could not read the pixels around it ({error})", ()
+        found = content_box(pixels, width, height)
+        if found is None:
+            return hint, ("nothing inside it differs from the background around it, so "
+                          "either it is somewhere else or it is not drawn on this frame"), ()
+        left, top, right, bottom = found
+        # Per edge. An edge of the content sitting on an edge of the patch means the content
+        # continues out of frame, so nothing was measured on that side and the hint's own
+        # edge is kept - not the patch's, which is the hint grown by the margin and a box
+        # measurably worse than the one it replaced. `found` is half-open, hence `>=`.
+        open_sides = {"left": left <= 0, "top": top <= 0,
+                      "right": right >= width, "bottom": bottom >= height}
+        x0 = hint[0] if open_sides["left"] else padded[0] + padded[2] * left / width
+        x1 = (hint[0] + hint[2] if open_sides["right"]
+              else padded[0] + padded[2] * right / width)
+        y0 = hint[1] if open_sides["top"] else padded[1] + padded[3] * top / height
+        y1 = (hint[1] + hint[3] if open_sides["bottom"]
+              else padded[1] + padded[3] * bottom / height)
+        kept = tuple(side for side, out in open_sides.items() if out)
+        if len(kept) == 4:
+            return hint, ("its contents reach every edge of the margin around it - "
+                          "either it is drawn on the game's own artwork rather than on a "
+                          "plain background, or it is bigger than that margin - so its "
+                          "own edges were not measured"), kept
+        snapped = as_box((x0, y0, x1 - x0, y1 - y0))
+        if snapped is None:
+            return hint, (f"the pixels in it trim to {x1 - x0:.3f}x{y1 - y0:.3f} of the "
+                          f"window, which is too thin or too large to be one control"), kept
+        shrunk = (snapped[2] * snapped[3]) / (hint[2] * hint[3])
+        if shrunk < ELEMENT_SHRINK:
+            return hint, (f"the pixels in it trim to {shrunk:.0%} of the area described, so "
+                          f"the trim found something inside it rather than the thing "
+                          f"itself"), kept
+        drifted = max(abs(box_centre(snapped)[0] - box_centre(hint)[0]) / hint[2],
+                      abs(box_centre(snapped)[1] - box_centre(hint)[1]) / hint[3])
+        if drifted > ELEMENT_DRIFT:
+            return hint, (f"the pixels in it trim to a rectangle whose centre is "
+                          f"{drifted:.1f} of its own size away, so the trim found "
+                          f"something other than what was described"), kept
+        return snapped, "", kept
+
+    def locate_elements(self, screen: Screen, variant: Variant) -> None:
+        """Give every element the vetting call named a rectangle, a point and a picture.
+
+        This is what turns "there is a Battle button on this screen, around (0.5, 0.78)"
+        into a rectangle measured off the window, a tap point at the middle of it, and a
+        close-up of that rectangle alone. All three are worth having for different reasons:
+        the rectangle is how a later pass or a wiki refers to the control without
+        re-deriving it, the point is what a click is aimed at, and the picture is the only
+        evidence anyone can check the other two against.
+
+        Ordered by how much is measured, and every step down is recorded on the element as
+        `located`, so nothing in the map claims more precision than it has:
+
+        - `trimmed` - the model drew a box and the pixels inside it found its edges.
+        - `trimmed except left`, and the other three sides - the same, on every side but
+          those, where the thing inside the box ran off the margin and the model's own edge
+          was kept. Named rather than folded into `trimmed`, because which side is unmeasured
+          is exactly what a reader checking a crop against a screenshot needs to know.
+        - `measured movement` - an animation, whose extent comes from `Screen.animated`
+          rather than from a trim. See `ELEMENT_KINDS` on why trimming it would be wrong.
+        - `described` - the box is the model's, unchanged, because the trim reported one of
+          the three things in `snap_box` and the note says which.
+        - `a point` - there was no box, only a coordinate, grown to `ELEMENT_DEFAULT`
+          before the trim. Common on a first pass and not a problem: the trim usually
+          rescues it, and the note says when it did not.
+
+        Guarded on the live frame still being this appearance, because every measurement
+        below reads the window rather than the saved image. A screen that has moved on
+        gets nothing written to it at all - a rectangle measured off the next screen would
+        be wrong in the one way nothing downstream could detect - and is retried on a later
+        occurrence, up to `ELEMENT_LOCATES`.
+
+        The guard counts only cells that are *not* already known to move: `Screen.animated`
+        and `Variant.animated` for what moves with nothing in flight, and `Screen.volatile`
+        for what changed while this was still the same place. Counting them all would make
+        this refuse on any live game - measured on Clash Royale, an idle main screen sits 21
+        of 576 cells from its own stored appearance because a coin counter went from 113 to
+        1 063, against a tolerance of 15 - and every element would come back `described` on
+        a screen whose buttons had not moved at all. This is the same subtraction
+        `_touch_variant` makes to decide whether an appearance is new, for the same reason:
+        a counter ticking is content, not layout."""
+        elements = (screen.vetting or {}).get("elements", [])
+        pending = [e for e in elements if not e.get("located")]
+        if not pending or self.locates[screen.id] >= ELEMENT_LOCATES:
+            return
+        self.locates[screen.id] += 1
+        drifted = (diff_cells(fingerprint(self.controller), variant.fp, self.cell_delta)
+                   - screen.animated - variant.animated - screen.volatile)
+        if len(drifted) > (1.0 - self.screen_match) * NCELLS:
+            self.controller.note(
+                f"{screen.id}: not measuring where its {len(pending)} elements are - the "
+                f"window has moved {len(drifted)} of {NCELLS} cells away from {variant.id} "
+                f"since it was vetted, beyond what is known to move on it, and a rectangle "
+                f"read off a different frame would be wrong with nothing to show it")
+            return
+
+        animated = cell_box(screen.animated) if screen.animated else None
+        for index, element in enumerate(elements, start=1):
+            if element.get("located"):
+                continue
+            label = element.get("label") or "an unnamed element"
+            kind = element_kind(element)
+            hint = as_box(element.get("box"))
+            at = element.get("at")
+            if hint is None and not is_fraction(at):
+                self.controller.note(
+                    f"{screen.id}: cannot place {label!r} - the vetting call gave it "
+                    f"neither a usable box ({element.get('box')!r}) nor a point inside "
+                    f"the window ({at!r}), so there is nothing to crop or to tap")
+                element["located"] = "nowhere"
+                continue
+            source = "described"
+            if hint is None:
+                hint = box_around((float(at[0]), float(at[1])), ELEMENT_DEFAULT)
+                source = "a point"
+            if kind == "animation":
+                box, why, source = self._animation_box(hint, animated)
+            else:
+                box, why, kept = self.snap_box(hint)
+                if not why:
+                    source = ("trimmed" if not kept
+                              else "trimmed except " + " and ".join(sorted(kept)))
+            # On the element rather than in `controller.notes`, which is the report's
+            # "what went wrong" list. A box that could not be trimmed does not belong
+            # there: an element sitting on the game's own painted background is the normal
+            # case on a screen that is a painting, the description of it is still usable,
+            # and it is only *not a measurement*. So the sentence is filed beside the box
+            # and the crop, where a reader is already looking, in the same words - and
+            # cleared when a later occurrence does manage to measure it.
+            if why:
+                element["placed_why"] = why
+            else:
+                element.pop("placed_why", None)
+            element["kind"] = kind
+            element["box"] = [round(v, 4) for v in box]
+            element["located"] = source
+            # Overwritten, and this is the point of the whole exercise: what a click is
+            # aimed at becomes the middle of a measured rectangle instead of a coordinate
+            # somebody eyeballed off a picture scaled to 1400px. Where the model's own
+            # point disagrees with its own box, the box wins and the point is kept beside
+            # it, because the two disagreeing is a thing a reader should be able to see.
+            if is_fraction(at) and not _inside(box, (float(at[0]), float(at[1]))):
+                element["described_at"] = [round(float(at[0]), 4), round(float(at[1]), 4)]
+            element["at"] = [round(v, 4) for v in box_centre(box)]
+            element["image"] = self._crop(f"{screen.id}-el{index:02d}.png", box)
+        tally: dict[str, int] = defaultdict(int)
+        for element in pending:
+            tally[element.get("located") or "nowhere"] += 1
+        log(f"  placed {len(pending)} elements on {screen.id}: "
+            + ", ".join(f"{count} {how}" for how, count in sorted(tally.items())))
+
+    @staticmethod
+    def _animation_box(hint: tuple[float, float, float, float],
+                       animated: tuple | None) -> tuple[tuple, str, str]:
+        """Where a moving region is, from the cells measured to move rather than from a trim.
+
+        The intersection of the two, not one or the other. `Screen.animated` is every cell
+        that moved with nothing in flight, so on a screen with a spinner *and* a waving
+        mascot it covers both and its box covers the gap between them; the hint is which of
+        them the model meant. Where they do not overlap at all, the claim and the
+        measurement disagree and that is worth a sentence: an element called an animation in
+        a place where nothing was seen to move is either a still, or movement slower than
+        the three frames `map_animation` sampled."""
+        if animated is None:
+            return hint, ("it is described as animated, but this screen was measured with "
+                          "nothing in flight and no cell of it moved"), "described"
+        overlap = as_box(_intersect(hint, animated))
+        if overlap is None:
+            return hint, (f"it is described as animated, and the cells this screen was "
+                          f"measured to move are elsewhere - around "
+                          f"({box_centre(animated)[0]:.2f}, {box_centre(animated)[1]:.2f}), "
+                          f"not ({box_centre(hint)[0]:.2f}, {box_centre(hint)[1]:.2f})"), \
+                "described"
+        return overlap, "", "measured movement"
+
     def _film_resting(self, screen: Screen) -> None:
         """Photograph every reacting control with the cursor off it.
 
@@ -1353,6 +1758,29 @@ class Recon:
                 return True
         return False
 
+    def pending_actions(self, screen: Screen, variant: Variant) -> Iterator[Action]:
+        """Every untried permitted action here, in the order `next_action` takes them.
+
+        Split out of `next_action` so a pass can say what it is about to do *and* what
+        follows it. One action at a time reads as a series of surprises; the same action
+        with the next one beside it reads as a queue being worked through, which is what
+        it is. Sharing the ordering by construction, rather than by two functions agreeing
+        to sort the same way.
+
+        Side-effect free, for the reason `next_action` gives below."""
+        for action in self.screen_actions(screen):
+            if action.id not in screen.tried and self.permitted(screen, variant, action)[0]:
+                yield action
+        for action in self.variant_actions():
+            if action.id not in variant.tried and self.permitted(screen, variant, action)[0]:
+                yield action
+        if self.nav_spent(screen) < NAV_BUDGET and any(
+                v is not variant and self.variant_has_work(screen, v)
+                for v in screen.variants.values()):
+            navigator = self.navigator(screen)
+            if navigator is not None:
+                yield navigator
+
     def next_action(self, screen: Screen, variant: Variant) -> Action | None:
         """An untried permitted action, cheapest and most reversible first.
 
@@ -1371,17 +1799,25 @@ class Recon:
         Deliberately free of side effects: the frontier search calls this on every
         screen it walks past, and a version that marked actions tried while looking
         at them would consume the very frontier it was searching for."""
-        for action in self.screen_actions(screen):
-            if action.id not in screen.tried and self.permitted(screen, variant, action)[0]:
-                return action
-        for action in self.variant_actions():
-            if action.id not in variant.tried and self.permitted(screen, variant, action)[0]:
-                return action
-        if self.nav_spent(screen) < NAV_BUDGET and any(
-                v is not variant and self.variant_has_work(screen, v)
-                for v in screen.variants.values()):
-            return self.navigator(screen)
-        return None
+        return next(self.pending_actions(screen, variant), None)
+
+    def aimed_at(self, screen: Screen, action: Action) -> str:
+        """The vetted element this action is aimed at, named, or "" for none.
+
+        For the running commentary, so a watched pass says "the Damage stat" and not only a
+        pair of coordinates - the whole reason a reader is watching is to know what is
+        about to be touched. Matched on `point_key`, the same rounding `Action.id` uses, so
+        a click minted from an element's centre finds that element; a blind probe that
+        happens to land on the same point is named the same way, which is correct - the
+        line is about where the input goes, not about where it came from."""
+        if action.at is None or screen.vetting is None:
+            return ""
+        wanted = point_key(action.at)
+        for element in screen.vetting.get("elements", []):
+            at = element.get("at")
+            if is_fraction(at) and point_key((float(at[0]), float(at[1]))) == wanted:
+                return element.get("label") or ""
+        return ""
 
     def nav_spent(self, screen: Screen) -> int:
         """How many navigation presses this screen has absorbed, all keys together.
@@ -1536,6 +1972,22 @@ class Recon:
             setattr(screen, "scrolls" if action.kind == "scroll" else "drags", True)
 
         self.standing = after_screen.id
+        # Every occurrence, and including the ones that changed nothing, because the pass
+        # has just announced this action and a reader is owed a result under it. "Nothing
+        # visible changed" is a finding rather than the absence of one: seven of the twelve
+        # actions in the 3-minute Clash Royale pass were exactly that, and they are what
+        # says a stat panel is a stat panel and not a menu. The old line printed only for
+        # new, effective transitions, so most of a quiet screen's work was silent.
+        #
+        # Hovers excepted, and they are the only exception: they arrive forty at a time from
+        # `map_hover`, they are free and commit to nothing, and `announce` never sees them.
+        # A result line with no announced action above it reads as input nobody asked for,
+        # which is the confusion this whole commentary exists to remove. The sweep prints
+        # its own one-line summary instead.
+        if action.kind != "hover":
+            log(f"      -> {EFFECT_WORDS[kind]}"
+                + (f", now on {after_screen.id}" if kind == "screen" else "")
+                + f", {changed} cells, {settle_ms}ms")
         key = f"{screen.id}|{action.id}|{kind}|{after_screen.id}"
         pictures = {slot: path for slot, path in (crops or {}).items() if path}
         existing = self.transitions.get(key)
@@ -1555,9 +2007,6 @@ class Recon:
             to_variant=after_variant.id, changed=changed, settle_ms=settle_ms,
             first_seen=self.actions_taken, crops=pictures, crop_box=list(box or ()))
         self.transitions[key] = transition
-        if kind != "none":
-            log(f"    {action.describe()} -> {kind} "
-                f"({screen.id} -> {after_screen.id}, {changed} cells, {settle_ms}ms)")
         return transition, is_new
 
     def look(self) -> tuple[Screen, Variant, bytes]:
@@ -1798,14 +2247,24 @@ class Recon:
             # to, or the action gets recorded against the place it was mistaken for.
             screen = self.vet(screen, variant)
 
+        # After vetting and before anything reads a candidate's coordinates, because this
+        # is what those coordinates *are*: it replaces every element's eyeballed point with
+        # the middle of a rectangle measured off the window. A step that aimed first and
+        # measured afterwards would spend the accurate coordinate on the following step and
+        # send this one at the guess.
+        if screen.vetting is not None:
+            self.locate_elements(screen, variant)
+
         # Before pruning, not after: pruning is what retires a candidate with no verdict,
         # and the escalated probes are the only candidates that can be minted after the
         # vetting call that would have covered them.
         self.ask_about_escalated(screen, variant)
         self.prune_blocked(screen, variant)
-        action = self.next_action(screen, variant) or self.route_to_frontier(screen)
+        queued = list(islice(self.pending_actions(screen, variant), 2))
+        action = queued[0] if queued else self.route_to_frontier(screen)
         if action is None:
             return "exhausted"
+        self.announce(screen, action, queued[1:] if queued else None)
 
         transition, found_something, _ = self.take(screen, variant, before_fp, action)
 
@@ -1842,6 +2301,29 @@ class Recon:
                     log(f"    {action.key} on {screen.id} capped at {NAV_REPEAT} presses "
                         f"while still finding new appearances; moving on")
         return "ok"
+
+    def announce(self, screen: Screen, action: Action,
+                 after: list[Action] | None) -> None:
+        """Say what is about to be sent, and what is queued behind it.
+
+        Printed *before* the input goes out. A line that appears only once the click has
+        landed is a receipt, and the reason somebody watches a pass against a live account
+        is to see what it is about to do while there is still time to stop it. It is also
+        the only order under which an action that hangs or kills the window prints at all -
+        which is the case a reader most needs named.
+
+        `after` is the rest of this screen's queue, or None when the action came from
+        `route_to_frontier` and so is travel rather than a test of this screen."""
+        label = self.aimed_at(screen, action)
+        if after is None:
+            following = "on the way to a screen with untried actions"
+        elif after:
+            following = f"next {after[0].describe()}"
+        else:
+            following = "last one queued here"
+        log(f"  [{self.actions_taken + 1}] {screen.id}: {action.describe()}"
+            + (f" - {label}" if label else "")
+            + f"   ({following})")
 
     def wants_vetting(self, screen: Screen, variant: Variant) -> bool:
         """Whether this appearance is worth a vetting call.
@@ -2420,6 +2902,59 @@ EFFECT_WORDS = {
 }
 
 
+def _element_place(element: dict) -> str:
+    """Where an element is, for the report line that names it.
+
+    The picture inline, because a rectangle is the one claim in this file a reader can check
+    in a glance, and only if the crop is next to the numbers. `located` is quoted rather
+    than translated: "described" next to a box is the report saying *this one was not
+    measured*, and softening that is how a guess starts reading as a measurement."""
+    box = as_box(element.get("box"))
+    if box is None:
+        at = element.get("at")
+        return f" - around ({at[0]:.3f}, {at[1]:.3f})" if is_fraction(at) else " - unplaced"
+    x, y = box_centre(box)
+    where = (f" - **({x:.3f}, {y:.3f})**, in `[{box[0]:.3f}, {box[1]:.3f}, "
+             f"{box[2]:.3f}, {box[3]:.3f}]` ({element.get('located', 'described')})")
+    if element.get("placed_why"):
+        where += f", because {element['placed_why']}"
+    described = element.get("described_at")
+    if described:
+        where += (f", though the call that named it put it at "
+                  f"({described[0]:.3f}, {described[1]:.3f}), outside that box")
+    if element.get("image"):
+        where += f" ![{element.get('label', '?')}]({element['image']})"
+    return where
+
+
+def _same_name_warnings(screens: list[dict]) -> list[str]:
+    """Pairs of screens the model gave the same name to - a free finding, derived.
+
+    The session already spends model calls on the opposite question: `vet` splits a screen
+    off when a new appearance is named something the incumbent's name disagrees with. It
+    never asks whether two *separate* screens ended up with the same name, and that is the
+    more likely error of the two, because it needs no disagreement to happen - just two
+    calls, minutes apart, describing similar screens from one image each.
+
+    Nothing is merged on the strength of it. Two screens can honestly share a name (a game
+    with two social tabs), and a name is a description while the geometry is a measurement,
+    so the measurement wins. What this does is put the pair in front of a reader, which is
+    the whole job of the report. Measured on Clash Royale: sc04 and sc06 were both called a
+    "Social screen" and sc02 and sc07 both named a deck - four of eight screens, in a pass
+    where nothing in the output said so."""
+    named = [(s["id"], s.get("name") or "") for s in screens]
+    pairs = [(a, an, b, bn) for i, (a, an) in enumerate(named)
+             for (b, bn) in named[i + 1:] if an and bn and names_agree(an, bn)]
+    if not pairs:
+        return []
+    lines = ["## Screens the model named the same thing\n",
+             "Kept separate - geometry is a measurement and a name is a description - but "
+             "worth a look: either two of these are one place the pixel test failed to "
+             "merge, or the names need to be more specific before they reach a wiki.\n"]
+    lines += [f"- **{a}** {an!r} and **{b}** {bn!r}" for a, an, b, bn in pairs]
+    return lines + [""]
+
+
 def write_report(data: dict, out: Path) -> Path:
     """A Markdown view of the same JSON, with the images inline.
 
@@ -2445,6 +2980,7 @@ def write_report(data: dict, out: Path) -> Path:
     if session["notes"]:
         lines.append("## What went wrong\n")
         lines += [f"- {note}" for note in session["notes"]] + [""]
+    lines += _same_name_warnings(data["screens"])
 
     outgoing: dict[str, list[dict]] = {}
     for transition in data["transitions"]:
@@ -2476,7 +3012,8 @@ def write_report(data: dict, out: Path) -> Path:
                                   for n, shot in enumerate(screen["animation"])) + "\n")
 
         for element in screen["elements"]:
-            lines.append(f"- **{element.get('label', '?')}** - {element.get('what', '')}")
+            lines.append(f"- **{element.get('label', '?')}** - {element.get('what', '')}"
+                         + _element_place(element))
             for modality, effect in (element.get("behaviour") or {}).items():
                 evidence = effect.get("evidence") or []
                 mark = f" `[{', '.join(evidence)}]`" if evidence else " *(hypothesis)*"

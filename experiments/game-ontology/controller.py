@@ -1570,6 +1570,90 @@ def changed_cells(before: bytes, after: bytes, threshold: int) -> int:
     return count
 
 
+# --- finding the edges of one control ---------------------------------------
+#
+# Everything above this line measures *change*: two frames compared, and the cells that
+# differ. That answers "did something happen here" and it cannot answer "how big is this
+# button", because a button that is not being pressed does not change and a button that
+# is changes only where its highlight fell.
+#
+# So this reads a single frame, and the only thing it knows is that a control sits on a
+# background: a plate, a bar, a panel, whatever the game draws behind it. Given a patch
+# with some margin around the control, the margin is the background, and the control is
+# whatever in the patch is not that colour. That is a weak assumption stated plainly
+# rather than a strong one hidden - it holds for a button on a panel and a line of text on
+# a plate, and it fails for a control drawn in its own background colour or one flush
+# against a neighbour of the same shade. Both failures are detectable from the result
+# (nothing found, or content edge to edge), and the caller reports them rather than
+# quietly shipping a rectangle nobody measured.
+
+INK_DELTA = 18           # per-channel-mean distance from the background that counts as
+                         # part of the control. Below a dozen this picks up JPEG-ish
+                         # gradient noise in a panel; far above it, dark text on a dark
+                         # plate stops registering. Measured on this game's own crops:
+                         # its button plates sit 40-90 from their panels.
+INK_FRACTION = 0.06      # of a row's length, before that row counts as containing the
+                         # control. Not one pixel: an antialiased edge, a drop shadow or
+                         # a single stray highlight would otherwise set the bound, and
+                         # the bound is what a tap is aimed at.
+
+
+def background_colour(bgra: bytes, width: int, height: int) -> tuple[int, int, int]:
+    """The commonest colour in the outermost ring of a patch, as BGR to 16 levels.
+
+    The ring rather than the whole patch, because the middle of the patch is meant to be
+    the thing being measured. The mode rather than the mean, because the mean of a button
+    on a gradient is a colour that appears nowhere in the picture and sits about equally
+    far from both."""
+    tally: dict[tuple[int, int, int], int] = {}
+    ring = [(x, y) for x in range(width) for y in (0, height - 1)]
+    ring += [(x, y) for y in range(1, height - 1) for x in (0, width - 1)]
+    for x, y in ring:
+        i = (y * width + x) * 4
+        key = (bgra[i] // 16, bgra[i + 1] // 16, bgra[i + 2] // 16)
+        tally[key] = tally.get(key, 0) + 1
+    b, g, r = max(tally, key=lambda k: tally[k])
+    return b * 16 + 8, g * 16 + 8, r * 16 + 8
+
+
+def _span(counts: list[int], least: int) -> tuple[int, int] | None:
+    """First and last index whose count reaches `least`, as a half-open span."""
+    hits = [i for i, n in enumerate(counts) if n >= least]
+    return (hits[0], hits[-1] + 1) if hits else None
+
+
+def content_box(bgra: bytes, width: int, height: int, delta: int = INK_DELTA,
+                fraction: float = INK_FRACTION) -> tuple[int, int, int, int] | None:
+    """The bounding box of whatever is not the background, in pixels of this patch.
+
+    Half-open, `(left, top, right, bottom)`. `None` when the patch is uniform enough that
+    no row and no column reaches the ink threshold - which is not an error but the
+    measurement "there is no control here", and is how a box aimed at empty panel is told
+    apart from one aimed at a button.
+
+    A span that runs the full width or the full height of the patch is returned as such,
+    and it means the opposite: the thing overflows the patch, so the patch was too small
+    to have measured its edge. Only the caller knows how much margin it asked for, so only
+    the caller can tell those apart - see `Recon.snap_box`."""
+    if width < 3 or height < 3:
+        return None
+    b, g, r = background_colour(bgra, width, height)
+    rows, cols = [0] * height, [0] * width
+    for y in range(height):
+        base = y * width * 4
+        for x in range(width):
+            i = base + x * 4
+            if (abs(bgra[i] - b) + abs(bgra[i + 1] - g)
+                    + abs(bgra[i + 2] - r)) // 3 > delta:
+                rows[y] += 1
+                cols[x] += 1
+    vertical = _span(rows, max(1, int(fraction * width)))
+    horizontal = _span(cols, max(1, int(fraction * height)))
+    if vertical is None or horizontal is None:
+        return None
+    return horizontal[0], vertical[0], horizontal[1], vertical[1]
+
+
 if __name__ == "__main__":
     # Smoke test with no game knowledge and no exploration: can this thing take
     # ownership of a window, read it, and put it back?

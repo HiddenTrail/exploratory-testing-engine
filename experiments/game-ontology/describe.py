@@ -55,10 +55,19 @@ from controller import MODIFIERS, MOUSE_BUTTONS, is_fraction, readable_output  #
 # close-ups of an action go in. Imported rather than repeated, so a fourth slot cannot be
 # filmed and then quietly not shown. Safe as a top-level import because `recon` only ever
 # reaches for this module inside a function.
-from recon import CROP_SLOTS  # noqa: E402
+from recon import CROP_SLOTS, as_box  # noqa: E402
 from target import SAFETY_BRIEF  # noqa: E402
 
-VET_MAX_TOKENS = 1500
+# Sized by the longest candidate list a session actually offers, not by how long one
+# verdict is. A vetting call has to return a ruling *and* a written reason for every
+# action on the screen, so the reply grows with the repertoire: a touch profile offering
+# four swipes, two wheel probes and a twelve-point border sweep asks for twenty-one
+# justifications in one reply. At 1500 this truncated, and truncation does not look like
+# truncation from the validator's side - it arrives as "no verdict for: <the tail of the
+# list>", which reads as a model that ignored the instruction and earns three identical
+# retries. A ceiling is only spent if the reply reaches it, so the cost of the headroom
+# is nothing on the screens that never needed it.
+VET_MAX_TOKENS = 4000
 ANNOTATE_MAX_TOKENS = 6000
 
 VET_SYSTEM = f"""\
@@ -108,6 +117,22 @@ resolution, cropped to cells that were measured to change. A pair labelled `at r
 `with the cursor on it` is one control photographed twice, and the difference between
 them is the only direct evidence anyone has about what that point does. The full-window
 image is scaled down, so where it and a close-up disagree, the close-up is right.
+
+For every element you list, give a `box` - the rectangle it occupies - and a `kind`, as
+well as its point. The box matters more than the point, because everything downstream is
+derived from it: the harness trims your box to the element's real edges by reading the
+pixels inside it, then aims at the middle of what it measured and photographs that
+rectangle on its own. So a rough box that contains the right control with a little room
+to spare is exactly what is wanted, and a tight box is worse than a loose one - a box cut
+inside the control's own edges has nothing but the control in it, and the trim has no
+background to measure the edges against.
+
+Two things follow that are worth being deliberate about. Give a box to text as well as to
+buttons: a name, a count, a timer or a level number is a slot whose content changes while
+the slot stays put, and its rectangle is how anything later reads that number. And mark a
+region as `animation` only where you can see it is moving on its own - that box is
+measured against the cells this screen was separately observed to move, and a still
+labelled as animated makes the two disagree for no reason.
 """
 
 ANNOTATE_SYSTEM = """\
@@ -147,9 +172,44 @@ Rules on evidence, which are enforced and will cause your call to be rejected:
   paper over. An input that does nothing when clicked but works from the keyboard is
   exactly the kind of thing this ontology exists to record.
 
+Every element needs a `box` - the rectangle it occupies - and a `kind` as well as a point.
+You may be handed a table of boxes the exploration pass already measured off the live
+window. Those are better than anything you can derive from these images, which are scaled
+down: where you recognise an element in that table, copy its box back unchanged. Draw your
+own only for elements the table does not have, or where it says the box was `described`
+rather than `trimmed`, which means it was never measured and is only a guess.
+
 Write the description of the screen as context: where it sits relative to other
 screens, what it is for, and how you get in and out of it.
 """
+
+# Shared by both schemas, because the two are asked for the same thing and a rectangle
+# defined twice is a rectangle defined two ways. Deliberately asked for as a rough box
+# rather than a precise one: the harness trims what comes back to the actual edges of
+# whatever is inside it (`recon.snap_box`), so an approximate rectangle around the right
+# control is worth far more here than a careful one, and a model told to be careful about
+# pixels in a picture scaled to 1400px is being asked for precision it does not have.
+BOX_FIELD = {
+    "type": "array", "items": {"type": "number"},
+    "description": "The rectangle this element occupies, as fractions of the window: "
+                   "[x, y, width, height], where x and y are its top-left corner. So "
+                   "[0.4, 0.7, 0.2, 0.08] is a button a fifth of the window wide, sitting "
+                   "just below the middle. Roughly is fine - a box that contains the "
+                   "element with a little room to spare is exactly right, and it will be "
+                   "trimmed to the element's real edges by measurement. Never pixels. Omit "
+                   "it if you cannot see where the element begins and ends.",
+}
+KIND_FIELD = {
+    "type": "string",
+    "enum": ["button", "text", "icon", "animation", "meter", "panel", "other"],
+    "description": "What sort of thing it is, which decides how its rectangle is "
+                   "measured. 'button' for anything meant to be pressed; 'text' for a "
+                   "label, a name, a count or a timer - a slot whose content changes "
+                   "without the slot moving; 'icon' for a small picture that identifies "
+                   "something; 'animation' for a region that is moving on its own, with "
+                   "nothing being pressed; 'meter' for a bar, gauge or progress track; "
+                   "'panel' for a container that holds other elements.",
+}
 
 VET_TOOL = {
     "name": "vet_screen",
@@ -171,6 +231,8 @@ VET_TOOL = {
                         "what": {"type": "string"},
                         "at": {"type": "array", "items": {"type": "number"},
                                "description": "Fractional [x, y] of the client area, if locatable."},
+                        "box": BOX_FIELD,
+                        "kind": KIND_FIELD,
                     },
                     "required": ["label", "what"],
                 },
@@ -217,6 +279,8 @@ ANNOTATE_TOOL = {
                                "Where it is, as fractions of the window: [x, y] with both "
                                "between 0.0 and 1.0, so [0.5, 0.5] is the centre. Never "
                                "pixels. Omit it if you cannot place the element."},
+                        "box": BOX_FIELD,
+                        "kind": KIND_FIELD,
                         "behaviour": {
                             "type": "array",
                             "items": {
@@ -601,12 +665,69 @@ def _evidence_text(screen: dict, transitions: list[dict], screens: list[dict]) -
         lines.append(f"- {t['id']}: {t['action']['id']} => {EFFECTS[t['effect']]}"
                      f"{destination}; {t['changed_cells']} of 576 grid cells changed, "
                      f"settled in {t['settle_ms']}ms, taken {t['times_taken']}x")
+    lines += _element_lines(screen)
     return "\n".join(lines)
 
 
 ANNOTATE_CROPS = 8       # close-ups one screen's description may carry, on top of its
                          # appearances. The cap is the image budget; the ordering below is
                          # what makes the cap cheap to live with
+ANNOTATE_ELEMENTS = 10   # of those close-ups that may be pictures of one control rather
+                         # than of one transition. Separate budget because they answer a
+                         # different question - "what does this say" rather than "what did
+                         # this do" - and a screen with thirty labels on it would otherwise
+                         # crowd out every transition
+
+
+def _element_lines(screen: dict) -> list[str]:
+    """The rectangles the exploration pass measured, as a table to be reused rather than
+    redrawn.
+
+    This pass sees only saved images, so it cannot measure anything: there is no window to
+    read. What it *can* do is not throw away what was measured. Every coordinate here came
+    off the live window through `recon.locate_elements`, which is strictly better than
+    anything derivable from a screenshot scaled to 1400px - so they are handed over with
+    their provenance attached, and the schema's instruction is to copy the box back
+    unchanged for any element it recognises.
+
+    `located` is the provenance and it is quoted rather than summarised. 'trimmed' is a
+    measurement; 'described' and 'a point' are the model's own earlier guess, which this
+    call is welcome to correct."""
+    placed = [e for e in screen.get("elements", []) if e.get("box")]
+    if not placed:
+        return []
+    lines = ["", "Elements a preliminary look found here, with the rectangle each was "
+                 "measured to occupy. `trimmed` means the box was cut to the element's "
+                 "own edges against the live window and is more accurate than this "
+                 "screenshot; `described` and `a point` mean it was not, and are worth "
+                 "correcting. Reuse a box you recognise exactly as written:"]
+    for element in placed:
+        x, y, w, h = element["box"]
+        lines.append(f"- {element.get('label', '?')!r} ({element.get('kind', 'other')}, "
+                     f"{element.get('located', 'described')}): box "
+                     f"[{x:.3f}, {y:.3f}, {w:.3f}, {h:.3f}], centre "
+                     f"({x + w / 2:.3f}, {y + h / 2:.3f})")
+    return lines
+
+
+def _element_blocks(out: Path, screen: dict) -> list[dict]:
+    """Close-ups of individual controls, smallest first.
+
+    Smallest first for the reason `_crop_blocks` gives: the whole-window pictures are
+    scaled, so the elements they render least legibly are the small ones, and those are
+    where a description is most likely to be invented. A crop of a 0.02-high text slot
+    arrives here at native resolution and is the only place its content can be read."""
+    placed = [e for e in screen.get("elements", [])
+              if e.get("image") and e.get("box") and (out / e["image"]).exists()]
+    blocks: list[dict] = []
+    for element in sorted(placed, key=lambda e: e["box"][2] * e["box"][3]):
+        if len(blocks) // 2 >= ANNOTATE_ELEMENTS:
+            break
+        blocks.append({"type": "text", "text":
+                       f"\n{element.get('label', '?')!r}, at full resolution, cropped to "
+                       f"the rectangle above it ({element.get('located', 'described')}):"})
+        blocks.append(image_block(out / element["image"]))
+    return blocks
 
 
 def _crop_blocks(out: Path, mine: list[dict]) -> list[dict]:
@@ -672,6 +793,7 @@ def annotate(out: Path, model: str | None = None, client=None, limit: int = 0) -
                                 f"\nFrame {shot.stem[-1]} of what this screen moves with no "
                                 f"input at all, cropped to the cells that move:"})
                 content.append(image_block(shot))
+        content += _element_blocks(out, screen)
         content += _crop_blocks(out, [t for t in data["transitions"]
                                       if t["from"] == screen["id"]])
         content.append({"type": "text", "text":
@@ -716,6 +838,16 @@ def annotate(out: Path, model: str | None = None, client=None, limit: int = 0) -
                                   f"which is not [x, y] with both between 0.0 and 1.0. "
                                   f"Those look like pixels; divide by the image's width "
                                   f"and height, or omit `at` if you cannot place it")
+                box = element.get("box")
+                if box is not None and as_box(box) is None:
+                    # Checked with the same function the harness aims by, not with a
+                    # lookalike, for the reason `is_fraction` gives: two copies of one rule
+                    # are two chances for the laxer copy to be the one in front of a click.
+                    errors.append(f"element {element.get('label', '?')!r} has box {box!r}, "
+                                  f"which is not [x, y, width, height] as fractions of the "
+                                  f"window - it has to be four numbers, width and height "
+                                  f"have to be positive, and it cannot cover half the "
+                                  f"window. Omit `box` if you cannot see where it ends")
                 for entry in element.get("behaviour", []):
                     if not isinstance(entry, dict):
                         errors.append(f"element {element.get('label', '?')!r} has behaviour "
