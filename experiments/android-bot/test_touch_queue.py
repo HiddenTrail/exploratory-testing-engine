@@ -30,23 +30,35 @@ from controller import Target  # noqa: E402
 from recon import Screen, Variant  # noqa: E402
 from target import DENYLISTS  # noqa: E402
 
-from touch import (AWAY, QUEUE_SIZE, REFILL_AT, REFILL_BATCH,  # noqa: E402
+from touch import (AWAY, HOME, QUEUE_SIZE, REFILL_AT, REFILL_BATCH,  # noqa: E402
                    REFILL_CALLS, TouchRecon, border_points)
 
 
 class FakeController:
     """Everything `Recon.__init__` and the policy methods read off a controller, and
-    nothing else. No window, no capture: the queue is decided from the map."""
+    nothing else. No window: the queue is decided from the map, and a capture is a flat
+    frame, which is all `recover_frontier` needs to compare one against another."""
 
     def __init__(self) -> None:
         self.target = Target(name="Clash Royale", exe="",
                              denylist=DENYLISTS["clashroyale"])
         self.notes: list[str] = []
+        self.clicks: list[tuple[float, float]] = []
 
     def note(self, message: str) -> None:
         self.notes.append(message)
 
     def say(self, message: str) -> None:
+        pass
+
+    def grab(self, cols: int, rows: int, region=(0.0, 0.0, 1.0, 1.0),
+             verify: bool = True) -> bytes:
+        return bytes(cols * rows * 4)
+
+    def click(self, x: float, y: float) -> None:
+        self.clicks.append((x, y))
+
+    def wait_stable(self) -> None:
         pass
 
 
@@ -490,3 +502,63 @@ def test_an_action_aimed_at_no_element_is_announced_without_inventing_a_name(tmp
 
     assert recon.aimed_at(screen, blind) == ""
     assert recon.aimed_at(screen, recon.next_action(screen, variant)) == "button 0"
+
+
+# --- the taps nobody ruled on -----------------------------------------------
+
+def standing_on(recon: TouchRecon, elements: list[dict]) -> Screen:
+    """A vetted screen, filed on the map, that the session is standing on right now.
+
+    `blind_tap_refused` reads `self.standing`, which `_record` sets after every action, so
+    a test that only built a screen would be checking the guard against no screen at all.
+    """
+    screen = screen_with(elements, vetted=True)
+    recon.screens[screen.id] = screen
+    recon.standing = screen.id
+    return screen
+
+
+def test_home_may_be_tapped_on_an_ordinary_screen(tmp_path):
+    """The guard has to stay out of the way of the thing it guards. Home is how this
+    session gets unstuck at all, and a check that refused it on a screen with nothing
+    dangerous on it would trade a recoverable pass for a stopped one."""
+    recon = session(tmp_path)
+    standing_on(recon, grid_elements(4))
+
+    assert recon.blind_tap_refused(HOME) == ""
+    assert all(recon.blind_tap_refused(p) == "" for p in AWAY)
+
+
+def test_a_purchase_button_under_home_stops_the_recovery(tmp_path):
+    """Home is the bottom centre of the window, which is where a phone layout puts a
+    modal's confirm button - a vetting call on this game's arena popup located OK at
+    exactly (0.50, 0.95). OK is harmless; "Buy for EUR 1.19" is in the same place on the
+    same layout, and home is the one input a pass sends with no verdict behind it. So the
+    money filter that `plan` applies to a candidate is applied here to a tap that never
+    was one, and a refusal ends the recovery rather than escalating past it."""
+    recon = session(tmp_path)
+    standing_on(recon, [{"label": "Buy for EUR 1.19", "what": "confirms the purchase",
+                         "box": [0.32, 0.90, 0.36, 0.09]}])
+    recon.actions_taken = 5                    # ... so the recovery is not already spent
+
+    assert recon.recover_frontier() is False
+    assert HOME not in recon.controller.clicks
+    refusal = [n for n in recon.controller.notes if "not tapping home" in n]
+    assert len(refusal) == 1
+    assert "Buy for EUR 1.19" in refusal[0] and "must not touch" in refusal[0]
+
+
+def test_the_away_taps_are_held_to_the_same_rule_as_home(tmp_path):
+    """Same reasoning, one rung earlier: an away-tap is aimed at the edge of the window to
+    dismiss a modal, and on a screen whose panel reaches the edge that is a control like
+    any other."""
+    recon = session(tmp_path)
+    standing_on(recon, [{"label": "gem bundle", "what": "opens the offer",
+                         "box": [0.0, 0.40, 0.30, 0.20]}])
+    recon.actions_taken = 5
+
+    refused = recon.blind_tap_refused(AWAY[0])
+
+    assert "gem bundle" in refused and AWAY[0][1] == 0.50
+    recon.recover_frontier()
+    assert AWAY[0] not in recon.controller.clicks

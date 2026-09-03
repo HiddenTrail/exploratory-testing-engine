@@ -51,7 +51,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "game-ontology"))
 from controller import changed_cells, is_fraction, log  # noqa: E402
 from recon import (Action, DRAG_DIRECTIONS, GRID_COLS, GRID_ROWS,  # noqa: E402
                    PROBE_AT, Recon, SCROLL_NOTCHES, Screen, Variant,
-                   as_box, box_centre, fingerprint, point_key, probe_drag)
+                   _inside, as_box, box_centre, fingerprint, point_key,
+                   probe_drag)
 
 # The centre of the bottom navigation pane: this game's home. Measured off a
 # photographed main screen, and clear of every denylist box - the Shop tab ends at
@@ -425,6 +426,42 @@ class TouchRecon(Recon):
         offered = {a.id for a in self.screen_actions(screen)}
         return any(a.id not in offered for a in self.plan(screen))
 
+    def blind_tap_refused(self, point: tuple[float, float]) -> str:
+        """Why an unvetted tap at `point` must not be sent, or "" if it may be.
+
+        The away-taps and the home tap in `recover_frontier` are the only inputs this
+        session sends that no vetting call ruled on - they are how it gets *unstuck*, so
+        by construction there is nobody to ask. That is fine for the coordinates
+        themselves, which were chosen off a photographed main screen. It is not fine for
+        what happens to be underneath them on the screen the session is stuck on: `HOME`
+        is the bottom centre of the window, which on a phone layout is also where a modal
+        puts its confirm button. The code comment below has said as much since it was
+        written - a vetting call located the arena popup's OK at exactly (0.50, 0.95) -
+        and on the battle-result screen home landed inside the OK button's own box.
+
+        OK is harmless. "Buy for €1.19" is in the same place on the same layout, and the
+        money filter that would refuse it as an element does not run on a tap that never
+        went through `plan`. So both floors are applied here too: the coordinate denylist,
+        and `costs_money` against the description of any vetted element whose rectangle
+        covers the point. A refusal ends the recovery rather than escalating past it -
+        a pass that stops beside something it must not press is the right outcome, and it
+        says which element stopped it.
+        """
+        why = self.controller.target.forbids(*point)
+        if why:
+            return f"it is inside a denylist box - {why}"
+        screen = self.screens.get(self.standing)
+        for element in ((screen.vetting or {}).get("elements", []) if screen else []):
+            box = as_box(element.get("box"))
+            if box is None or not _inside(box, point):
+                continue
+            word = costs_money(f"{element.get('label', '')} {element.get('what', '')}")
+            if word:
+                return (f"{element.get('label', 'an element')!r} on {screen.id} covers it, "
+                        f"described as {word!r}, and money is the one thing this bot must "
+                        f"not touch")
+        return ""
+
     def recover_frontier(self) -> bool:
         """Tap home instead of relaunching, and say which rung of the ladder was used.
 
@@ -434,7 +471,9 @@ class TouchRecon(Recon):
         known screen is the bottom pane's centre.
 
         Away-taps come first because the reason a session is stuck is usually a modal
-        it may not agree to, and home may well be underneath it.
+        it may not agree to, and home may well be underneath it. Every rung of the ladder
+        goes through `blind_tap_refused` first, which is where the safety floors that
+        `plan` applies to a candidate are applied to a tap that never was one.
         """
         unexplored = [s for s in self.screens.values() if self.screen_has_frontier(s)]
         if not unexplored:
@@ -448,7 +487,10 @@ class TouchRecon(Recon):
         self.actions_at_recovery = self.actions_taken
 
         for point in AWAY:
-            if self.controller.target.forbids(*point) is None:
+            refused = self.blind_tap_refused(point)
+            if refused:
+                self.note_once(f"not tapping away from the panel at {point} - {refused}")
+            else:
                 self.controller.note(f"stuck; tapping away from any panel at {point} "
                                      f"before trying home")
                 before = fingerprint(self.controller)
@@ -466,6 +508,13 @@ class TouchRecon(Recon):
                                          "home on top of it")
                     return True
                 break
+        refused = self.blind_tap_refused(HOME)
+        if refused:
+            self.controller.note(
+                f"not tapping home at {HOME} - {refused}. Home is the one input this "
+                f"session sends without a verdict, so a screen that puts something like "
+                f"that under it is where the pass stops rather than presses on")
+            return False
         self.controller.note(f"tapping home at {HOME} to get back to the main screen")
         self.controller.click(*HOME)
         self.controller.wait_stable()
