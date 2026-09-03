@@ -125,6 +125,70 @@ def test_retries_when_no_tool_use_block_returned():
     assert result == {"ok": True}
 
 
+def test_a_truncated_reply_is_told_it_was_cut_off_rather_than_called_invalid():
+    """A reply that ran out of max_tokens fails validation the same way a careless one
+    does - a well-formed object missing whatever came last - and the two need opposite
+    corrections. "Fix it" produces the identical over-long answer, cut off at the same
+    place, for as many attempts as there are; "you were cut off, be brief" is the only
+    feedback that can succeed. Measured on a real vetting call that burned its whole
+    budget on three byte-identical truncations."""
+    responses = [
+        _FakeMessage([_FakeToolUse("id1", {"partial": True})], stop_reason="max_tokens"),
+        _FakeMessage([_FakeToolUse("id2", {"ok": True})]),
+    ]
+    client = _FakeClient(responses)
+
+    def validate(data):
+        return [] if data.get("ok") else ["no verdict for: the_last_action"]
+
+    result = call_tool_with_retry(
+        client, model="m", system="s", tools=[], tool_name="t", user_message="u",
+        validate_fn=validate, max_tokens=1500, max_attempts=3,
+    )
+    assert result == {"ok": True}
+    correction = client.messages.last_kwargs["messages"][-1]["content"][0]["content"]
+    assert "1500-token limit" in correction and "cut off" in correction
+    assert "one short sentence" in correction
+    assert "Invalid" not in correction
+
+
+def test_a_malformed_reply_that_was_not_truncated_is_still_called_invalid():
+    """The other half of the pair: nothing about the truncation branch may soften the
+    feedback for an answer that had room and was simply wrong."""
+    responses = [
+        _FakeMessage([_FakeToolUse("id1", {"bad": True})]),
+        _FakeMessage([_FakeToolUse("id2", {"ok": True})]),
+    ]
+    client = _FakeClient(responses)
+
+    def validate(data):
+        return [] if data.get("ok") else ["missing 'ok'"]
+
+    call_tool_with_retry(
+        client, model="m", system="s", tools=[], tool_name="t", user_message="u",
+        validate_fn=validate, max_tokens=1500, max_attempts=3,
+    )
+    correction = client.messages.last_kwargs["messages"][-1]["content"][0]["content"]
+    assert correction.startswith("Invalid: missing 'ok'")
+    assert "cut off" not in correction
+
+
+def test_giving_up_on_a_truncated_reply_says_the_limit_it_hit():
+    """The RuntimeError is what a session logs and a person reads afterwards. Left as
+    the bare validation errors it says the model omitted things, which sent the first
+    diagnosis of this bug looking at the prompt instead of at the token ceiling."""
+    responses = [_FakeMessage([_FakeToolUse(f"id{i}", {"partial": True})],
+                              stop_reason="max_tokens") for i in range(3)]
+    client = _FakeClient(responses)
+
+    with pytest.raises(RuntimeError, match="cut off at max_tokens=1500"):
+        call_tool_with_retry(
+            client, model="m", system="s", tools=[], tool_name="t", user_message="u",
+            validate_fn=lambda data: ["no verdict for: the_last_action"],
+            max_tokens=1500, max_attempts=2,
+        )
+
+
 def test_retries_on_transient_connection_error(monkeypatch):
     monkeypatch.setattr("engine.client.time.sleep", lambda s: None)
     responses = [_connection_error(), _FakeMessage([_FakeToolUse("id1", {"ok": True})])]

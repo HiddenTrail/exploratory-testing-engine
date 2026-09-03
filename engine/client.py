@@ -264,15 +264,35 @@ def call_tool_with_retry(
         if not errors:
             return tool_use.input
 
-        last_errors = errors
-        print(f"  attempt {attempt} produced malformed output: {errors} - retrying")
+        # A reply that ran out of budget fails validation too, and it fails it in a way
+        # that impersonates a model ignoring the instructions - a schema-shaped answer
+        # missing whatever came last. Told "your output was invalid, fix it" the model
+        # writes the same too-long answer again and is cut off at the same place, so the
+        # whole attempt budget buys three identical failures. The actionable correction
+        # is not "be correct", it is "be shorter", so say which one this is.
+        truncated = message.stop_reason == "max_tokens"
+        last_errors = ([f"reply was cut off at max_tokens={max_tokens}: " + "; ".join(errors)]
+                       if truncated else errors)
+        if truncated:
+            print(f"  attempt {attempt} was cut off at max_tokens={max_tokens} "
+                  f"({errors}) - retrying, asking for a terser answer")
+        else:
+            print(f"  attempt {attempt} produced malformed output: {errors} - retrying")
         messages.append({"role": "assistant", "content": message.content})
+        correction = (
+            f"Your reply hit the {max_tokens}-token limit and was cut off, so it is "
+            f"incomplete: {'; '.join(errors)}. Answer again, complete this time, and keep "
+            f"every free-text field to one short sentence - completeness matters more "
+            f"than detail."
+            if truncated else
+            "Invalid: " + "; ".join(errors) +
+            ". Fix and call the tool again with a corrected, complete answer.")
         messages.append({
             "role": "user",
             "content": [{
                 "type": "tool_result",
                 "tool_use_id": tool_use.id,
-                "content": "Invalid: " + "; ".join(errors) + ". Fix and call the tool again with a corrected, complete answer.",
+                "content": correction,
                 "is_error": True,
             }],
         })
