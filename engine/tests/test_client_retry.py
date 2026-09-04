@@ -72,6 +72,12 @@ def _rate_limit_error():
     return anthropic.RateLimitError("rate limited", response=httpx.Response(429, request=request), body=None)
 
 
+def _overloaded_error():
+    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    return anthropic.OverloadedError(
+        "overloaded", response=httpx.Response(529, request=request), body=None)
+
+
 def _auth_error():
     request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
     return anthropic.AuthenticationError("invalid api key", response=httpx.Response(401, request=request), body=None)
@@ -205,6 +211,23 @@ def test_retries_on_transient_connection_error(monkeypatch):
 def test_retries_on_rate_limit_error(monkeypatch):
     monkeypatch.setattr("engine.client.time.sleep", lambda s: None)
     responses = [_rate_limit_error(), _FakeMessage([_FakeToolUse("id1", {"ok": True})])]
+    client = _FakeClient(responses)
+
+    result = call_tool_with_retry(
+        client, model="m", system="s", tools=[], tool_name="t", user_message="u",
+        validate_fn=lambda d: [], max_tokens=10, max_attempts=3,
+    )
+    assert result == {"ok": True}
+    assert client.messages.call_count == 2
+
+
+def test_retries_on_overloaded_error(monkeypatch):
+    """529 is the regression this test exists for. OverloadedError is a sibling of
+    InternalServerError rather than a subclass, and the SDK matches 529 before its
+    `>= 500` branch, so listing InternalServerError alone silently excluded the most
+    common transient error there is - it propagated on attempt 1 with no backoff."""
+    monkeypatch.setattr("engine.client.time.sleep", lambda s: None)
+    responses = [_overloaded_error(), _FakeMessage([_FakeToolUse("id1", {"ok": True})])]
     client = _FakeClient(responses)
 
     result = call_tool_with_retry(
