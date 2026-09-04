@@ -48,6 +48,8 @@ engine/
   tools.py      # HYPOTHESIS_TOOL / SKEPTIC_TOOL / BUG_REPORT_TOOL - domain-agnostic, not adapter-overridable
   client.py     # Anthropic client + call_tool_with_retry
   loop.py       # the checkpoint loop itself
+  outcome.py    # the typed envelope an adapter puts on each result - the only SUT vocabulary the engine reads
+  diagnostics.py # domain-free detectors over those envelopes: facts about the RUN, not the SUT
   report.py     # generic HTML rendering (prose, badges, CSS, page/checkpoint structure)
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output
   cli.py        # python -m engine.cli --adapter <name>

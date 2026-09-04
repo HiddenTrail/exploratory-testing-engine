@@ -1,0 +1,454 @@
+{
+  "casting_log": [
+    {
+      "actual_screen": "same_screen",
+      "checkpoint": 1,
+      "linked_hypothesis": "unknown-1 (the unrecognized starting frame) is actually the main screen sc01 but with a popup/overlay on top (e.g., news or event splash), which is why it fails the fingerprint match; dismissing the overlay should reveal a frame matching sc01 with high agreement.",
+      "oracle_claim_id": "",
+      "predicted_outcome": "If unknown-1 is an overlay on the main screen, tapping the board area dismisses it and the underlying main screen becomes visible - likely still registered as 'same_screen' relative to what's on screen now but should ideally re-match sc01 at high agreement once the overlay is gone. If unknown-1 is already the bare main screen, this tap does nothing (short settle, no change).",
+      "predicted_screen": "same_screen",
+      "prediction_matched": true,
+      "request": {
+        "action": "dismiss",
+        "at": [
+          0.5,
+          0.3
+        ],
+        "what": "a tap high on the board area, used to dismiss a panel by tapping outside it - the user's stated way out of an unexpected popup"
+      },
+      "result": {
+        "action": "dismiss",
+        "agreement": 0.998,
+        "at": [
+          0.5,
+          0.3
+        ],
+        "first_sight_this_run": false,
+        "screen_after": "unknown-3",
+        "screen_after_label": "unknown-3",
+        "screen_before": "unknown-3",
+        "screen_was": "same_screen",
+        "settle": 0.74,
+        "verdict": "sent",
+        "was_measured_before": false,
+        "what": "a tap high on the board area, used to dismiss a panel by tapping outside it - the user's stated way out of an unexpected popup"
+      },
+      "round": 1,
+      "round_reasoning": "The baseline already reveals an anomaly: the very first frame did not match sc01 (main screen) at the required 0.94 cut - it matched only 0.932, just below threshold - and got registered as unknown-1. Then return_to_main from unknown-1 landed on unknown-2 with an extremely low agreement (0.087), which is itself odd - if unknown-1 really was the main screen (just under the fingerprint cut due to client drift), tapping return_to_main (the main tab itself) should have produced 'same_screen' with high agreement against whatever unknown-1 was, not a further new unrecognized screen with near-zero agreement. That suggests either (a) unknown-1 was NOT the main screen at all - maybe a startup overlay, news popup, or event splash sitting on top of/instead of the main screen - or (b) return_to_main is landing somewhere unexpected.\n\nGiven this, my first priority is to characterize what unknown-1 and unknown-2 actually are, and whether the client has genuinely drifted from the old fingerprints or whether we're stuck on a transient overlay. Good first moves:\n\n1. dismiss - since the stated purpose of dismiss is to close a popup/overlay by tapping the board area outside any panel. If unknown-1 is an overlay (e.g., event popup, news splash) sitting over the main screen, dismiss should clear it and reveal the true main screen underneath - which might then match sc01 at high agreement. If unknown-1 IS already the plain main screen, dismiss should do nothing (same_screen, short settle).\n\n2. return_to_main again - repeating the exact same tap that produced the odd unknown-2 result. If the screen is unstable/drifting, we might get a third different unknown screen or converge back to something consistent. This directly tests whether return_to_main's destination is stable (a core anomaly candidate: \"same control leads to different screens on repeated use\").\n\n3. open_cards - a distinct tab, to see if it reaches sc02/sc07 (previously measured Battle Deck/Collection) or something new, which tells us whether ONLY the home screen fingerprint drifted or the whole client's UI has changed.\n\n4. open_profile - untested control, worth probing early since it's an unknown behavior and low-risk per the safety notes (dismiss/return_to_main can back out of whatever it does).\n\nI'll bundle these four as they are independent single taps from the (uncertain) current screen state; each tests a distinct hypothesis without depending on the others' outcomes.",
+      "test_number": 1
+    },
+    {
+      "actual_screen": "known_screen",
+      "checkpoint": 1,
+      "linked_hypothesis": "return_to_main does not deterministically land on a single stable main-screen fingerprint; repeating it from the same starting state can produce a different unrecognized screen each time, indicating the main screen's identity is unstable across visits this run.",
+      "oracle_claim_id": "",
+      "predicted_outcome": "Since we are presumably already near/at the main tab, I expect this to be a near-no-op landing back on the same unknown-2-like screen (known_screen this run) with a much higher agreement than the 0.087 seen in the example, because tapping the already-active main tab should just reaffirm the current screen rather than transition anywhere. A repeat producing yet another distinct low-agreement unknown screen would confirm instability.",
+      "predicted_screen": "known_screen",
+      "prediction_matched": true,
+      "request": {
+        "action": "return_to_main",
+        "at": [
+          0.5,
+          0.943
+        ],
+        "what": "the centre of the bottom navigation, which is the main screen's own tab - the user's stated least-trouble destination"
+      },
+      "result": {
+        "action": "return_to_main",
+        "agreement": 1.0,
+        "at": [
+          0.5,
+          0.943
+        ],
+        "first_sight_this_run": false,
+        "screen_after": "unknown-1",
+        "screen_after_label": "unknown-1",
+        "screen_before": "unknown-3",
+        "screen_was": "known_screen",
+        "settle": 1.06,
+        "verdict": "sent",
+        "was_measured_before": false,
+        "what": "the centre of the bottom navigation, which is the main screen's own tab - the user's stated least-trouble destination"
+      },
+      "round": 1,
+      "round_reasoning": "The baseline already reveals an anomaly: the very first frame did not match sc01 (main screen) at the required 0.94 cut - it matched only 0.932, just below threshold - and got registered as unknown-1. Then return_to_main from unknown-1 landed on unknown-2 with an extremely low agreement (0.087), which is itself odd - if unknown-1 really was the main screen (just under the fingerprint cut due to client drift), tapping return_to_main (the main tab itself) should have produced 'same_screen' with high agreement against whatever unknown-1 was, not a further new unrecognized screen with near-zero agreement. That suggests either (a) unknown-1 was NOT the main screen at all - maybe a startup overlay, news popup, or event splash sitting on top of/instead of the main screen - or (b) return_to_main is landing somewhere unexpected.\n\nGiven this, my first priority is to characterize what unknown-1 and unknown-2 actually are, and whether the client has genuinely drifted from the old fingerprints or whether we're stuck on a transient overlay. Good first moves:\n\n1. dismiss - since the stated purpose of dismiss is to close a popup/overlay by tapping the board area outside any panel. If unknown-1 is an overlay (e.g., event popup, news splash) sitting over the main screen, dismiss should clear it and reveal the true main screen underneath - which might then match sc01 at high agreement. If unknown-1 IS already the plain main screen, dismiss should do nothing (same_screen, short settle).\n\n2. return_to_main again - repeating the exact same tap that produced the odd unknown-2 result. If the screen is unstable/drifting, we might get a third different unknown screen or converge back to something consistent. This directly tests whether return_to_main's destination is stable (a core anomaly candidate: \"same control leads to different screens on repeated use\").\n\n3. open_cards - a distinct tab, to see if it reaches sc02/sc07 (previously measured Battle Deck/Collection) or something new, which tells us whether ONLY the home screen fingerprint drifted or the whole client's UI has changed.\n\n4. open_profile - untested control, worth probing early since it's an unknown behavior and low-risk per the safety notes (dismiss/return_to_main can back out of whatever it does).\n\nI'll bundle these four as they are independent single taps from the (uncertain) current screen state; each tests a distinct hypothesis without depending on the others' outcomes.",
+      "test_number": 2
+    },
+    {
+      "actual_screen": "new_screen",
+      "checkpoint": 1,
+      "linked_hypothesis": "",
+      "oracle_claim_id": "",
+      "predicted_outcome": "This should navigate to the cards/deck screen, previously measured as sc02 (Battle Deck) or sc07 (Collection). Given the baseline mismatch on the home screen, I expect this to also come back as an unknown screen (not matching sc02/sc07 at 0.94+), evidence that the client's whole UI skin has drifted from the earlier pass's fingerprints rather than just the home screen alone.",
+      "predicted_screen": "new_screen",
+      "prediction_matched": true,
+      "request": {
+        "action": "open_cards",
+        "at": [
+          0.216,
+          0.943
+        ],
+        "what": "the second tab in the bottom navigation, the cards/deck one. An earlier pass tapping within a hair of this point reached a screen it called the Battle Deck; whether that is the same thing as the card collection is not established"
+      },
+      "result": {
+        "action": "open_cards",
+        "agreement": 0.746,
+        "at": [
+          0.216,
+          0.943
+        ],
+        "first_sight_this_run": false,
+        "recovered_to": "unknown-1 - NOT the main screen (sc01 (Clash Royale main/home screen)), so the next test starts somewhere nobody chose",
+        "screen_after": "unknown-4",
+        "screen_after_label": "unknown-4 (not in the carried reference)",
+        "screen_before": "unknown-1",
+        "screen_was": "new_screen",
+        "settle": 1.01,
+        "verdict": "sent",
+        "was_measured_before": false,
+        "what": "the second tab in the bottom navigation, the cards/deck one. An earlier pass tapping within a hair of this point reached a screen it called the Battle Deck; whether that is the same thing as the card collection is not established"
+      },
+      "round": 1,
+      "round_reasoning": "The baseline already reveals an anomaly: the very first frame did not match sc01 (main screen) at the required 0.94 cut - it matched only 0.932, just below threshold - and got registered as unknown-1. Then return_to_main from unknown-1 landed on unknown-2 with an extremely low agreement (0.087), which is itself odd - if unknown-1 really was the main screen (just under the fingerprint cut due to client drift), tapping return_to_main (the main tab itself) should have produced 'same_screen' with high agreement against whatever unknown-1 was, not a further new unrecognized screen with near-zero agreement. That suggests either (a) unknown-1 was NOT the main screen at all - maybe a startup overlay, news popup, or event splash sitting on top of/instead of the main screen - or (b) return_to_main is landing somewhere unexpected.\n\nGiven this, my first priority is to characterize what unknown-1 and unknown-2 actually are, and whether the client has genuinely drifted from the old fingerprints or whether we're stuck on a transient overlay. Good first moves:\n\n1. dismiss - since the stated purpose of dismiss is to close a popup/overlay by tapping the board area outside any panel. If unknown-1 is an overlay (e.g., event popup, news splash) sitting over the main screen, dismiss should clear it and reveal the true main screen underneath - which might then match sc01 at high agreement. If unknown-1 IS already the plain main screen, dismiss should do nothing (same_screen, short settle).\n\n2. return_to_main again - repeating the exact same tap that produced the odd unknown-2 result. If the screen is unstable/drifting, we might get a third different unknown screen or converge back to something consistent. This directly tests whether return_to_main's destination is stable (a core anomaly candidate: \"same control leads to different screens on repeated use\").\n\n3. open_cards - a distinct tab, to see if it reaches sc02/sc07 (previously measured Battle Deck/Collection) or something new, which tells us whether ONLY the home screen fingerprint drifted or the whole client's UI has changed.\n\n4. open_profile - untested control, worth probing early since it's an unknown behavior and low-risk per the safety notes (dismiss/return_to_main can back out of whatever it does).\n\nI'll bundle these four as they are independent single taps from the (uncertain) current screen state; each tests a distinct hypothesis without depending on the others' outcomes.",
+      "test_number": 3
+    },
+    {
+      "actual_screen": "new_screen",
+      "checkpoint": 1,
+      "linked_hypothesis": "",
+      "oracle_claim_id": "",
+      "predicted_outcome": "This is untested territory: tapping the name plaque likely opens a profile info panel (own stats, trophies) as a new_screen not in the carried reference, closable via dismiss or return_to_main. I expect it to behave like a modal panel rather than a full tab navigation.",
+      "predicted_screen": "new_screen",
+      "prediction_matched": true,
+      "request": {
+        "action": "open_profile",
+        "at": [
+          0.14,
+          0.215
+        ],
+        "what": "the plaque at the top left carrying the player name, clan line and trophy count. What it does has not been observed: no measured pass has ever tapped it, and the guess that it opens an own-profile card is a guess about a convention, not a reading of this client"
+      },
+      "result": {
+        "action": "open_profile",
+        "agreement": 0.068,
+        "at": [
+          0.14,
+          0.215
+        ],
+        "first_sight_this_run": false,
+        "recovered_to": "unknown-5 - NOT the main screen (sc01 (Clash Royale main/home screen)), so the next test starts somewhere nobody chose",
+        "screen_after": "unknown-5",
+        "screen_after_label": "unknown-5 (not in the carried reference)",
+        "screen_before": "unknown-1",
+        "screen_was": "new_screen",
+        "settle": 1.39,
+        "verdict": "sent",
+        "was_measured_before": false,
+        "what": "the plaque at the top left carrying the player name, clan line and trophy count. What it does has not been observed: no measured pass has ever tapped it, and the guess that it opens an own-profile card is a guess about a convention, not a reading of this client"
+      },
+      "round": 1,
+      "round_reasoning": "The baseline already reveals an anomaly: the very first frame did not match sc01 (main screen) at the required 0.94 cut - it matched only 0.932, just below threshold - and got registered as unknown-1. Then return_to_main from unknown-1 landed on unknown-2 with an extremely low agreement (0.087), which is itself odd - if unknown-1 really was the main screen (just under the fingerprint cut due to client drift), tapping return_to_main (the main tab itself) should have produced 'same_screen' with high agreement against whatever unknown-1 was, not a further new unrecognized screen with near-zero agreement. That suggests either (a) unknown-1 was NOT the main screen at all - maybe a startup overlay, news popup, or event splash sitting on top of/instead of the main screen - or (b) return_to_main is landing somewhere unexpected.\n\nGiven this, my first priority is to characterize what unknown-1 and unknown-2 actually are, and whether the client has genuinely drifted from the old fingerprints or whether we're stuck on a transient overlay. Good first moves:\n\n1. dismiss - since the stated purpose of dismiss is to close a popup/overlay by tapping the board area outside any panel. If unknown-1 is an overlay (e.g., event popup, news splash) sitting over the main screen, dismiss should clear it and reveal the true main screen underneath - which might then match sc01 at high agreement. If unknown-1 IS already the plain main screen, dismiss should do nothing (same_screen, short settle).\n\n2. return_to_main again - repeating the exact same tap that produced the odd unknown-2 result. If the screen is unstable/drifting, we might get a third different unknown screen or converge back to something consistent. This directly tests whether return_to_main's destination is stable (a core anomaly candidate: \"same control leads to different screens on repeated use\").\n\n3. open_cards - a distinct tab, to see if it reaches sc02/sc07 (previously measured Battle Deck/Collection) or something new, which tells us whether ONLY the home screen fingerprint drifted or the whole client's UI has changed.\n\n4. open_profile - untested control, worth probing early since it's an unknown behavior and low-risk per the safety notes (dismiss/return_to_main can back out of whatever it does).\n\nI'll bundle these four as they are independent single taps from the (uncertain) current screen state; each tests a distinct hypothesis without depending on the others' outcomes.",
+      "test_number": 4
+    },
+    {
+      "actual_screen": "new_screen",
+      "checkpoint": 2,
+      "linked_hypothesis": "return_to_main failed to converge to a single stable home fingerprint after open_profile (recovered_to unknown-1 vs unknown-5 in different trials); if this is real navigation instability rather than matcher noise, repeating open_profile from a fresh main state should land on a DIFFERENT unknown-N screen than unknown-5 (or the recovery should again fail to reach the same home fingerprint). If it's just drift/noise on an otherwise stable real screen, we expect the SAME unknown-5 label (or a screen recognized as known_screen this run) and recovery back to the same home label as before.",
+      "oracle_claim_id": "",
+      "predicted_outcome": "I predict this second open_profile tap (after a return_to_main reset) lands on unknown-5 again, i.e. screen_was=known_screen this run, confirming it is a stable real screen and the earlier low agreement score was scoring noise near the transition, not genuine instability. I also predict recovered_to will report landing back on whatever this run's stable 'home' unknown-N is (likely unknown-1), matching test 2's clean return_to_main->unknown-1 result.",
+      "predicted_screen": "known_screen",
+      "prediction_matched": false,
+      "request": {
+        "action": "open_profile",
+        "at": [
+          0.14,
+          0.215
+        ],
+        "what": "the plaque at the top left carrying the player name, clan line and trophy count. What it does has not been observed: no measured pass has ever tapped it, and the guess that it opens an own-profile card is a guess about a convention, not a reading of this client"
+      },
+      "result": {
+        "action": "open_profile",
+        "agreement": 0.08,
+        "at": [
+          0.14,
+          0.215
+        ],
+        "first_sight_this_run": false,
+        "recovered_to": "unknown-5 - NOT the main screen (sc01 (Clash Royale main/home screen)), so the next test starts somewhere nobody chose",
+        "screen_after": "unknown-6",
+        "screen_after_label": "unknown-6 (not in the carried reference)",
+        "screen_before": "unknown-5",
+        "screen_was": "new_screen",
+        "settle": 0.67,
+        "verdict": "sent",
+        "was_measured_before": false,
+        "what": "the plaque at the top left carrying the player name, clan line and trophy count. What it does has not been observed: no measured pass has ever tapped it, and the guess that it opens an own-profile card is a guess about a convention, not a reading of this client"
+      },
+      "round": 1,
+      "round_reasoning": "So far this run's fingerprints have all mismatched the carried reference (baseline unknown-1 at 0.932, then unknown-3, unknown-4, unknown-5), and return_to_main once did land back on unknown-1 at agreement 1.0 (a clean repeat), but a different sequence (open_profile) led to recovered_to landing on unknown-5 instead of unknown-1. Skeptic's core complaint: we never repeated the SAME transition twice to see if it converges to the same unknown-N or drifts - this is the key test needed to separate 'matcher noise/drift' from 'genuine navigation defect'. Also open_events is completely untested, and dismiss on a non-main unknown screen is untested.\n\nThis round I will:\n1. Repeat open_profile -> (implicit return_to_main recovery) again from a fresh return_to_main-confirmed state, to see if it lands on unknown-5 again (supporting a stable, real 'profile' screen) or on yet another new unknown-N (supporting matcher noise/instability).\n2. Repeat open_cards again similarly, to see if it lands on unknown-4 again or drifts to a new one.\n3. Test open_events for the first time this run - pure probe, untested tab.\n4. Test dismiss directly from main (after return_to_main) as a baseline no-op check, to gather an agreement-score baseline on a known repeat (comparing against the earlier dismiss test that yielded unknown-3 at 0.998 agreement to itself, which was oddly a same_screen->same_screen at very high agreement, suggesting the matcher CAN be reliable) - actually better to spend this slot on repeating return_to_main from main to check baseline convergence.\n\nGiven only 4 slots, I prioritize the two repeat-transition checks (open_profile, open_cards) as directly targeted at the flagged anomaly, plus one true probe (open_events, untested tab) and one more repeat (return_to_main again immediately after landing on main) to build the noise baseline Skeptic wants for said convergence claim.",
+      "test_number": 5
+    },
+    {
+      "actual_screen": "same_screen",
+      "checkpoint": 2,
+      "linked_hypothesis": "open_cards leads to a screen (unknown-4) that is a stable, reproducible destination distinct from unknown-1/unknown-5, rather than a fresh mismatch each visit; repeating it should reproduce unknown-4 (known_screen) if stable, or a new unknown-N if the client/fingerprinting is unstable across repeated identical taps.",
+      "oracle_claim_id": "",
+      "predicted_outcome": "I predict this repeat of open_cards (after returning to main) reproduces unknown-4 again as a known_screen this run, since it is presumably the cards/deck tab and should be a fixed destination. If instead it registers as yet another new unknown screen, that is strong evidence of real fingerprint/fingerprinting instability rather than mere drift from the old reference set.",
+      "predicted_screen": "known_screen",
+      "prediction_matched": false,
+      "request": {
+        "action": "open_cards",
+        "at": [
+          0.216,
+          0.943
+        ],
+        "what": "the second tab in the bottom navigation, the cards/deck one. An earlier pass tapping within a hair of this point reached a screen it called the Battle Deck; whether that is the same thing as the card collection is not established"
+      },
+      "result": {
+        "action": "open_cards",
+        "agreement": 1.0,
+        "at": [
+          0.216,
+          0.943
+        ],
+        "first_sight_this_run": false,
+        "screen_after": "unknown-5",
+        "screen_after_label": "unknown-5",
+        "screen_before": "unknown-5",
+        "screen_was": "same_screen",
+        "settle": 0.31,
+        "verdict": "sent",
+        "was_measured_before": false,
+        "what": "the second tab in the bottom navigation, the cards/deck one. An earlier pass tapping within a hair of this point reached a screen it called the Battle Deck; whether that is the same thing as the card collection is not established"
+      },
+      "round": 1,
+      "round_reasoning": "So far this run's fingerprints have all mismatched the carried reference (baseline unknown-1 at 0.932, then unknown-3, unknown-4, unknown-5), and return_to_main once did land back on unknown-1 at agreement 1.0 (a clean repeat), but a different sequence (open_profile) led to recovered_to landing on unknown-5 instead of unknown-1. Skeptic's core complaint: we never repeated the SAME transition twice to see if it converges to the same unknown-N or drifts - this is the key test needed to separate 'matcher noise/drift' from 'genuine navigation defect'. Also open_events is completely untested, and dismiss on a non-main unknown screen is untested.\n\nThis round I will:\n1. Repeat open_profile -> (implicit return_to_main recovery) again from a fresh return_to_main-confirmed state, to see if it lands on unknown-5 again (supporting a stable, real 'profile' screen) or on yet another new unknown-N (supporting matcher noise/instability).\n2. Repeat open_cards again similarly, to see if it lands on unknown-4 again or drifts to a new one.\n3. Test open_events for the first time this run - pure probe, untested tab.\n4. Test dismiss directly from main (after return_to_main) as a baseline no-op check, to gather an agreement-score baseline on a known repeat (comparing against the earlier dismiss test that yielded unknown-3 at 0.998 agreement to itself, which was oddly a same_screen->same_screen at very high agreement, suggesting the matcher CAN be reliable) - actually better to spend this slot on repeating return_to_main from main to check baseline convergence.\n\nGiven only 4 slots, I prioritize the two repeat-transition checks (open_profile, open_cards) as directly targeted at the flagged anomaly, plus one true probe (open_events, untested tab) and one more repeat (return_to_main again immediately after landing on main) to build the noise baseline Skeptic wants for said convergence claim.",
+      "test_number": 6
+    },
+    {
+      "actual_screen": "same_screen",
+      "checkpoint": 2,
+      "linked_hypothesis": "",
+      "oracle_claim_id": "",
+      "predicted_outcome": "This tab has never been tapped this run. I predict it lands on a screen not matching any carried sc0X fingerprint (consistent with the rest of this run's mismatches), registering as a new unknown-N screen, and that it does not trip the run's abort conditions (i.e., it isn't a shop/social/battle-result screen), since events/tournament screens are normally distinct from those. I expect it to have its own bottom nav and be reversible via return_to_main.",
+      "predicted_screen": "new_screen",
+      "prediction_matched": false,
+      "request": {
+        "action": "open_events",
+        "at": [
+          0.903,
+          0.943
+        ],
+        "what": "the rightmost of the five bottom-navigation tabs, drawn as a sword in a laurel wreath - conventionally the events/tournaments tab, though the icon is what was observed and the name is not"
+      },
+      "result": {
+        "action": "open_events",
+        "agreement": 1.0,
+        "at": [
+          0.903,
+          0.943
+        ],
+        "first_sight_this_run": false,
+        "screen_after": "unknown-5",
+        "screen_after_label": "unknown-5",
+        "screen_before": "unknown-5",
+        "screen_was": "same_screen",
+        "settle": 0.32,
+        "verdict": "sent",
+        "was_measured_before": false,
+        "what": "the rightmost of the five bottom-navigation tabs, drawn as a sword in a laurel wreath - conventionally the events/tournaments tab, though the icon is what was observed and the name is not"
+      },
+      "round": 1,
+      "round_reasoning": "So far this run's fingerprints have all mismatched the carried reference (baseline unknown-1 at 0.932, then unknown-3, unknown-4, unknown-5), and return_to_main once did land back on unknown-1 at agreement 1.0 (a clean repeat), but a different sequence (open_profile) led to recovered_to landing on unknown-5 instead of unknown-1. Skeptic's core complaint: we never repeated the SAME transition twice to see if it converges to the same unknown-N or drifts - this is the key test needed to separate 'matcher noise/drift' from 'genuine navigation defect'. Also open_events is completely untested, and dismiss on a non-main unknown screen is untested.\n\nThis round I will:\n1. Repeat open_profile -> (implicit return_to_main recovery) again from a fresh return_to_main-confirmed state, to see if it lands on unknown-5 again (supporting a stable, real 'profile' screen) or on yet another new unknown-N (supporting matcher noise/instability).\n2. Repeat open_cards again similarly, to see if it lands on unknown-4 again or drifts to a new one.\n3. Test open_events for the first time this run - pure probe, untested tab.\n4. Test dismiss directly from main (after return_to_main) as a baseline no-op check, to gather an agreement-score baseline on a known repeat (comparing against the earlier dismiss test that yielded unknown-3 at 0.998 agreement to itself, which was oddly a same_screen->same_screen at very high agreement, suggesting the matcher CAN be reliable) - actually better to spend this slot on repeating return_to_main from main to check baseline convergence.\n\nGiven only 4 slots, I prioritize the two repeat-transition checks (open_profile, open_cards) as directly targeted at the flagged anomaly, plus one true probe (open_events, untested tab) and one more repeat (return_to_main again immediately after landing on main) to build the noise baseline Skeptic wants for said convergence claim.",
+      "test_number": 7
+    },
+    {
+      "actual_screen": "same_screen",
+      "checkpoint": 2,
+      "linked_hypothesis": "return_to_main deterministically returns to the same 'home' fingerprint (unknown-1) every time it's invoked this run, regardless of the screen it's invoked from, when that screen still has an intact bottom nav bar.",
+      "oracle_claim_id": "",
+      "predicted_outcome": "Invoked again after whatever open_events leaves us on (assuming that lands somewhere with a nav bar and doesn't abort), I predict this returns to unknown-1 again at high agreement, reinforcing that unknown-1 is this run's stable, real home screen and that earlier recovery inconsistencies (landing on unknown-5) were tied specifically to whatever open_profile does, not to return_to_main itself being unreliable in general.",
+      "predicted_screen": "known_screen",
+      "prediction_matched": false,
+      "request": {
+        "action": "return_to_main",
+        "at": [
+          0.5,
+          0.943
+        ],
+        "what": "the centre of the bottom navigation, which is the main screen's own tab - the user's stated least-trouble destination"
+      },
+      "result": {
+        "action": "return_to_main",
+        "agreement": 1.0,
+        "at": [
+          0.5,
+          0.943
+        ],
+        "first_sight_this_run": false,
+        "screen_after": "unknown-5",
+        "screen_after_label": "unknown-5",
+        "screen_before": "unknown-5",
+        "screen_was": "same_screen",
+        "settle": 0.33,
+        "verdict": "sent",
+        "was_measured_before": false,
+        "what": "the centre of the bottom navigation, which is the main screen's own tab - the user's stated least-trouble destination"
+      },
+      "round": 1,
+      "round_reasoning": "So far this run's fingerprints have all mismatched the carried reference (baseline unknown-1 at 0.932, then unknown-3, unknown-4, unknown-5), and return_to_main once did land back on unknown-1 at agreement 1.0 (a clean repeat), but a different sequence (open_profile) led to recovered_to landing on unknown-5 instead of unknown-1. Skeptic's core complaint: we never repeated the SAME transition twice to see if it converges to the same unknown-N or drifts - this is the key test needed to separate 'matcher noise/drift' from 'genuine navigation defect'. Also open_events is completely untested, and dismiss on a non-main unknown screen is untested.\n\nThis round I will:\n1. Repeat open_profile -> (implicit return_to_main recovery) again from a fresh return_to_main-confirmed state, to see if it lands on unknown-5 again (supporting a stable, real 'profile' screen) or on yet another new unknown-N (supporting matcher noise/instability).\n2. Repeat open_cards again similarly, to see if it lands on unknown-4 again or drifts to a new one.\n3. Test open_events for the first time this run - pure probe, untested tab.\n4. Test dismiss directly from main (after return_to_main) as a baseline no-op check, to gather an agreement-score baseline on a known repeat (comparing against the earlier dismiss test that yielded unknown-3 at 0.998 agreement to itself, which was oddly a same_screen->same_screen at very high agreement, suggesting the matcher CAN be reliable) - actually better to spend this slot on repeating return_to_main from main to check baseline convergence.\n\nGiven only 4 slots, I prioritize the two repeat-transition checks (open_profile, open_cards) as directly targeted at the flagged anomaly, plus one true probe (open_events, untested tab) and one more repeat (return_to_main again immediately after landing on main) to build the noise baseline Skeptic wants for said convergence claim.",
+      "test_number": 8
+    },
+    {
+      "actual_screen": "same_screen",
+      "checkpoint": 3,
+      "linked_hypothesis": "unknown-5 is a stable, real screen (likely the true home/main screen for this client build) rather than a matcher noise artifact; repeating return_to_main on it a second consecutive time (no intervening action) should reproduce unknown-5 again at agreement 1.0, establishing a noise floor and confirming return_to_main is a legitimate no-op identity action from this state.",
+      "oracle_claim_id": "",
+      "predicted_outcome": "I expect screen_before=unknown-5, screen_after=unknown-5, screen_was=same_screen, with agreement at or very near 1.0 again, matching test 8's result exactly. This would show the 1.0 agreement seen before was not a fluke but reflects a genuinely stable, static screen - directly building the repeat-trial noise floor the Skeptic asked for.",
+      "predicted_screen": "same_screen",
+      "prediction_matched": true,
+      "request": {
+        "action": "return_to_main",
+        "at": [
+          0.5,
+          0.943
+        ],
+        "what": "the centre of the bottom navigation, which is the main screen's own tab - the user's stated least-trouble destination"
+      },
+      "result": {
+        "action": "return_to_main",
+        "agreement": 1.0,
+        "at": [
+          0.5,
+          0.943
+        ],
+        "first_sight_this_run": false,
+        "screen_after": "unknown-5",
+        "screen_after_label": "unknown-5",
+        "screen_before": "unknown-5",
+        "screen_was": "same_screen",
+        "settle": 0.34,
+        "verdict": "sent",
+        "was_measured_before": false,
+        "what": "the centre of the bottom navigation, which is the main screen's own tab - the user's stated least-trouble destination"
+      },
+      "round": 1,
+      "round_reasoning": "Current state: we are on unknown-5 (last screen from checkpoint 2, test 8). The Skeptic's central critique is that we've never established a noise floor by repeating an IDENTICAL action back-to-back on the same screen, and never tested dismiss or open_profile from unknown-5. This round I directly attack both gaps.\n\n1) Repeat return_to_main from unknown-5 (current state) a second consecutive time with nothing in between - this directly builds the noise-floor baseline the Skeptic demanded: if agreement stays 1.0 and screen_after stays unknown-5, that's strong evidence unknown-5 IS the stable main/home state (return_to_main is a legitimate identity op here), not noise. If it changes, that itself is the anomaly.\n\n2) Test open_profile from unknown-5 (never done from this specific state) - this discriminates between 'unknown-5 has dead controls across the board' (profile also no-ops to unknown-5) vs 'unknown-5 is a working tab-bar/home screen where profile is a genuinely different destination' (matches prior open_profile behavior of going to unknown-5/unknown-6).\n\n3) Test dismiss from unknown-5 - completely untested action, zero coverage gap flagged twice now. Predict it's a no-op on what looks like a main/home-like screen (consistent with the sc01 baseline behavior where dismiss did nothing on the arena picture).\n\n4) Test open_cards from unknown-5 a second time (already same_screen->same_screen once with 1.0 agreement) - repeating this specific already-tested pair one more time strengthens the noise-floor calibration further, since we now have two identical-action repeats (return_to_main and open_cards) to compare noise across different controls on the same screen state.\n\nAll four are independent single taps from the same starting state (unknown-5), consistent with the batch-independence requirement.",
+      "test_number": 9
+    },
+    {
+      "actual_screen": "known_screen",
+      "checkpoint": 3,
+      "linked_hypothesis": "The dead/overlapping-controls anomaly on unknown-5 (open_cards, open_events, return_to_main all no-ops there) extends to open_profile as well, meaning unknown-5 has broadly non-functional or overlapping controls rather than being a legitimate tab screen where only profile would differ; if open_profile ALSO returns same_screen unknown-5 at high agreement, that strengthens the dead-controls reading, but if it instead transitions to a distinct new/known screen (as it did from unknown-1 previously, reaching unknown-5/unknown-6), that shows profile remains a real, distinct destination and unknown-5 is more likely a working tab/home screen.",
+      "oracle_claim_id": "",
+      "predicted_outcome": "Based on prior behavior (open_profile from unknown-1 twice reached unknown-5 and unknown-6, both distinct from the starting screen), I predict this tap from unknown-5 will NOT be a no-op like cards/events/main were - it should transition to some unknown-N screen (possibly unknown-6 again, or a new one), unlike the other three controls tested from this exact state. This would discriminate 'unknown-5 has universally dead controls' from 'unknown-5 is a working screen where profile is the one control that actually does something.'",
+      "predicted_screen": "new_screen",
+      "prediction_matched": false,
+      "request": {
+        "action": "open_profile",
+        "at": [
+          0.14,
+          0.215
+        ],
+        "what": "the plaque at the top left carrying the player name, clan line and trophy count. What it does has not been observed: no measured pass has ever tapped it, and the guess that it opens an own-profile card is a guess about a convention, not a reading of this client"
+      },
+      "result": {
+        "action": "open_profile",
+        "agreement": 1.0,
+        "at": [
+          0.14,
+          0.215
+        ],
+        "first_sight_this_run": false,
+        "screen_after": "unknown-6",
+        "screen_after_label": "unknown-6",
+        "screen_before": "unknown-5",
+        "screen_was": "known_screen",
+        "settle": 0.68,
+        "verdict": "sent",
+        "was_measured_before": false,
+        "what": "the plaque at the top left carrying the player name, clan line and trophy count. What it does has not been observed: no measured pass has ever tapped it, and the guess that it opens an own-profile card is a guess about a convention, not a reading of this client"
+      },
+      "round": 1,
+      "round_reasoning": "Current state: we are on unknown-5 (last screen from checkpoint 2, test 8). The Skeptic's central critique is that we've never established a noise floor by repeating an IDENTICAL action back-to-back on the same screen, and never tested dismiss or open_profile from unknown-5. This round I directly attack both gaps.\n\n1) Repeat return_to_main from unknown-5 (current state) a second consecutive time with nothing in between - this directly builds the noise-floor baseline the Skeptic demanded: if agreement stays 1.0 and screen_after stays unknown-5, that's strong evidence unknown-5 IS the stable main/home state (return_to_main is a legitimate identity op here), not noise. If it changes, that itself is the anomaly.\n\n2) Test open_profile from unknown-5 (never done from this specific state) - this discriminates between 'unknown-5 has dead controls across the board' (profile also no-ops to unknown-5) vs 'unknown-5 is a working tab-bar/home screen where profile is a genuinely different destination' (matches prior open_profile behavior of going to unknown-5/unknown-6).\n\n3) Test dismiss from unknown-5 - completely untested action, zero coverage gap flagged twice now. Predict it's a no-op on what looks like a main/home-like screen (consistent with the sc01 baseline behavior where dismiss did nothing on the arena picture).\n\n4) Test open_cards from unknown-5 a second time (already same_screen->same_screen once with 1.0 agreement) - repeating this specific already-tested pair one more time strengthens the noise-floor calibration further, since we now have two identical-action repeats (return_to_main and open_cards) to compare noise across different controls on the same screen state.\n\nAll four are independent single taps from the same starting state (unknown-5), consistent with the batch-independence requirement.",
+      "test_number": 10
+    },
+    {
+      "actual_screen": "new_screen",
+      "checkpoint": 3,
+      "linked_hypothesis": "",
+      "oracle_claim_id": "",
+      "predicted_outcome": "dismiss has never been tested from unknown-5. Per its description (a tap on the board area that does nothing on a plain main-screen-like backdrop), I predict this is a no-op here too: screen_before=unknown-5, screen_after=unknown-5, same_screen, with a short settle time (~0.3-0.4s) and no meaningful change, consistent with unknown-5 resembling a home-like screen with no popup to dismiss. This closes the single most glaring zero-coverage gap flagged twice by the Skeptic.",
+      "predicted_screen": "same_screen",
+      "prediction_matched": false,
+      "request": {
+        "action": "dismiss",
+        "at": [
+          0.5,
+          0.3
+        ],
+        "what": "a tap high on the board area, used to dismiss a panel by tapping outside it - the user's stated way out of an unexpected popup"
+      },
+      "result": {
+        "action": "dismiss",
+        "agreement": 0.79,
+        "at": [
+          0.5,
+          0.3
+        ],
+        "first_sight_this_run": false,
+        "recovered_to": "unknown-5 - NOT the main screen (sc01 (Clash Royale main/home screen)), so the next test starts somewhere nobody chose",
+        "screen_after": "unknown-7",
+        "screen_after_label": "unknown-7 (not in the carried reference)",
+        "screen_before": "unknown-6",
+        "screen_was": "new_screen",
+        "settle": 3.05,
+        "verdict": "sent",
+        "was_measured_before": false,
+        "what": "a tap high on the board area, used to dismiss a panel by tapping outside it - the user's stated way out of an unexpected popup"
+      },
+      "round": 1,
+      "round_reasoning": "Current state: we are on unknown-5 (last screen from checkpoint 2, test 8). The Skeptic's central critique is that we've never established a noise floor by repeating an IDENTICAL action back-to-back on the same screen, and never tested dismiss or open_profile from unknown-5. This round I directly attack both gaps.\n\n1) Repeat return_to_main from unknown-5 (current state) a second consecutive time with nothing in between - this directly builds the noise-floor baseline the Skeptic demanded: if agreement stays 1.0 and screen_after stays unknown-5, that's strong evidence unknown-5 IS the stable main/home state (return_to_main is a legitimate identity op here), not noise. If it changes, that itself is the anomaly.\n\n2) Test open_profile from unknown-5 (never done from this specific state) - this discriminates between 'unknown-5 has dead controls across the board' (profile also no-ops to unknown-5) vs 'unknown-5 is a working tab-bar/home screen where profile is a genuinely different destination' (matches prior open_profile behavior of going to unknown-5/unknown-6).\n\n3) Test dismiss from unknown-5 - completely untested action, zero coverage gap flagged twice now. Predict it's a no-op on what looks like a main/home-like screen (consistent with the sc01 baseline behavior where dismiss did nothing on the arena picture).\n\n4) Test open_cards from unknown-5 a second time (already same_screen->same_screen once with 1.0 agreement) - repeating this specific already-tested pair one more time strengthens the noise-floor calibration further, since we now have two identical-action repeats (return_to_main and open_cards) to compare noise across different controls on the same screen state.\n\nAll four are independent single taps from the same starting state (unknown-5), consistent with the batch-independence requirement.",
+      "test_number": 11
+    },
+    {
+      "actual_screen": "same_screen",
+      "checkpoint": 3,
+      "linked_hypothesis": "unknown-5 is a stable, real screen rather than a noise artifact; a second independent repeat of open_cards (previously tested once as same_screen at agreement 1.0) should again reproduce unknown-5 at agreement 1.0, further confirming the noise floor across a different control rather than just return_to_main alone.",
+      "oracle_claim_id": "",
+      "predicted_outcome": "I expect this second consecutive open_cards tap from unknown-5 to again yield screen_after=unknown-5, same_screen, with agreement close to 1.0, matching test 6's result. Two controls (return_to_main and open_cards) both reproducing 1.0 agreement on repeat would make a much stronger noise-floor case than either alone, supporting the idea that unknown-5 is a stable real screen and these really are no-ops from it, not matcher noise.",
+      "predicted_screen": "same_screen",
+      "prediction_matched": true,
+      "request": {
+        "action": "open_cards",
+        "at": [
+          0.216,
+          0.943
+        ],
+        "what": "the second tab in the bottom navigation, the cards/deck one. An earlier pass tapping within a hair of this point reached a screen it called the Battle Deck; whether that is the same thing as the card collection is not established"
+      },
+      "result": {
+        "action": "open_cards",
+        "agreement": 1.0,
+        "at": [
+          0.216,
+          0.943
+        ],
+        "first_sight_this_run": false,
+        "screen_after": "unknown-5",
+        "screen_after_label": "unknown-5",
+        "screen_before": "unknown-5",
+        "screen_was": "same_screen",
+        "settle": 0.31,
+        "verdict": "sent",
+        "was_measured_before": false,
+        "what": "the second tab in the bottom navigation, the cards/deck one. An earlier pass tapping within a hair of this point reached a screen it called the Battle Deck; whether that is the same thing as the card collection is not established"
+      },
+      "round": 1,
+      "round_reasoning": "Current state: we are on unknown-5 (last screen from checkpoint 2, test 8). The Skeptic's central critique is that we've never established a noise floor by repeating an IDENTICAL action back-to-back on the same screen, and never tested dismiss or open_profile from unknown-5. This round I directly attack both gaps.\n\n1) Repeat return_to_main from unknown-5 (current state) a second consecutive time with nothing in between - this directly builds the noise-floor baseline the Skeptic demanded: if agreement stays 1.0 and screen_after stays unknown-5, that's strong evidence unknown-5 IS the stable main/home state (return_to_main is a legitimate identity op here), not noise. If it changes, that itself is the anomaly.\n\n2) Test open_profile from unknown-5 (never done from this specific state) - this discriminates between 'unknown-5 has dead controls across the board' (profile also no-ops to unknown-5) vs 'unknown-5 is a working tab-bar/home screen where profile is a genuinely different destination' (matches prior open_profile behavior of going to unknown-5/unknown-6).\n\n3) Test dismiss from unknown-5 - completely untested action, zero coverage gap flagged twice now. Predict it's a no-op on what looks like a main/home-like screen (consistent with the sc01 baseline behavior where dismiss did nothing on the arena picture).\n\n4) Test open_cards from unknown-5 a second time (already same_screen->same_screen once with 1.0 agreement) - repeating this specific already-tested pair one more time strengthens the noise-floor calibration further, since we now have two identical-action repeats (return_to_main and open_cards) to compare noise across different controls on the same screen state.\n\nAll four are independent single taps from the same starting state (unknown-5), consistent with the batch-independence requirement.",
+      "test_number": 12
+    }
+  ],
+  "note": "Verbatim casting_log from a real 3-checkpoint Driver+Skeptic run against the live Clash Royale client on 2026-09-04. Committed because runs/ is gitignored and this is the log the diagnostics were designed against - see engine/tests/test_diagnostics.py. Not edited in any way: no envelopes were added, no fields removed. The outcome envelopes the replay test reasons over are derived at load time by the adapter under test, so this stays evidence rather than expectation.",
+  "stopped_reason": "checkpoints_exhausted"
+}

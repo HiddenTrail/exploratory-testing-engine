@@ -14,6 +14,7 @@ render_test_entry fully adapter-owned) actually generalizes.
 
 from concurrent.futures import ThreadPoolExecutor
 
+from engine import outcome
 from engine.adapter import SUTAdapter
 from engine.http import call_sut_once
 from engine.report import badge, bool_badge, esc, inline_markdown, render_json_block
@@ -79,6 +80,63 @@ def _compute_correctness(responses: list[dict]) -> tuple[int, int | None, str]:
     return accepted_count, limit, actual_correctness
 
 
+# The two conditions this SUT's own responses reveal about a client's quota, used
+# as engine/outcome.py state tokens.
+#
+# Deliberately NOT keyed by client_id, which is the tempting thing to do since the
+# quota is per client. A token is an opaque state the engine compares for equality,
+# and what makes two situations the same state here is the quota condition, not
+# whose quota it is: two fresh client_ids behave identically, so giving them
+# different tokens would make an ordinary batch of independent tests look like a
+# batch that wandered across states, and would stop the detectors from grouping the
+# saturated tests together - which is the grouping that says something.
+HAS_HEADROOM = "quota_has_headroom"
+AT_LIMIT = "quota_at_limit"
+
+
+def _quota_state(response: dict | None) -> str:
+    """Which quota condition a single response reveals, or "" if it reveals none."""
+    body = (response or {}).get("body")
+    if not isinstance(body, dict):
+        return ""
+    status = body.get("status")
+    if status == "accepted":
+        return HAS_HEADROOM
+    if status == "rate_limited":
+        return AT_LIMIT
+    return ""
+
+
+def _outcome_for(request: dict, responses: list[dict], accepted_count: int) -> "outcome.Outcome":
+    """One burst as the engine's typed outcome envelope.
+
+    `accepted` comes from the SUT's own word for it, not from the HTTP status: a
+    rate-limited request comes back 200 with `status: "rate_limited"`, and treating
+    that as accepted would erase the exact distinction the field exists to draw. A
+    burst counts as accepted if ANY of its requests got through - `accepted=False`
+    means nothing in this test was processed at all, which is when a test has stopped
+    measuring what it was cast to measure and started measuring the quota.
+
+    `effect` follows from the same count. Some requests through means quota was
+    consumed and the SUT's state moved (TRANSITION); none through means the state is
+    exactly where it was (NONE). Both are observable here, unlike token_purchase,
+    because `used` and `limit` come back in every response.
+
+    `action_id` is the burst SHAPE - the count and whether it was concurrent -
+    because that is what "the same thing tried twice" means for this SUT. The payload
+    and the client_id vary per test and are not what is being tried.
+    """
+    request_count = request.get("request_count")
+    shape = "concurrent" if request.get("concurrent") else "sequential"
+    return outcome.Outcome(
+        action_id=f"POST {TEST_ENDPOINT_PATH} x{request_count} {shape}",
+        effect=outcome.TRANSITION if accepted_count > 0 else outcome.NONE,
+        accepted=accepted_count > 0,
+        state_before=_quota_state(responses[0] if responses else None),
+        state_after=_quota_state(responses[-1] if responses else None),
+    )
+
+
 def execute_test(test: dict, test_number: int) -> dict:
     request_count = test["request_count"]
     concurrent = test["concurrent"]
@@ -93,7 +151,7 @@ def execute_test(test: dict, test_number: int) -> dict:
     }
 
     if request_count > MAX_REQUEST_COUNT:
-        return {
+        return outcome.attach({
             "test_number": test_number,
             "request": request,
             "predicted_outcome": test["predicted_outcome"],
@@ -103,11 +161,18 @@ def execute_test(test: dict, test_number: int) -> dict:
                 f"request_count {request_count} exceeds the safe ceiling of {MAX_REQUEST_COUNT} "
                 "requests - refused to bound resource usage and result size."
             ),
-        }
+        }, outcome.Outcome(
+            # Nothing was sent, so no state was observed and the effect is unknown.
+            # `accepted=False` is accurate in the generic sense: this adapter's own
+            # ceiling stopped the input from ever reaching the SUT.
+            action_id=f"POST {TEST_ENDPOINT_PATH} x{request_count} "
+                      f"{'concurrent' if concurrent else 'sequential'}",
+            effect=outcome.UNKNOWN, accepted=False,
+        ))
 
     responses = _call_sut_concurrent(request_body, request_count) if concurrent else _call_sut_sequential(request_body, request_count)
     accepted_count, limit, actual_correctness = _compute_correctness(responses)
-    return {
+    return outcome.attach({
         "test_number": test_number,
         "request": request,
         "responses": responses,
@@ -117,7 +182,7 @@ def execute_test(test: dict, test_number: int) -> dict:
         "predicted_correctness": test["predicted_correctness"],
         "actual_correctness": actual_correctness,
         "prediction_matched": actual_correctness == test["predicted_correctness"],
-    }
+    }, _outcome_for(request, responses, accepted_count))
 
 
 def describe_test_for_log(test: dict) -> str:

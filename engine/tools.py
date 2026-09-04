@@ -25,7 +25,9 @@ HYPOTHESIS_TOOL = {
                     "Zero or more possible bugs noticed. Each entry should be a specific, falsifiable claim "
                     "in its own words - which test number(s) revealed it, what you believe the mechanism is, "
                     "how severe it would be if true, and a genuine competing explanation for the same "
-                    "observation (not a strawman you'd easily dismiss). Leave empty if nothing anomalous has "
+                    "observation (not a strawman you'd easily dismiss). For any claim that something did "
+                    "nothing or did the wrong thing, the rival 'the input was never accepted at all' is "
+                    "always available - address it or say why it doesn't apply. Leave empty if nothing anomalous has "
                     "been found yet - don't force a claim that isn't there. It's entirely possible this "
                     "implementation has no bugs at all."
                 ),
@@ -63,6 +65,15 @@ revealed it, your best guess at the mechanism, its severity if true, and a genui
 for the same observation (not a strawman). If nothing anomalous has turned up yet, leave anomalies
 empty rather than forcing a claim that isn't there - this implementation may genuinely have no bugs.
 List what's still untested.
+
+One rival explanation is always available and is the easiest to skip past: THE INPUT WAS NEVER ACCEPTED.
+Before claiming that something did nothing, or did the wrong thing, ask whether it was processed at all - whether the system was in a state that ignores or refuses input, whether it was
+still busy with the previous test, whether what came back is the result of your input or just the
+unchanged state that was already there. This matters most when SEVERAL inputs each appear to do
+nothing: "these controls are individually broken" and "the system was accepting nothing at that
+point" predict the identical observation, and the second is one cause instead of many, so it is the
+better explanation until something distinguishes them. A test that could tell them apart is worth
+more than another test that reproduces the same silence.
 
 If your evidence includes 'prior_skeptic_review', that Skeptic named specific gaps and recommended
 tests last checkpoint. Fill in prior_gaps_response addressing each one directly: tested (cite the test
@@ -147,7 +158,12 @@ SKEPTIC_TOOL = {
                     "consistent with a real rival) does not actually support that claim, no matter how "
                     "many data points there are. Concretely check: restate the claimed mechanism, restate "
                     "the rival, and ask whether the specific numbers/outcomes cited would differ between "
-                    "them."
+                    "them. One rival is always available and is the one Drivers most often skip: THE INPUT "
+                    "WAS NEVER ACCEPTED. If a claim is that something did nothing, or did the wrong thing, "
+                    "check whether the hypothesis established that the input was processed at all - and if "
+                    "the claim rests on several inputs each appearing to do nothing, note that one cause "
+                    "(nothing was being accepted at that point) explains all of them and is therefore the "
+                    "better explanation until a test distinguishes it."
                     # NOTE: a known, accepted limitation lives here - this check does not
                     # account for realistic value rounding/precision when deciding whether
                     # cited evidence "discriminates" a claim from its rival. Verified case:
@@ -230,6 +246,16 @@ spend, the smaller amounts) are consistent with the cumulative story too, the ci
 actually discriminate between the two, and the claim is unsupported regardless of how confidently it's
 stated. This is exactly what each anomaly_checks entry's discriminates_from_rival exists to catch -
 work through it explicitly rather than treating "some evidence exists" as sufficient.
+
+There is one rival that is available against almost any anomaly claim and is the one most often left
+unaddressed: THE INPUT WAS NEVER ACCEPTED. Whenever a claim says something did nothing, or produced
+the wrong result, check whether the hypothesis established that the input was processed at all rather
+than ignored, refused, or arriving while the system was still busy. Apply this hardest when a claim
+rests on SEVERAL inputs each appearing to do nothing: "each of these is individually broken" and
+"nothing was being accepted at that point" predict the same observations, and the second is a single
+cause rather than several coincidences, so a hypothesis that has not ruled it out has not earned the
+first. That is a discriminates_from_rival=false finding even if the hypothesis named some other rival
+and dealt with it properly.
 
 Do not conflate "I can name an untested corner" with "I have a material objection." Exploratory testing
 always has more you could try - that's what 'gaps' and 'recommended_next_tests' are for, feeding the

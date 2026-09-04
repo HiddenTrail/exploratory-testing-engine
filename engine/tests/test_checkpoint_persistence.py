@@ -31,7 +31,7 @@ def _make_fakes(num_checkpoints_before_strong_enough):
     """Checkpoint verdicts are 'weak' until the Nth, then 'strong_enough'."""
     calls = {"casting": 0, "hypothesis": 0, "skeptic": 0}
 
-    def fake_casting_round(client, adapter, run_config, happy_day_example, casting_log, prior_feedback, *, test_budget, is_first_round, usage_sink=None):
+    def fake_casting_round(client, adapter, run_config, happy_day_example, casting_log, prior_feedback, *, test_budget, is_first_round, usage_sink=None, run_diagnostics=None):
         calls["casting"] += 1
         return {
             "give_up": False,
@@ -41,7 +41,7 @@ def _make_fakes(num_checkpoints_before_strong_enough):
             }],
         }
 
-    def fake_hypothesis(client, adapter, run_config, happy_day_example, casting_log, prior_skeptic_review=None, usage_sink=None):
+    def fake_hypothesis(client, adapter, run_config, happy_day_example, casting_log, prior_skeptic_review=None, run_diagnostics=None, usage_sink=None):
         calls["hypothesis"] += 1
         return {"observed_behavior": "b", "anomalies": [], "untested_areas": ["u"], "prior_gaps_response": []}
 

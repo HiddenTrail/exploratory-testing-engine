@@ -123,6 +123,11 @@ engine/
   tools.py      # HYPOTHESIS_TOOL / SKEPTIC_TOOL / BUG_REPORT_TOOL - shared across every adapter
   client.py     # Anthropic client + call_tool_with_retry (tool-forced calls, retried on transient errors)
   loop.py       # the checkpoint loop itself
+  outcome.py    # the typed envelope an adapter puts on each result - a SUT's behaviour in terms the
+                #   engine can compare and count, replacing prose no generic code could read
+  diagnostics.py # domain-free detectors over those envelopes - facts about the RUN rather than the SUT:
+                #   a state whose actions are all inert, a batch that didn't start from one place, a
+                #   baseline reset that stopped working, a prior that matched nothing
   report.py     # generic HTML rendering (prose, badges, CSS, page/checkpoint structure)
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output
   cli.py        # python -m engine.cli --adapter <name>

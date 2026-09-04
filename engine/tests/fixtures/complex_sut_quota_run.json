@@ -1,0 +1,425 @@
+{
+  "note": "A real run against the complex_sut mock, recorded verbatim by driving engine.adapters.complex_sut.adapter.execute_test directly with hand-written bursts - no model, no cost. Every response in it came off the wire from a live server, including the overcount in test 2 (4 concurrent requests all accepted against a limit of 5 that already had 3 used), which is the SUT's real TOCTOU race rather than anything arranged here. Kept so the generalization claim in test_diagnostics.py rests on recorded evidence rather than on hand-made envelopes.",
+  "casting_log": [
+    {
+      "test_number": 1,
+      "request": {
+        "method": "POST",
+        "path": "/submit",
+        "body": {
+          "client_id": "diagnostics-evidence-run-2",
+          "payload": "submission 1",
+          "priority": "normal"
+        },
+        "request_count": 3,
+        "concurrent": false
+      },
+      "responses": [
+        {
+          "status": 200,
+          "body": {
+            "status": "accepted",
+            "used": 1,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "accepted",
+            "used": 2,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "accepted",
+            "used": 3,
+            "limit": 5
+          }
+        }
+      ],
+      "accepted_count": 3,
+      "limit": 5,
+      "predicted_outcome": "hand-written, not cast by a model",
+      "predicted_correctness": "correct",
+      "actual_correctness": "correct",
+      "prediction_matched": true,
+      "outcome": {
+        "action_id": "POST /submit x3 sequential",
+        "effect": "transition",
+        "accepted": true,
+        "state_before": "quota_has_headroom",
+        "state_after": "quota_has_headroom",
+        "reset_attempted": false,
+        "reset_ok": null,
+        "latency": null,
+        "matched_prior": null
+      },
+      "checkpoint": 1
+    },
+    {
+      "test_number": 2,
+      "request": {
+        "method": "POST",
+        "path": "/submit",
+        "body": {
+          "client_id": "diagnostics-evidence-run-2",
+          "payload": "submission 2",
+          "priority": "normal"
+        },
+        "request_count": 4,
+        "concurrent": true
+      },
+      "responses": [
+        {
+          "status": 200,
+          "body": {
+            "status": "accepted",
+            "used": 4,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "accepted",
+            "used": 4,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "accepted",
+            "used": 4,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "accepted",
+            "used": 4,
+            "limit": 5
+          }
+        }
+      ],
+      "accepted_count": 4,
+      "limit": 5,
+      "predicted_outcome": "hand-written, not cast by a model",
+      "predicted_correctness": "correct",
+      "actual_correctness": "correct",
+      "prediction_matched": true,
+      "outcome": {
+        "action_id": "POST /submit x4 concurrent",
+        "effect": "transition",
+        "accepted": true,
+        "state_before": "quota_has_headroom",
+        "state_after": "quota_has_headroom",
+        "reset_attempted": false,
+        "reset_ok": null,
+        "latency": null,
+        "matched_prior": null
+      },
+      "checkpoint": 2
+    },
+    {
+      "test_number": 3,
+      "request": {
+        "method": "POST",
+        "path": "/submit",
+        "body": {
+          "client_id": "diagnostics-evidence-run-2",
+          "payload": "submission 3",
+          "priority": "normal"
+        },
+        "request_count": 5,
+        "concurrent": false
+      },
+      "responses": [
+        {
+          "status": 200,
+          "body": {
+            "status": "accepted",
+            "used": 5,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        }
+      ],
+      "accepted_count": 1,
+      "limit": 5,
+      "predicted_outcome": "hand-written, not cast by a model",
+      "predicted_correctness": "correct",
+      "actual_correctness": "correct",
+      "prediction_matched": true,
+      "outcome": {
+        "action_id": "POST /submit x5 sequential",
+        "effect": "transition",
+        "accepted": true,
+        "state_before": "quota_has_headroom",
+        "state_after": "quota_at_limit",
+        "reset_attempted": false,
+        "reset_ok": null,
+        "latency": null,
+        "matched_prior": null
+      },
+      "checkpoint": 2
+    },
+    {
+      "test_number": 4,
+      "request": {
+        "method": "POST",
+        "path": "/submit",
+        "body": {
+          "client_id": "diagnostics-evidence-run-2",
+          "payload": "submission 4",
+          "priority": "normal"
+        },
+        "request_count": 2,
+        "concurrent": true
+      },
+      "responses": [
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        }
+      ],
+      "accepted_count": 0,
+      "limit": 5,
+      "predicted_outcome": "hand-written, not cast by a model",
+      "predicted_correctness": "correct",
+      "actual_correctness": "correct",
+      "prediction_matched": true,
+      "outcome": {
+        "action_id": "POST /submit x2 concurrent",
+        "effect": "none",
+        "accepted": false,
+        "state_before": "quota_at_limit",
+        "state_after": "quota_at_limit",
+        "reset_attempted": false,
+        "reset_ok": null,
+        "latency": null,
+        "matched_prior": null
+      },
+      "checkpoint": 3
+    },
+    {
+      "test_number": 5,
+      "request": {
+        "method": "POST",
+        "path": "/submit",
+        "body": {
+          "client_id": "diagnostics-evidence-run-2",
+          "payload": "submission 5",
+          "priority": "normal"
+        },
+        "request_count": 6,
+        "concurrent": false
+      },
+      "responses": [
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        }
+      ],
+      "accepted_count": 0,
+      "limit": 5,
+      "predicted_outcome": "hand-written, not cast by a model",
+      "predicted_correctness": "correct",
+      "actual_correctness": "correct",
+      "prediction_matched": true,
+      "outcome": {
+        "action_id": "POST /submit x6 sequential",
+        "effect": "none",
+        "accepted": false,
+        "state_before": "quota_at_limit",
+        "state_after": "quota_at_limit",
+        "reset_attempted": false,
+        "reset_ok": null,
+        "latency": null,
+        "matched_prior": null
+      },
+      "checkpoint": 3
+    },
+    {
+      "test_number": 6,
+      "request": {
+        "method": "POST",
+        "path": "/submit",
+        "body": {
+          "client_id": "diagnostics-evidence-run-2",
+          "payload": "submission 6",
+          "priority": "normal"
+        },
+        "request_count": 7,
+        "concurrent": true
+      },
+      "responses": [
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        },
+        {
+          "status": 200,
+          "body": {
+            "status": "rate_limited",
+            "used": 5,
+            "limit": 5
+          }
+        }
+      ],
+      "accepted_count": 0,
+      "limit": 5,
+      "predicted_outcome": "hand-written, not cast by a model",
+      "predicted_correctness": "correct",
+      "actual_correctness": "correct",
+      "prediction_matched": true,
+      "outcome": {
+        "action_id": "POST /submit x7 concurrent",
+        "effect": "none",
+        "accepted": false,
+        "state_before": "quota_at_limit",
+        "state_after": "quota_at_limit",
+        "reset_attempted": false,
+        "reset_ok": null,
+        "latency": null,
+        "matched_prior": null
+      },
+      "checkpoint": 3
+    }
+  ]
+}
