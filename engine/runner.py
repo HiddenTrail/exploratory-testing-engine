@@ -7,28 +7,35 @@ import itertools
 import json
 import traceback
 
-import httpx
-
 from engine.adapter import SUTAdapter, validate_adapter
 from engine.client import build_client, summarize_usage
 from engine.config import RunConfig
+from engine.http import default_check_sut_ready
 from engine.loop import get_bug_reports, get_happy_day_example, run_checkpoint_loop
 from engine.report import render_report
+
+
+def _one_line(half: dict) -> str:
+    """One half of the happy-day example, for the console only.
+
+    `body` when there is one, because that is the interesting part of an HTTP
+    request and printing the envelope around it buries it. A SUT whose halves
+    have no `body` is not a broken adapter - see SUTAdapter's hooks - so this
+    falls back to the whole half rather than raising on a shape it was not
+    written for. Nothing but this print reads inside these two dicts.
+    """
+    return str(half.get("body", half)) if isinstance(half, dict) else str(half)
 
 
 def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
     validate_adapter(adapter)
     client = build_client()
 
-    docs_url = adapter.base_url + adapter.docs_path
-    try:
-        httpx.get(docs_url, timeout=adapter.sut_ready_timeout)
-    except httpx.TransportError:
-        raise SystemExit(f"{adapter.name}'s SUT isn't running at {adapter.base_url} - start it first.")
+    (adapter.check_sut_ready or default_check_sut_ready)(adapter)
 
     print("Fetching the one happy-day example from the live SUT...")
     happy_day_example = get_happy_day_example(adapter)
-    print(f"  {happy_day_example['request']['body']} -> {happy_day_example['response']['body']}")
+    print(f"  {_one_line(happy_day_example['request'])} -> {_one_line(happy_day_example['response'])}")
 
     out_dir = run_config.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)

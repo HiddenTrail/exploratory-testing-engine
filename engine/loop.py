@@ -15,7 +15,7 @@ from anthropic import Anthropic
 from engine.adapter import SUTAdapter
 from engine.client import call_tool_with_retry
 from engine.config import RunConfig
-from engine.http import call_sut_once
+from engine.http import default_happy_day_example
 from engine.redact import default_redact_history_for_model
 from engine.tools import (
     BUG_REPORT_SYSTEM_PROMPT,
@@ -72,9 +72,8 @@ def _cacheable_evidence_segments(
 
 
 def get_happy_day_example(adapter: SUTAdapter) -> dict:
-    request = {"method": "POST", "path": adapter.test_endpoint_path, "body": adapter.happy_day_request}
-    response = call_sut_once(adapter.base_url, adapter.test_endpoint_path, adapter.happy_day_request)
-    return {"request": request, "response": response}
+    """The adapter's own fetch, or the HTTP one every adapter so far has wanted."""
+    return (adapter.fetch_happy_day_example or default_happy_day_example)(adapter)
 
 
 def get_casting_round(

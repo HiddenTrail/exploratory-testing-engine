@@ -55,6 +55,11 @@ engine/
     registry.py           # name -> adapter module, resolved lazily
     token_purchase/        # first adapter, ported from experiments/token-purchase-poc
     complex_sut/            # second adapter - concurrency/rate-limiting domain
+    clash_royale/           # third adapter - a live game client, not a web service. Read actions.py first
+                            #   known_screens.json is measured data, not configuration: eleven screens a
+                            #   game-ontology recon pass fingerprinted against this client, extracted by
+                            #   extract_reference.py and loaded by reference.py. Four are classified
+                            #   "abort", which is what lets a run notice it has reached the shop
   bootstrap/                # generate a draft adapter from a live SUT - see below  ontology/                  # prioritization layer stack (heuristics/domain/context/ranked oracle) - see root README  tests/                    # deterministic regression + parity tests (no LLM calls)
 ```
 

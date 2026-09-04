@@ -8,6 +8,11 @@ import importlib
 _ADAPTERS = {
     "token_purchase": "engine.adapters.token_purchase.adapter",
     "complex_sut": "engine.adapters.complex_sut.adapter",
+    # Not a web service and not a mock: a live game client on this machine. Safe to
+    # have registered because loading it starts nothing - the window is only
+    # attached to by check_sut_ready, which is also where the safety preflight
+    # runs. See engine/adapters/clash_royale/actions.py before running it.
+    "clash_royale": "engine.adapters.clash_royale.adapter",
 }
 
 
