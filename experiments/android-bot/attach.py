@@ -13,6 +13,14 @@ driven, and both have to hold:
 - that window's process is `crosvm.exe` inside the Play Games install, which is the
   emulator itself.
 
+Both are then recorded on the Target as `owner_image`, because checking them once at
+attach time guards the window this binds to and nothing afterwards. `successor_window`
+re-decides what "the game" is on every readiness check, and with no exe to compare
+against its only evidence is the title - which for a Play Games title is the game's own
+name, and so is also the title of any editor or browser window with a file about the game
+open. A VS Code window showing `clash-royale-wiki.html` was adopted on exactly that basis,
+and an adopted window is one this harness sends drags into.
+
 `Target.exe` is then left **empty on purpose**, and that is the most important line here.
 The window's real owning process is the emulator, which hosts every Play Games title, so
 it is not identity - it cannot tell this game from any other one. Worse, an `exe` is what
@@ -85,7 +93,14 @@ def attach(needle: str, verbose: bool = True) -> Controller:
     if verbose:
         print(f"attached to {title!r} (window {hwnd}, pid {pid})")
 
+    # `owner_image` carries the same two-part check `emulator_window` just applied, so
+    # that it keeps applying. Checking it only here would guard the window this attaches
+    # to and nothing after: `successor_window` re-decides what the game is on every
+    # readiness check, and with `exe` empty its only evidence is the title - which is the
+    # game's own name, and therefore also the name of any editor or browser window with a
+    # file about the game open. One of those was adopted, and adoption means input.
     target = Target(name=needle, window_title=title, exe="",
+                    owner_image=(EMULATOR, str(INSTALL)),
                     denylist=DENYLISTS.get(_squash(needle), []))
     if verbose:
         forbidden = len(target.denylist)
