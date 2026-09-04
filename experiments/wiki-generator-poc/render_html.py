@@ -22,15 +22,23 @@ engine/bootstrap/schema.py's narrow OpenAPI slice: match the real, bounded
 shape of the input instead of adding a dependency for arbitrary input this
 project never produces.
 
-Images referenced from a page (`![alt](path)`) are resolved relative to that
-page's own location, copied into <out>/assets/, and the page rewritten to
-point at the copy - so a page keeps working regardless of how deep --wiki
-and --out sit relative to each other or to the images' real (often
-repo-root-relative) location.
+Images referenced from a page (`![alt](path)`) are resolved against the page's
+own directory, then the wiki root, then the repo root, copied into
+<out>/assets/, and the page rewritten to point at the copy - so a page keeps
+working regardless of how deep --wiki and --out sit relative to each other or
+to the images' real location.
+
+An image a page only *cites* - a `sources:` entry whose resource is an image -
+is copied in and shown too, above the body, unless the body already shows that
+same file inline. That is how the game wiki carries its screenshots: those
+pages were written from screenshots they then cite by a path into a gitignored
+directory, so without this the site names evidence that nobody reading it can
+see. Cited files of any kind get a link to the copy.
 
 Run:
   python render_html.py --wiki sample-wiki --out results/site
   python render_html.py --wiki results/wiki --out results/site   # after generate.py
+  python render_html.py --wiki results/game-wiki/wiki --out results/game-wiki/site
 """
 
 from __future__ import annotations
@@ -44,6 +52,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 HERE = Path(__file__).parent
+REPO_ROOT = HERE.parent.parent
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
 
@@ -155,9 +164,11 @@ _TABLE_SEP_RE = re.compile(r"^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?$")
 @dataclass
 class RenderContext:
     page_dir: Path      # directory the source .md file lives in
+    wiki_dir: Path       # root of the wiki bundle being rendered
     out_dir: Path        # directory the output .html file will live in
     assets_dir: Path      # <out-root>/assets
     footnote_ids: list = field(default_factory=list)
+    inlined_images: set = field(default_factory=set)   # resolved paths the body already shows
 
 
 def _asset_dest_name(src: Path) -> str:
@@ -165,12 +176,24 @@ def _asset_dest_name(src: Path) -> str:
     return f"{digest}-{src.name}"
 
 
-def _resolve_and_copy_image(raw_href: str, ctx: RenderContext) -> str | None:
-    if raw_href.startswith(("http://", "https://", "data:")):
-        return raw_href
-    src_path = (ctx.page_dir / raw_href).resolve()
-    if not src_path.exists():
-        return None
+def _resolve_asset(raw_href: str, ctx: RenderContext) -> Path | None:
+    """Where a referenced file actually is.
+
+    Three bases, because two different kinds of reference arrive here. An inline
+    `![](...)` is written relative to the page, while a `sources[].resource` is
+    written relative to a root: the repo root for a wiki whose evidence lives
+    elsewhere in the repo (the game wiki cites game-ontology's `out/`), or the
+    wiki's own directory for one that carries its raw material inside it.
+    Trying each in turn beats making the caller know which kind it holds.
+    """
+    for base in (ctx.page_dir, ctx.wiki_dir, REPO_ROOT):
+        candidate = (base / raw_href).resolve()
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _copy_asset(src_path: Path, ctx: RenderContext) -> str:
     dest_name = _asset_dest_name(src_path)
     ctx.assets_dir.mkdir(parents=True, exist_ok=True)
     dest_path = ctx.assets_dir / dest_name
@@ -178,6 +201,20 @@ def _resolve_and_copy_image(raw_href: str, ctx: RenderContext) -> str | None:
         shutil.copyfile(src_path, dest_path)
     rel = Path(_relpath(ctx.out_dir, ctx.assets_dir)) / dest_name
     return rel.as_posix()
+
+
+def _resolve_and_copy_image(raw_href: str, ctx: RenderContext) -> str | None:
+    if raw_href.startswith(("http://", "https://", "data:")):
+        return raw_href
+    src_path = _resolve_asset(raw_href, ctx)
+    if src_path is None:
+        return None
+    # Remembered so a page that shows an image inline is not handed the same
+    # image again from its `sources:` block. Compared as resolved paths, since
+    # the two references reach the same file by different routes:
+    # `../raw/funny.png` from the page against `raw/funny.png` from the root.
+    ctx.inlined_images.add(src_path)
+    return _copy_asset(src_path, ctx)
 
 
 def _relpath(from_dir: Path, to_dir: Path) -> str:
@@ -326,16 +363,21 @@ nav.top a { text-decoration: none; }
 .badge.status-draft { background: #fef3c7; color: #92400e; }
 .badge.status-stable { background: #dcfce7; color: #166534; }
 .badge.status-deprecated { background: #fee2e2; color: #991b1b; }
+.badge.unverified { background: #fee2e2; color: #991b1b; }
 @media (prefers-color-scheme: dark) {
   .badge.type { background: #1e3a5f; color: #bfdbfe; }
   .badge.status-draft { background: #4b3a0a; color: #fde68a; }
   .badge.status-stable { background: #0f3d24; color: #bbf7d0; }
   .badge.status-deprecated { background: #4a1414; color: #fecaca; }
+  .badge.unverified { background: #4a1414; color: #fecaca; }
 }
 .tag { display: inline-block; background: rgba(127,127,127,0.15); border-radius: 4px; padding: 0.05rem 0.4rem; font-size: 0.75rem; margin-right: 0.3rem; }
 table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
 th, td { border: 1px solid rgba(127,127,127,0.35); padding: 0.4rem 0.6rem; text-align: left; font-size: 0.9rem; }
 img { max-width: 100%; border-radius: 4px; }
+figure { margin: 0 0 1.5rem; }
+figure img { border: 1px solid rgba(127,127,127,0.35); }
+figcaption { color: rgba(127,127,127,0.9); font-size: 0.8rem; margin-top: 0.35rem; }
 .sources-list { font-size: 0.85rem; }
 .sources-list code { font-size: 0.8rem; }
 .footnote-ref a { text-decoration: none; }
@@ -408,7 +450,8 @@ def render_page(page: Page, wiki_dir: Path, out_dir: Path) -> None:
 
     out_path = out_dir / page.rel_out
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    ctx = RenderContext(page_dir=page.md_path.parent, out_dir=out_path.parent, assets_dir=out_dir / "assets")
+    ctx = RenderContext(page_dir=page.md_path.parent, wiki_dir=wiki_dir,
+                        out_dir=out_path.parent, assets_dir=out_dir / "assets")
 
     body_html = render_markdown(body, ctx)
 
@@ -416,11 +459,25 @@ def render_page(page: Page, wiki_dir: Path, out_dir: Path) -> None:
     if meta.get("type"):
         meta_bits.append(f'<span class="badge type">{html.escape(meta["type"])}</span>')
     meta_bits.append(status_badge(meta.get("status")))
+    # Per AGENTS.md a page is verified only if it says so, so the absence of the
+    # field is the claim. An absence is easy to read past, and these pages are
+    # written by a model from an automated exploration, so it is said out loud.
+    if not meta.get("verified"):
+        meta_bits.append('<span class="badge unverified">unverified</span>')
     for tag in meta.get("tags") or []:
         meta_bits.append(f'<span class="tag">{html.escape(tag)}</span>')
     meta_box = f'<div class="meta-box">{"".join(meta_bits)}</div>' if meta_bits else ""
 
-    sources_html = ""
+    # A cited image is shown, not just named. The game wiki's pages are written
+    # from screenshots that the page then cites and nobody can see: the paths
+    # point into a gitignored output directory, so on any other machine every
+    # one of them is dead. Copying the file in and putting it on the page is
+    # what makes the site carry its own evidence.
+    #
+    # Only from `sources:`. A page that already writes `![](...)` inline has said
+    # where it wants the image, and showing it twice would be worse than not
+    # showing it at all.
+    sources_html, figures = "", []
     sources = meta.get("sources") or []
     if sources:
         items = []
@@ -428,7 +485,16 @@ def render_page(page: Page, wiki_dir: Path, out_dir: Path) -> None:
             sid = s.get("id", "")
             resource = s.get("resource", "")
             label = s.get("title") or resource
-            items.append(f'<li id="src-{html.escape(sid)}"><code>{html.escape(resource)}</code> — {html.escape(label)}</li>')
+            src_path = (_resolve_asset(resource, ctx)
+                        if Path(resource).suffix.lower() in IMAGE_EXTENSIONS else None)
+            already_shown = src_path is not None and src_path in ctx.inlined_images
+            copied = _copy_asset(src_path, ctx) if src_path else None
+            if copied and not already_shown:
+                figures.append(f'<figure><img src="{html.escape(copied)}" alt="{html.escape(label)}" '
+                               f'loading="lazy"><figcaption>{html.escape(label)}</figcaption></figure>')
+            shown = (f'<a href="{html.escape(copied)}"><code>{html.escape(resource)}</code></a>'
+                     if copied else f"<code>{html.escape(resource)}</code>")
+            items.append(f'<li id="src-{html.escape(sid)}">{shown} — {html.escape(label)}</li>')
         sources_html = f'<h2>Sources</h2><ul class="sources-list">{"".join(items)}</ul>'
 
     css_href = _relpath(out_path.parent, out_dir / "assets" / "style.css")
@@ -438,6 +504,7 @@ def render_page(page: Page, wiki_dir: Path, out_dir: Path) -> None:
         f'<nav class="top"><a href="{html.escape(index_href)}">&larr; wiki index</a></nav>'
         f"<h1>{html.escape(page.title)}</h1>"
         f"{meta_box}"
+        f"{''.join(figures)}"
         f"{body_html}"
         f"{sources_html}"
     )

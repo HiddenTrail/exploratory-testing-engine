@@ -1,2 +1,14 @@
 .env
 __pycache__/
+
+# selftest_game_wiki.py's output: the same pages a real run writes, but with
+# stub prose where the model's would be. Regenerated in seconds and useful only
+# while looking at a change, unlike results/wiki, which is a real proof run.
+results/selftest-wiki/
+
+# generate_game_wiki.py's output. Not committed, for two reasons: it cites paths
+# inside game-ontology's gitignored out/, so the citations only resolve on the
+# machine that ran the exploration; and it is regenerated whole from a map plus
+# a model, so a committed copy would rot silently against both. Re-run the
+# generator to get it back.
+results/game-wiki/

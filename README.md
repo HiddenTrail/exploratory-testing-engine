@@ -123,6 +123,11 @@ engine/
   tools.py      # HYPOTHESIS_TOOL / SKEPTIC_TOOL / BUG_REPORT_TOOL - shared across every adapter
   client.py     # Anthropic client + call_tool_with_retry (tool-forced calls, retried on transient errors)
   loop.py       # the checkpoint loop itself
+  outcome.py    # the typed envelope an adapter puts on each result - a SUT's behaviour in terms the
+                #   engine can compare and count, replacing prose no generic code could read
+  diagnostics.py # domain-free detectors over those envelopes - facts about the RUN rather than the SUT:
+                #   a state whose actions are all inert, a batch that didn't start from one place, a
+                #   baseline reset that stopped working, a prior that matched nothing
   report.py     # generic HTML rendering (prose, badges, CSS, page/checkpoint structure)
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output
   cli.py        # python -m engine.cli --adapter <name>
@@ -130,6 +135,12 @@ engine/
     registry.py           # name -> adapter module, resolved lazily at run time
     token_purchase/        # first adapter: single request/response, decline-reason logic
     complex_sut/            # second adapter: concurrency/rate-limiting, proves the interface generalizes
+    clash_royale/           # third adapter: a live game client - no URL, no response body, taps and frames.
+                            #   The first non-HTTP SUT, which is what moved the engine's HTTP assumption
+                            #   behind check_sut_ready / fetch_happy_day_example. Read actions.py first:
+                            #   it is the whole safety argument for driving a real account. known_screens.json
+                            #   carries eleven screens an earlier recon pass measured against this client, four
+                            #   of them classified "abort" - which is how a run notices it reached the shop.
   bootstrap/
     discovery.py  # Phase 1 - fetch and parse a live OpenAPI/Swagger document
     freetext.py   # Phase 2 - LLM fallback: infer a schema from free-text spec text

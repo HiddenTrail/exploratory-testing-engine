@@ -8,8 +8,9 @@ and the onboarding section).
 import json
 from pathlib import Path
 
+from engine import outcome
 from engine.adapter import SUTAdapter
-from engine.http import call_sut_once
+from engine.http import call_sut_once, http_accepted
 from engine.ontology.oracle_creator import build_ranked_ideas
 from engine.report import badge, bool_badge, esc, inline_markdown, render_json_block
 from engine.util import unwrap_accidental_json_body
@@ -108,7 +109,7 @@ def execute_test(test: dict, test_number: int) -> dict:
         and (predicted_status != "declined" or actual_decline_reason == predicted_decline_reason)
     )
 
-    return {
+    return outcome.attach({
         "test_number": test_number,
         "request": request,
         "response": response,
@@ -118,7 +119,43 @@ def execute_test(test: dict, test_number: int) -> dict:
         "actual_status": actual_status,
         "actual_decline_reason": actual_decline_reason,
         "prediction_matched": prediction_matched,
-    }
+    }, _outcome_for(response, actual_status))
+
+
+def _outcome_for(response: dict, actual_status: str | None) -> outcome.Outcome:
+    """This SUT in the engine's typed outcome terms, and mostly what it CANNOT say.
+
+    The honest envelope here is largely empty, and that is the useful part: it
+    demonstrates that a detector which only fires when an adapter overstates what it
+    measured would find nothing here.
+
+    - `state_before`/`state_after` are empty because they genuinely are unobservable.
+      The card's credit balance is the SUT's state and this interface never reports
+      it; the only way to know it changed is to infer it from the status. A token
+      like `"default"` would be worse than nothing - it would make a SUT with an
+      invisible balance look like a system with exactly one state, and every
+      state-based detector would then reason over a fiction.
+    - `effect` uses the one state change this endpoint's contract does assert: an
+      approved purchase consumes credits, a decline consumes nothing. So approved is
+      a TRANSITION and declined is NONE - and NONE here is the correct answer to the
+      test rather than a symptom, which is exactly why the detector that reads NONE
+      also requires an observable state before it will say anything.
+    - `accepted` is about processing, not outcome: a 200 saying `declined` was
+      accepted and answered. See engine.http.http_accepted.
+    - `action_id` is the endpoint, because that is what was invoked. The varying part
+      is the request body, and every test's body differs, so an id per body would
+      make every action unique and mean nothing.
+    """
+    accepted = http_accepted(response)
+    if not accepted or actual_status not in ("approved", "declined"):
+        effect = outcome.UNKNOWN
+    else:
+        effect = outcome.TRANSITION if actual_status == "approved" else outcome.NONE
+    return outcome.Outcome(
+        action_id=f"POST {TEST_ENDPOINT_PATH}",
+        effect=effect,
+        accepted=accepted,
+    )
 
 
 def describe_test_for_log(test: dict) -> str:

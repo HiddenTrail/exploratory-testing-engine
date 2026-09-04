@@ -48,6 +48,8 @@ engine/
   tools.py      # HYPOTHESIS_TOOL / SKEPTIC_TOOL / BUG_REPORT_TOOL - domain-agnostic, not adapter-overridable
   client.py     # Anthropic client + call_tool_with_retry
   loop.py       # the checkpoint loop itself
+  outcome.py    # the typed envelope an adapter puts on each result - the only SUT vocabulary the engine reads
+  diagnostics.py # domain-free detectors over those envelopes: facts about the RUN, not the SUT
   report.py     # generic HTML rendering (prose, badges, CSS, page/checkpoint structure)
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output
   cli.py        # python -m engine.cli --adapter <name>
@@ -55,6 +57,11 @@ engine/
     registry.py           # name -> adapter module, resolved lazily
     token_purchase/        # first adapter, ported from experiments/token-purchase-poc
     complex_sut/            # second adapter - concurrency/rate-limiting domain
+    clash_royale/           # third adapter - a live game client, not a web service. Read actions.py first
+                            #   known_screens.json is measured data, not configuration: eleven screens a
+                            #   game-ontology recon pass fingerprinted against this client, extracted by
+                            #   extract_reference.py and loaded by reference.py. Four are classified
+                            #   "abort", which is what lets a run notice it has reached the shop
   bootstrap/                # generate a draft adapter from a live SUT - see below  ontology/                  # prioritization layer stack (heuristics/domain/context/ranked oracle) - see root README  tests/                    # deterministic regression + parity tests (no LLM calls)
 ```
 

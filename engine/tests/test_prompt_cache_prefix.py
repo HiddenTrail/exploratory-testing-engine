@@ -39,12 +39,12 @@ def _capture_segments(monkeypatch, *, max_checkpoints):
     seen = {"casting": [], "hypothesis": []}
 
     def fake_casting(client, adapter, run_config, happy_day_example, history_segments, prior_feedback,
-                     *, test_budget, is_first_round, usage_sink=None):
+                     *, test_budget, is_first_round, usage_sink=None, run_diagnostics=None):
         seen["casting"].append(list(history_segments))
         return {"give_up": False, "reasoning": "r", "candidate_tests": [{"linked_hypothesis": "", "predicted_outcome": "x"}]}
 
     def fake_hypothesis(client, adapter, run_config, happy_day_example, history_segments,
-                        prior_skeptic_review=None, usage_sink=None):
+                        prior_skeptic_review=None, run_diagnostics=None, usage_sink=None):
         seen["hypothesis"].append(list(history_segments))
         return {"observed_behavior": "b", "anomalies": [], "untested_areas": ["u"], "prior_gaps_response": []}
 

@@ -269,6 +269,59 @@ def _render_one_bug_report(bug_report) -> str:
     """
 
 
+_DIAGNOSTIC_TONES = {"stop": "bad", "warn": "warn", "info": "neutral"}
+
+
+def _render_diagnostics_section(checkpoints) -> str:
+    """The run's own findings about itself - see engine/diagnostics.py.
+
+    Rendered from the LAST checkpoint's diagnostics rather than from all of them:
+    each checkpoint's set is computed over the whole log up to that point, so the
+    final one is a superset and printing every checkpoint's would repeat the same
+    finding once per checkpoint with a rising test count.
+
+    A section that renders nothing when there are no findings would be the wrong
+    behaviour for the same reason the "unavailable" finding exists - so the absence
+    of findings is stated rather than left blank, and it is only omitted entirely
+    when there are no checkpoints at all to have findings about.
+    """
+    if not checkpoints:
+        return ""
+    findings = checkpoints[-1].get("diagnostics") or []
+    if not findings:
+        body = ('<p class="prose">No run-level findings: the executed tests started from a '
+                'consistent state, the actions tried had observable effects, and every attempt '
+                'to return to baseline worked.</p>')
+    else:
+        rows = []
+        for finding in findings:
+            tests = finding.get("tests") or []
+            where = (f'<span class="prose-muted">tests {esc(", ".join(str(t) for t in tests))}</span>'
+                     if tests else "")
+            rows.append(f"""
+            <article class="test">
+              <div class="test-hypothesis">
+                {badge(finding.get('severity', 'info'), _DIAGNOSTIC_TONES.get(finding.get('severity'), 'neutral'))}
+                <span class="test-number">{esc(finding.get('code'))}</span>
+                <strong>{esc(finding.get('headline'))}</strong> {where}
+              </div>
+              <div class="test-outcome">{inline_markdown(finding.get('detail'))}</div>
+            </article>
+            """)
+        body = "".join(rows)
+    return f"""
+    <section id="diagnostics">
+      <p class="eyebrow">The run, not the SUT</p>
+      <h2>Run diagnostics</h2>
+      <p class="prose">Computed arithmetically from what the executed tests actually did, with no
+      model involved and nothing here specific to this system. These qualify the findings above
+      them: an action that was never accepted cannot have demonstrated anything about what it
+      does, and a test that did not start from the baseline was not the test it was cast as.</p>
+      {body}
+    </section>
+    """
+
+
 def _render_bug_report_section(bug_reports) -> str:
     if not bug_reports:
         return ""
@@ -435,6 +488,11 @@ details.reasoning .prose {
 .badge-good { background: var(--good-bg); color: var(--good-fg); }
 .badge-bad { background: var(--bad-bg); color: var(--bad-fg); }
 .badge-warn { background: var(--warn-bg); color: var(--warn-fg); }
+/* For an outcome that is neither good nor bad nor worth flagging - "nothing
+   happened" is a legitimate, expected result for some SUTs, and rendering it in
+   warning colours would read as a problem. Without this class such a badge falls
+   back to `.badge` alone: a pill with no background at all. */
+.badge-neutral { background: var(--line); color: var(--ink-soft); }
 
 a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 """
@@ -476,6 +534,8 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
     nav_items = [("#schema", "Schema")]
     if casting_log or checkpoints:
         nav_items.append(("#casting", "Checkpoints"))
+    if checkpoints:
+        nav_items.append(("#diagnostics", "Diagnostics"))
     if bug_reports:
         nav_items.append(("#bug-report", "Bug report"))
     nav_html = "".join(f'<li><a href="{href}">{label}</a></li>' for href, label in nav_items)
@@ -518,6 +578,8 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
     <h2>Checkpoints</h2>
     {casting_html}
   </section>
+
+  {_render_diagnostics_section(checkpoints)}
 
   {_render_bug_report_section(bug_reports)}
 </div>

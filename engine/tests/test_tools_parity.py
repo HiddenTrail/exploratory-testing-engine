@@ -31,8 +31,32 @@ def original():
 
 # --- Domain-agnostic engine.tools vs. the original's most-evolved version ---
 
-def test_hypothesis_tool_schema_matches(original):
-    assert engine_tools.HYPOTHESIS_TOOL == original.HYPOTHESIS_TOOL
+# The one standing rival explanation added to the shared vocabulary after a live
+# run against a non-HTTP SUT. Five taps in a row were reported as five ordinary
+# no-ops when in fact the client was behind a modal and accepting nothing at all -
+# one cause, not five broken controls. It is phrased with no domain nouns because
+# it is the same failure as an HTTP SUT returning the unchanged prior state, or a
+# request rejected before it reached any handler.
+_UNACCEPTED_INPUT_RIVAL = "NEVER ACCEPTED"
+
+
+def test_hypothesis_tool_schema_matches_apart_from_the_added_rival(original):
+    # Deliberately no longer byte-identical: the 'anomalies' description now names
+    # the unaccepted-input rival (see _UNACCEPTED_INPUT_RIVAL). Everything else must
+    # still match exactly, so the check is "identical once that one field is set
+    # aside", not a weaker "looks similar".
+    engine_copy = copy.deepcopy(engine_tools.HYPOTHESIS_TOOL)
+    original_copy = copy.deepcopy(original.HYPOTHESIS_TOOL)
+    engine_anomalies = engine_copy["input_schema"]["properties"]["anomalies"].pop("description")
+    original_anomalies = original_copy["input_schema"]["properties"]["anomalies"].pop("description")
+    assert engine_copy == original_copy
+
+    assert "the input was never accepted at all" in engine_anomalies
+    assert "never accepted" not in original_anomalies.lower()
+    # The original's own teaching about the anomalies field is not replaced by it.
+    for phrase in ("specific, falsifiable claim", "not a strawman you'd easily dismiss"):
+        assert phrase in original_anomalies
+        assert phrase in engine_anomalies
 
 
 def test_skeptic_tool_schema_covers_everything_the_original_required(original):
@@ -84,8 +108,31 @@ def test_bug_report_tool_schema_matches(original):
     assert engine_tools.BUG_REPORT_TOOL == original.BUG_REPORT_TOOL
 
 
-def test_hypothesis_system_prompt_matches(original):
-    assert engine_tools.HYPOTHESIS_SYSTEM_PROMPT == original.HYPOTHESIS_SYSTEM_PROMPT
+def test_hypothesis_system_prompt_keeps_the_original_and_adds_the_rival(original):
+    # Was byte-identical until the unaccepted-input rival was added (see
+    # _UNACCEPTED_INPUT_RIVAL). The original is required to still be present
+    # verbatim, as a contiguous block, so the addition can only be an addition -
+    # this fails if a future edit rewords the ported prompt while touching it.
+    assert original.HYPOTHESIS_SYSTEM_PROMPT.strip() != ""
+    added = engine_tools.HYPOTHESIS_SYSTEM_PROMPT
+    assert _UNACCEPTED_INPUT_RIVAL in added
+    for paragraph in original.HYPOTHESIS_SYSTEM_PROMPT.split("\n\n"):
+        assert paragraph.strip() in added
+
+
+def test_hypothesis_prompt_prefers_one_cause_over_several_broken_controls():
+    # The specific reasoning the addition exists to install, and the reason it is in
+    # the shared prompt rather than one adapter's: a claim resting on several inputs
+    # that each did nothing must consider that nothing was being accepted at all.
+    prompt = engine_tools.HYPOTHESIS_SYSTEM_PROMPT
+    assert "one cause instead of many" in prompt
+    assert "identical observation" in prompt
+    # And the Skeptic must be able to fail a hypothesis for not ruling it out,
+    # otherwise the instruction to the Driver has no consequence.
+    assert "discriminates_from_rival=false" in engine_tools.SKEPTIC_SYSTEM_PROMPT
+    assert _UNACCEPTED_INPUT_RIVAL in engine_tools.SKEPTIC_SYSTEM_PROMPT
+    assert _UNACCEPTED_INPUT_RIVAL in engine_tools.SKEPTIC_TOOL["input_schema"]["properties"][
+        "anomaly_checks"]["description"]
 
 
 def test_skeptic_system_prompt_still_covers_the_original_material_reasons(original):

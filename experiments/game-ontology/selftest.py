@@ -52,6 +52,10 @@ from recon import Action, Recon  # noqa: E402
 
 COLS, ROWS = 32, 18
 CLIENT = (3840, 2160)
+FAKE_SAMPLES = 36000     # pixels a fake capture renders at most - see `FakeController.
+                         # capture`. Above every budget in `recon.py` for a trim patch, so
+                         # those arrive exact, and far below a full-window picture, so the
+                         # big ones are reduced and the run stays quick.
 
 # Three buttons in a column, a logo that animates, a back button on a second screen.
 BUTTONS = [((10, 19), (5, 6), "play"), ((10, 19), (8, 9), "settings"),
@@ -216,9 +220,15 @@ class FakeController:
         fw, fh = region[2] * CLIENT[0], region[3] * CLIENT[1]
         scale = min(1.0, longest / max(fw, fh))
         ow, oh = max(1, int(fw * scale)), max(1, int(fh * scale))
-        # A tenth of the pixels the real thing would return, so a full run stays under
-        # two seconds. The aim and the contents are what this checks, not the resolution.
-        w, h = max(1, ow // 10), max(1, oh // 10)
+        # Fewer pixels than the real thing would return, so a full run stays under two
+        # seconds: rendering is a Python loop, and a full window at 1400 is 3.5M cells.
+        # Capped as an *area* rather than by shrinking each side, because a trim's patch
+        # has to arrive at the resolution it asked for. Shrunk per side, a wide patch came
+        # back two pixels tall, `content_box` refused it, and every button on the fake
+        # game reported itself invisible - a fault in this file that read as a fault in
+        # the code under test.
+        keep = min(1.0, (FAKE_SAMPLES / (ow * oh)) ** 0.5)
+        w, h = max(1, int(ow * keep)), max(1, int(oh * keep))
         self.crops.append((tuple(round(v, 3) for v in region), self.game.pressed))
         return self.game.render(w, h, region), w, h
 
@@ -297,12 +307,59 @@ class FakeController:
         return "fake"
 
 
-def fake_vetter(seen: list[dict]):
+def cells_box(cols: tuple[int, int], rows: tuple[int, int]) -> tuple:
+    """The exact fractional rectangle a span of the fake game's cells occupies.
+
+    The truth, in other words - and the reason this file can check `snap_box` at all. A
+    real game has no second opinion about where its own buttons are, so a trim measured
+    against one can only be eyeballed; here the answer is arithmetic."""
+    return (cols[0] / COLS, rows[0] / ROWS,
+            (cols[1] - cols[0] + 1) / COLS, (rows[1] - rows[0] + 1) / ROWS)
+
+
+# What the fake vetter claims to see, per screen, and how far off it is. Every hint here is
+# wrong in a way a real vetting call is wrong - a box read off a picture scaled to 1400px,
+# a few percent adrift and a shade too generous - so the trim has real work to do and the
+# error against `truth` is a measurement of whether it did it.
+#
+# The last two entries on the menu are the failure modes, kept in deliberately. `nothing
+# here` is a box on empty background, which must come back `described` with a sentence
+# rather than snapped to whatever the trim scraped up; and `wildly misplaced` is a box in
+# the corner claiming to be the play button, which the drift guard has to refuse.
+FAKE_ELEMENTS = {
+    "menu": [
+        {"label": "play", "what": "starts the game", "kind": "button",
+         "box": [0.30, 0.27, 0.33, 0.12], "truth": cells_box(*BUTTONS[0][:2])},
+        {"label": "settings", "what": "opens the options", "kind": "button",
+         "box": [0.32, 0.43, 0.30, 0.13], "truth": cells_box(*BUTTONS[1][:2])},
+        {"label": "quit", "what": "leaves the game", "kind": "button",
+         "at": [0.47, 0.65], "truth": cells_box(*BUTTONS[2][:2])},
+        {"label": "the logo", "what": "it pulses", "kind": "animation",
+         "box": [0.02, 0.0, 0.20, 0.13], "truth": cells_box((1, 5), (0, 1))},
+        {"label": "nothing here", "what": "a label the call imagined", "kind": "text",
+         "box": [0.75, 0.60, 0.12, 0.05]},
+        {"label": "wildly misplaced", "what": "the play button, allegedly", "kind": "button",
+         "box": [0.90, 0.92, 0.08, 0.06]},
+    ],
+    "settings": [
+        {"label": "back", "what": "returns to the menu", "kind": "button",
+         "box": [0.05, 0.81, 0.18, 0.14], "truth": cells_box(*BACK)},
+        {"label": "the list", "what": "a scrollable panel", "kind": "panel",
+         "box": [0.24, 0.10, 0.60, 0.60], "truth": cells_box(*PANEL)},
+    ],
+}
+
+
+def fake_vetter(seen: list[dict], game: "FakeGame | None" = None):
     """Clears everything, and records the labels it was sent.
 
     The labels are half the point: a picture the model is given under the wrong
     description is worse than no picture, so what arrives at the call is checked and not
-    just what was written to disk."""
+    just what was written to disk.
+
+    Given the game, it also answers with `FAKE_ELEMENTS` - roughly-placed boxes for the
+    screen the game is actually on - which is what puts `locate_elements` on the path. That
+    is the half a real pass cannot verify: it produces rectangles nobody can grade."""
     def vet(image_path, screen, variant, candidates, crops=()):
         seen.append({"screen": screen.id, "variant": variant.id,
                      "crops": [c["label"] for c in crops]})
@@ -312,8 +369,9 @@ def fake_vetter(seen: list[dict]):
         escalated = [a for a in candidates if a.kind in ("scroll", "drag")
                      and tuple(a.at or ()) != recon.PROBE_AT]
         unruled = {escalated[-1].id} if len(escalated) > 1 else set()
+        elements = [dict(e) for e in FAKE_ELEMENTS.get(game.screen if game else "", [])]
         return {"name": f"{screen.id} menu", "purpose": "a fake screen",
-                "highlighted": "", "elements": [],
+                "highlighted": "", "elements": elements,
                 "actions": {a.id: {"safe": True, "why": "fake"}
                             for a in candidates if a.id not in unruled}}
     return vet
@@ -333,9 +391,10 @@ def main() -> None:
     recon.ANIMATION_GAP = 0.01
 
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "out" / "selftest"
-    controller = FakeController(FakeGame())
+    game = FakeGame()
+    controller = FakeController(game)
     seen: list[dict] = []
-    session = Recon(controller, out, vetter=fake_vetter(seen))
+    session = Recon(controller, out, vetter=fake_vetter(seen, game))
     for _ in range(40):
         if session.step() == "exhausted":
             break
@@ -388,6 +447,28 @@ def main() -> None:
     for call in seen:
         print(f"  {call['screen']}/{call['variant']}: {call['crops']}")
 
+    # The trim, graded. `off by` is the largest of the four edges' distance from the true
+    # rectangle, as a fraction of the window - so a number near zero means the box in the
+    # map is the control's own rectangle and not the description it started as. A regression
+    # here is a row whose `off by` grew, or one that stopped saying `trimmed`.
+    print("\nwhere each element was placed, against where it actually is:")
+    for screen in data["screens"]:
+        for element in screen["elements"]:
+            box, truth = element.get("box"), element.get("truth")
+            if not box:
+                print(f"  {screen['id']} {element['label']!r:<20} unplaced")
+                continue
+            error = ""
+            if truth:
+                edges = max(abs(box[0] - truth[0]), abs(box[1] - truth[1]),
+                            abs(box[0] + box[2] - truth[0] - truth[2]),
+                            abs(box[1] + box[3] - truth[1] - truth[3]))
+                error = f" off by {edges:.3f}"
+            print(f"  {screen['id']} {element['label']!r:<20} "
+                  f"{element.get('located', '?'):<18} "
+                  f"[{', '.join(f'{v:.3f}' for v in box)}]{error}"
+                  + ("" if element.get("image") else "   NO PICTURE"))
+
     blocks = describe._crop_blocks(out, [t for t in data["transitions"]
                                          if t["from"] == data["screens"][0]["id"]])
     print(f"\nannotate would attach "
@@ -429,6 +510,8 @@ def _referenced(data: dict) -> set[str]:
         for variant in screen["variants"]:
             refs.add(variant["image"])
             refs.add(variant.get("differs_image") or "")
+        for element in screen.get("elements") or []:
+            refs.add(element.get("image") or "")
         for entry in (screen.get("mouse_verdicts") or {}).values():
             if isinstance(entry, dict) and entry.get("image"):
                 refs.add(entry["image"])

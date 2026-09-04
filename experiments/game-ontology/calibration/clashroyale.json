@@ -1,0 +1,21 @@
+{
+  "game": "Clash Royale",
+  "measured": {
+    "screen_match": {
+      "screen_match": 0.974,
+      "kept": false,
+      "widest_same_place": 13,
+      "smallest_screen_change": 60,
+      "cells": 576,
+      "populations_overlap": false,
+      "admissible_range": [
+        0.896,
+        0.974
+      ],
+      "why": "the widest same-place move changed 13 of 576 cells and the smallest screen change 60"
+    }
+  },
+  "window_title": "Clash Royale - PekkaMarjamaki",
+  "screen_match": 0.974,
+  "note": "No startup measurement: this game cannot be launched by the harness (see experiments/android-bot/attach.py), so measure_startup has nothing to watch and startup_quiet is left at the Target default. screen_match is recut from the 320s pass in out/Clash Royale-20260903-122143. Two things about it are worth knowing before a pass trusts it: it also sets the readiness gate (tolerance = (1 - screen_match) * 2304 cells, so 59 rather than 138), and sc04 idles at 20 of 576 cells of animation, which is looser than the cut - masked out for screens already in the map, not for the first frame of a new one. Run run_recon.py --dry first."
+}

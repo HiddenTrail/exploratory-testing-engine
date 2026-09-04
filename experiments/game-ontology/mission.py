@@ -235,6 +235,15 @@ class Mission:
         wanted = label.strip().lower()
         for element in (screen.vetting or {}).get("elements", []):
             if (element.get("label") or "").strip().lower() == wanted:
+                # The rectangle first, when the map has one. Its centre is the middle of a
+                # control whose edges were measured off the window, while `at` may be a
+                # point a model read off a screenshot scaled to 1400px - and on a map
+                # written by `locate_elements` the two agree anyway, because `at` was set
+                # from the box. Preferring the box is what makes a plan aimed by label as
+                # accurate on an old map as on a new one.
+                box = recon.as_box(element.get("box"))
+                if box is not None:
+                    return recon.box_centre(box), ""
                 at = element.get("at")
                 if is_fraction(at):
                     return (float(at[0]), float(at[1])), ""

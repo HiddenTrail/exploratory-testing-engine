@@ -12,10 +12,11 @@ import json
 
 from anthropic import Anthropic
 
+from engine import diagnostics
 from engine.adapter import SUTAdapter
 from engine.client import call_tool_with_retry
 from engine.config import RunConfig
-from engine.http import call_sut_once
+from engine.http import default_happy_day_example
 from engine.redact import default_redact_history_for_model
 from engine.tools import (
     BUG_REPORT_SYSTEM_PROMPT,
@@ -72,9 +73,8 @@ def _cacheable_evidence_segments(
 
 
 def get_happy_day_example(adapter: SUTAdapter) -> dict:
-    request = {"method": "POST", "path": adapter.test_endpoint_path, "body": adapter.happy_day_request}
-    response = call_sut_once(adapter.base_url, adapter.test_endpoint_path, adapter.happy_day_request)
-    return {"request": request, "response": response}
+    """The adapter's own fetch, or the HTTP one every adapter so far has wanted."""
+    return (adapter.fetch_happy_day_example or default_happy_day_example)(adapter)
 
 
 def get_casting_round(
@@ -88,6 +88,7 @@ def get_casting_round(
     test_budget: int,
     is_first_round: bool,
     usage_sink: list[dict] | None = None,
+    run_diagnostics: dict | None = None,
 ) -> dict:
     # Known and unavoidable: the casting system prompt varies with test_budget
     # and is_first_round, and system renders BEFORE the messages, so checkpoint 2
@@ -101,6 +102,8 @@ def get_casting_round(
     fresh_evidence = {}
     if prior_checkpoint_feedback is not None:
         fresh_evidence["prior_checkpoint_feedback"] = prior_checkpoint_feedback
+    if run_diagnostics:
+        fresh_evidence["run_diagnostics"] = run_diagnostics
     return call_tool_with_retry(
         client,
         model=run_config.model,
@@ -125,13 +128,20 @@ def get_checkpoint_hypothesis(
     history_segments: list[str],
     prior_skeptic_review: dict | None = None,
     usage_sink: list[dict] | None = None,
+    run_diagnostics: dict | None = None,
 ) -> dict:
     cached_segments = _cacheable_evidence_segments(
         adapter, happy_day_example, "ALL TESTS THIS SESSION", history_segments
     )
+    # Both of these go in the FRESH message, not the cached segments: they change
+    # every checkpoint, and one changing block at the end of a cached prefix costs
+    # nothing, while a changing block inside it would invalidate everything after
+    # it. See _cacheable_evidence_segments.
     fresh_evidence = {}
     if prior_skeptic_review is not None:
         fresh_evidence["prior_skeptic_review"] = prior_skeptic_review
+    if run_diagnostics:
+        fresh_evidence["run_diagnostics"] = run_diagnostics
     return call_tool_with_retry(
         client,
         model=run_config.model,
@@ -185,6 +195,14 @@ def run_checkpoint_loop(
 ):
     """Returns (casting_log, checkpoints, stopped_reason).
 
+    After every batch, engine/diagnostics.py runs over the whole log so far and its
+    findings go three places: printed, into the hypothesis and next casting calls as
+    evidence, and onto the checkpoint record for the report. A `stop` finding ends
+    the run with `stopped_reason` = `diagnostics_<code>` - the loop's only exit that
+    is neither the Skeptic nor the checkpoint cap, and it exists because a run that
+    has lost the ability to return to its own baseline is spending budget on tests
+    whose results cannot be attributed to the action that was sent.
+
     on_checkpoint(casting_log, checkpoints), if given, is called after every
     checkpoint completes - not just once at the end - so a crash partway
     through (a non-retryable API error, an unexpected bug) doesn't discard
@@ -214,6 +232,7 @@ def run_checkpoint_loop(
     casting_log = []
     checkpoints = []
     prior_feedback = None
+    run_diagnostics = None
     stopped_reason = "checkpoints_exhausted"
     history_segments: list[str] = []
 
@@ -231,6 +250,7 @@ def run_checkpoint_loop(
             test_budget=test_budget,
             is_first_round=is_first_checkpoint,
             usage_sink=usage_sink,
+            run_diagnostics=run_diagnostics,
         )
 
         entries_before = len(casting_log)
@@ -265,10 +285,20 @@ def run_checkpoint_loop(
 
         prior_skeptic_review = prior_feedback["skeptic_review"] if prior_feedback else None
 
+        # Run diagnostics over the whole log so far, not just this checkpoint's
+        # entries: a collapsed action space and a broken reset both take more than
+        # one batch to become visible, and re-deriving from the full log each time
+        # is cheap (pure arithmetic, no calls). See engine/diagnostics.py.
+        findings = diagnostics.diagnose(casting_log)
+        if findings:
+            print(f"  run diagnostics ({len(findings)}):")
+            for line in diagnostics.console_lines(findings):
+                print(line)
+
         print(f"Checkpoint {checkpoint_num}: forming a hypothesis...")
         hypothesis = get_checkpoint_hypothesis(
             client, adapter, run_config, happy_day_example, history_segments, prior_skeptic_review,
-            usage_sink=usage_sink,
+            usage_sink=usage_sink, run_diagnostics=diagnostics.for_model(findings),
         )
         print(f"  observed_behavior: {hypothesis['observed_behavior']}")
         print(f"  anomalies noticed: {len(hypothesis['anomalies'])}")
@@ -279,7 +309,12 @@ def run_checkpoint_loop(
         skeptic_review = get_skeptic_review(client, run_config, hypothesis, prior_skeptic_review, usage_sink=usage_sink)
         print(f"  skeptic verdict: {skeptic_review['verdict']}")
 
-        checkpoints.append({"checkpoint": checkpoint_num, "hypothesis": hypothesis, "skeptic_review": skeptic_review})
+        checkpoints.append({
+            "checkpoint": checkpoint_num,
+            "hypothesis": hypothesis,
+            "skeptic_review": skeptic_review,
+            "diagnostics": diagnostics.as_dicts(findings),
+        })
 
         if on_checkpoint is not None:
             on_checkpoint(list(casting_log), list(checkpoints))
@@ -287,7 +322,25 @@ def run_checkpoint_loop(
             stopped_reason = "skeptic_satisfied"
             break
 
+        # A `stop` finding ends the run, but only AFTER the checkpoint completed:
+        # the batch that produced it was already executed and paid for, and its
+        # hypothesis and review are the best account of what went wrong. Stopping
+        # mid-checkpoint would throw that away to save nothing. What it does save
+        # is every checkpoint after this one, which would spend budget sampling the
+        # SUT from a state nobody chose.
+        blocker = diagnostics.should_stop(findings)
+        if blocker is not None:
+            print(f"  STOPPING: {blocker.headline}")
+            print(f"    {blocker.detail}")
+            stopped_reason = f"diagnostics_{blocker.code}"
+            break
+
         prior_feedback = {"hypothesis": hypothesis, "skeptic_review": skeptic_review}
+        # A separate key rather than nested inside prior_checkpoint_feedback, whose
+        # contents every adapter's casting prompt describes as "the previous
+        # checkpoint's hypothesis plus Skeptic's critique". Slipping a third thing
+        # in there would make four prompts quietly inaccurate.
+        run_diagnostics = diagnostics.for_model(findings)
 
     return casting_log, checkpoints, stopped_reason
 
