@@ -299,6 +299,143 @@ def write_png(path: str, bgra: bytes, width: int, height: int) -> None:
     Path(path).write_bytes(png)
 
 
+def read_png(path: str) -> tuple[bytes, int, int]:
+    """The inverse of `write_png`: a saved frame back as top-down BGRA.
+
+    Returns the same `(pixels, width, height)` tuple `Controller.capture` returns, so a
+    frame on disk is interchangeable with a frame off the screen. That is the point of
+    having it - a detector's thresholds can then be developed and tested against real
+    game frames instead of synthetic buffers, with no game running and no match spent.
+
+    Handles 8-bit truecolour with and without alpha, which covers what `write_png`
+    emits (colour type 2, filter 0 on every row) and ordinary screenshots besides.
+    Interlaced, paletted and 16-bit PNGs raise rather than return something plausible:
+    a decoder that guesses is worse than one that refuses, because the frames it
+    mangles still look like frames.
+    """
+    blob = Path(path).read_bytes()
+    if blob[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError(f"{path} is not a PNG")
+
+    width = height = depth = colour = 0
+    idat = bytearray()
+    at = 8
+    while at + 8 <= len(blob):
+        length, tag = struct.unpack(">I4s", blob[at:at + 8])
+        payload = blob[at + 8:at + 8 + length]
+        at += 12 + length
+        if tag == b"IHDR":
+            width, height, depth, colour, _, filt, interlace = struct.unpack(
+                ">2I5B", payload)
+            if depth != 8 or colour not in (2, 6) or interlace or filt:
+                raise ValueError(
+                    f"{path}: only 8-bit non-interlaced RGB/RGBA is supported, got "
+                    f"depth {depth}, colour type {colour}, interlace {interlace}")
+        elif tag == b"IDAT":
+            idat += payload
+        elif tag == b"IEND":
+            break
+    if not width or not height:
+        raise ValueError(f"{path}: no IHDR")
+
+    bpp = 3 if colour == 2 else 4
+    stride = width * bpp
+    raw = zlib.decompress(bytes(idat))
+    if len(raw) != (stride + 1) * height:
+        raise ValueError(f"{path}: {len(raw)} bytes of scanline, expected "
+                         f"{(stride + 1) * height}")
+
+    # Filter 0 on every row - what `write_png` writes - needs no reconstruction at all,
+    # so it skips a per-byte Python loop over what can be a megapixel. Worth the branch:
+    # the fast path is the one this repo's own frames take.
+    if all(raw[y * (stride + 1)] == 0 for y in range(height)):
+        flat = bytearray(stride * height)
+        for y in range(height):
+            start = y * (stride + 1) + 1
+            flat[y * stride:(y + 1) * stride] = raw[start:start + stride]
+    else:
+        flat = _unfilter(raw, width, height, bpp)
+
+    # Strided slice assignment, not a per-pixel loop: this runs in C and the loop it
+    # replaces is a megapixel long.
+    out = bytearray(width * height * 4)
+    out[0::4] = flat[2::bpp]                    # BGRA blue  <- RGB red is at +0
+    out[1::4] = flat[1::bpp]
+    out[2::4] = flat[0::bpp]
+    out[3::4] = b"\xff" * (width * height)
+    return bytes(out), width, height
+
+
+def _unfilter(raw: bytes, width: int, height: int, bpp: int) -> bytearray:
+    """Reconstruct PNG filter types 1-4, per the spec's own arithmetic."""
+    stride = width * bpp
+    out = bytearray(stride * height)
+    prior = bytearray(stride)
+    for y in range(height):
+        kind = raw[y * (stride + 1)]
+        line = bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
+        for x in range(stride):
+            left = line[x - bpp] if x >= bpp else 0
+            up = prior[x]
+            upleft = prior[x - bpp] if x >= bpp else 0
+            if kind == 0:
+                add = 0
+            elif kind == 1:
+                add = left
+            elif kind == 2:
+                add = up
+            elif kind == 3:
+                add = (left + up) // 2
+            elif kind == 4:
+                peer = left + up - upleft
+                add = min((left, up, upleft),
+                          key=lambda v: abs(peer - v))
+            else:
+                raise ValueError(f"unknown PNG filter type {kind} on row {y}")
+            line[x] = (line[x] + add) & 0xFF
+        out[y * stride:(y + 1) * stride] = line
+        prior = line
+    return out
+
+
+def thumbnail_from_bgra(bgra: bytes, width: int, height: int, cols: int, rows: int,
+                        region: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0),
+                        ) -> bytes:
+    """`grab_thumbnail`, off a buffer instead of off the screen.
+
+    Same output shape - `cols * rows` cells of BGRA - so `changed_cells` and every
+    threshold written against a live grab reads this too.
+
+    It is an *approximation* of the live one, and the difference is worth stating: this
+    averages each cell's source block in Python, while `grab_thumbnail` hands the job to
+    GDI's HALFTONE StretchBlt, whose exact kernel is not specified. Cell values agree
+    closely but not to the byte, so a threshold tuned here should be confirmed against a
+    live grab before anything acts on it.
+    """
+    fx, fy, fw, fh = region
+    left, top = int(width * fx), int(height * fy)
+    span_w, span_h = max(1, int(width * fw)), max(1, int(height * fh))
+    out = bytearray()
+    for row in range(rows):
+        y0 = top + span_h * row // rows
+        y1 = max(y0 + 1, top + span_h * (row + 1) // rows)
+        for col in range(cols):
+            x0 = left + span_w * col // cols
+            x1 = max(x0 + 1, left + span_w * (col + 1) // cols)
+            blue = green = red = count = 0
+            for y in range(max(0, y0), min(height, y1)):
+                base = y * width * 4
+                for x in range(max(0, x0), min(width, x1)):
+                    at = base + x * 4
+                    blue += bgra[at]
+                    green += bgra[at + 1]
+                    red += bgra[at + 2]
+                    count += 1
+            count = count or 1
+            out += bytes((blue // count, green // count, red // count, 255))
+    return bytes(out)
+
+
 def paste_bgra(dst: bytearray, dst_width: int, x: int, y: int,
                src: bytes, src_width: int, src_height: int) -> None:
     for row in range(src_height):
