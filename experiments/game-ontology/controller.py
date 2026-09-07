@@ -630,9 +630,49 @@ class Target:
     # How far a grid cell's mean must move to count as changed, per channel.
     cell_delta: int = 10
 
+    # The process image a window MUST belong to for it to be this game, as
+    # (file name, a folder it must sit under). Empty means "no such constraint".
+    #
+    # This exists for the target that has an owning process but no launchable exe:
+    # a Google Play Games title is drawn by `crosvm.exe` inside the Play Games
+    # install and started through a shell URI, so `exe` is necessarily empty (see
+    # experiments/android-bot/attach.py). With `exe` empty, `_belongs` falls through
+    # to comparing *titles*, and the title of a Play Games game is its own name -
+    # which is also the name of any editor tab or browser tab that happens to have a
+    # file about the game open. That is not hypothetical: a VS Code window showing
+    # `clash-royale-wiki.html` qualified as a usurping window of Clash Royale and
+    # was adopted, and an adopted window is one this harness sends drags into.
+    #
+    # Separate from `exe` on purpose, because the two answer different questions and
+    # conflating them is what `attach.py` warns about: `exe` is "what to start", and
+    # pointed at an emulator it would boot a bare VM. This is only ever "what to
+    # believe", and nothing launches it.
+    owner_image: tuple[str, str] = ("", "")
+
     def resolve_exe(self) -> Path | None:
         path = Path(self.exe) if self.exe else None
         return path if path and path.exists() else None
+
+    def disowns(self, pid: int | None) -> str:
+        """Why `pid` cannot be this game's process, or "".
+
+        Fails closed: with a constraint set, a process whose image cannot be read at
+        all is rejected rather than given the benefit of the doubt. The window this
+        guards against is by definition somebody else's, and the cost of a wrong
+        rejection is a refusal to hand over, while the cost of a wrong acceptance is
+        input sent into another program.
+        """
+        wanted, under = self.owner_image
+        if not wanted:
+            return ""
+        image = process_image(pid) if pid is not None else None
+        if image is None:
+            return "its process image cannot be read"
+        if image.name.lower() != wanted.lower():
+            return f"it belongs to {image.name}, not {wanted}"
+        if under and Path(under) not in image.parents:
+            return f"its {image.name} is not under {under}"
+        return ""
 
     def forbids(self, fx: float, fy: float) -> str | None:
         """The reason this point is off limits, or None. Fractional so it survives
@@ -699,6 +739,9 @@ class Controller:
         # caused one can be credited with it - see `Recon.step`. A count rather than a
         # flag because nothing here knows when the session last looked.
         self.handovers = 0
+        # Processes already reported as "named like the game but not the game", so the
+        # note is printed once each rather than on every readiness check.
+        self._disowned_said: set[int] = set()
 
     @property
     def rect(self) -> tuple[int, int, int, int]:
@@ -810,6 +853,14 @@ class Controller:
             if needle and needle in title.lower():
                 if exe is not None and not self._same_install(window_pid(hwnd), exe):
                     strangers.append(title)
+                    continue
+                # The same rejection for a target that names its owning process instead
+                # of an exe; without it the title alone decides, and the title is a name
+                # any window with a file about the game open also carries.
+                disowned = self.target.disowns(window_pid(hwnd))
+                if disowned:
+                    self.note(f"{title!r} matches the remembered title but {disowned}; "
+                              f"not attaching to it")
                     continue
                 if title.lower() == needle and exact is None:
                     exact = (hwnd, title, f"the remembered title {title!r}")
@@ -931,6 +982,21 @@ class Controller:
         because it ends up in the session notes: a handover is a guess about somebody's
         desktop and it should be readable afterwards which evidence made it."""
         launched = self.target.resolve_exe()
+        # First, because it outranks all four relations below including title evidence:
+        # a target that names its owning process has said which process is the game, and
+        # no amount of title resemblance overrides that.
+        disowned = self.target.disowns(pid)
+        if disowned:
+            # Said out loud, but only for the window that would otherwise have been
+            # adopted on its title alone - that is the near miss a person needs to know
+            # about, and the rest are just the desktop. Deduped by process, because this
+            # runs once per visible window per readiness check.
+            named = _squash(self.target.name) in _squash(title)
+            if named and pid not in self._disowned_said:
+                self._disowned_said.add(pid)
+                self.note(f"not adopting {title!r} even though its title names the game: "
+                          f"{disowned}")
+            return ""
         if self.pid and pid == self.pid:
             return "the same process"
         image = process_image(pid)
@@ -1156,7 +1222,22 @@ class Controller:
     def _restart(self, why: str) -> str:
         """Relaunch and carry on. The accumulated ontology is deliberately *not*
         discarded: what was learned about the game is still true, and a session that
-        threw it away on every crash would never get past the first screen."""
+        threw it away on every crash would never get past the first screen.
+
+        Refuses outright for a target it cannot launch, *before* touching the game."""
+        # This check belongs here and not in `_launch`, even though `_launch` already
+        # raises the same way. `close()` below posts WM_CLOSE to the game window and will
+        # taskkill its pid if that does not take; by the time `_launch` gets to complain
+        # about the missing executable, the game is already shut. For a Play Games title -
+        # blank TargetPath, unlaunchable by design - that turns a recoverable "the window
+        # went funny" into an unrecoverable "the game is closed and nothing here can
+        # reopen it", which is exactly what happened on 2026-09-07: a liveness check on a
+        # hidden window took this path and closed the client it was checking.
+        if self.target.resolve_exe() is None:
+            raise WindowLost(
+                f"{why}, and {self.target.name!r} cannot be relaunched from here: it has "
+                f"no executable to start. Leaving it alone rather than closing something "
+                f"that cannot be reopened - open the game yourself and try again.")
         self.restarts += 1
         self.note(f"restart {self.restarts}: {why}")
         # Unconditionally, even when the window being driven is already gone: a launcher

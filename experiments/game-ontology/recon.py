@@ -301,15 +301,21 @@ SCHEMA = "game-ontology/2"
 
 # --- fingerprints -----------------------------------------------------------
 
-def fingerprint(controller: Controller) -> bytes:
+def fingerprint(controller: Controller, verify: bool = True) -> bytes:
     """Three bytes of BGR mean per grid cell.
+
+    `verify=False` for callers that only want to *watch* the window. The default asks
+    `grab` to confirm the game is in the foreground first, and that check escalates - a
+    window that is not foreground sends `ensure_readable` looking for a fix, up to and
+    including closing the game. Right for a driver mid-errand, wrong for an observer,
+    whose whole question is what the window is doing without being touched.
 
     The averaging is GDI's, not ours: `grab_thumbnail` downsamples with HALFTONE, so
     each returned pixel is already the mean of the source region behind it. That is
     the right reduction for identity (it is stable against a pixel of noise) and the
     wrong one for anything extremum-based - a thin bright line survives averaging as
     a barely-changed mean, which is why detail work elsewhere grabs 1:1 instead."""
-    raw = controller.grab(GRID_COLS, GRID_ROWS)
+    raw = controller.grab(GRID_COLS, GRID_ROWS, verify=verify)
     out = bytearray()
     for i in range(0, len(raw), 4):
         out += raw[i:i + 3]

@@ -55,6 +55,15 @@ runs/
 # probe run, and a few MB of PNGs per session.
 experiments/game-screen-probe/pics/
 
+# Static HTML rendered from a wiki bundle by .wiki-source/scripts/render-html.mjs.
+# Wholly derived from the committed markdown, and its screenshots live under an
+# ignored out/ - so a committed copy would be broken in a fresh clone anyway.
+# The second rule is the --single output, which embeds those screenshots as data
+# URIs and so runs to tens of MB - definitely not something to commit.
+wiki-html/
+*-wiki.html
+*-wiki-*.html
+
 # Recon session output: ontology.json, report.md and a few dozen PNGs per run.
 # Already caught by the bare `out/` rule above, but that one is there for build
 # artifacts - stated explicitly so this stays ignored if that rule is ever

@@ -32,10 +32,20 @@ DEFAULT_MAX_ATTEMPTS = 3
 # scratch. Deliberately NOT retrying AuthenticationError/PermissionDeniedError/
 # BadRequestError/NotFoundError/etc. - those are permanent problems (bad key,
 # malformed request); retrying just burns time and attempt budget for nothing.
-_RETRYABLE_API_ERRORS = (
-    anthropic.APIConnectionError,  # covers APITimeoutError too (subclass)
-    anthropic.RateLimitError,
-    anthropic.InternalServerError,
+#
+# OverloadedError (529) has to be named explicitly: it is NOT a subclass of
+# InternalServerError but a sibling under APIStatusError, and the SDK checks for
+# 529 *before* its `>= 500` branch. So "InternalServerError covers the 5xx range"
+# is false, and a 529 propagated on the first attempt with no backoff at all -
+# which is the most common transient error there is. Held in a list filtered by
+# `hasattr` because the class postdates this file's `anthropic>=1.0` floor.
+_RETRYABLE_API_ERRORS = tuple(
+    e for e in (
+        anthropic.APIConnectionError,  # covers APITimeoutError too (subclass)
+        anthropic.RateLimitError,
+        anthropic.InternalServerError,
+        getattr(anthropic, "OverloadedError", None),
+    ) if e is not None
 )
 
 
