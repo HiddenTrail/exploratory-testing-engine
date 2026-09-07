@@ -1222,7 +1222,22 @@ class Controller:
     def _restart(self, why: str) -> str:
         """Relaunch and carry on. The accumulated ontology is deliberately *not*
         discarded: what was learned about the game is still true, and a session that
-        threw it away on every crash would never get past the first screen."""
+        threw it away on every crash would never get past the first screen.
+
+        Refuses outright for a target it cannot launch, *before* touching the game."""
+        # This check belongs here and not in `_launch`, even though `_launch` already
+        # raises the same way. `close()` below posts WM_CLOSE to the game window and will
+        # taskkill its pid if that does not take; by the time `_launch` gets to complain
+        # about the missing executable, the game is already shut. For a Play Games title -
+        # blank TargetPath, unlaunchable by design - that turns a recoverable "the window
+        # went funny" into an unrecoverable "the game is closed and nothing here can
+        # reopen it", which is exactly what happened on 2026-09-07: a liveness check on a
+        # hidden window took this path and closed the client it was checking.
+        if self.target.resolve_exe() is None:
+            raise WindowLost(
+                f"{why}, and {self.target.name!r} cannot be relaunched from here: it has "
+                f"no executable to start. Leaving it alone rather than closing something "
+                f"that cannot be reopened - open the game yourself and try again.")
         self.restarts += 1
         self.note(f"restart {self.restarts}: {why}")
         # Unconditionally, even when the window being driven is already gone: a launcher

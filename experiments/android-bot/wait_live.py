@@ -14,6 +14,11 @@ Two things this does that a single `--dry` cannot:
   reads zero movement about four times in five. Measured live: 5, 0, 0, 0, 0, 5.
   Concluding "dead" from one zero is a false-alarm generator; concluding "alive"
   from one non-zero is fine, because a stale frame cannot move at all.
+- **it cannot touch the game.** Every grab is unverified and the whole cycle is inside
+  the guard. On 2026-09-07 neither was true: a verified grab of a *hidden* window sent
+  `ensure_readable` looking for a fix, and the fix was `_restart`, which closed the
+  client this script had been asked to watch. A liveness check that can shut the thing
+  it is checking reports on a state it created.
 
 Exit 0 the moment it sees real movement, 1 on timeout.
 """
@@ -40,12 +45,20 @@ GAME = "Clash Royale"
 
 
 def sample(controller, seconds: int = 4) -> int:
-    """The largest one-second movement over `seconds`, in cells."""
-    prev = fingerprint(controller)
+    """The largest one-second movement over `seconds`, in cells.
+
+    Every grab here is `verify=False`, which is the whole difference between watching a
+    window and driving one. A verified grab that finds the game is not the foreground
+    calls `ensure_readable`, and that is allowed to relaunch - which for this target
+    means closing a client it cannot reopen. A liveness check that can shut the thing it
+    is checking is not a liveness check, and on 2026-09-07 this one did exactly that to a
+    hidden window.
+    """
+    prev = fingerprint(controller, verify=False)
     worst = 0
     for _ in range(seconds):
         time.sleep(1.0)
-        current = fingerprint(controller)
+        current = fingerprint(controller, verify=False)
         worst = max(worst, changed_cells(prev, current, controller.target.cell_delta))
         prev = current
     return worst
@@ -74,17 +87,21 @@ def main() -> int:
 
     while time.monotonic() < deadline:
         cycle += 1
+        # The sampling is inside the guard, not just the attach. Losing the window
+        # part-way through four seconds of watching is this loop's *ordinary* case - the
+        # game is being opened or closed while it looks - and it used to escape as a
+        # traceback because only `attach` was wrapped.
         try:
             controller = attach(GAME, verbose=cycle == 1)
+            for measured in ("startup_quiet", "screen_match", "cell_delta"):
+                if measured in remembered:
+                    setattr(controller.target, measured, remembered[measured])
+            moved = sample(controller)
         except Exception as error:                          # noqa: BLE001
             # Expected while the window is gone: closed, or not opened yet.
-            print(f"[{cycle}] no Play Games window yet", flush=True)
+            print(f"[{cycle}] no readable Play Games window yet ({error})", flush=True)
             time.sleep(3.0)
             continue
-        for measured in ("startup_quiet", "screen_match", "cell_delta"):
-            if measured in remembered:
-                setattr(controller.target, measured, remembered[measured])
-        moved = sample(controller)
         print(f"[{cycle}] hwnd {controller.hwnd} max movement {moved} of {cells}",
               flush=True)
         if not need_movement or moved >= ALIVE_CELLS:
