@@ -540,6 +540,21 @@ consumer can take the observed claims and leave the guesses.
     than as a fallback for when the process image cannot be read at all. A weak piece of
     evidence in the same `or` as a strong one is not a fallback; it is the rule.
 
+    **And then a target arrived for which the strong relation cannot exist, so the weak one
+    was the rule again.** A Google Play Games title has no executable at all - its shortcut
+    stores a blank TargetPath, and the client cannot be started from a path - so `Target.exe`
+    is empty by construction and all three process relations are unreachable. Every window
+    naming the game was adoptable on the title alone, permanently, and one was: a VS Code
+    window titled `Clash Royale - live client exploration (...report.html)`. The fix cannot
+    be "make the fallback stricter", because there is nothing to fall back *from*.
+    `Target.owner_image` names the process that draws the game - here `crosvm.exe` under
+    `C:\Program Files\Google\Play Games` - and is checked *before* the four relations rather
+    than after, so it outranks any title resemblance instead of competing with it.
+    `Target.disowns` fails closed: a window whose process image cannot be read is refused,
+    because the cost of a wrong refusal is a handover that does not happen and the cost of a
+    wrong acceptance is input sent into another program. Verified firing in production - it
+    declined that editor window on every invocation of a live session.
+
 24. **Nothing checked that a coordinate was inside the window.** The annotator wrote
     `at: [697, 190]` for a control - pixels of the screenshot it was shown, where fractions
     belong - and that value sat in a committed map, describing a real button, waiting for
@@ -659,6 +674,68 @@ consumer can take the observed claims and leave the guesses.
     exercised: no Tile Tale screen animates at all. And `drag_does_something` is cruder
     than it sounds - the screen that set it did so with a drag that hit a control and left
     for the main menu, which is not the panning it is meant to detect.
+
+27. **A health check closed the client it was checking, and then reported it as crashed.**
+    `_restart` closes the game and *then* launches it again, and the check for "can this
+    even be launched" lived in the launching half. For a target with no executable that is
+    the order that loses: WM_CLOSE goes to the game, taskkill follows if it does not take,
+    and only afterwards does `_launch` raise `cannot find an executable`. A window that went
+    funny is recoverable; a game shut with nothing able to reopen it is not.
+
+    The chain was entirely made of parts doing their documented jobs. `wait_live.py` - whose
+    whole purpose is to watch without touching - called `fingerprint`, which calls
+    `grab(verify=True)`, which found the window was not the foreground, because Play Games
+    parks its window *hidden* (`IsWindowVisible 0` with `IsIconic 0`, which is neither of the
+    two states `ensure_readable` is written around). `ensure_readable` went looking for a fix
+    and the fix was a relaunch. **A verified grab is a driving call**, and that is not
+    visible at the call site: nothing about `fingerprint(controller)` suggests it may close
+    the game. `recon.fingerprint` now takes `verify=False`, which is what an observer passes,
+    and the guard in `_restart` refuses before touching anything - because refusing loudly
+    *after* `close()` is no better than not refusing.
+
+    Worth the note that the harness must never reach for this game's launcher, and that rule
+    is what made the failure survivable: `Target.exe` being empty is why `_launch` raised
+    instead of starting a second client over the first. A safety property held by accident is
+    still worth converting into one held on purpose - `test_no_restart_without_exe.py`, 8
+    tests, 5 of which fail with the guard removed.
+
+    And the reporting failure is its own lesson. Asked what happened, the first answer was
+    "the game opened and closed again", which read as a crash. The harness had done it.
+
+28. **"Settled" and "alive" were one number, and the two have diverged.** `_wait_settled`
+    asks a single question of the whole window - did more than `(1 - screen_match) * 2304`
+    cells move - and its docstring claimed *"a startup transient crosses it by construction,
+    idle animation does not"*. A live, perfectly readable Clash Royale lobby falsified that
+    when the account progressed and the lobby gained an animated offer banner: idle animation
+    moved **132 of 2304** cells against a tolerance of 60, and the run died with `window never
+    rendered a settled frame`. Three days earlier the same lobby had held a steady 1 of 576
+    for ninety seconds. This is lesson 3 and lesson 15's hole biting in the *other* direction:
+    tight enough to catch a freeze is now too tight to admit a live screen.
+
+    The premise is that a screen is either moving or it is not, and games are not like that.
+    `experiments/android-bot/sweep_stability.py` measures the question that is actually
+    useful - per cell, how many of N consecutive frame pairs it changed in. On that lobby,
+    16 frames a second apart: **97.3% of cells hold still**, the top bar and the trophy band
+    read 0.0%, and every moving cell belongs to a named piece of decoration - a glowing icon,
+    two pulsing chest thumbnails, a shine crossing the button plate, the arena's flag tips.
+
+    So a per-screen stable mask works, with a condition that was not obvious and that only a
+    **held-out** test exposes. A mask fitted on every pair scores zero on every pair, which
+    proves nothing; scored on pairs it has never seen, a mask learned from 8 frames reads at
+    worst 10 of 2304 where the whole window reads 33 - but the same mask learned from **3**
+    frames reads 49 against a tolerance of 59. The animation cycles on something longer than
+    three seconds, so a short fit has not met most of it. `Screen.animated` already learns a
+    mask this way across repeat visits and is the right shape; a readiness gate meeting a
+    screen for the first time has not had a cycle to learn from, which argues for two stages
+    rather than a looser threshold. **Not yet changed** - the measurement is committed, the
+    gate is not.
+
+    Two smaller traps found underneath it. Frames captured at *different resolutions* cannot
+    be compared: 787x1400 and 393x700 both reduced to 64 columns flicker every high-contrast
+    edge, and that alone inflated the same measurement from 24 cells to 84. And a frame can
+    differ by **brightness alone** - a lobby behind an overlay that had not finished fading
+    read 13% darker and moved 1045 of 2304 cells, which a downstream check duly reported as
+    an unknown screen when it was the right screen under a veil.
 
 ## What is reused, and what standalone means
 

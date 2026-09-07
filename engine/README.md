@@ -1,10 +1,18 @@
 # AI Exploratory Testing Engine
 
 A reusable Driver+Skeptic checkpoint-loop harness, hardened from four rounds
-of experimentation in `experiments/` (kept there as an untouched historical
+of experimentation in `experiments/` (mostly kept there as a historical
 archive - this package is a port, not a rewrite). See
 `docs/exploratory-testing-engine-concept.md` for the original vision this is
 one deliberately narrow slice of.
+
+The "archive" framing has one live exception. `adapters/clash_royale/` does not
+port its harness: `session.py` puts `experiments/game-ontology` and
+`experiments/android-bot` on `sys.path` and imports them at call time, rather
+than copying 1,600 lines of Win32 window handling that have been hardened
+against a real client. Its own comment records that as a knowing debt. Those
+two directories are therefore **maintained, not frozen**, they have their own
+pytest suites (72 and 127 tests), and CI runs neither - they are Windows-only.
 
 ## What it does
 
@@ -46,7 +54,10 @@ reflect a run's actual results).
 engine/
   adapter.py    # SUTAdapter interface - what a per-SUT adapter must supply
   tools.py      # HYPOTHESIS_TOOL / SKEPTIC_TOOL / BUG_REPORT_TOOL - domain-agnostic, not adapter-overridable
-  client.py     # Anthropic client + call_tool_with_retry
+  client.py     # Anthropic client + call_tool_with_retry. Its retryable-error list is written out
+                #   by name rather than by base class on purpose: OverloadedError (529) is a *sibling*
+                #   of InternalServerError, not a subclass, and the SDK tests 529 before its >= 500
+                #   branch - so a list built on subclassing let 529 propagate on the first attempt
   loop.py       # the checkpoint loop itself
   outcome.py    # the typed envelope an adapter puts on each result - the only SUT vocabulary the engine reads
   diagnostics.py # domain-free detectors over those envelopes: facts about the RUN, not the SUT

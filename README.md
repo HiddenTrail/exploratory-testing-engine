@@ -1,6 +1,6 @@
 # qes-exploration
 
-[![engine tests](https://github.com/pekka-hiddentrail/qes-exploration/actions/workflows/engine-tests.yml/badge.svg)](https://github.com/pekka-hiddentrail/qes-exploration/actions/workflows/engine-tests.yml)
+[![engine tests](https://github.com/HiddenTrail/exploratory-testing-engine/actions/workflows/engine-tests.yml/badge.svg)](https://github.com/HiddenTrail/exploratory-testing-engine/actions/workflows/engine-tests.yml)
 
 An LLM-based **disconfirmation engine** for exploratory API testing: instead of
 running a fixed, pre-scripted test plan, it drives a live system, forms a
@@ -152,7 +152,17 @@ engine/
     cli.py        # python -m engine.bootstrap.cli - chains all 4 phases end to end
   ontology/       # prioritization layer stack (heuristics/domain/context/ranked oracle) - see above
   tests/          # deterministic regression + parity tests (no LLM calls, runs in CI)
-experiments/      # earlier throwaway prototypes this package was hardened from - untouched historical archive
+experiments/      # mostly earlier prototypes this package was hardened from, kept as a historical
+                  #   archive. Two are NOT archive: they are worked on, and the clash_royale adapter
+                  #   imports them at run time (see session.py's own note on that debt), so a rename
+                  #   in either can break the engine with nothing in CI to catch it:
+  game-ontology/  #   the general game harness - window identity, readiness, input safety, screen
+                  #   discovery. Has its own pytest suite (72 tests). Read its README's "Things that
+                  #   bit" before changing anything in controller.py.
+  android-bot/    #   the Clash Royale target built on that harness: attach, recon, errands, one
+                  #   authorised Training Camp battle, and the measurement tools (127 tests). Its
+                  #   README carries the safety rules and which layer holds each - read it first,
+                  #   because this one drives somebody's real account.
 docs/
   exploratory-testing-engine-concept.md  # the original, broader vision
   examples/bootstrap_demo/                # a real worked example of the bootstrap pipeline's output
@@ -199,3 +209,17 @@ python -m pytest engine/tests
 Runs automatically on every push to `master` and every PR via
 [`.github/workflows/engine-tests.yml`](.github/workflows/engine-tests.yml) -
 no Anthropic API key needed, since no test makes a real LLM call.
+
+The game harness carries its own suites, which CI does **not** run - they are
+Windows-only (Win32 window handles, GDI capture) while CI is Linux:
+
+```
+python -m pytest experiments/game-ontology experiments/android-bot
+```
+
+Those are also LLM-free and deterministic; every real-window call is
+monkeypatched, so no game has to be installed to run them. Run them by hand
+before touching `controller.py`, because what they cover is which window
+receives input and whether the harness may close a client - the two failures
+there are a drag sent into somebody's editor and a game shut with no way to
+reopen it, and both have happened.

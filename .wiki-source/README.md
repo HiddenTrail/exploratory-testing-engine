@@ -5,9 +5,16 @@ repo (`quality-playbook-factory`, sibling folder to this one) — specifically t
 that implement its "Karpathy LLM Wiki" pattern: an LLM keeps a `wiki/` of markdown pages
 synthesized from raw sources, instead of a human writing it by hand.
 
-This folder is **reference material to replicate that pattern in this repo**
-(`qes-exploration`), not a working workspace itself — nothing here runs against
-`qes-exploration`'s own data yet.
+This folder is **reference material to replicate that pattern in this repo**, not a
+working workspace itself.
+
+It has now been used once for real, which the "how to adapt this" section below predates:
+`experiments/android-bot/wiki/` is a wiki built by this pattern from recon output against a
+live Clash Royale client — an overview, a log, and one entity page per screen and per
+persistent UI element. So the open question is no longer whether the pattern transfers; it
+is whether an *append-only* wiki stays true as the target changes underneath it. That
+target's lobby gained animated offers between two sessions three days apart, which invalidated
+measured thresholds recorded in those pages.
 
 ## What's here and why
 
@@ -18,6 +25,8 @@ commands/
 scripts/
   scaffold.mjs         creates the directory skeleton + seeds wiki/index.md, wiki/overview.md
   rebuild-index.mjs     regenerates wiki/index.md from the frontmatter of every wiki page
+  render-html.mjs        renders the wiki to HTML - a mirrored tree by default, or one
+                          self-contained file with --single (CSS inlined, images base64'd)
   lib/yaml.mjs          dependency-free YAML parser rebuild-index.mjs needs
 templates/
   wiki/
@@ -32,9 +41,9 @@ templates/
     CLAUDE.md             thin pointer so Claude Code also picks up AGENTS.md
 ```
 
-These are QPF's actual, working files — not rewritten or simplified. `scaffold.mjs` and
-`rebuild-index.mjs` are runnable as-is (`node`, no dependencies) once you adjust the
-paths below.
+These are QPF's actual, working files — not rewritten or simplified. `scaffold.mjs`,
+`rebuild-index.mjs` and `render-html.mjs` are runnable as-is (`node`, no dependencies)
+once you adjust the paths below.
 
 ## The pattern in one paragraph
 
