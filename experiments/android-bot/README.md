@@ -75,6 +75,7 @@ where a gesture starts, not where it ends.
 | `drive.py` | one tap at a time, a person deciding each one |
 | `battle.py --allow-battle` | Training Camp matches back to back, measuring how well each went |
 | `probe_window.py` | read-only: is this window something the harness could drive at all? |
+| `../../clash-royale-kit/cr.py` | all of the above wrapped for somebody who is not going to read this file: checks the machine, runs one recon pass, writes a wiki from it. No agent, no code editing |
 
 Reading the board, for `battle.py` and the `clash_royale` adapter: `arena.py` (where the
 fighting is), `hand.py` (what is in hand and whether it can be paid for), `towers.py` (which
@@ -112,14 +113,23 @@ Do not re-measure by comparing frames captured at **different resolutions** (787
 do not assume every high threshold is now wrong: measured the same day, `battle.py`'s
 lobby-vs-itself agreement was 0.979-1.000 against its 0.9 bar.
 
+`--screen-match 0.93` is a person's guess repeated until it works. `clash-royale-kit/cr.py`
+does the same thing arithmetically instead: it watches the untouched window for six seconds,
+takes the *worst* second rather than the mean, and cuts the threshold just below it - so the
+number moves with the lobby rather than with whoever last ran a pass. Six seconds because a
+healthy lobby measured 5, 0, 0, 0, 0, 5: two samples read no movement about two times in
+three, and cut a threshold no frame of that lobby survives. The reasoning and the measurement
+are written into `preflight.json` and into the wiki, because a threshold whose argument was
+left in a terminal scrollback is one nobody can check later.
+
+Whatever a previous calibration pass measured is applied by `attach.apply_calibration`, which
+every caller must ask for: `attach` builds its own `Target` rather than going through
+`targets.resolve`, so it hands out the `Target` defaults and not the file. Deliberately still
+opt-in - tightening `screen_match` from 0.94 to the measured 0.974 also tightens `wait_stable`
+and `_wait_settled`, which is what killed a pass on the animated lobby in the first place.
+
 ## Known traps, not yet fixed
 
-- **`attach.py` does not load the remembered calibration.** It builds its own `Target`
-  rather than going through `targets.resolve`, so it hands out `screen_match 0.94`
-  (tolerance 138 of 2304) while the measured value on disk is 0.974 (tolerance 59). Any
-  script that reads `controller.target.screen_match` after `attach` is scoring against a bar
-  2.3x looser than the recon gate. `wait_live.py` and `sweep_stability.py` overlay
-  `calibrate.load(GAME)` themselves; nothing else does.
 - **`battle.py` photographs whatever is on screen at startup as its lobby reference.** Run
   after a recon pass it binds a *profile screen* as "the lobby", which inverts its own
   navigation test while every log line still reads plausible. Put the client on the lobby
@@ -127,7 +137,11 @@ lobby-vs-itself agreement was 0.979-1.000 against its 0.9 bar.
   change test.
 - **`--seconds 210` does not cover an overtime match**, and stopping mid-match cascades:
   the "end" frame is not a result screen, and the dismiss taps land on a live board.
-- **Recon exits wherever it finished** rather than returning to a known screen.
+- **Recon exits wherever it finished** rather than returning to a known screen. `run_recon.py`
+  itself still does; `clash-royale-kit/cr.py` presses the vetted recovery action afterwards,
+  so a pass started through the kit ends on the main screen or says loudly that it did not.
+  Which matters because of the `battle.py` trap above: the cost of exiting on a profile screen
+  is paid by whatever runs next, not by the pass that left it there.
 - **The client freezes silently.** Every Win32 health check reports a healthy window while
   the guest has stopped rendering; only idle drift catches it and only a relaunch - a
   person's job - fixes it.

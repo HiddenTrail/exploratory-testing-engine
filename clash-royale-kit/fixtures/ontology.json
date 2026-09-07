@@ -1,0 +1,412 @@
+{
+  "_fixture_note": [
+    "A hand-written recon map, shaped like a real one but small enough to reason about.",
+    "It is hand-written rather than a copied real run for two reasons. A real run is 400KB of",
+    "screens nobody can hold in their head, so a test that fails against it tells you a number",
+    "moved and not which rule broke. And a real run does not reliably contain the shapes worth",
+    "testing - a real pass may happen to have no sinks and no contradictory crops at all.",
+    "",
+    "Every shape the builder has a branch for is present here on purpose:",
+    "  sc01  the start screen: elements with measured boxes, one placed from a description",
+    "        alone, a vetting refusal, and an inert input that changed nothing",
+    "  sc02  reached and left again, and a variant transition whose crops are byte-identical",
+    "        while it reports 14 cells changed - the frames-vs-counts finding",
+    "  sc03  identity_is_weak, so every claim about it inherits that doubt",
+    "  sc04  a SINK: entered from sc01 and never left",
+    "  sc05  never entered, never left, unreachable from the start - the honest limit of a map",
+    "",
+    "The crop files are not committed. The test writes them, which is what makes the",
+    "byte-identical pair an explicit fact of the test rather than an accident of what got",
+    "checked in; with no crops on disk the builder reports 0 pairs checked and still builds."
+  ],
+  "schema": "game-ontology/ontology/1",
+  "target": {
+    "name": "Clash Royale",
+    "window_title": "Clash Royale - FixtureAccount",
+    "client": [393, 700],
+    "grid": [32, 18]
+  },
+  "session": {
+    "seconds": 302.4,
+    "actions": 41,
+    "resumed_from": null,
+    "stopped": "time budget reached",
+    "restarts": 0,
+    "vetted_by_model": true,
+    "clicks_enabled": true,
+    "grid": [32, 18],
+    "screen_match_threshold": 0.93,
+    "cell_delta": 12,
+    "screens_split_by_name": 1,
+    "median_match_score": 0.981,
+    "notes": [
+      "sc03's identity rests on 41 stable cells of 576, so frames filed there may belong elsewhere.",
+      "Element boxes on sc05 were never measured because the pass never described that screen."
+    ]
+  },
+  "screens": [
+    {
+      "id": "sc01",
+      "name": "Main lobby",
+      "purpose": "The screen the client opens on, carrying the battle button, the currency counts and the bottom navigation.",
+      "image": "images/sc01-v1.png",
+      "observations": 9,
+      "first_seen_action": 0,
+      "stable_cells": 512,
+      "animated_cells": 27,
+      "identity_is_weak": false,
+      "variants": ["images/sc01-v1.png", "images/sc01-v2.png"],
+      "explored": {
+        "tried": [
+          "click:0.500,0.780",
+          "click:0.120,0.960",
+          "click:0.500,0.960",
+          "click:0.880,0.960",
+          "click:0.060,0.030",
+          "click:0.740,0.395",
+          "click:0.300,0.500"
+        ]
+      },
+      "elements": [
+        {
+          "label": "Battle",
+          "what": "Starts a live ladder match against a real opponent.",
+          "at": [0.500, 0.780],
+          "box": [0.320, 0.720, 0.370, 0.120],
+          "kind": "button",
+          "located": "measured",
+          "image": "images/sc01-battle.png"
+        },
+        {
+          "label": "Cards tab",
+          "what": "Opens the card collection.",
+          "at": [0.120, 0.960],
+          "box": [0.060, 0.930, 0.120, 0.060],
+          "kind": "tab",
+          "located": "measured"
+        },
+        {
+          "label": "Home tab",
+          "what": "Returns to the main lobby.",
+          "at": [0.500, 0.960],
+          "box": [0.440, 0.930, 0.120, 0.060],
+          "kind": "tab",
+          "located": "measured"
+        },
+        {
+          "label": "Shop tab",
+          "what": "Opens the shop, where real money can be spent.",
+          "at": [0.880, 0.960],
+          "box": [0.820, 0.930, 0.120, 0.060],
+          "kind": "tab",
+          "located": "measured"
+        },
+        {
+          "label": "Gem count",
+          "what": "The account's premium currency balance.",
+          "at": [0.060, 0.030],
+          "box": [0.020, 0.010, 0.120, 0.040],
+          "kind": "label",
+          "located": "measured"
+        },
+        {
+          "label": "Claim",
+          "what": "Claims a mystery chest reward.",
+          "at": [0.740, 0.395],
+          "box": null,
+          "kind": "button",
+          "located": "described"
+        },
+        {
+          "label": "Season pass banner",
+          "what": "A promotional banner for the current season's paid pass.",
+          "at": [0.500, 0.620],
+          "box": [0.100, 0.590, 0.800, 0.120],
+          "kind": "banner",
+          "located": "measured"
+        }
+      ],
+      "mouse_verdicts": {
+        "click:0.500,0.780": {
+          "safe": false,
+          "why": "this starts a live ladder match against a real opponent, which stakes trophies on the account"
+        },
+        "click:0.120,0.960": { "safe": true, "why": "a navigation tab with no cost" },
+        "click:0.500,0.960": { "safe": true, "why": "returns to the lobby" },
+        "click:0.880,0.960": {
+          "safe": false,
+          "why": "the shop is where real money is spent and a single tap inside it can complete a purchase"
+        },
+        "click:0.060,0.030": { "safe": true, "why": "a currency label, not a control" },
+        "click:0.740,0.395": {
+          "safe": false,
+          "why": "claiming a reward may consume progress currency or be irreversible"
+        },
+        "click:0.300,0.500": { "safe": true, "why": "empty background" }
+      },
+      "volatile_map": "images/sc01-volatile.png",
+      "animated_map": "images/sc01-animated.png"
+    },
+    {
+      "id": "sc02",
+      "name": "Card collection",
+      "purpose": "The player's deck and every card they own, with an upgrade control on each.",
+      "image": "images/sc02-v1.png",
+      "observations": 5,
+      "first_seen_action": 3,
+      "stable_cells": 488,
+      "animated_cells": 12,
+      "identity_is_weak": false,
+      "variants": ["images/sc02-v1.png"],
+      "explored": { "tried": ["click:0.500,0.960", "click:0.250,0.400", "click:0.750,0.400"] },
+      "elements": [
+        {
+          "label": "Home tab",
+          "what": "Returns to the main lobby.",
+          "at": [0.500, 0.960],
+          "box": [0.440, 0.930, 0.120, 0.060],
+          "kind": "tab",
+          "located": "measured"
+        },
+        {
+          "label": "Gem count",
+          "what": "The account's premium currency balance.",
+          "at": [0.060, 0.030],
+          "box": [0.020, 0.010, 0.120, 0.040],
+          "kind": "label",
+          "located": "measured"
+        },
+        {
+          "label": "Upgrade",
+          "what": "Spends gold and cards to raise a card's level.",
+          "at": [0.250, 0.400],
+          "box": [0.200, 0.370, 0.100, 0.060],
+          "kind": "button",
+          "located": "measured"
+        },
+        {
+          "label": "Deck slot 1",
+          "what": "One of the eight cards in the active deck.",
+          "at": [0.150, 0.700],
+          "box": null,
+          "kind": "card",
+          "located": "described"
+        }
+      ],
+      "mouse_verdicts": {
+        "click:0.500,0.960": { "safe": true, "why": "returns to the lobby" },
+        "click:0.250,0.400": {
+          "safe": false,
+          "why": "an upgrade spends gold and consumes cards, which is progress the account cannot get back"
+        },
+        "click:0.750,0.400": { "safe": true, "why": "selects a card to inspect it" }
+      }
+    },
+    {
+      "id": "sc03",
+      "name": "Shop",
+      "purpose": "Offers for gems, gold and chests, several of them purchasable with real money.",
+      "image": "images/sc03-v1.png",
+      "observations": 2,
+      "first_seen_action": 17,
+      "stable_cells": 41,
+      "animated_cells": 190,
+      "identity_is_weak": true,
+      "variants": ["images/sc03-v1.png", "images/sc03-v2.png", "images/sc03-v3.png"],
+      "explored": { "tried": ["click:0.500,0.960"] },
+      "elements": [
+        {
+          "label": "Home tab",
+          "what": "Returns to the main lobby.",
+          "at": [0.500, 0.960],
+          "box": [0.440, 0.930, 0.120, 0.060],
+          "kind": "tab",
+          "located": "measured"
+        },
+        {
+          "label": "Gem count",
+          "what": "The account's premium currency balance.",
+          "at": [0.060, 0.030],
+          "box": [0.020, 0.010, 0.120, 0.040],
+          "kind": "label",
+          "located": "measured"
+        },
+        {
+          "label": "Gem bundle",
+          "what": "A real-money purchase of premium currency.",
+          "at": [0.500, 0.300],
+          "box": null,
+          "kind": "offer",
+          "located": "described"
+        }
+      ],
+      "mouse_verdicts": {
+        "click:0.500,0.960": { "safe": true, "why": "returns to the lobby" }
+      }
+    },
+    {
+      "id": "sc04",
+      "name": "Profile",
+      "purpose": "The account's own statistics, badges and battle history.",
+      "image": "images/sc04-v1.png",
+      "observations": 3,
+      "first_seen_action": 28,
+      "stable_cells": 540,
+      "animated_cells": 4,
+      "identity_is_weak": false,
+      "variants": ["images/sc04-v1.png", "images/sc04-v2.png"],
+      "explored": { "tried": ["click:0.500,0.500", "click:0.900,0.100"] },
+      "elements": [
+        {
+          "label": "Gem count",
+          "what": "The account's premium currency balance.",
+          "at": [0.060, 0.030],
+          "box": [0.020, 0.010, 0.120, 0.040],
+          "kind": "label",
+          "located": "measured"
+        },
+        {
+          "label": "Battle log",
+          "what": "The list of recent matches.",
+          "at": [0.500, 0.500],
+          "box": [0.100, 0.400, 0.800, 0.200],
+          "kind": "list",
+          "located": "measured"
+        },
+        {
+          "label": "Close",
+          "what": "Dismisses the profile.",
+          "at": [0.900, 0.100],
+          "box": null,
+          "kind": "button",
+          "located": "described"
+        }
+      ],
+      "mouse_verdicts": {
+        "click:0.500,0.500": { "safe": true, "why": "read-only history" },
+        "click:0.900,0.100": { "safe": true, "why": "dismisses a panel" }
+      }
+    },
+    {
+      "id": "sc05",
+      "name": "",
+      "purpose": "",
+      "image": "images/sc05-v1.png",
+      "observations": 1,
+      "first_seen_action": 39,
+      "stable_cells": 0,
+      "animated_cells": 0,
+      "identity_is_weak": true,
+      "variants": ["images/sc05-v1.png"],
+      "explored": { "tried": [] },
+      "elements": [],
+      "mouse_verdicts": {}
+    }
+  ],
+  "transitions": [
+    {
+      "id": "t01",
+      "from": "sc01",
+      "to": "sc02",
+      "effect": "screen",
+      "action": { "id": "click:0.120,0.960", "kind": "click", "at": [0.120, 0.960] },
+      "changed_cells": 431,
+      "settle_ms": 620,
+      "times_taken": 3,
+      "crop_box": [0.0, 0.0, 1.0, 1.0],
+      "crops": { "before": "crops/t01-before.png", "pressed": "crops/t01-pressed.png", "after": "crops/t01-after.png" }
+    },
+    {
+      "id": "t02",
+      "from": "sc02",
+      "to": "sc01",
+      "effect": "screen",
+      "action": { "id": "click:0.500,0.960", "kind": "click", "at": [0.500, 0.960] },
+      "changed_cells": 428,
+      "settle_ms": 580,
+      "times_taken": 3,
+      "crop_box": [0.0, 0.0, 1.0, 1.0],
+      "crops": { "before": "crops/t02-before.png", "pressed": "crops/t02-pressed.png", "after": "crops/t02-after.png" }
+    },
+    {
+      "id": "t03",
+      "from": "sc01",
+      "to": "sc03",
+      "effect": "screen",
+      "action": { "id": "swipe:0.500,0.500->0.100,0.500", "kind": "swipe", "at": [0.500, 0.500] },
+      "changed_cells": 502,
+      "settle_ms": 910,
+      "times_taken": 1,
+      "crop_box": [0.0, 0.0, 1.0, 1.0],
+      "crops": { "before": "", "pressed": "", "after": "" }
+    },
+    {
+      "id": "t04",
+      "from": "sc01",
+      "to": "sc04",
+      "effect": "screen",
+      "action": { "id": "click:0.180,0.080", "kind": "click", "at": [0.180, 0.080] },
+      "changed_cells": 390,
+      "settle_ms": 700,
+      "times_taken": 1,
+      "crop_box": [0.0, 0.0, 1.0, 1.0],
+      "crops": { "before": "", "pressed": "", "after": "" }
+    },
+    {
+      "id": "t05",
+      "from": "sc04",
+      "to": "sc04",
+      "effect": "variant",
+      "action": { "id": "click:0.500,0.500", "kind": "click", "at": [0.500, 0.500] },
+      "changed_cells": 62,
+      "settle_ms": 240,
+      "times_taken": 1,
+      "crop_box": [0.1, 0.4, 0.8, 0.2],
+      "crops": { "before": "crops/t05-before.png", "pressed": "crops/t05-pressed.png", "after": "crops/t05-after.png" }
+    },
+    {
+      "id": "t06",
+      "from": "sc01",
+      "to": "sc01",
+      "effect": "none",
+      "action": { "id": "click:0.300,0.500", "kind": "click", "at": [0.300, 0.500] },
+      "changed_cells": 0,
+      "settle_ms": 200,
+      "times_taken": 2,
+      "crop_box": [0.25, 0.45, 0.1, 0.1],
+      "crops": { "before": "crops/t06-before.png", "pressed": "crops/t06-pressed.png", "after": "crops/t06-after.png" }
+    },
+    {
+      "id": "t07",
+      "from": "sc03",
+      "to": "sc01",
+      "effect": "screen",
+      "action": { "id": "click:0.500,0.960", "kind": "click", "at": [0.500, 0.960] },
+      "changed_cells": 497,
+      "settle_ms": 640,
+      "times_taken": 1,
+      "crop_box": [0.0, 0.0, 1.0, 1.0],
+      "crops": { "before": "", "pressed": "", "after": "" }
+    },
+    {
+      "id": "t08",
+      "from": "sc02",
+      "to": "sc02",
+      "effect": "variant",
+      "action": { "id": "click:0.750,0.400", "kind": "click", "at": [0.750, 0.400] },
+      "changed_cells": 14,
+      "settle_ms": 300,
+      "times_taken": 1,
+      "crop_box": [0.7, 0.35, 0.1, 0.1],
+      "crops": { "before": "crops/t08-before.png", "pressed": "crops/t08-pressed.png", "after": "crops/t08-after.png" }
+    }
+  ],
+  "blocked_actions": [
+    { "what": "click:0.500,0.780", "why": "coordinate denylist: the battle button starts a live ladder match" },
+    { "what": "click:0.880,0.960", "why": "coordinate denylist: the shop spends real money" },
+    { "what": "click:0.860,0.030", "why": "coordinate denylist: the shop spends real money" },
+    { "what": "click:0.740,0.395", "why": "the vetting call refused it: claiming a reward may consume progress currency or be irreversible" },
+    { "what": "click:0.250,0.400", "why": "the vetting call refused it: an upgrade spends gold and consumes cards" },
+    { "what": "swipe:0.500,0.500->0.500,0.100", "why": "a gesture whose destination is not known in advance" }
+  ]
+}
