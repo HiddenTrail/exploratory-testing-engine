@@ -57,6 +57,10 @@ class FakeController:
     def rect(self):
         return (0, 0, self._size[0], self._size[1])
 
+    def grab(self, cols: int, rows: int, region=(0.0, 0.0, 1.0, 1.0), verify: bool = True):
+        self.grabs.append({"verify": verify})
+        return b"\x00" * (cols * rows * 4)
+
 
 class FakeObservation:
     def __init__(self, screen: str, agreement: float, carried: bool):
@@ -75,7 +79,6 @@ def wired(monkeypatch):
     state = types.SimpleNamespace(
         controller=FakeController(),
         window_lost=None,
-        frames=[],
         deltas=[4, 0, 0, 0, 0, 4],
         observation=FakeObservation(reference.MAIN_SCREEN, 0.981, True),
         observe_raises=None,
@@ -89,21 +92,16 @@ def wired(monkeypatch):
 
     controller_mod = types.ModuleType("controller")
     controller_mod.WindowLost = WindowLost
+    controller_mod.READY_COLS = 64
+    controller_mod.READY_ROWS = 36
 
     def changed_cells(before, after, delta):
-        return state.deltas[min(len(state.frames) - 2, len(state.deltas) - 1)]
+        grabs = len(state.controller.grabs)
+        return state.deltas[min(grabs - 2, len(state.deltas) - 1)]
 
     controller_mod.changed_cells = changed_cells
     controller_mod.readable_output = lambda: None
     controller_mod.set_dpi_aware = lambda: None
-
-    recon_mod = types.ModuleType("recon")
-
-    def fingerprint(handle, verify=True):
-        state.frames.append({"verify": verify})
-        return b"\x00" * (reference.NCELLS * 3)
-
-    recon_mod.fingerprint = fingerprint
 
     attach_mod = types.ModuleType("attach")
 
@@ -115,12 +113,11 @@ def wired(monkeypatch):
     attach_mod.attach = attach
     attach_mod.apply_calibration = lambda controller, game, *a: dict(state.calibration)
 
-    for name, module in (("controller", controller_mod), ("recon", recon_mod),
-                         ("attach", attach_mod)):
+    for name, module in (("controller", controller_mod), ("attach", attach_mod)):
         monkeypatch.setitem(sys.modules, name, module)
 
     def guard(target):
-        state.guard_called_after_frames = len(state.frames)
+        state.guard_called_after_frames = len(state.controller.grabs)
         if state.guard_raises:
             raise cr_actions.Unsafe(state.guard_raises)
         return "denylist verified"
@@ -214,8 +211,8 @@ def test_no_frame_is_ever_grabbed_with_verification(wired):
     the client being measured, not an unlikely one.
     """
     preflight.run(verbose=False)
-    assert wired.frames, "no frames were grabbed at all"
-    assert all(frame["verify"] is False for frame in wired.frames)
+    assert wired.controller.grabs, "no frames were grabbed at all"
+    assert all(frame["verify"] is False for frame in wired.controller.grabs)
 
 
 def test_enough_samples_are_taken_to_see_the_animation_cycle(wired):
@@ -235,10 +232,15 @@ def test_a_still_window_is_reported_not_refused(wired):
 
 
 def test_the_threshold_is_derived_from_this_session(wired):
-    """Not read from the file. The file was measured against a lobby that no longer exists."""
-    wired.deltas = [132] * 6
+    """Not read from the file. The file was measured against a lobby that no longer exists.
+
+    471 of 2304 is not invented: it is the busiest frame `_wait_settled` actually measured
+    against the real client on 2026-09-08, back when the drift sample was still taken on the
+    coarser identity grid and so read this same animation as comfortably within tolerance.
+    """
+    wired.deltas = [471] * 6
     report = preflight.run(verbose=False)
-    assert report.threshold.value < 0.974
+    assert report.threshold.value < 0.94
     assert report.threshold.looser_than_calibrated
     assert "animates more now" in report.threshold.why
 

@@ -179,26 +179,35 @@ def _controller(game: str, verbose: bool):
 def _measure_drift(controller, samples: int, verbose: bool) -> checks.DriftReading:
     """One-second cell deltas over an untouched window.
 
+    Measured on `controller`'s own READY grid - the same one `_wait_settled` grabs and
+    scores every frame of a real pass against - and not on the coarser identity grid
+    `recon.fingerprint` uses. The two are not interchangeable: a finer grid is more
+    sensitive to a small moving patch (the same physical animation reads as a smaller
+    fraction of a coarse grid than of a fine one, because each coarse cell averages a
+    bigger area), so a threshold derived on the identity grid and then handed to
+    `_wait_settled` scores that grid's own frames under conditions it was never measured
+    under - exactly the mismatch `checks.py`'s module docstring warns about. Measuring
+    on the grid the derived value is actually going to gate keeps the two honest.
+
     `verify=False` on every grab, and this is not an optimisation. A verified grab of a
     non-foreground window sends `ensure_readable` looking for a fix; the fix is `_restart`;
     `_restart` closes the client before finding out it has no executable to reopen it with.
     Play Games parks its window hidden, so a verified grab here is the *ordinary* path to
     killing the thing being measured, not an unlikely one.
     """
-    from controller import changed_cells                                  # noqa: E402
-    from recon import fingerprint                                         # noqa: E402
+    from controller import READY_COLS, READY_ROWS, changed_cells             # noqa: E402
 
     delta = controller.target.cell_delta
-    previous = fingerprint(controller, verify=False)
+    previous = controller.grab(READY_COLS, READY_ROWS, verify=False)
     readings = []
     for index in range(samples):
         time.sleep(1.0)
-        current = fingerprint(controller, verify=False)
+        current = controller.grab(READY_COLS, READY_ROWS, verify=False)
         readings.append(changed_cells(previous, current, delta))
         previous = current
         if verbose:
             print(f"  drift sample {index + 1}/{samples}: {readings[-1]} cells", flush=True)
-    return checks.DriftReading(samples=tuple(readings), ncells=checks.NCELLS)
+    return checks.DriftReading(samples=tuple(readings), ncells=READY_COLS * READY_ROWS)
 
 
 def _baseline(controller) -> tuple[str, float, bool]:

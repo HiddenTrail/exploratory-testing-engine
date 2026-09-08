@@ -51,6 +51,7 @@ import subprocess
 import sys
 import time
 import winreg
+from collections import deque
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -94,6 +95,16 @@ FOCUS_TIMEOUT = 20.0
 # transient that covers a small part of the screen. It is a fraction of the grid that
 # decides, so the size does not have to agree with anything else.
 READY_COLS, READY_ROWS = 64, 36
+
+# How many of the last SPIKE_WINDOW readings have to exceed `screen_match`'s tolerance
+# before `_wait_settled` treats the window as still moving. 1-of-1 (any single reading)
+# was tried first and measured brittle on 2026-09-08: a main screen with a bursty effect
+# (a shine, a countdown tick) blew the tolerance on one frame every few seconds, and one
+# frame was enough to hold the clock at zero for the full READY_TIMEOUT even though the
+# screen was quiet the rest of the time. Requiring a majority within a short window
+# absorbs a lone outlier while still catching sustained motion within a second or two.
+SPIKE_WINDOW = 3
+SPIKE_MAJORITY = 2
 
 # The mouse buttons and the chord prefixes this harness can send, named here because
 # `describe.py` has to offer exactly these to a model and `recon.py` has to record them.
@@ -1283,7 +1294,13 @@ class Controller:
         rendered fine. The tolerance is `screen_match`, which is already the measured
         boundary between "the same place" and "somewhere else": a startup transient
         crosses it by construction, idle animation does not, and no new per-game
-        constant is needed to tell them apart."""
+        constant is needed to tell them apart.
+
+        A single reading over tolerance does not reset the clock on its own - see
+        `SPIKE_WINDOW`/`SPIKE_MAJORITY`. One frame catching a bursty effect mid-cycle
+        is exactly the kind of transient `screen_match` is meant to absorb; what should
+        restart the wait is *sustained* motion, which a short majority catches within
+        a second or two of a real transition while still shrugging off one outlier."""
         started = time.monotonic()
         deadline = started + READY_TIMEOUT
         quiet = self.target.startup_quiet
@@ -1291,6 +1308,7 @@ class Controller:
         rect = self.rect
         calm_since = time.monotonic()
         previous: bytes | None = None
+        recent_exceeded: deque[bool] = deque(maxlen=SPIKE_WINDOW)
         rescues = 0
         busiest = 0
         while time.monotonic() < deadline:
@@ -1298,6 +1316,7 @@ class Controller:
             if current != rect:
                 self.say(f"  rect -> {current[2]}x{current[3]} at ({current[0]}, {current[1]})")
                 rect, calm_since, previous = current, time.monotonic(), None
+                recent_exceeded.clear()
 
             # A fullscreen-exclusive window minimizes itself the instant it loses the
             # foreground, and startup is when that is most likely: the game takes the
@@ -1314,6 +1333,7 @@ class Controller:
                 probe.user32.ShowWindow(self.hwnd, SW_RESTORE)
                 probe.user32.SetForegroundWindow(self.hwnd)
                 calm_since, previous = time.monotonic(), None
+                recent_exceeded.clear()
                 time.sleep(0.4)
                 continue
 
@@ -1323,8 +1343,12 @@ class Controller:
             busiest = max(busiest, moved)
             if variance(frame) < FLAT_VARIANCE:
                 calm_since, previous = time.monotonic(), None
-            elif previous is not None and moved > tolerance:
-                calm_since = time.monotonic()
+                recent_exceeded.clear()
+            else:
+                if previous is not None:
+                    recent_exceeded.append(moved > tolerance)
+                if sum(recent_exceeded) >= SPIKE_MAJORITY:
+                    calm_since = time.monotonic()
             previous = frame
 
             if time.monotonic() - calm_since >= quiet:
