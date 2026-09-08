@@ -99,7 +99,8 @@ What happens, in order:
    is identified. Nothing is tapped. Any of these can refuse the run.
 2. **The model check.** One token, to prove the vetting call the pass depends on can be made.
 3. **The pass.** `experiments\android-bot\run_recon.py`, run as a child process, exploring for
-   the time you asked for and writing `ontology.json`, `report.md` and a few dozen PNGs.
+   the time you asked for and writing `ontology.json`, `report.md`, `session-log.log` and a
+   few dozen PNGs.
 4. **Teardown.** One vetted tap to return the client to the main screen.
 5. **The wiki.** Built from `ontology.json`, then indexed and rendered to HTML if Node.js is
    on `PATH`. If it is not, you get the markdown and a note saying so.
@@ -108,10 +109,14 @@ Output lands in the workspace directory:
 
 ```
 out\20260907-141230\
-  preflight.json        every number the checks measured, and why
-  recon-1\              the pass's own output: ontology.json, report.md, images\
-  wiki\                 the bundle: overview.md, summaries\, entities\, concepts\, log\
-  wiki-html\            the same thing browsable, if Node.js was available
+  preflight.json         every number the checks measured, and why
+  recon-1\               the pass's own output: ontology.json, report.md, images\
+    session-log.log        one row per action, in the order it happened: at; screen;
+                            action; result; notes - `report.md` groups by screen, this
+                            is the same run cut by wall-clock instead, for retracing
+                            what happened at a given moment
+  wiki\                  the bundle: overview.md, summaries\, entities\, concepts\, log\
+  wiki-html\             the same thing browsable, if Node.js was available
 ```
 
 ## What is in the wiki
@@ -124,7 +129,7 @@ while exploring, and the pages arrange it and count it.
 |---|---|
 | `overview.md` | what was explored, for how long, and against which reference measurement |
 | `summaries\recon-*.md` | the pass's own report, framed |
-| `entities\screen-*.md` | one page per screen: what it is, what is on it, what leaves it, what was never pressed |
+| `entities\screen-*.md` | one page per screen: what it is, what is on it, what leaves it, what was never pressed, and - where the screen has any - where it animates on its own: a picture with the regions boxed (needs Pillow; `pip install Pillow` - the coordinates render as a table either way), red for a sub-second cycle, orange for a slower one caught only by the longer of the two sampling tiers `map_animation` runs before anything is done to the screen |
 | `entities\persistent-elements.md` | controls that appear on three or more screens, i.e. the navigation chrome |
 | `concepts\navigation-map.md` | the routes, the screens with no recorded exit, the ones never entered |
 | `concepts\refused-and-unmodelled.md` | what the safety layers declined, kept separate from what the budget simply never reached |

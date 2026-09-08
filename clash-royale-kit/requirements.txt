@@ -5,11 +5,17 @@
 # path serves anything. The window is driven through ctypes against Win32, the
 # screenshots are written by a hand-rolled PNG encoder in
 # experiments/game-ontology/controller.py, and the wiki is string formatting -
-# so there is no Pillow, no numpy and no capture library here either.
+# so there is no numpy and no capture library here either.
 #
 # Python 3.13 on Windows. The version matters less than the platform: this half
 # of the kit cannot run anywhere else, because it calls user32 and gdi32
 # directly. The tests are cross-platform on purpose (see README).
+
+# Optional. Only `wikibuild.py`'s per-screen animation-map picture uses it (the boxes
+# themselves are plain arithmetic and render as a table either way) - imported lazily, so
+# a wiki still builds in full without it, just without that one picture. Not listed above
+# as a hard requirement on purpose: `pip install Pillow` if you want the picture.
+# Pillow>=10.0
 
 # The model client. The [bedrock] extra pulls boto3/botocore and is what makes
 # ENGINE_USE_BEDROCK=1 work; the 1.0 floor is required by

@@ -525,7 +525,103 @@ def summary_page(data: dict, facts: Facts, ctx: Ctx, report_text: str) -> Page:
         body="\n".join(body), tags=["recon", "digest"])
 
 
-def screen_page(screen: dict, data: dict, facts: Facts, ctx: Ctx) -> Page:
+# --- where a screen animates on its own --------------------------------------------
+
+# How far apart (in cells, including diagonally) two flagged cells can be and still join
+# the same region. 0 would draw one box per cell, which is unreadable on a 32x18 grid and
+# not what a person means by "the area that animates" - a gap of 1 merges a ring of cells
+# around a single moving icon into the one box it visually is.
+CLUSTER_GAP = 1
+
+
+def _cluster_cells(cells: set) -> list[tuple[int, int, int, int]]:
+    """Group grid cells into rectangles by connected-component clustering.
+
+    Cell-grid coordinates in, cell-grid boxes out (x0, y0, x1, y1), x1/y1 exclusive - the
+    caller converts to fractions, this only knows about adjacency."""
+    remaining = set(cells)
+    boxes = []
+    while remaining:
+        stack = [next(iter(remaining))]
+        cluster: set = set()
+        while stack:
+            cell = stack.pop()
+            if cell in cluster:
+                continue
+            cluster.add(cell)
+            remaining.discard(cell)
+            cx, cy = cell
+            for dx in range(-CLUSTER_GAP, CLUSTER_GAP + 1):
+                for dy in range(-CLUSTER_GAP, CLUSTER_GAP + 1):
+                    neighbour = (cx + dx, cy + dy)
+                    if neighbour in remaining:
+                        stack.append(neighbour)
+        xs = [c[0] for c in cluster]
+        ys = [c[1] for c in cluster]
+        boxes.append((min(xs), min(ys), max(xs) + 1, max(ys) + 1))
+    return boxes
+
+
+def animation_regions(screen: dict, grid: tuple[int, int]) -> dict:
+    """Red and orange regions on this screen, as fractional boxes clustered from cell
+    masks the pass already measured - no new measurement, just grouping.
+
+    Both colours come from `recon.py`'s `map_animation`, which samples a screen's own
+    movement in two tiers before anything is done to it (see its docstring for why one
+    sampling window cannot tell a shimmer from a slow badge blink apart).
+
+    **Red** is `animated_fast_map`: cells caught moving within the fast tier - a
+    sub-second cycle, the strongest evidence there is that a region animates
+    continuously.
+
+    **Orange** is `animated_map` minus `animated_fast_map`: cells the slow tier caught
+    that the fast tier did not - a cycle slower than a second, up to a few seconds. Not
+    "less certain" the way the old volatile-based proxy was; it is a genuinely different
+    finding; same measurement method, coarser sampling."""
+    cols, rows = grid
+
+    def cells(grid_lines):
+        return {(x, y) for y, line in enumerate(grid_lines or [])
+                for x, ch in enumerate(line) if ch == "#"}
+
+    fast = cells(screen.get("animated_fast_map"))
+    slow_only = cells(screen.get("animated_map")) - fast
+
+    def to_fractions(boxes):
+        return [(round(x0 / cols, 3), round(y0 / rows, 3),
+                 round(x1 / cols, 3), round(y1 / rows, 3))
+                for x0, y0, x1, y1 in boxes]
+
+    return {"red": to_fractions(_cluster_cells(fast)),
+            "orange": to_fractions(_cluster_cells(slow_only))}
+
+
+def _draw_animation_map(image_path: Path, out_path: Path, regions: dict) -> bool:
+    """Draw `regions` as outlined boxes on a copy of `image_path`. Returns False, having
+    touched nothing, if Pillow is not installed or the image is not on disk - this kit
+    ships with no image library by default (see requirements.txt), so the feature
+    degrades rather than becoming a hard requirement of building a wiki at all."""
+    if not image_path.exists():
+        return False
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError:
+        return False
+    colour = {"red": (230, 40, 40, 255), "orange": (255, 140, 0, 255)}
+    base = Image.open(image_path).convert("RGBA")
+    width, height = base.size
+    overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    for kind, boxes in regions.items():
+        for x0, y0, x1, y1 in boxes:
+            draw.rectangle([x0 * width, y0 * height, x1 * width, y1 * height],
+                          outline=colour[kind], width=3)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    Image.alpha_composite(base, overlay).convert("RGB").save(out_path)
+    return True
+
+
+def screen_page(screen: dict, data: dict, facts: Facts, ctx: Ctx, run_dir: Path) -> Page:
     sid = screen["id"]
     name = screen.get("name") or ""
     reach = facts.reach["per_screen"][sid]
@@ -546,6 +642,34 @@ def screen_page(screen: dict, data: dict, facts: Facts, ctx: Ctx) -> Page:
     body.append("")
     if screen.get("image"):
         body += [f"![{sid}]({ctx.image(screen['image'])})", ""]
+
+    regions = animation_regions(screen, data["session"].get("grid") or [1, 1])
+    if regions["red"] or regions["orange"]:
+        body += ["## Where this screen animates on its own", ""]
+        annotated_rel = ""
+        if screen.get("image"):
+            out_rel = f"images/{slug(sid)}-animation-map.png"
+            if _draw_animation_map(run_dir / screen["image"], run_dir / out_rel, regions):
+                annotated_rel = out_rel
+        if annotated_rel:
+            body += [f"![{sid} animation map]({ctx.image(annotated_rel)})", ""]
+        else:
+            body += ["*(No picture here - either Pillow is not installed "
+                     "(`pip install Pillow`) or the screenshot this would draw on is "
+                     "missing. The boxes below are the same data either way.)*", ""]
+        body += [
+            "**Red** - moves on a sub-second cycle (a pulse, a shine sweep, water or "
+            "flags): caught within one second of sampling with no input in flight. "
+            "**Orange** - moves too, but slower: not seen within that first second, only "
+            "across a further three seconds of the same kind of sampling - a badge that "
+            "blinks every couple of seconds, a slow fade. Anything slower than that "
+            f"window may still be missed.{_cite('ontology')}", "",
+            "| region | left | top | right | bottom |", "|---|---|---|---|---|",
+        ]
+        for kind in ("red", "orange"):
+            for x0, y0, x1, y1 in regions[kind]:
+                body.append(f"| {kind} | {x0:.3f} | {y0:.3f} | {x1:.3f} | {y1:.3f} |")
+        body.append("")
 
     body += ["## How solidly this is one screen", "",
              f"{screen.get('stable_cells', 0)} cells held still across every sighting; "
@@ -965,7 +1089,7 @@ def build(run_dir: Path, workspace: Path, *, generated_by: str, now: datetime | 
         refusals_page(facts, ctx),
         frames_page(facts, ctx),
         identity_page(data, facts, ctx, threshold_note),
-    ] + [screen_page(screen, data, facts, ctx) for screen in facts.screens]
+    ] + [screen_page(screen, data, facts, ctx, run_dir) for screen in facts.screens]
 
     wiki = workspace / "wiki"
     for folder in ("summaries", "entities", "concepts", "log"):

@@ -297,6 +297,100 @@ def test_image_links_resolve_from_the_page_that_carries_them(built, run_dir: Pat
     assert resolved == (run_dir / "images" / "sc01-v1.png").resolve()
 
 
+# --- where a screen animates on its own --------------------------------------------
+
+def test_adjacent_and_diagonal_cells_join_one_box():
+    """A ring of cells around a moving icon is visually one region, not eight."""
+    cells = {(2, 2), (2, 3), (3, 2), (3, 3)}   # a 2x2 block, diagonal-adjacent throughout
+    boxes = wikibuild._cluster_cells(cells)
+    assert boxes == [(2, 2, 4, 4)]
+
+
+def test_cells_too_far_apart_stay_separate_boxes():
+    far = {(0, 0), (10, 10)}
+    boxes = wikibuild._cluster_cells(far)
+    assert sorted(boxes) == [(0, 0, 1, 1), (10, 10, 11, 11)]
+
+
+def test_red_is_fast_orange_is_the_slow_tiers_own_contribution():
+    """The two colours are `map_animation`'s two tiers, not degrees of one measurement -
+    see `animation_regions`'s docstring for why they are kept apart. `animated_map` is
+    always the union (recon.py's own invariant - see `test_animated_is_the_union_not_a
+    _replacement` in test_animation_tiers.py), so orange is never computed from anything
+    but that union minus the fast tier's own finding."""
+    screen = {
+        "animated_map": [       # the union: both tiers found something here
+            "#.",
+            ".#",
+        ],
+        "animated_fast_map": [  # the fast tier's own finding, a subset of the above
+            "..",
+            ".#",
+        ],
+    }
+    regions = wikibuild.animation_regions(screen, grid=(2, 2))
+    assert regions["red"] == [(0.5, 0.5, 1.0, 1.0)]      # the fast cell at (1,1)
+    assert regions["orange"] == [(0.0, 0.0, 0.5, 0.5)]   # the union's (0,0), which the
+                                                          # fast tier never found
+
+
+def test_no_maps_at_all_is_not_a_crash():
+    """A screen from before these maps existed, or one with genuinely nothing volatile."""
+    assert wikibuild.animation_regions({}, grid=(32, 18)) == {"red": [], "orange": []}
+
+
+def test_the_screen_page_skips_the_section_when_nothing_animates(built):
+    """Every fixture screen is fully still, so none of them should claim otherwise."""
+    for sid in ("sc01", "sc02", "sc03", "sc04", "sc05"):
+        assert "Where this screen animates" not in page(built, f"entities/screen-{sid}.md")
+
+
+def _with_animated_cells(run_dir: Path) -> dict:
+    """Two fast cells at row 5, plus one slow-only cell at row 10 that the fast tier
+    never found - `animated_map` (the union) has to carry both for `animated_map` to
+    stay the invariant `recon.py` promises, even though this file hand-writes the
+    ontology rather than getting it from a real pass."""
+    data = json.loads((run_dir / "ontology.json").read_text(encoding="utf-8"))
+    fast_row = "..##" + "." * 28
+    slow_row = "..#." + "." * 28
+    data["screens"][0]["animated_fast_map"] = ["." * 32] * 5 + [fast_row] + ["." * 32] * 12
+    data["screens"][0]["animated_map"] = (["." * 32] * 5 + [fast_row]
+                                          + ["." * 32] * 4 + [slow_row] + ["." * 32] * 7)
+    (run_dir / "ontology.json").write_text(json.dumps(data), encoding="utf-8")
+    return data
+
+
+def test_the_screen_page_reports_animation_coordinates_without_a_real_image(
+        run_dir: Path, tmp_path: Path):
+    """The fixture's `images/` directory is empty - no test here writes a real, decodable
+    PNG - so this is also the "screen has an image path recorded but the file is not on
+    disk" case, and it should degrade exactly like a missing Pillow would: coordinates
+    still render, no broken image link is emitted."""
+    _with_animated_cells(run_dir)
+    built = wikibuild.build(run_dir, tmp_path, generated_by="process:cr-kit@test", now=AT)
+    body = page(built, "entities/screen-sc01.md")
+    assert "Where this screen animates on its own" in body
+    assert "| red | 0.062 | 0.278 | 0.125 | 0.333 |" in body
+    assert "| orange | 0.062 | 0.556 | 0.094 | 0.611 |" in body
+    assert "No picture here" in body
+    assert "pip install Pillow" in body
+    assert "animation map]" not in body
+
+
+def test_the_screen_page_embeds_the_picture_when_pillow_and_an_image_are_both_present(
+        run_dir: Path, tmp_path: Path):
+    Image = pytest.importorskip("PIL.Image")
+    _with_animated_cells(run_dir)
+    Image.new("RGB", (786, 1400), (10, 20, 30)).save(run_dir / "images" / "sc01-v1.png")
+
+    built = wikibuild.build(run_dir, tmp_path, generated_by="process:cr-kit@test", now=AT)
+    body = page(built, "entities/screen-sc01.md")
+    assert "animation map]" in body
+    out = run_dir / "images" / "sc01-animation-map.png"
+    assert out.exists()
+    assert Image.open(out).size == (786, 1400)
+
+
 def test_the_log_grows_rather_than_being_replaced(run_dir: Path, tmp_path: Path):
     """The log is the audit trail, so a second build on the same day appends to it."""
     first = wikibuild.build(run_dir, tmp_path, generated_by="process:cr-kit@test", now=AT)

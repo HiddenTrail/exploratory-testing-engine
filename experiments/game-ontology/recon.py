@@ -111,6 +111,15 @@ NAV_BUDGET = 40          # navigation presses of *any* key on one screen, ever. 
                          # four keys at their per-key caps can legitimately spend
 ANIMATION_SAMPLES = 3    # frames taken with no input, to see what a screen does unprompted
 ANIMATION_GAP = 0.3      # seconds between them; long enough for a slow loop to advance
+
+# `map_animation`'s two tiers - see its docstring for why one sampling window cannot tell
+# a shimmer from a slow badge blink apart. Both are "N frames spread evenly across S
+# seconds", so the gap between frames is S / (N - 1).
+ANIMATION_FAST_SAMPLES, ANIMATION_FAST_SPAN = 6, 1.0    # sub-second cycles: a pulse, a
+                                                          # shine sweep, water or flags
+ANIMATION_SLOW_SAMPLES, ANIMATION_SLOW_SPAN = 6, 3.0    # slower cycles the fast tier's
+                                                          # one-second window is too short
+                                                          # to catch happening even once
 PULSE_LIMIT = NCELLS // 8  # cells an *appearance* may move on its own and still be believed.
                          # Past this the reading is not "it shimmers" but "the game moved on
                          # while it was being sampled", and excusing that many cells would let
@@ -807,6 +816,13 @@ class Screen:
     # there, and subtracting it would make every frame the same appearance. This is
     # measured before any action is taken, so it can be subtracted safely.
     animated: set[int] = field(default_factory=set)
+    # The subset of `animated` caught within the *fast* tier of `map_animation` - a
+    # cell moving on a sub-second cycle, not merely a cell that moved somewhere across
+    # the full sampling window. `animated` itself is unchanged by this: it stays every
+    # cell either tier found moving, because everything downstream that subtracts
+    # `animated` to ignore self-motion needs to ignore all of it, fast or slow. This is
+    # additional classification, not a narrower measurement.
+    animated_fast: set[int] = field(default_factory=set)
     # Three frames of it, cropped to those cells. What one still picture cannot say:
     # whether the movement is a spinner, a countdown running down, or a mascot waving -
     # and the first two are facts about the game's state, not decoration.
@@ -940,6 +956,17 @@ class Recon:
         self.boxes: dict[str, list[float]] = {}
         self.started = time.monotonic()
         self.images.mkdir(parents=True, exist_ok=True)
+        # One row per action actually taken - see `_log_activity`. Separate from
+        # `self.transitions`, which is keyed by (screen, action, result) and collapses
+        # repeats into a count; this is the session in the order it happened, repeats
+        # included, which is what a person re-tracing a run wants and a deduplicated
+        # map cannot answer.
+        self.session_log: list[dict] = []
+        # How many of `self.controller.notes` are already attached to a row. A note can
+        # land at any point around an action - during vetting, during the take itself,
+        # during recovery - so rather than guess which one it was about, each row claims
+        # whatever is new since the row before it.
+        self._notes_logged = 0
 
     # -- perception ---------------------------------------------------------
 
@@ -1099,10 +1126,29 @@ class Recon:
 
     # -- hover mapping ------------------------------------------------------
 
-    def map_animation(self, screen: Screen) -> None:
-        """Find what this screen moves on its own, before anything is done to it.
+    def _animation_tier(self, samples: int, span: float) -> set[int]:
+        """`samples` frames spread evenly across `span` seconds, unioned pairwise.
 
-        Without this, an animated screen has no stable notion of an appearance at all.
+        Evenly spread rather than bursty, because what decides whether a cycle is
+        caught at all is the *span* sampled, not how many frames land inside it - a
+        cell that changes once every four seconds needs the window open for four
+        seconds, and packing the same frame count into one second buys nothing for it.
+        """
+        frames = [fingerprint(self.controller)]
+        gap = span / (samples - 1) if samples > 1 else 0.0
+        for _ in range(samples - 1):
+            time.sleep(gap)
+            frames.append(fingerprint(self.controller))
+        moved: set[int] = set()
+        for earlier, later in zip(frames, frames[1:]):
+            moved |= diff_cells(earlier, later, self.cell_delta)
+        return moved
+
+    def map_animation(self, screen: Screen) -> None:
+        """Find what this screen moves on its own, before anything is done to it - and
+        how fast, in two tiers rather than one.
+
+        Without this at all, an animated screen has no stable notion of an appearance.
         Appearance identity is exact - two frames are the same appearance when no cell
         differs - so a menu with a looping mascot on it mints a new appearance on every
         single frame, and the consequences are not cosmetic: navigation stops when a
@@ -1112,18 +1158,32 @@ class Recon:
         mouse-driven main menu did nothing 47 times, and those 47 presses were two
         thirds of the session.
 
-        Three samples rather than two because one pair can land on two identical frames
-        of a slow loop and conclude the screen is still.
-        """
-        frames = []
-        for _ in range(ANIMATION_SAMPLES):
-            frames.append(fingerprint(self.controller))
-            time.sleep(ANIMATION_GAP)
-        for earlier, later in zip(frames, frames[1:]):
-            screen.animated |= diff_cells(earlier, later, self.cell_delta)
+        The fast tier - `ANIMATION_FAST_SAMPLES` frames across `ANIMATION_FAST_SPAN`
+        seconds - catches anything with a sub-second cycle: a pulse, a shine sweeping
+        across an icon, water or flags. The slow tier - `ANIMATION_SLOW_SAMPLES` frames
+        across `ANIMATION_SLOW_SPAN` seconds - catches what the fast tier's window is too
+        short to see happen even once: a badge that blinks every couple of seconds, an
+        offer banner's slow fade. `ANIMATION_SLOW_SPAN` still will not reliably catch a
+        four-second cycle - sampling has to cover at least one full period to be sure of
+        one - but it catches it more often than one second of looking does, and what it
+        still misses is reported as unmoving rather than guessed at.
+
+        `screen.animated` stays the union of both, unchanged in meaning from every other
+        place in this file that subtracts it to ignore self-motion - it does not matter
+        to them whether a cell moved fast or slow, only that it moves. `animated_fast` is
+        additional classification, not a narrower measurement: the slow tier's *own*
+        contribution, for a reader, is `animated - animated_fast`."""
+        fast = self._animation_tier(ANIMATION_FAST_SAMPLES, ANIMATION_FAST_SPAN)
+        slow = self._animation_tier(ANIMATION_SLOW_SAMPLES, ANIMATION_SLOW_SPAN)
+        screen.animated_fast = fast
+        screen.animated = fast | slow
         if screen.animated:
+            slow_only = len(slow - fast)
             log(f"  {screen.id} animates {len(screen.animated)} of {NCELLS} cells "
-                f"with no input; they do not count towards a new appearance")
+                f"with no input ({len(fast)} within {ANIMATION_FAST_SPAN:.0f}s"
+                + (f", {slow_only} more only seen within {ANIMATION_SLOW_SPAN:.0f}s"
+                   if slow_only else "") +
+                f"); they do not count towards a new appearance")
             self._film_animation(screen)
 
     def _hover_reaction(self, screen: Screen,
@@ -2326,6 +2386,7 @@ class Recon:
         self.announce(screen, action, queued[1:] if queued else None)
 
         transition, found_something, _ = self.take(screen, variant, before_fp, action)
+        self._log_activity(screen, action, transition)
 
         # A navigation key that changed something is walking a list, and one press
         # only ever reveals one entry of it - so it goes back in the pool and keeps
@@ -2360,6 +2421,27 @@ class Recon:
                     log(f"    {action.key} on {screen.id} capped at {NAV_REPEAT} presses "
                         f"while still finding new appearances; moving on")
         return "ok"
+
+    def _log_activity(self, screen: Screen, action: Action, transition: Transition) -> None:
+        """One session-log row for the action just taken: when, where, what was sent,
+        what it did, and anything `controller.note` flagged around it.
+
+        Wall-clock rather than elapsed seconds, because the point of this log is to let
+        a person re-trace a run against what they were watching at the time - `report.md`
+        and `ontology.json` already carry a relative order, this carries a clock."""
+        result = EFFECT_WORDS[transition.kind]
+        if transition.kind == "screen":
+            result += f", now on {transition.dest}"
+        result += f", {transition.changed} cells, {transition.settle_ms}ms"
+        new_notes = self.controller.notes[self._notes_logged:]
+        self._notes_logged = len(self.controller.notes)
+        self.session_log.append({
+            "at": time.strftime("%Y-%m-%d-%H:%M:%S"),
+            "screen": screen.id,
+            "action": action.describe(),
+            "result": result,
+            "notes": "; ".join(new_notes),
+        })
 
     def announce(self, screen: Screen, action: Action,
                  after: list[Action] | None) -> None:
@@ -2645,6 +2727,7 @@ class Recon:
                 volatile=cell_set(entry.get("volatile_map", [])),
                 protected=cell_set(entry.get("protected_map", [])),
                 animated=cell_set(entry.get("animated_map", [])),
+                animated_fast=cell_set(entry.get("animated_fast_map", [])),
                 unstored_variants=entry.get("variants_not_stored", 0),
                 tried=set(explored.get("tried", [])),
                 variant_seq=max(explored.get("next_variant_number", 1) - 1, 0),
@@ -2812,6 +2895,13 @@ class Recon:
                     # nothing in flight, which is the part no action can be credited for.
                     "animated_cells": len(screen.animated),
                     "animated_map": volatile_map(screen.animated),
+                    # The fast tier's own finding, a subset of `animated_map` - see
+                    # `map_animation`. The slow-only cells are `animated_map` minus this,
+                    # not stored separately, because they are exactly that subtraction and
+                    # a reader who wants them can do it rather than trust a third map to
+                    # agree with the other two.
+                    "animated_fast_cells": len(screen.animated_fast),
+                    "animated_fast_map": volatile_map(screen.animated_fast),
                     # Frames of that movement, cropped to it. A reader - or a model - can
                     # tell a spinner from a countdown from these and from nothing else in
                     # the map, and the difference is whether the screen is waiting or busy.
@@ -3059,9 +3149,13 @@ def write_report(data: dict, out: Path) -> Path:
                      f"{screen['stable_cells']} of {GRID_COLS * GRID_ROWS} cells held still"
                      + (" - **identity is weak**" if screen["identity_is_weak"] else "") + ".\n")
         if screen.get("animated_cells"):
+            fast = screen.get("animated_fast_cells", 0)
+            slow_only = screen["animated_cells"] - fast
             lines.append(f"{screen['animated_cells']} of {GRID_COLS * GRID_ROWS} cells move "
-                         f"with no input at all, so two frames differing only there are the "
-                         f"same appearance.\n")
+                         f"with no input at all ({fast} within {ANIMATION_FAST_SPAN:.0f}s"
+                         + (f", {slow_only} more only within {ANIMATION_SLOW_SPAN:.0f}s"
+                            if slow_only else "") +
+                         f"), so two frames differing only there are the same appearance.\n")
         if screen["image"]:
             lines.append(f"![{screen['id']}]({screen['image']})\n")
         if screen.get("animation"):
@@ -3154,6 +3248,32 @@ def write_report(data: dict, out: Path) -> Path:
     return path
 
 
+def write_session_log(session_log: list[dict], out: Path) -> Path:
+    """One line per action taken, in the order it happened: `at; screen; action; result;
+    notes`, semicolon-separated.
+
+    A different view of the same run from `report.md`'s, not a replacement for it -
+    that groups everything by screen, which is right for judging what a screen *is* and
+    wrong for retracing what happened at a given moment. This is the other cut: one row
+    per occurrence, repeats included, in wall-clock order, for someone checking what the
+    pass was doing against what they were watching at the time.
+
+    Fields are joined on `;`, so any `;` inside one is turned into `,` first - the log
+    would otherwise misparse silently, and a comma reads close enough to the original for
+    a human to still follow. `.log` rather than `.csv` on purpose: an action already reads
+    "click at (0.500, 0.500)", so the delimiter has to be something other than a comma -
+    and a `.csv` extension whose fields are not comma-separated just opens wrong in
+    whatever the reader's spreadsheet app defaults to."""
+    path = out / "session-log.log"
+    lines = [
+        "; ".join(row[field].replace(";", ",")
+                  for field in ("at", "screen", "action", "result", "notes"))
+        for row in session_log
+    ]
+    path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    return path
+
+
 # --- cli --------------------------------------------------------------------
 
 def main() -> None:
@@ -3202,6 +3322,7 @@ def main() -> None:
         data = session.to_json()
         log(f"\nwrote {session.save()}")
         log(f"wrote {write_report(data, out)}")
+        log(f"wrote {write_session_log(session.session_log, out)}")
         log(f"{len(session.screens)} screens, {len(session.transitions)} transitions, "
             f"{sum(len(s.variants) for s in session.screens.values())} images")
         if not args.keep_open:

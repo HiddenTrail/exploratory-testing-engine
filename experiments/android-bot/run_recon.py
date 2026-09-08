@@ -27,7 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "game-ontology"))
 
 from controller import log, readable_output, set_dpi_aware  # noqa: E402
-from recon import Recon, write_report  # noqa: E402
+from recon import Recon, write_report, write_session_log  # noqa: E402
 
 from attach import apply_calibration, attach  # noqa: E402
 from touch import TouchRecon  # noqa: E402
@@ -145,6 +145,7 @@ def main() -> None:
         data = session.to_json()
         log(f"\nwrote {session.save()}")
         log(f"wrote {write_report(data, out)}")
+        log(f"wrote {write_session_log(session.session_log, out)}")
         log(f"{len(session.screens)} screens, {len(session.transitions)} transitions, "
             f"{sum(len(s.variants) for s in session.screens.values())} images")
         # Deliberately not closed. See the module docstring.
