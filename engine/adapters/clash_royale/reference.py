@@ -71,11 +71,13 @@ SOURCE: dict = _DATA["source"]
 GRID_COLS, GRID_ROWS = _DATA["grid"]
 NCELLS = GRID_COLS * GRID_ROWS
 
-# The recon's own calibrated threshold, not a number picked next to it. Carried
-# because these fingerprints were measured under it: the admissible range for this
-# client was [0.896, 0.974] and the pass ran at 0.94 with a median match score of
-# 1.0 and no screens split by name. Anything looser merges screens; anything tighter
-# calls an animating screen a new one.
+# The recon's own calibrated threshold, not a number picked next to it - carried
+# because these fingerprints were measured under it, from `session["screen_match_
+# threshold"]` at extraction time (see `extract_reference.py`). Anything looser
+# merges screens; anything tighter calls an animating screen a new one. Changes
+# every time the reference is re-extracted, so no specific value is worth writing
+# here - read it from a freshly regenerated `known_screens.json` instead of from
+# this comment.
 SCREEN_MATCH: float = _DATA["screen_match"]
 CELL_DELTA: int = _DATA["cell_delta"]
 
