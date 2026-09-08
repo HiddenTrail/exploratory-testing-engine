@@ -238,9 +238,9 @@ also runs `clash-royale-kit`'s 98 tests, which are cross-platform on purpose:
 the kit drives a Windows client, but its decisions live in modules that import
 no Win32, and the ones that do keep those imports function-local so a stub can
 be put under the name. What that buys is having the assertions that matter -
-no frame is ever grabbed with verification, the safety layers are checked
-before any frame is scored, `--allow-battle` is never constructed - checked on
-every PR rather than only on the one machine with the game installed.
+that the kit’s own preflight/watch-only sampling never grabs with verification,
+that the safety layers are checked before any frame is scored, and that
+`--allow-battle` is never constructed - checked on every PR rather than only on the one machine with the game installed.
 
 The game harness carries its own suites, which CI does **not** run - they are
 Windows-only (Win32 window handles, GDI capture) while CI is Linux:
