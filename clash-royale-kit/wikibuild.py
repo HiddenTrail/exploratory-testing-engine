@@ -239,28 +239,37 @@ def graph_facts(data: dict) -> dict:
     }
 
 
-def _reached(element: dict, tried: list[str]) -> bool:
-    """Whether any probe this pass sent landed on this element.
+def _action_point(action: str) -> tuple[float, float] | None:
+    """The (x, y) an action string carries, or None for one with no coordinate at all
+    (a key press, a named probe with nothing to parse)."""
+    match = re.search(r"(\d*\.?\d+),(\d*\.?\d+)", action)
+    return (float(match.group(1)), float(match.group(2))) if match else None
+
+
+def _lands_on(element: dict, x: float, y: float) -> bool:
+    """Whether a point at `(x, y)` counts as landing on `element`.
 
     Inside the measured box where there is one, and within `REACH_TOLERANCE` of the point
-    otherwise. The two cases are not the same claim and the page says which applies to which
-    element: a box is a measurement, so a probe inside it demonstrably hit the thing, while a
-    point with a tolerance around it is a guess about a guess.
-    """
+    otherwise. The two cases are not the same claim and callers say which applies to which
+    element: a box is a measurement, so a point inside it demonstrably hit the thing, while
+    a point with a tolerance around it is a guess about a guess.
+
+    The one rule both `_reached` (was this pressed) and `_verdict_for` (was this vetted)
+    read, so the two questions can only ever agree about what counts as landing on an
+    element - not merely by two call sites being kept in sync by hand."""
     box = element.get("box")
     at = element.get("at")
-    for action in tried:
-        match = re.search(r"(\d*\.?\d+),(\d*\.?\d+)", action)
-        if not match:
-            continue
-        x, y = float(match.group(1)), float(match.group(2))
-        if box and len(box) == 4:
-            if box[0] <= x <= box[0] + box[2] and box[1] <= y <= box[1] + box[3]:
-                return True
-        elif at and len(at) == 2:
-            if abs(x - at[0]) <= REACH_TOLERANCE and abs(y - at[1]) <= REACH_TOLERANCE:
-                return True
+    if box and len(box) == 4:
+        return box[0] <= x <= box[0] + box[2] and box[1] <= y <= box[1] + box[3]
+    if at and len(at) == 2:
+        return abs(x - at[0]) <= REACH_TOLERANCE and abs(y - at[1]) <= REACH_TOLERANCE
     return False
+
+
+def _reached(element: dict, tried: list[str]) -> bool:
+    """Whether any probe this pass sent landed on this element. See `_lands_on`."""
+    return any(_lands_on(element, *point) for action in tried
+              if (point := _action_point(action)) is not None)
 
 
 def reach_facts(data: dict) -> dict:
@@ -283,24 +292,11 @@ def reach_facts(data: dict) -> dict:
 
 def _verdict_for(element: dict, mouse_verdicts: dict) -> dict | None:
     """The vetting verdict, if any, whose action coordinate lands on this element.
-
-    Same matching rule as `_reached`: inside the measured box where there is one, or
-    within `REACH_TOLERANCE` of the point otherwise - kept as one rule rather than two
-    so "was this pressed" and "was this vetted" agree about what counts as landing on
-    an element."""
-    box = element.get("box")
-    at = element.get("at")
+    See `_lands_on`."""
     for action, verdict in mouse_verdicts.items():
-        match = re.search(r"(\d*\.?\d+),(\d*\.?\d+)", action)
-        if not match:
-            continue
-        x, y = float(match.group(1)), float(match.group(2))
-        if box and len(box) == 4:
-            if box[0] <= x <= box[0] + box[2] and box[1] <= y <= box[1] + box[3]:
-                return verdict
-        elif at and len(at) == 2:
-            if abs(x - at[0]) <= REACH_TOLERANCE and abs(y - at[1]) <= REACH_TOLERANCE:
-                return verdict
+        point = _action_point(action)
+        if point is not None and _lands_on(element, *point):
+            return verdict
     return None
 
 

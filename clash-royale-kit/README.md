@@ -67,7 +67,7 @@ Verify the install without a game or a model:
 .venv\Scripts\python -m pytest clash-royale-kit
 ```
 
-98 tests, none of which needs Windows, a window, a client or credentials. Green means the
+112 tests, none of which needs Windows, a window, a client or credentials. Green means the
 Python side is sound and anything still wrong is the client or the login.
 
 ## Running it
@@ -100,7 +100,9 @@ What happens, in order:
 2. **The model check.** One token, to prove the vetting call the pass depends on can be made.
 3. **The pass.** `experiments\android-bot\run_recon.py`, run as a child process, exploring for
    the time you asked for and writing `ontology.json`, `report.md`, `session-log.log` and a
-   few dozen PNGs.
+   few dozen PNGs. Console output names the action about to be sent and the cleared candidates
+   already queued behind it, so a person watching a live account sees what is coming, not just
+   what just happened.
 4. **Teardown.** One vetted tap to return the client to the main screen.
 5. **The wiki.** Built from `ontology.json`, then indexed and rendered to HTML if Node.js is
    on `PATH`. If it is not, you get the markdown and a note saying so.
@@ -256,7 +258,7 @@ nothing can reopen.
 | `wikibuild.py` | `ontology.json` to an OKF wiki bundle. Pure arithmetic and string formatting |
 | `synthesize.py` | the three optional model pages, with the citation rule |
 | `fixtures\ontology.json` | a hand-written map the wiki tests build from, so they need no game |
-| `test_*.py` | 98 tests, cross-platform, no game and no credentials |
+| `test_*.py` | 112 tests, cross-platform, no game and no credentials |
 
 It leans on three things already in this repo rather than copying them: the harness in
 `experiments\game-ontology`, the target in `experiments\android-bot`, and the safety layers in
