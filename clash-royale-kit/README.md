@@ -50,9 +50,16 @@ expired looks perfectly configured and fails on first use, so `--doctor` makes a
 call rather than just constructing a client. It costs a fraction of a cent and it is the
 difference between finding out now and finding out five minutes into a pass.
 
-`.env` at the repo root, and run from the repo root: the loader walks up from the current
-directory, so where you start the command decides which `.env` it reads. `run.cmd` handles
-both for you.
+`.env` at the repo root, and run from the repo root. `engine/client.py` calls
+`python-dotenv`'s `load_dotenv()` with no path, which - for a real script run, not a `python -c`
+one-liner - searches upward starting from `engine/`'s own directory, not from wherever you
+launched the command. That only reaches the repo root if nothing between `engine/` and the
+root has its own `.env`; a stray one anywhere in between (an old `engine/.env` from before this
+kit existed, say) is found first and silently shadows the repo-root file, with no error and no
+mention of which one won. If auth looks configured but keeps resolving to the wrong provider or
+model, run `python -c "from dotenv import find_dotenv; print(find_dotenv())"` from the repo
+root to see which `.env` is actually being read, and remove or fix whichever one is not the
+repo-root file. `run.cmd` still gets you to the repo root either way.
 
 Verify the install without a game or a model:
 
@@ -82,12 +89,12 @@ clash-royale-kit\run.cmd --minutes 20 --synthesize
 | `--wiki-only DIR` | skip the game entirely and rebuild the wiki from a run directory that already exists |
 | `--no-teardown` | leave the client wherever the pass finished instead of returning it to the main screen |
 | `--max-restarts N` | how many times a crashed pass may be resumed from its own map. Default 1 |
-| `--drift-samples N` | seconds of idle window watched to derive this session's threshold. Default 6 |
+| `--drift-samples N` | seconds of idle window watched to derive this session's threshold. Default 60 - this threshold overrides the calibration file for the whole pass rather than blending with it, so a short sample does not just under-measure, it hands the entire pass a threshold nothing survives (see Known limits) |
 
 What happens, in order:
 
 1. **Preflight.** The window is found and identified, the client area is measured, both safety
-   layers are verified, the idle animation is sampled for six seconds, this session's
+   layers are verified, the idle animation is sampled for sixty seconds, this session's
    screen-match threshold is derived from that sample, and the screen the client is sitting on
    is identified. Nothing is tapped. Any of these can refuse the run.
 2. **The model check.** One token, to prove the vetting call the pass depends on can be made.
@@ -195,7 +202,14 @@ place it returns to after every discovery, so starting elsewhere makes every nav
 finding an artefact.
 
 **"the model could not be reached"** - usually an expired SSO token. `aws sso login` and run
-again. Refused rather than warned about, because that call is one of the two safety layers.
+again. Refused rather than warned about, because that call is one of the two safety layers. If
+the error names `claude-sonnet-4-6` (the direct-API model) instead of the Bedrock one even with
+`ENGINE_USE_BEDROCK=1` set, see the shadowed-`.env` note under Install first - the venv is
+probably reading a different `.env` than you think it is. If the error is
+`ModuleNotFoundError: No module named 'botocore'`, the venv predates `anthropic[bedrock]` being
+added to `requirements.txt`: re-run `.venv\Scripts\pip install -r clash-royale-kit\requirements.txt
+--upgrade` to pull in `boto3`/`botocore` and the `anthropic>=1.0` floor `AnthropicBedrockMantle`
+needs.
 
 One thing this deliberately never concludes is that a client is *dead*. A frozen emulator and
 a quiet lobby look identical to every Win32 health check, and a live lobby once measured one
@@ -213,7 +227,13 @@ nothing can reopen.
 - **The threshold is a compromise.** One number answers both "has this screen settled" and
   "is this the same screen", and this kit derives it from the current session's own idle
   drift rather than trusting the file. That is better than a stale constant and still one
-  number doing two jobs.
+  number doing two jobs. It also means the derivation's own sample window has to actually
+  catch the screen's animation to be trustworthy: on 2026-09-08 a six-second sample read the
+  main screen as calmer than it is, derived a threshold preflight itself passed, and then the
+  real pass failed its settle-wait repeatedly on bursts the short sample never saw - because
+  the derived value *replaces* the calibration file for the whole pass rather than blending
+  with it. `--drift-samples` now defaults to 60s rather than 6 for this reason; a game whose
+  idle animation cycles slower than that would need it raised further.
 - **A pass explores; it does not verify.** The output is a map and a set of observations about
   an interface, not a test result. Nothing here has an expectation to fail.
 - **`--minutes` is a budget, not a promise of coverage.** The refusals page keeps "the safety

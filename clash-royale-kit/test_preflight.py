@@ -303,7 +303,9 @@ def test_a_warned_run_carries_the_warning_into_the_wiki(wired):
 
 
 def test_the_report_serialises_to_something_a_run_can_keep(wired):
-    payload = preflight.run(verbose=False).to_json()
+    """Sample count pinned explicitly rather than left at the default: what this checks is the
+    shape of the serialised report, not how many seconds `DRIFT_SAMPLES` happens to be today."""
+    payload = preflight.run(verbose=False, samples=6).to_json()
     assert payload["client"] == [787, 1400]
     assert payload["drift"]["samples"] == [4, 0, 0, 0, 0, 4]
     assert payload["threshold"]["why"]

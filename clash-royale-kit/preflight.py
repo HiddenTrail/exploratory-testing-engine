@@ -64,8 +64,16 @@ GAME = "Clash Royale"
 # One-second samples of an untouched window. Six rather than two, because the lobby's
 # animation cycle is longer than a second: a healthy lobby measured 5, 0, 0, 0, 0, 5, so two
 # samples read zero movement about two times in three and would cut a threshold that no frame
-# of that lobby survives. Six seconds is also the cheapest part of a five-minute pass.
-DRIFT_SAMPLES = 6
+# of that lobby survives.
+#
+# Six was itself too short once the lobby got busier: on 2026-09-08, six 1s samples read a
+# worst of 12-16 cells and derived a 0.97-ish threshold that passed preflight - then the real
+# pass immediately failed its settle-wait, repeatedly, on bursts of 107-471 cells over a longer
+# window. `screen_match_for` derives THE threshold used for the whole pass (it overrides the
+# calibration file rather than blending with it - see its docstring), so a short sample does
+# not just under-measure, it hands the entire pass a threshold nothing survives. 60s is still
+# the cheap part of a run measured in minutes.
+DRIFT_SAMPLES = 60
 
 # The smallest client this will drive. Below it the likeliest cause is not a small window but
 # DPI virtualisation - the process never claimed per-monitor awareness, so Windows reports a
