@@ -189,6 +189,7 @@ class Facts:
     persistent: dict
     frames: dict
     reach: dict
+    clickable: list[dict]
 
 
 # --- derivations ------------------------------------------------------------------------
@@ -278,6 +279,111 @@ def reach_facts(data: dict) -> dict:
         activated += len(hits)
     return {"per_screen": per_screen, "named": named, "activated": activated,
             "never_activated": named - activated, "tolerance": REACH_TOLERANCE}
+
+
+def _verdict_for(element: dict, mouse_verdicts: dict) -> dict | None:
+    """The vetting verdict, if any, whose action coordinate lands on this element.
+
+    Same matching rule as `_reached`: inside the measured box where there is one, or
+    within `REACH_TOLERANCE` of the point otherwise - kept as one rule rather than two
+    so "was this pressed" and "was this vetted" agree about what counts as landing on
+    an element."""
+    box = element.get("box")
+    at = element.get("at")
+    for action, verdict in mouse_verdicts.items():
+        match = re.search(r"(\d*\.?\d+),(\d*\.?\d+)", action)
+        if not match:
+            continue
+        x, y = float(match.group(1)), float(match.group(2))
+        if box and len(box) == 4:
+            if box[0] <= x <= box[0] + box[2] and box[1] <= y <= box[1] + box[3]:
+                return verdict
+        elif at and len(at) == 2:
+            if abs(x - at[0]) <= REACH_TOLERANCE and abs(y - at[1]) <= REACH_TOLERANCE:
+                return verdict
+    return None
+
+
+def clickable_facts(data: dict) -> list[dict]:
+    """Every named element across the whole run, one row each, with what happened to it.
+
+    `reach_facts` counts how many were pressed per screen; `refusal_facts` groups what
+    was declined by the reason given. This reads both mechanisms together, per element,
+    for a reader who wants "what could this pass have clicked" as one list rather than
+    assembled by hand from a page per screen.
+
+    Four statuses, and they are not degrees of the same claim:
+    - **pressed** - a probe actually landed on it (`_reached`).
+    - **refused** - the vetting call looked at it and said not to, in its own words.
+    - **cleared, not pressed** - the vetting call said it was safe, but the screen's
+      vetting budget or the pass's clock ran out before its turn came.
+    - **not vetted** - no verdict on record matches its position at all - it was named by
+      the description call but never became a candidate, or is on a screen the model
+      never got to vet at all.
+    """
+    rows = []
+    for screen in data["screens"]:
+        sid = screen["id"]
+        tried = list((screen.get("explored") or {}).get("tried") or [])
+        verdicts = screen.get("mouse_verdicts") or {}
+        for element in screen.get("elements") or []:
+            if _reached(element, tried):
+                status, why = "pressed", ""
+            else:
+                verdict = _verdict_for(element, verdicts)
+                if verdict is None:
+                    status, why = "not vetted", ""
+                elif verdict.get("safe", True):
+                    status, why = "cleared, not pressed", ""
+                else:
+                    status, why = "refused", one_line(verdict.get("why", ""))
+            rows.append({"screen": sid, "label": one_line(element.get("label", "?")),
+                        "what": one_line(element.get("what", "")),
+                        "status": status, "why": why})
+    return rows
+
+
+def clickable_page(facts: Facts, ctx: Ctx) -> Page:
+    rows = facts.clickable
+    counts: dict[str, int] = {}
+    for row in rows:
+        counts[row["status"]] = counts.get(row["status"], 0) + 1
+    tally = ", ".join(f"{count} {status}" for status, count in sorted(counts.items()))
+
+    body = [
+        "# Everything named as clickable, and what happened to it", "",
+        "- **Kind:** ui-inventory", "",
+    ]
+    if not rows:
+        body += ["The pass named no elements on any screen, so there is nothing to list "
+                 "here - see [what it refused to do](refused-and-unmodelled.md) for what "
+                 "it declined instead.", "",
+                 _footnotes(ctx, ["ontology"])]
+        return Page(rel="concepts/clickable-elements.md", kind="Concept",
+                    title="Everything named as clickable, and what happened to it",
+                    description="No elements were named on any screen this pass reached.",
+                    body="\n".join(body), tags=["clash-royale", "ui"])
+
+    body += [
+        f"{len(rows)} elements named across {len(facts.screens)} screens: {tally}.", "",
+        "**Pressed** - a probe this pass sent landed on it (inside its measured box, or "
+        f"within {REACH_TOLERANCE} of its point when there is no box). **Refused** - the "
+        "vetting call looked at it and said not to, in its own words. **Cleared, not "
+        "pressed** - the vetting call said it was safe, but the screen's vetting budget "
+        "or the pass's clock ran out before its turn came. **Not vetted** - no verdict on "
+        f"record matched its position at all.{_cite('ontology')}", "",
+        "| Screen | Element | What | Status | Why refused |",
+        "|---|---|---|---|---|",
+    ]
+    for row in sorted(rows, key=lambda r: (r["screen"], r["status"], r["label"])):
+        body.append(f"| {row['screen']} | {row['label']} | {row['what']} | "
+                    f"{row['status']} | {row['why']} |")
+    body += ["", _footnotes(ctx, ["ontology"])]
+
+    return Page(rel="concepts/clickable-elements.md", kind="Concept",
+                title="Everything named as clickable, and what happened to it",
+                description=f"{len(rows)} elements named across the run: {tally}.",
+                body="\n".join(body), tags=["clash-royale", "ui"])
 
 
 def refusal_facts(data: dict) -> dict:
@@ -786,7 +892,8 @@ def persistent_page(facts: Facts, ctx: Ctx) -> Page:
 
     body += ["## Related", "",
              "- [The observed navigation map](../concepts/navigation-map.md)",
-             "- [What the pass refused to do](../concepts/refused-and-unmodelled.md)", "",
+             "- [What the pass refused to do](../concepts/refused-and-unmodelled.md)",
+             "- [Everything named as clickable](../concepts/clickable-elements.md)", "",
              _footnotes(ctx, ["ontology"])]
     return Page(rel="entities/persistent-elements.md", kind="Entity",
                 entity_kind="ui-component", title="Elements that recur across screens",
@@ -1048,7 +1155,7 @@ def derive(run_dir: Path, data: dict) -> Facts:
         screens=data.get("screens") or [], transitions=data.get("transitions") or [],
         graph=graph_facts(data), refusals=refusal_facts(data),
         persistent=persistent_facts(data), frames=frame_facts(run_dir, data),
-        reach=reach_facts(data))
+        reach=reach_facts(data), clickable=clickable_facts(data))
 
 
 def build(run_dir: Path, workspace: Path, *, generated_by: str, now: datetime | None = None,
@@ -1089,6 +1196,7 @@ def build(run_dir: Path, workspace: Path, *, generated_by: str, now: datetime | 
         refusals_page(facts, ctx),
         frames_page(facts, ctx),
         identity_page(data, facts, ctx, threshold_note),
+        clickable_page(facts, ctx),
     ] + [screen_page(screen, data, facts, ctx, run_dir) for screen in facts.screens]
 
     wiki = workspace / "wiki"

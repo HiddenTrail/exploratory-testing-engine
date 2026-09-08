@@ -489,7 +489,27 @@ def test_a_tap_is_announced_by_the_name_of_what_it_is_aimed_at(tmp_path, capsys)
 
     line = capsys.readouterr().out
     assert "button 0" in line and "(0.100, 0.300)" in line
-    assert "next" in line and "(0.200, 0.300)" in line
+    assert "queue" in line and "button 1" in line and "(0.200, 0.300)" in line
+
+
+def test_the_full_queue_is_named_not_just_the_one_action_behind(tmp_path, capsys):
+    """A person watching live wants to see what has already cleared and is coming, not
+    just a one-step lookahead - see `QUEUE_PREVIEW`. Every cleared element in the peeked
+    window shows up on the queue line, named, in the order `pending_actions` gives them."""
+    recon = session(tmp_path)
+    screen, variant = after_first_vetting(recon, grid_elements(4))
+    cleared(screen, grid_elements(4))
+    queued = list(recon.pending_actions(screen, variant))
+    assert len(queued) >= 4  # otherwise this test is not exercising more than one lookahead
+
+    recon.announce(screen, queued[0], queued[1:4])
+
+    line = capsys.readouterr().out
+    assert "queue" in line
+    for label in ("button 1", "button 2", "button 3"):
+        assert label in line
+    # Named in order, not merely present - the same order the actions themselves are in.
+    assert line.index("button 1") < line.index("button 2") < line.index("button 3")
 
 
 def test_an_action_aimed_at_no_element_is_announced_without_inventing_a_name(tmp_path):

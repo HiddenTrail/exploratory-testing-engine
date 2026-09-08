@@ -115,6 +115,83 @@ def test_named_versus_pressed_is_counted_per_screen(built):
         built.facts.reach["activated"]
 
 
+# --- the clickable-elements list ---------------------------------------------------
+
+def _screen_with(elements, tried=(), verdicts=None):
+    return {"screens": [{"id": "sc01", "elements": elements,
+                         "explored": {"tried": list(tried)},
+                         "mouse_verdicts": verdicts or {}}]}
+
+
+def test_a_probed_element_is_pressed_regardless_of_its_own_verdict():
+    """`_reached` already owns this claim for `reach_facts` - this list agrees with it
+    rather than re-deriving a second opinion, so a probed element reads pressed even on
+    the (inconsistent, hand-fixture-only) data where its own verdict says refused."""
+    data = _screen_with(
+        [{"label": "Battle", "at": [0.5, 0.78], "box": [0.32, 0.72, 0.37, 0.12]}],
+        tried=["click:0.500,0.780"],
+        verdicts={"click:0.500,0.780": {"safe": False, "why": "starts a live match"}})
+    rows = wikibuild.clickable_facts(data)
+    assert rows == [{"screen": "sc01", "label": "Battle", "what": "",
+                     "status": "pressed", "why": ""}]
+
+
+def test_a_verdict_that_said_no_and_was_never_sent_is_refused():
+    data = _screen_with(
+        [{"label": "Shop tab", "at": [0.88, 0.96], "box": [0.82, 0.93, 0.12, 0.06]}],
+        tried=[],
+        verdicts={"click:0.880,0.960": {"safe": False, "why": "real money is spent here"}})
+    rows = wikibuild.clickable_facts(data)
+    assert rows[0]["status"] == "refused"
+    assert rows[0]["why"] == "real money is spent here"
+
+
+def test_a_verdict_that_said_yes_but_was_never_sent_is_cleared_not_pressed():
+    """The vetting call cleared it - the budget or the clock is what stopped it, not a
+    safety refusal, and the status has to say which."""
+    data = _screen_with(
+        [{"label": "Cards tab", "at": [0.12, 0.96], "box": [0.06, 0.93, 0.12, 0.06]}],
+        tried=[],
+        verdicts={"click:0.120,0.960": {"safe": True, "why": "a navigation tab"}})
+    rows = wikibuild.clickable_facts(data)
+    assert rows[0]["status"] == "cleared, not pressed"
+    assert rows[0]["why"] == ""
+
+
+def test_an_element_with_no_matching_verdict_at_all_is_not_vetted():
+    data = _screen_with([{"label": "Deck slot 1", "at": [0.15, 0.7], "box": None}])
+    rows = wikibuild.clickable_facts(data)
+    assert rows[0]["status"] == "not vetted"
+
+
+def test_a_pointless_element_uses_the_point_tolerance_not_the_box():
+    """No box on this element, so a verdict has to land within `REACH_TOLERANCE` of its
+    point, not inside a rectangle that does not exist."""
+    data = _screen_with(
+        [{"label": "Deck slot 1", "at": [0.15, 0.7], "box": None}],
+        verdicts={f"click:{0.15 + wikibuild.REACH_TOLERANCE / 2:.3f},0.700":
+                  {"safe": True, "why": "selects a card"}})
+    rows = wikibuild.clickable_facts(data)
+    assert rows[0]["status"] == "cleared, not pressed"
+
+
+def test_the_clickable_page_lists_every_element_and_tallies_by_status(built):
+    body = page(built, "concepts/clickable-elements.md")
+    assert "| sc01 | Battle | " in body
+    assert "| pressed |" in body
+    assert "elements named across" in body
+
+
+def test_the_clickable_page_says_so_when_nothing_was_named(run_dir: Path, tmp_path: Path):
+    data = json.loads((run_dir / "ontology.json").read_text(encoding="utf-8"))
+    for screen in data["screens"]:
+        screen["elements"] = []
+    (run_dir / "ontology.json").write_text(json.dumps(data), encoding="utf-8")
+    built = wikibuild.build(run_dir, tmp_path, generated_by="process:cr-kit@test", now=AT)
+    body = page(built, "concepts/clickable-elements.md")
+    assert "named no elements on any screen" in body
+
+
 def test_the_reach_rule_is_printed_next_to_the_number(built):
     """A count produced by a tolerance has to show the tolerance, or it cannot be argued with."""
     body = page(built, "concepts/refused-and-unmodelled.md")

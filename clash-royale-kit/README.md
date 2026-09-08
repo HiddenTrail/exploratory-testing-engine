@@ -135,6 +135,7 @@ while exploring, and the pages arrange it and count it.
 | `concepts\refused-and-unmodelled.md` | what the safety layers declined, kept separate from what the budget simply never reached |
 | `concepts\frames-vs-counts.md` | transitions that reported a change between two **byte-identical** crops |
 | `concepts\screen-identity.md` | how screens were told apart, and the threshold that decided it |
+| `concepts\clickable-elements.md` | every named element across the whole run, one row each, with what happened to it: pressed, refused (and why, in the model's own words), cleared but never got its turn, or never vetted at all |
 
 That frames-vs-counts page is the one worth reading first, and it deliberately does not
 overclaim: the change count is measured over the whole frame while the saved crop covers only

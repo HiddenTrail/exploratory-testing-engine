@@ -93,6 +93,11 @@ SPLIT_CEILING = 0.99
 # than silently tolerated: "almost all of this screen is dynamic" is a finding.
 MIN_STABLE_CELLS = 40
 
+QUEUE_PREVIEW = 6        # cleared candidates shown after the one about to be sent, in
+                         # `announce`'s "queue" line. A display cap, not a budget - it
+                         # costs one `permitted()` check per candidate peeked, paid once
+                         # per step, for a reader watching the pass live to see what is
+                         # coming rather than being surprised by it one action at a time
 MAX_VARIANTS = 12        # stored per screen; the rest are counted, never dropped silently
 VET_VARIANTS = 6         # appearances of one screen the model will rule on; the budget that
                          # stops a screen whose look changes constantly from spending the
@@ -2379,7 +2384,7 @@ class Recon:
         # vetting call that would have covered them.
         self.ask_about_escalated(screen, variant)
         self.prune_blocked(screen, variant)
-        queued = list(islice(self.pending_actions(screen, variant), 2))
+        queued = list(islice(self.pending_actions(screen, variant), QUEUE_PREVIEW + 1))
         action = queued[0] if queued else self.route_to_frontier(screen)
         if action is None:
             return "exhausted"
@@ -2445,7 +2450,8 @@ class Recon:
 
     def announce(self, screen: Screen, action: Action,
                  after: list[Action] | None) -> None:
-        """Say what is about to be sent, and what is queued behind it.
+        """Say what is about to be sent, and what else has already cleared and is
+        queued behind it.
 
         Printed *before* the input goes out. A line that appears only once the click has
         landed is a receipt, and the reason somebody watches a pass against a live account
@@ -2453,18 +2459,23 @@ class Recon:
         the only order under which an action that hangs or kills the window prints at all -
         which is the case a reader most needs named.
 
-        `after` is the rest of this screen's queue, or None when the action came from
-        `route_to_frontier` and so is travel rather than a test of this screen."""
-        label = self.aimed_at(screen, action)
+        `after` is the rest of this screen's queue - up to `QUEUE_PREVIEW` items, already
+        peeked and capped by the caller - or None when the action came from
+        `route_to_frontier` and so is travel rather than a test of this screen. Each item
+        is described and, where `aimed_at` finds one, named by its element too - the same
+        two-part format as the action about to be sent, so the two lines read as one list
+        rather than two different vocabularies."""
+        def named(a: Action) -> str:
+            label = self.aimed_at(screen, a)
+            return a.describe() + (f" - {label}" if label else "")
+
+        log(f"  [{self.actions_taken + 1}] {screen.id}: {named(action)}")
         if after is None:
-            following = "on the way to a screen with untried actions"
+            log("      (on the way to a screen with untried actions)")
         elif after:
-            following = f"next {after[0].describe()}"
+            log(f"      queue: {'; '.join(named(a) for a in after)}")
         else:
-            following = "last one queued here"
-        log(f"  [{self.actions_taken + 1}] {screen.id}: {action.describe()}"
-            + (f" - {label}" if label else "")
-            + f"   ({following})")
+            log("      (last cleared action queued here)")
 
     def wants_vetting(self, screen: Screen, variant: Variant) -> bool:
         """Whether this appearance is worth a vetting call.
