@@ -97,6 +97,10 @@ class State:
     elements: list[Element] = field(default_factory=list)
     observations: int = 1
     first_seen: int = 0
+    # True if this state's signature was already present in the ontology a --resume run
+    # carried forward - i.e. it was known before this run reached it, the browser analog of
+    # clash_royale's "was_measured_before". False on a state new since the carried map.
+    carried: bool = False
     # Cells/paths of the signature that were seen to vary between visits without the
     # state being a different place - the browser analog of the game's volatile mask.
     volatile: list[str] = field(default_factory=list)

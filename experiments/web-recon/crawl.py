@@ -133,7 +133,8 @@ def _settle(page, ms: int = 900) -> None:
 
 class Crawler:
     def __init__(self, page, collector: Collector, start_url: str, max_actions: int = 40,
-                 out_dir: Path | None = None, proposer=None, mutate: bool = False):
+                 out_dir: Path | None = None, proposer=None, mutate: bool = False,
+                 resume: Ontology | None = None):
         self.page = page
         self.col = collector
         self.start_url = start_url
@@ -148,6 +149,10 @@ class Crawler:
         # deterministic vetting pass admits - only reversible query submits (search/filter/
         # sort) - are also actuated. Everything destructive stays refused even then.
         self.mutate = mutate
+        # Stage 6 resume/carry: the map a previous run wrote, keyed by signature. A state
+        # whose signature is in here is *known on first sight* this run (carried), and after
+        # the crawl a drift report says which carried states went missing and which are new.
+        self.carried_sigs = {s.signature: s for s in resume.states} if resume else {}
         # Where per-state screenshots go (relative "images/<id>.png" recorded on each
         # state), so the wiki can show what each state looked like - the browser analog
         # of the game wiki's per-screen picture.
@@ -187,6 +192,7 @@ class Crawler:
             "path": list(path), "actions": actions,
             "action_locators": {a["locator"] for a in actions},
             "tried": set(), "first_seen": self.actions_taken,
+            "carried": sig in self.carried_sigs,   # known before this run reached it
         }
         self.by_sig[sig] = state_id
         return state_id
@@ -529,25 +535,49 @@ class Crawler:
 
         return self._build()
 
+    def _carry_observations(self) -> list[Evidence]:
+        """Drift between the carried map and this run: carried states that were not reached
+        this time, and states new since the carried map. Structural observations, not
+        defects - a carried state going missing may be a removed feature or just a branch
+        this budget did not reach; the report says which, it does not judge."""
+        seen = set(self.by_sig)
+        obs = [
+            Evidence(kind="carried_state_absent", state_id=s.id,
+                     summary=f"{s.id} ({s.title or s.signature[:40]}) was in the carried map "
+                             f"but was not reached this run")
+            for sig, s in self.carried_sigs.items() if sig not in seen
+        ]
+        obs += [
+            Evidence(kind="new_state", state_id=r["id"],
+                     summary=f"{r['id']} was not in the carried map - new since last run")
+            for r in self.recs.values() if not r["carried"]
+        ]
+        return obs
+
     def _build(self) -> Ontology:
         states = []
         for r in self.recs.values():
             safe_locators = r["action_locators"]
             states.append(State(
                 id=r["id"], url=r["url"], signature=r["signature"], title=r["title"],
-                image=r.get("image", ""), first_seen=r["first_seen"],
+                image=r.get("image", ""), first_seen=r["first_seen"], carried=r["carried"],
                 elements=[Element(key=f"{e['role']}:{e['name']}", role=e["role"],
                                   name=e["name"], kind=e.get("tag", ""), locator=e["locator"],
                                   committing=(e["locator"] not in safe_locators),
                                   href=e.get("href", ""))
                           for e in r["elements"]]))
+        session = {"actions": self.actions_taken, "states": len(states)}
+        if self.carried_sigs:
+            session["resumed_from_states"] = len(self.carried_sigs)
         onto = Ontology(
             target={"url": self.start_url, "origin": self.base_origin},
-            session={"actions": self.actions_taken, "states": len(states)},
+            session=session,
             states=states, transitions=self.transitions,
             findings=dedup_findings(self.findings),
         )
         onto.observations = analyze(onto)  # deterministic graph oracles over the finished map
+        if self.carried_sigs:
+            onto.observations += self._carry_observations()   # + resume/carry drift
         return onto
 
 
@@ -565,7 +595,16 @@ def main():
                     help="also actuate committing controls the deterministic vetting pass "
                          "admits - only reversible query submits (search/filter/sort); "
                          "destructive controls stay refused. OFF by default (read-only).")
+    ap.add_argument("--resume", default="",
+                    help="carry a previous run's ontology.json forward: states it mapped are "
+                         "known on first sight, and a drift report flags carried states not "
+                         "reached this run and states new since it.")
     args = ap.parse_args()
+
+    resume = None
+    if args.resume:
+        resume = Ontology.load(args.resume)
+        print(f"resuming from {args.resume} ({len(resume.states)} carried states)")
 
     proposer = None
     if args.llm:
@@ -581,7 +620,8 @@ def main():
         page = browser.new_page(viewport={"width": 1280, "height": 900})
         col = Collector().attach(page)
         onto = Crawler(page, col, args.url, max_actions=args.max,
-                       out_dir=Path(args.out).parent, proposer=proposer, mutate=args.mutate).crawl()
+                       out_dir=Path(args.out).parent, proposer=proposer, mutate=args.mutate,
+                       resume=resume).crawl()
         browser.close()
 
     out = Path(args.out)

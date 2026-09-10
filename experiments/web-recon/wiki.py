@@ -38,6 +38,8 @@ _OBSERVATION_STYLE = {
     "blocked_control": ("Blocked control (could not actuate)", "#9333ea"),
     "redundant_controls": ("Redundant controls (same destination)", "#0891b2"),
     "dead_end": ("Dead end (no way onward)", "#b45309"),
+    "carried_state_absent": ("Carried state not reached (drift since last run)", "#0d9488"),
+    "new_state": ("New state (not in the carried map)", "#7c3aed"),
 }
 
 

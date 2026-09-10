@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from crawl import Crawler, choose_frontier, dedup_findings, gesture_actions  # noqa: E402
-from schema import Evidence  # noqa: E402
+from schema import Evidence, Ontology, State  # noqa: E402
 
 
 class _FakeLocator:
@@ -140,6 +140,25 @@ def test_mutation_actions_are_vetted_and_carry_a_distinct_identity():
     assert a["act_kind"] == "submit_search" and a["origin"] == "mutation"
     # distinct identity (coexists with the read-only fill of the same field) + real selector
     assert a["locator"] == "__mutate__:submit_search:#q" and a["act_target"] == "#q"
+
+
+def test_carry_observations_flag_drift_both_ways():
+    prior = Ontology(states=[State(id="p1", url="u", signature="A"),
+                             State(id="p2", url="u", signature="B")])
+    c = Crawler(page=None, collector=None, start_url="http://app.example/", resume=prior)
+    # This run saw carried A and a brand-new C; carried B was never reached.
+    c.by_sig = {"A": "s1", "C": "s2"}
+    c.recs = {"s1": {"id": "s1", "carried": True}, "s2": {"id": "s2", "carried": False}}
+    obs = c._carry_observations()
+    absent = [o for o in obs if o.kind == "carried_state_absent"]
+    new = [o for o in obs if o.kind == "new_state"]
+    assert len(absent) == 1 and absent[0].state_id == "p2"   # B, by its carried id
+    assert len(new) == 1 and new[0].state_id == "s2"         # C, this run's id
+
+
+def test_no_carry_observations_without_a_resume():
+    c = Crawler(page=None, collector=None, start_url="http://app.example/")
+    assert c.carried_sigs == {} and c._carry_observations() == []
 
 
 def test_dedup_findings_collapses_identical_only():
