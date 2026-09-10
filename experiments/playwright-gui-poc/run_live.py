@@ -35,7 +35,7 @@ from mcp.client.stdio import stdio_client
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
-from engine.client import build_client, default_model  # noqa: E402
+from engine.client import build_client, default_model, use_bedrock  # noqa: E402
 
 # Model-generated text can contain non-ASCII characters that the default
 # Windows console codec can't encode, crashing a plain print().
@@ -270,7 +270,7 @@ async def main():
     load_dotenv(_REPO_ROOT / ".env")
     anthropic_client = build_client()
     model = default_model()
-    print(f"Using model {model} ({'Bedrock' if 'claude-sonnet-5' in model else 'direct API'}).")
+    print(f"Using model {model} ({'Bedrock' if use_bedrock() else 'direct API'}).")
 
     base_dir = Path(__file__).parent
     out_dir = base_dir / "results"

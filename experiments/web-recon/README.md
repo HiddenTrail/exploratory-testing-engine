@@ -45,7 +45,7 @@ the question; EcoEstate (no headings) stays one state.
 | `identity.py` | "is this the same view?" — a state is its URL route + control skeleton + landmark headings; body text / map position is a *variant*, not a new state. No model. |
 | `oracles.py` | deterministic functional oracles: HTTP 4xx/5xx, **failed requests (a dead endpoint)**, console errors, exceptions → `Evidence`. This is where a browser beats a game — it found the 500 below for free. |
 | `safety.py` | the read-only gate: `committing(element)` — refuses form inputs, mutating-verb names, submit/reset, off-site/non-http links, unrecognised roles (fail-closed). Pure. |
-| `crawl.py` | the frontier-BFS read-only crawler → `Ontology` (+ a screenshot per state under `images/`); `choose_frontier` is a pure planner. `python crawl.py <url> [--headed] [--max N] [--out PATH]`. |
+| `crawl.py` | the frontier-BFS read-only crawler → `Ontology` (+ a screenshot per state under `images/`). Clicks by stable (role, name) locator with a CSS-path fallback, waits for network-idle before capture/act (so async controls render first), retries a flaky action once, and records a control it cannot actuate as a `blocked` edge rather than a false finding. `choose_frontier` is a pure planner. `python crawl.py <url> [--headed] [--max N] [--out PATH]`. |
 | `wiki.py` | `ontology.json` → a self-contained HTML wiki with each state's screenshot, by arithmetic; `build_wiki` is pure. `python wiki.py <ontology.json> [--out wiki.html]`. |
 | `capture_fixtures.py` / `capture_poc.py` | record `Observation` corpora (in `fixtures/`) so identity/oracles are tested offline. |
 

@@ -159,8 +159,10 @@ class Collector:
         # A request that never gets a response (backend down, DNS/connection failure,
         # aborted fetch) fires this, not `response`. Recorded as status 0 with the
         # failure text so an oracle can flag a dead endpoint - a real functional defect.
+        # The requestfailed event passes a Request (not a Response): it has .method /
+        # .url / .failure directly - r.request would raise and lose the finding.
         page.on("requestfailed", lambda r: self.network.append(
-            {"method": r.request.method, "url": r.url[:300], "status": 0,
+            {"method": r.method, "url": r.url[:300], "status": 0,
              "failure": (r.failure or "")[:200]}))
         return self
 

@@ -37,6 +37,13 @@ from schema import Action, Element, Evidence, Ontology, State, Transition
 # control is given up after this many attempts rather than spun on forever.
 MAX_ACTION_ATTEMPTS = 2
 
+# Roles Playwright's get_by_role can target by accessible name. Addressing a control by
+# (role, name) survives DOM reshuffles - async content appearing, siblings inserted -
+# far better than a positional CSS path, which silently points at the wrong node once
+# the tree around it changes. Only the roles a read-only crawl actually clicks are here
+# (form roles are always committing and never reach _click); Stage 5 can widen it.
+ROLE_LOCATABLE = frozenset({"button", "link", "tab", "menuitem"})
+
 
 def dedup_findings(findings: list) -> list:
     """Collapse identical findings (same kind, summary, state) to one - a state
@@ -65,9 +72,13 @@ def choose_frontier(open_states: list[dict]) -> tuple[str, str] | None:
     return nearest["id"], nearest["untried"][0]
 
 
-def _settle(page, ms: int = 800) -> None:
+def _settle(page, ms: int = 900) -> None:
+    """Wait for the app to go quiet before reading or acting. networkidle matters here:
+    apps fetch their data after first paint (EcoEstate renders its mode/search controls
+    only once the fetch resolves), so capturing or clicking before idle sees a
+    half-rendered page and misses or mis-hits controls."""
     try:
-        page.wait_for_load_state("networkidle", timeout=3000)
+        page.wait_for_load_state("networkidle", timeout=5000)
     except Exception:
         pass
     page.wait_for_timeout(ms)
@@ -91,7 +102,7 @@ class Crawler:
         self.findings: list[Evidence] = []
         self.actions_taken = 0
 
-    def _register(self, obs, path: list[str]) -> str:
+    def _register(self, obs, path: list[dict]) -> str:
         sig = signature(obs)
         if sig in self.by_sig:
             return self.by_sig[sig]
@@ -114,16 +125,37 @@ class Crawler:
         self.by_sig[sig] = state_id
         return state_id
 
+    def _click(self, desc: dict) -> bool:
+        """Click a control robustly. Prefer a (role, accessible-name) locator, which is
+        stable across DOM changes; fall back to the captured CSS path. Returns whether a
+        click actually landed."""
+        role, name, css = desc.get("role", ""), (desc.get("name") or ""), desc["locator"]
+        # Use the role locator only when it uniquely identifies the control; if the name
+        # is shared (two "Back" buttons), fall back to the exact CSS path so we click the
+        # node we actually recorded rather than an arbitrary .first.
+        if role in ROLE_LOCATABLE and name:
+            try:
+                loc = self.page.get_by_role(role, name=name, exact=True)
+                if loc.count() == 1:
+                    loc.click(timeout=4000)
+                    return True
+            except Exception:
+                pass
+        try:
+            self.page.click(css, timeout=4000)
+            return True
+        except Exception:
+            return False
+
     def _reach(self, rec: dict):
         """Replay a state's discovery path from the start and return the before-frame
-        Observation, or None (recording instability) if it lands on a different state."""
+        Observation, or None (recording instability) if a step fails or it lands on a
+        different state. The path is element descriptors, so replay uses robust clicks."""
         self.page.goto(self.start_url, wait_until="domcontentloaded")
         _settle(self.page)
-        for locator in rec["path"]:
-            try:
-                self.page.click(locator, timeout=3000)
-            except Exception:
-                self._instability(rec, f"could not replay click {locator}")
+        for desc in rec["path"]:
+            if not self._click(desc):
+                self._instability(rec, f"could not replay click on {desc.get('name') or desc['locator']}")
                 return None
             _settle(self.page)
         here = capture(self.page, self.col)  # also drains the replay's own evidence
@@ -167,12 +199,19 @@ class Crawler:
                 continue
 
             before_sig = rec["signature"]
-            try:
-                self.page.click(locator, timeout=3000)
-            except Exception:
-                self._instability(rec, f"click failed on {locator}")
+            if not self._click(element):
                 if give_up:
                     rec["tried"].add(locator)
+                    # A control we identified but could not actuate (obscured, or not
+                    # interactive as a user click). Recorded as a *blocked edge*, not a
+                    # functional finding: it is a fact about the control, not an app error.
+                    self.transitions.append(Transition(
+                        id=f"tr{len(self.transitions) + 1:03d}", source=state_id,
+                        action=Action(kind="click",
+                                      element_key=f"{element['role']}:{element['name']}",
+                                      target=locator),
+                        dest=state_id, effect="blocked", changed=False,
+                        first_seen=self.actions_taken))
                 continue
             rec["tried"].add(locator)  # a click that landed is done, pass or not
             _settle(self.page)
@@ -180,7 +219,7 @@ class Crawler:
             self.actions_taken += 1
 
             after_sig = signature(after)
-            dest_id = self._register(after, path=rec["path"] + [locator])
+            dest_id = self._register(after, path=rec["path"] + [element])
             self.findings.extend(run_observation_oracles(after, dest_id, self.actions_taken))
 
             if after_sig != before_sig:
@@ -200,15 +239,17 @@ class Crawler:
         return self._build()
 
     def _build(self) -> Ontology:
-        states = [
-            State(id=r["id"], url=r["url"], signature=r["signature"], title=r["title"],
-                  image=r.get("image", ""), first_seen=r["first_seen"],
-                  elements=[Element(key=f"{e['role']}:{e['name']}", role=e["role"],
-                                    name=e["name"], kind=e.get("tag", ""), locator=e["locator"],
-                                    committing=(e not in r["safe"]), href=e.get("href", ""))
-                            for e in r["elements"]])
-            for r in self.recs.values()
-        ]
+        states = []
+        for r in self.recs.values():
+            safe_locators = {e["locator"] for e in r["safe"]}
+            states.append(State(
+                id=r["id"], url=r["url"], signature=r["signature"], title=r["title"],
+                image=r.get("image", ""), first_seen=r["first_seen"],
+                elements=[Element(key=f"{e['role']}:{e['name']}", role=e["role"],
+                                  name=e["name"], kind=e.get("tag", ""), locator=e["locator"],
+                                  committing=(e["locator"] not in safe_locators),
+                                  href=e.get("href", ""))
+                          for e in r["elements"]]))
         return Ontology(
             target={"url": self.start_url, "origin": self.base_origin},
             session={"actions": self.actions_taken, "states": len(states)},
