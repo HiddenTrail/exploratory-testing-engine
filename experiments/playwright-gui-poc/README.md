@@ -54,9 +54,17 @@ npm install
 npm run dev
 
 # terminal 3 - the Driver
-cp .env.example .env   # fill in ANTHROPIC_API_KEY
+pip install -r requirements.txt
 python run_live.py
 ```
+
+The Driver authenticates through `engine/client.py`, the same as the rest of the repo:
+by default it uses **Amazon Bedrock**, configured in the **repo-root `.env`**
+(`ENGINE_USE_BEDROCK=1`, `AWS_REGION`, `AWS_PROFILE`; `aws sso login` before a run) -
+`run_live.py` loads that file itself and picks the right model for the provider
+(`anthropic.claude-sonnet-5` on Bedrock). To use the direct Anthropic API instead, leave
+`ENGINE_USE_BEDROCK` unset and put a funded `ANTHROPIC_API_KEY` in this directory's `.env`
+(see `.env.example`).
 
 `run_live.py` spawns `npx @playwright/mcp@latest` itself (Node/npx must be
 on PATH - on Windows this means the `.cmd` shim is used explicitly, since
