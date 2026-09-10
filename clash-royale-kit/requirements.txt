@@ -11,10 +11,11 @@
 # of the kit cannot run anywhere else, because it calls user32 and gdi32
 # directly. The tests are cross-platform on purpose (see README).
 
-# Optional. Only `wikibuild.py`'s per-screen animation-map picture uses it (the boxes
-# themselves are plain arithmetic and render as a table either way) - imported lazily, so
-# a wiki still builds in full without it, just without that one picture. Not listed above
-# as a hard requirement on purpose: `pip install Pillow` if you want the picture.
+# Optional. Two things use it, both lazily and both degrading to "no picture, same data":
+# `wikibuild.py`'s per-screen animation-map picture (the boxes render as a table either
+# way), and the stitched panorama of a scrollable surface (recon saves the scroll frames
+# regardless; the stitch just composes them). A wiki still builds in full without it. Not
+# listed above as a hard requirement on purpose: `pip install Pillow` if you want them.
 # Pillow>=10.0
 
 # The model client. The [bedrock] extra pulls boto3/botocore and is what makes
