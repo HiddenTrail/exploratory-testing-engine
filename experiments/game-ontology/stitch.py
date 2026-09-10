@@ -117,10 +117,12 @@ def _compose(frames: list[Image.Image], offsets: list[int], axis: str) -> Image.
 def stitch(view_paths: list[str | Path], axis: str = "vertical") -> Image.Image | None:
     """One picture of the whole surface from its ordered scroll frames.
 
-    `axis` is the surface's scroll axis. Returns None if there are no frames; a single
-    frame is returned unchanged. A pair whose best alignment is poor (a near-duplicate,
-    a failed scroll, a jump to different content) ends the chain rather than splicing a
-    bad seam.
+    `axis` is the surface's scroll axis. Returns the lone frame for a single input, and
+    None when there is nothing to stitch OR when two or more frames were given but none
+    of them aligned into a continuation - in which case there is no panorama to show,
+    only the viewport the screen already has its own image of. A pair whose best
+    alignment is poor (a near-duplicate, a failed scroll, a jump to different content)
+    ends the chain rather than splicing a bad seam.
     """
     paths = list(view_paths)
     if not paths:
@@ -137,6 +139,8 @@ def stitch(view_paths: list[str | Path], axis: str = "vertical") -> Image.Image 
             break  # seam is not a clean continuation - stop rather than splice
         offsets.append(d)
 
+    if not offsets:
+        return None  # given several frames but none continued the last - no panorama
     return _compose(frames[:len(offsets) + 1], offsets, axis)
 
 
@@ -144,13 +148,15 @@ def stitch_to_file(view_paths: list[str | Path], out_path: str | Path,
                    axis: str = "vertical") -> bool:
     """Stitch and save; return whether a panorama was written.
 
-    Only writes when stitching actually combined more than one frame - a lone frame is
-    already the screen's own image and needs no panorama.
+    Only writes when stitching actually combined more than one frame: fewer than two
+    inputs, or frames that would not align into a continuation, produce no file and
+    return False, so a lone viewport is never published as "the whole page".
     """
-    if len(list(view_paths)) < 2:
+    paths = list(view_paths)
+    if len(paths) < 2:
         return False
-    panorama = stitch(view_paths, axis=axis)
+    panorama = stitch(paths, axis=axis)
     if panorama is None:
-        return False
+        return False  # nothing aligned - no multi-frame panorama to write
     panorama.save(out_path)
     return True

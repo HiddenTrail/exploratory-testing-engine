@@ -36,6 +36,7 @@ python -m engine.adapters.clash_royale.generate_nav_map_html \
 - Navigation edges with action details (drag/click coordinates)
 - Click a screen to open its screenshot and navigation details in the side panel
 - Node colors derived from graph structure — hub, navigation node, dead end, unreachable — with a legend in the footer
+- Scrollable surfaces shown as one node: the "↕ Scrollable surface" note plus, when the recon captured the frames, the stitched **whole-page panorama**; scroll self-loops are not drawn
 - Near-duplicate screenshots flagged (a warning when the recon tool appears to have over-split one screen into several); needs Pillow, skipped if it's not installed
 
 **Output:** `navigation_map.html` in the source directory. Open in any browser.

@@ -131,7 +131,7 @@ while exploring, and the pages arrange it and count it.
 |---|---|
 | `overview.md` | what was explored, for how long, and against which reference measurement |
 | `summaries\recon-*.md` | the pass's own report, framed |
-| `entities\screen-*.md` | one page per screen: what it is, what is on it, what leaves it, what was never pressed, and - where the screen has any - where it animates on its own: a picture with the regions boxed (needs Pillow; `pip install Pillow` - the coordinates render as a table either way), red for a sub-second cycle, orange for a slower one caught only by the longer of the two sampling tiers `map_animation` runs before anything is done to the screen |
+| `entities\screen-*.md` | one page per screen: what it is, what is on it, what leaves it, what was never pressed, and - where the screen has any - where it animates on its own: a picture with the regions boxed (needs Pillow; `pip install Pillow` - the coordinates render as a table either way), red for a sub-second cycle, orange for a slower one caught only by the longer of the two sampling tiers `map_animation` runs before anything is done to the screen. A scrollable screen also gets a **whole page** section: the frames it scrolled through, stitched into one long picture (needs Pillow; the scroll facts show either way) |
 | `entities\persistent-elements.md` | controls that appear on three or more screens, i.e. the navigation chrome |
 | `concepts\navigation-map.md` | the routes, the screens with no recorded exit, the ones never entered |
 | `concepts\refused-and-unmodelled.md` | what the safety layers declined, kept separate from what the budget simply never reached |

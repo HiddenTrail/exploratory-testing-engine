@@ -1024,6 +1024,10 @@ class Screen:
     # frames are the raw evidence (so the panorama can be re-stitched offline); the
     # panorama is derived. Both are image paths relative to the pass directory.
     scroll_views: list[str] = field(default_factory=list)
+    # The axis those views were captured along. A surface can be scrolled both ways over
+    # a pass; the panorama can only stitch one, so views are only kept for the first axis
+    # scrolled, and the rest of that axis's frames stay a clean single-axis sequence.
+    panorama_axis: str = ""
     panorama: str = ""
     vetting: dict | None = None
     degenerate: bool = False
@@ -2258,7 +2262,11 @@ class Recon:
             # Keep the full-res frame at this offset, in order, for the stitched
             # panorama. The window still shows the scrolled state at this point (the
             # action has settled and been observed), so a plain capture is that frame.
-            if len(screen.scroll_views) < MAX_SCROLL_VIEWS:
+            # Only one axis can be stitched into a page, so fix on the first axis scrolled
+            # and ignore the other's frames - mixing them would break the seam chain.
+            if not screen.panorama_axis:
+                screen.panorama_axis = shift.axis
+            if shift.axis == screen.panorama_axis and len(screen.scroll_views) < MAX_SCROLL_VIEWS:
                 name = f"{screen.id}-scroll{len(screen.scroll_views) + 1}.png"
                 self.controller.save_png(self.images / name)
                 screen.scroll_views.append(f"images/{name}")
@@ -2968,6 +2976,7 @@ class Recon:
                 scroll_steps=(entry.get("surface") or {}).get("scroll_steps", 0),
                 scroll_revealed=(entry.get("surface") or {}).get("revealed_cells_floor", 0),
                 scroll_views=list((entry.get("surface") or {}).get("views", [])),
+                panorama_axis=(entry.get("surface") or {}).get("views_axis") or "",
                 panorama=(entry.get("surface") or {}).get("panorama") or "",
             )
             if explored.get("vetted"):
@@ -3144,9 +3153,11 @@ class Recon:
                         # the surface's true height - the pass stops scrolling when it
                         # stops learning - which is why it is labelled a floor.
                         "revealed_cells_floor": screen.scroll_revealed,
-                        # The ordered frames the scroll passed through, and the whole
-                        # page stitched from them (None if Pillow was absent).
+                        # The ordered frames the scroll passed through, the axis they
+                        # were captured along, and the whole page stitched from them
+                        # (None if Pillow was absent or nothing aligned).
                         "views": screen.scroll_views,
+                        "views_axis": screen.panorama_axis or None,
                         "panorama": screen.panorama or None,
                     } if screen.scroll_axes else None),
                     "hover": {
@@ -3305,8 +3316,8 @@ class Recon:
             frames = [p for p in frames if p.exists()]
             if len(frames) < 2 or self.panorama_view_counts.get(screen.id) == len(frames):
                 continue
-            # A feed scrolls vertically; prefer that axis when a surface saw both.
-            axis = "vertical" if "vertical" in screen.scroll_axes else "horizontal"
+            axis = screen.panorama_axis or ("vertical" if "vertical" in screen.scroll_axes
+                                            else "horizontal")
             out = self.images / f"surface-{screen.id}.png"
             if stitch.stitch_to_file([str(p) for p in frames], out, axis=axis):
                 screen.panorama = f"images/surface-{screen.id}.png"

@@ -111,6 +111,22 @@ def test_horizontal_surface_is_stitched_wide(tmp_path):
     assert panorama.size[1] == W  # the non-scroll axis is preserved
 
 
+def test_unalignable_frames_yield_no_panorama(tmp_path):
+    # Two frames the first seam cannot align: there is no whole page to show, only the
+    # viewport the screen already has an image of - so no panorama, not a lone frame.
+    a = Image.new("RGB", (W, VIEW))
+    a.putdata([_pixel(x, y) for y in range(VIEW) for x in range(W)])
+    b = Image.new("RGB", (W, VIEW))
+    b.putdata([((x * 5) % 256, (y * 13) % 256, (x * 29) % 256) for y in range(VIEW) for x in range(W)])
+    pa, pb = tmp_path / "a.png", tmp_path / "b.png"
+    a.save(pa)
+    b.save(pb)
+
+    assert stitch.stitch([pa, pb], axis="vertical") is None
+    assert stitch.stitch_to_file([pa, pb], tmp_path / "out.png") is False
+    assert not (tmp_path / "out.png").exists()
+
+
 def test_stitch_to_file_needs_at_least_two_frames(tmp_path):
     source = _tall_source(VIEW)
     p = tmp_path / "only.png"
