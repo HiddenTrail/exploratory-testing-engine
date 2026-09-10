@@ -177,12 +177,13 @@ class Crawler:
         return False
 
     def _fill(self, desc: dict) -> bool:
-        """Type a benign query into a search box and submit it. Read-only: a query, not
-        a write, and only ever on a field the safety gate classified search/filter."""
+        """Type a benign query into a search/filter box - and deliberately do NOT press
+        Enter. Enter can submit an enclosing <form> (a POST the gate never vetted, and a
+        server write the reboot cannot undo). Live-filter UIs react to the input itself;
+        a submit-only search is missed on purpose, the safe read-only choice."""
         css, value = desc["locator"], desc.get("act_value", "test")
         try:
             self.page.fill(css, value, timeout=4000)
-            self.page.press(css, "Enter")
             return True
         except Exception:
             return False

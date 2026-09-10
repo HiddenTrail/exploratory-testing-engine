@@ -5,10 +5,15 @@ toggles a view and runs a search, but never *commits* data - nothing deleted, bo
 saved, sent, or typed into a sensitive field. `plan()` is a pure function of a captured
 element returning how to actuate it, so it is exhaustively unit-testable with no browser.
 
-What it allows, and why each is non-mutating:
+What it allows:
 - **click** a link/button/tab/menu item with a benign name, and a *selection* control
-  (radio, checkbox, tab, switch) - a view toggle changes what you see, not server state.
-- **fill** a *search/filter* text box with a benign probe value - a query, not a write.
+  (radio, checkbox, tab, switch). These are usually a client-side view toggle - but a
+  toggle that auto-persists to the server (a "Public listing" switch) would slip through
+  looking benign, and a reboot cannot undo a server write. This is a looser posture than
+  strict read-only, taken deliberately so the crawl can exercise the controls it finds;
+  the residual mutation risk is what the Stage 5 vetting pass exists to close.
+- **fill** a *search/filter* text box with a benign probe value (never pressing Enter, so
+  it cannot submit an enclosing form) - a query typed into a field, not a write.
 
 What it refuses (fail-safe by denying whole classes rather than trusting a control to
 look harmless): a submit/reset, any name carrying a mutating verb, an off-site or

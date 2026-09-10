@@ -160,10 +160,14 @@ def _states_html(onto: Ontology) -> str:
             f'<tr><td>{_esc(e.role)}</td><td>{_esc(e.name)}</td>'
             f'<td>{"committing" if e.committing else "safe"}</td>'
             f'<td class="loc">{_esc(e.locator)}</td></tr>' for e in s.elements)
+        def _dest_link(t):
+            if t.dest == "external":
+                return '<span class="ext">external site (not followed)</span>'
+            return f'<a href="#{_esc(t.dest)}">{_esc(t.dest)}</a>'
+
         outs = "".join(
             f'<li>{_esc(t.action.kind)} {_esc(t.action.element_key)} '
-            f'<span class="eff">({_esc(t.effect)})</span> &rarr; '
-            f'<a href="#{_esc(t.dest)}">{_esc(t.dest)}</a>'
+            f'<span class="eff">({_esc(t.effect)})</span> &rarr; {_dest_link(t)}'
             + (f'<img class="tr-shot" src="{_esc(t.after_image)}" loading="lazy" '
                f'alt="after {_esc(t.action.element_key)}">' if getattr(t, "after_image", "") else "")
             + '</li>' for t in out_edges[s.id])
@@ -218,6 +222,7 @@ def build_wiki(onto: Ontology) -> str:
   .finds li {{ color: #b91c1c; }} details summary {{ cursor: pointer; color: #2563eb; font-size: 13px; }}
   .state-shot {{ display: block; max-width: 480px; width: 100%; border: 1px solid #cbd5e1; border-radius: 4px; margin: 8px 0; }}
   .tr-shot {{ display: block; max-width: 220px; border: 1px solid #cbd5e1; border-radius: 3px; margin: 4px 0 10px; }}
+  .ext {{ color: #b45309; font-style: italic; }}
 </style></head><body>
 <header>
   <h1>web-recon wiki</h1>
