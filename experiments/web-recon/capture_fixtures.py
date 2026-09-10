@@ -14,6 +14,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 from playwright.sync_api import sync_playwright
 
 from perceive import Collector, capture
@@ -55,12 +57,14 @@ def main() -> None:
             page.wait_for_timeout(1200)
             capture(page, col).save(FIX / "eco-zoom2.json")
 
-        # A fresh visit, to check cross-visit stability of the signature.
+        # A fresh visit, to check cross-visit stability of the signature. The collector
+        # must be attached BEFORE navigating, or it misses every load-time console and
+        # network event (including the 500) and the fixture records no evidence.
         page2 = browser.new_page(viewport={"width": 1280, "height": 900})
-        Collector().attach(page2)
+        col2 = Collector().attach(page2)
         page2.goto(URL, wait_until="domcontentloaded")
         page2.wait_for_timeout(3500)
-        capture(page2, Collector().attach(page2)).save(FIX / "eco-loaded-revisit.json")
+        capture(page2, col2).save(FIX / "eco-loaded-revisit.json")
 
         browser.close()
 

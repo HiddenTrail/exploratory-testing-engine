@@ -1,7 +1,7 @@
 {
   "url": "http://localhost:5173/",
   "title": "EcoEstate",
-  "a11y": {},
+  "headings": [],
   "elements": [
     {
       "role": "generic",
@@ -49,7 +49,424 @@
       "disabled": false
     }
   ],
-  "console": [],
-  "network": [],
+  "console": [
+    {
+      "type": "error",
+      "text": "The Content Security Policy directive 'frame-ancestors' is ignored when delivered via a <meta> element.",
+      "location": "{'url': 'http://localhost:5173/', 'line': 13, 'column': 0, 'lineNumber': 13, 'columnNumber': 0}"
+    },
+    {
+      "type": "debug",
+      "text": "[vite] connecting...",
+      "location": "{'url': 'http://localhost:5173/@vite/client', 'line': 788, 'column': 8, 'lineNumber': 788, 'columnNumber': 8}"
+    },
+    {
+      "type": "debug",
+      "text": "[vite] connected.",
+      "location": "{'url': 'http://localhost:5173/@vite/client', 'line': 911, 'column': 14, 'lineNumber': 911, 'columnNumber': 14}"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+      "location": "{'url': 'http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=0c252ff6', 'line': 17986, 'column': 53, 'lineNumber': 17986, 'columnNumber': 53}"
+    },
+    {
+      "type": "log",
+      "text": "Attempting to fetch boundaries...",
+      "location": "{'url': 'http://localhost:5173/src/components/PostcodeBoundaries.tsx', 'line': 401, 'column': 14, 'lineNumber': 401, 'columnNumber': 14}"
+    },
+    {
+      "type": "log",
+      "text": "Skipping mode data fetch: Boundaries not loaded yet.",
+      "location": "{'url': 'http://localhost:5173/src/components/PostcodeBoundaries.tsx', 'line': 446, 'column': 14, 'lineNumber': 446, 'columnNumber': 14}"
+    },
+    {
+      "type": "log",
+      "text": "Attempting to fetch boundaries...",
+      "location": "{'url': 'http://localhost:5173/src/components/PostcodeBoundaries.tsx', 'line': 401, 'column': 14, 'lineNumber': 401, 'columnNumber': 14}"
+    },
+    {
+      "type": "log",
+      "text": "Skipping mode data fetch: Boundaries not loaded yet.",
+      "location": "{'url': 'http://localhost:5173/src/components/PostcodeBoundaries.tsx', 'line': 446, 'column': 14, 'lineNumber': 446, 'columnNumber': 14}"
+    },
+    {
+      "type": "log",
+      "text": "Boundaries fetched and transformed successfully.",
+      "location": "{'url': 'http://localhost:5173/src/components/PostcodeBoundaries.tsx', 'line': 422, 'column': 18, 'lineNumber': 422, 'columnNumber': 18}"
+    },
+    {
+      "type": "log",
+      "text": "Fetching data for mode: heatmap, year/period: 2024",
+      "location": "{'url': 'http://localhost:5173/src/components/PostcodeBoundaries.tsx', 'line': 451, 'column': 14, 'lineNumber': 451, 'columnNumber': 14}"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+      "location": "{'url': 'http://localhost:5173/api/property-prices?year=2024', 'line': 0, 'column': 0, 'lineNumber': 0, 'columnNumber': 0}"
+    },
+    {
+      "type": "error",
+      "text": "Error fetching property prices for year 2024: AxiosError: Request failed with status code 500\n    at settle (http://localhost:5173/node_modules/.vite/deps/axios.js?v=0c252ff6:1441:12)\n    at XMLHttpRequest.onloadend (http://localhost:5173/node_modules/.vite/deps/axios.js?v=0c252ff6:1845:7)\n    at Axios.request (http://localhost:5173/node_modules/.vite/deps/axios.js?v=0c252ff6:2670:41)\n    at async http://localhost:5173/src/components/PostcodeBoundaries.tsx:163:24\n    at async loadModeData (http:",
+      "location": "{'url': 'http://localhost:5173/src/components/PostcodeBoundaries.tsx', 'line': 165, 'column': 14, 'lineNumber': 165, 'columnNumber': 14}"
+    },
+    {
+      "type": "error",
+      "text": "Error loading heatmap data: Error: Failed to fetch property prices for 2024.\n    at http://localhost:5173/src/components/PostcodeBoundaries.tsx:167:13\n    at async loadModeData (http://localhost:5173/src/components/PostcodeBoundaries.tsx:458:30)",
+      "location": "{'url': 'http://localhost:5173/src/components/PostcodeBoundaries.tsx', 'line': 478, 'column': 16, 'lineNumber': 478, 'columnNumber': 16}"
+    }
+  ],
+  "network": [
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/main.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/@vite/client",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/react.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/@react-refresh",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/index.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/App.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/vite/dist/client/env.mjs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/chunk-G3PMV62Z.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/chunk-UGC3UZ7L.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/App.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/MapComponent.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/leaflet/dist/leaflet.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/react-leaflet.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PostcodeBoundaries.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/chunk-HE4GKDYE.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/chunk-NB5MQSEJ.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/leaflet.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/YearSlider.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PeriodSlider.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/Legend.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/VisualizationSelector.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/LayerControl.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/utils/stringUtils.ts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/FavoritesList.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/axios.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PostcodeInfoPanel.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PostcodeSearch.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/utils/favorites.ts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/proj4.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/YearSlider.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PeriodSlider.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/Legend.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/VisualizationSelector.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/FavoritesList.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/LayerControl.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PostcodeInfoPanel.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PostcodeSearch.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/utils/notes.ts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PostcodeNotes.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PostcodeNotes.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/api/postcodes",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/11/1163/594.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/11/1168/592.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/11/1167/593.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/11/1164/593.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/11/1164/594.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/11/1163/593.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/11/1166/592.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/11/1165/593.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/11/1165/594.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/11/1168/594.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/11/1166/593.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/11/1166/591.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/11/1166/594.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/11/1168/593.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/11/1163/592.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/11/1164/592.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/11/1165/592.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/11/1167/591.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/11/1167/594.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/11/1165/591.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/11/1163/591.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/11/1164/591.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/11/1168/591.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/11/1167/592.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/api/postcodes",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/api/property-prices?year=2024",
+      "status": 500
+    }
+  ],
   "text": "+\n\u2212\n Leaflet | \u00a9 OpenStreetMap contributors\nError: Failed to fetch property prices for 2024."
 }

@@ -1,7 +1,7 @@
 {
   "url": "http://localhost:5173/",
   "title": "EcoEstate",
-  "a11y": {},
+  "headings": [],
   "elements": [
     {
       "role": "generic",
@@ -114,107 +114,7 @@
     },
     {
       "method": "GET",
-      "url": "https://a.tile.openstreetmap.org/11/1164/594.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://c.tile.openstreetmap.org/11/1166/594.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://c.tile.openstreetmap.org/11/1168/592.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://a.tile.openstreetmap.org/11/1167/591.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://b.tile.openstreetmap.org/11/1168/591.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://a.tile.openstreetmap.org/11/1166/592.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://a.tile.openstreetmap.org/11/1167/594.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://a.tile.openstreetmap.org/11/1168/593.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://a.tile.openstreetmap.org/11/1165/593.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://c.tile.openstreetmap.org/11/1165/592.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://a.tile.openstreetmap.org/11/1163/592.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://c.tile.openstreetmap.org/11/1164/593.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://b.tile.openstreetmap.org/11/1164/592.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://b.tile.openstreetmap.org/11/1165/594.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://a.tile.openstreetmap.org/11/1164/591.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://c.tile.openstreetmap.org/11/1166/591.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://c.tile.openstreetmap.org/11/1167/593.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://b.tile.openstreetmap.org/11/1165/591.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://b.tile.openstreetmap.org/11/1166/593.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://c.tile.openstreetmap.org/11/1163/591.png",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "https://c.tile.openstreetmap.org/11/1163/594.png",
+      "url": "https://b.tile.openstreetmap.org/11/1168/594.png",
       "status": 200
     },
     {
@@ -224,12 +124,112 @@
     },
     {
       "method": "GET",
-      "url": "https://b.tile.openstreetmap.org/11/1168/594.png",
+      "url": "https://b.tile.openstreetmap.org/11/1168/591.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/11/1165/594.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/11/1163/594.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/11/1164/594.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/11/1164/593.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/11/1167/593.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/11/1166/594.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/11/1166/592.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/11/1165/593.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/11/1168/593.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/11/1167/591.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/11/1165/592.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/11/1165/591.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/11/1163/591.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/11/1164/591.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/11/1163/592.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/11/1167/594.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/11/1164/592.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/11/1166/593.png",
       "status": 200
     },
     {
       "method": "GET",
       "url": "https://b.tile.openstreetmap.org/11/1167/592.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/11/1166/591.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/11/1168/592.png",
       "status": 200
     }
   ],

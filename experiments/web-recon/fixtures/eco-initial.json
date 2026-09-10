@@ -1,7 +1,7 @@
 {
   "url": "http://localhost:5173/",
   "title": "EcoEstate",
-  "a11y": {},
+  "headings": [],
   "elements": [
     {
       "role": "generic",
@@ -109,12 +109,12 @@
     },
     {
       "method": "GET",
-      "url": "http://localhost:5173/node_modules/vite/dist/client/env.mjs",
+      "url": "http://localhost:5173/src/App.tsx",
       "status": 200
     },
     {
       "method": "GET",
-      "url": "http://localhost:5173/src/App.tsx",
+      "url": "http://localhost:5173/node_modules/vite/dist/client/env.mjs",
       "status": 200
     },
     {
@@ -139,11 +139,6 @@
     },
     {
       "method": "GET",
-      "url": "http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=0c252ff6",
-      "status": 200
-    },
-    {
-      "method": "GET",
       "url": "http://localhost:5173/node_modules/leaflet/dist/leaflet.css",
       "status": 200
     },
@@ -154,12 +149,17 @@
     },
     {
       "method": "GET",
-      "url": "http://localhost:5173/node_modules/.vite/deps/chunk-HE4GKDYE.js?v=0c252ff6",
+      "url": "http://localhost:5173/src/components/PostcodeBoundaries.tsx",
       "status": 200
     },
     {
       "method": "GET",
-      "url": "http://localhost:5173/src/components/PostcodeBoundaries.tsx",
+      "url": "http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/chunk-HE4GKDYE.js?v=0c252ff6",
       "status": 200
     },
     {
@@ -169,12 +169,22 @@
     },
     {
       "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/axios.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/LayerControl.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
       "url": "http://localhost:5173/src/components/Legend.tsx",
       "status": 200
     },
     {
       "method": "GET",
-      "url": "http://localhost:5173/node_modules/.vite/deps/axios.js?v=0c252ff6",
+      "url": "http://localhost:5173/src/components/PeriodSlider.tsx",
       "status": 200
     },
     {
@@ -189,17 +199,12 @@
     },
     {
       "method": "GET",
-      "url": "http://localhost:5173/src/components/PeriodSlider.tsx",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "http://localhost:5173/src/components/LayerControl.tsx",
-      "status": 200
-    },
-    {
-      "method": "GET",
       "url": "http://localhost:5173/src/components/PostcodeSearch.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PostcodeInfoPanel.tsx",
       "status": 200
     },
     {
@@ -210,11 +215,6 @@
     {
       "method": "GET",
       "url": "http://localhost:5173/src/utils/favorites.ts",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "http://localhost:5173/src/components/PostcodeInfoPanel.tsx",
       "status": 200
     },
     {
@@ -234,7 +234,17 @@
     },
     {
       "method": "GET",
+      "url": "http://localhost:5173/src/components/LayerControl.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
       "url": "http://localhost:5173/src/components/Legend.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PeriodSlider.css",
       "status": 200
     },
     {
@@ -249,17 +259,12 @@
     },
     {
       "method": "GET",
-      "url": "http://localhost:5173/src/components/PeriodSlider.css",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "http://localhost:5173/src/components/LayerControl.css",
-      "status": 200
-    },
-    {
-      "method": "GET",
       "url": "http://localhost:5173/src/components/PostcodeSearch.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PostcodeInfoPanel.css",
       "status": 200
     },
     {
@@ -270,11 +275,6 @@
     {
       "method": "GET",
       "url": "http://localhost:5173/src/components/PostcodeNotes.tsx",
-      "status": 200
-    },
-    {
-      "method": "GET",
-      "url": "http://localhost:5173/src/components/PostcodeInfoPanel.css",
       "status": 200
     },
     {

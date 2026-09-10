@@ -26,9 +26,9 @@ the extra term only adds resolution where the page provides it. Corpus: `fixture
 | module | what it is |
 |---|---|
 | `schema.py` | the ontology: states (nodes), (state, action) → state transitions (edges), the elements on each state, and the evidence behind findings. Pure dataclasses + JSON. |
-| `perceive.py` | the only browser-touching module: a live page → one normalised `Observation` (URL, a11y tree, interactive elements read off the DOM, console, network, visible text). |
-| `identity.py` | "is this the same view?" — a state is its URL route + control skeleton; text/map-position is a *variant*, not a new state. No model. |
-| `oracles.py` | deterministic functional oracles: HTTP 4xx/5xx, console errors, exceptions → `Evidence`. This is where a browser beats a game — it found the 500 below for free. |
+| `perceive.py` | the only browser-touching module: a live page → one normalised `Observation` (URL, visible headings, interactive elements read off the DOM, console, network responses **and failures**, visible text). |
+| `identity.py` | "is this the same view?" — a state is its URL route + control skeleton + landmark headings; body text / map position is a *variant*, not a new state. No model. |
+| `oracles.py` | deterministic functional oracles: HTTP 4xx/5xx, **failed requests (a dead endpoint)**, console errors, exceptions → `Evidence`. This is where a browser beats a game — it found the 500 below for free. |
 | `capture_fixtures.py` | records a corpus of `Observation`s (in `fixtures/`) so all the above is tested offline. |
 
 Run: `pip install -r requirements.txt && python -m playwright install chromium`, then
@@ -47,7 +47,8 @@ over-splitting** (a game's fingerprint problem, transposed). Measured against Ec
 - **But not via the accessibility tree.** `page.accessibility.snapshot()` returns
   *nothing* on EcoEstate (a Leaflet canvas app). Identity built on it would collapse
   every thin-a11y app into one blob. The signal that works is the **interactive-element
-  set read straight off the DOM** — which is what `identity.py` uses.
+  set read straight off the DOM** — which is what `identity.py` uses. (So the a11y
+  snapshot is no longer captured at all — it was only ever written, never read.)
 - **EcoEstate is a degenerate *mapping* target — and a great *functional* one.** It is
   effectively one route with ~5 controls (map zoom + attribution) that never change, so
   its navigation graph is a single node: there is almost nothing to *map*. What it does

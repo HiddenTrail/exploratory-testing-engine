@@ -28,6 +28,17 @@ def test_console_noise_is_filtered():
         assert "react devtools" not in e.summary.lower()
 
 
+def test_failed_request_is_reported_as_a_finding():
+    # A request that got no response (backend down) is recorded as status 0 + failure.
+    obs = {"url": "u", "text": "", "elements": [], "console": [],
+           "network": [{"method": "GET", "url": "/api/x", "status": 0,
+                        "failure": "net::ERR_CONNECTION_REFUSED"}]}
+    findings = http_errors(obs)
+    assert len(findings) == 1
+    assert findings[0].kind == "request_failed"
+    assert "ERR_CONNECTION_REFUSED" in findings[0].summary
+
+
 def test_synthetic_console_error_is_reported():
     obs = {
         "url": "u", "text": "", "elements": [], "network": [],

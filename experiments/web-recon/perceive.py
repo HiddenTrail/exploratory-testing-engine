@@ -5,16 +5,17 @@ oracles, the wiki) works on the Observation/ontology dataclasses, so it is all t
 against recorded fixtures with no browser attached.
 
 An Observation is deliberately richer than a game frame: besides the visible structure
-(the accessibility tree and the interactive elements read straight off the page), it
-carries the console messages and network responses seen since the last one - the hard
+(the interactive elements and visible headings read straight off the page), it carries
+the console messages and network responses/failures seen since the last one - the hard
 evidence a deterministic oracle turns into a functional finding, with no model in the
-loop.
+loop. (The accessibility tree was tried and dropped: it is empty for a canvas app like
+EcoEstate, so identity uses the DOM-read control set instead - see identity.py.)
 """
 
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, fields, asdict
 from pathlib import Path
 
 # Interactive controls, read from the DOM rather than invented. Each gets a stable-ish
@@ -38,14 +39,21 @@ _ELEMENTS_JS = r"""
     }
     return parts.join(' > ');
   };
-  const name = (el) => (
-    el.getAttribute('aria-label') ||
-    el.getAttribute('title') ||
-    el.getAttribute('placeholder') ||
-    (el.tagName === 'INPUT' && el.labels && el.labels[0] && el.labels[0].textContent) ||
-    (el.value && el.type !== 'text' ? el.value : '') ||
-    (el.textContent || '').trim()
-  ).replace(/\s+/g, ' ').trim().slice(0, 120);
+  const clean = (s) => (s || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  const name = (el) => {
+    const explicit = el.getAttribute('aria-label')
+      || el.getAttribute('title')
+      || (el.tagName === 'INPUT' && el.labels && el.labels[0] && el.labels[0].textContent)
+      || el.getAttribute('placeholder');
+    if (explicit) return clean(explicit);
+    // A button-like control's value IS its label; a text/search/number/checkbox value
+    // is *user content* and must not become the control's identity, or typing into a
+    // field would mint a new state (over-split) and "on" would collapse toggles.
+    if (el.tagName === 'INPUT') {
+      return ['submit', 'button', 'reset'].includes(el.type) ? clean(el.value) : '';
+    }
+    return clean(el.textContent);
+  };
   const roleOf = (el) => {
     if (el.getAttribute('role')) return el.getAttribute('role');
     const t = el.tagName.toLowerCase();
@@ -108,11 +116,10 @@ _HEADINGS_JS = r"""
 class Observation:
     url: str
     title: str
-    a11y: dict = field(default_factory=dict)          # page.accessibility.snapshot()
     headings: list[str] = field(default_factory=list)  # visible landmark text, in order
     elements: list[dict] = field(default_factory=list)
     console: list[dict] = field(default_factory=list)  # {type, text, location}
-    network: list[dict] = field(default_factory=list)  # {method, url, status}
+    network: list[dict] = field(default_factory=list)  # {method, url, status, failure?}
     text: str = ""                                     # visible body text sample
 
     def to_dict(self) -> dict:
@@ -120,7 +127,10 @@ class Observation:
 
     @staticmethod
     def from_dict(d: dict) -> "Observation":
-        return Observation(**d)
+        # Tolerate extra keys (e.g. an older fixture's dropped `a11y` field) and missing
+        # ones (defaults apply), so the corpus keeps loading as the shape evolves.
+        allowed = {f.name for f in fields(Observation)}
+        return Observation(**{k: v for k, v in d.items() if k in allowed})
 
     def save(self, path: str | Path) -> Path:
         path = Path(path)
@@ -146,6 +156,12 @@ class Collector:
             {"type": "pageerror", "text": str(e)[:500], "location": ""}))
         page.on("response", lambda r: self.network.append(
             {"method": r.request.method, "url": r.url[:300], "status": r.status}))
+        # A request that never gets a response (backend down, DNS/connection failure,
+        # aborted fetch) fires this, not `response`. Recorded as status 0 with the
+        # failure text so an oracle can flag a dead endpoint - a real functional defect.
+        page.on("requestfailed", lambda r: self.network.append(
+            {"method": r.request.method, "url": r.url[:300], "status": 0,
+             "failure": (r.failure or "")[:200]}))
         return self
 
     def drain(self) -> tuple[list[dict], list[dict]]:
@@ -159,17 +175,12 @@ def capture(page, collector: Collector) -> Observation:
     """One Observation of the page as it stands now. Assumes the caller already waited
     for whatever settle it wants - capture reads, it does not decide when."""
     console, network = collector.drain()
-    try:
-        a11y = page.accessibility.snapshot() or {}
-    except Exception:
-        a11y = {}
     elements = page.evaluate(_ELEMENTS_JS)
     headings = page.evaluate(_HEADINGS_JS)
     text = (page.inner_text("body")[:4000] if page.query_selector("body") else "")
     return Observation(
         url=page.url,
         title=page.title(),
-        a11y=a11y,
         headings=headings,
         elements=elements,
         console=console,

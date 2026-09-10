@@ -27,17 +27,28 @@ _CONSOLE_IGNORE = (
 
 
 def http_errors(obs, state_id: str = "", seq: int = -1) -> list[Evidence]:
-    """Every non-2xx/3xx response the page made. A 4xx/5xx from the app's own API is a
-    finding on its face; a third-party 4xx is still worth recording, so all are kept."""
+    """Every failed request the page made: a non-2xx/3xx response, or a request that
+    got no response at all (backend down, connection/DNS failure, aborted fetch - the
+    latter recorded by the collector as status 0 with a failure string). A 4xx/5xx or a
+    dead endpoint from the app's own API is a finding on its face; third-party ones are
+    kept too, so all are reported."""
     out = []
     for n in (obs["network"] if isinstance(obs, dict) else obs.network):
         status = n.get("status", 0)
-        if status >= 400:
+        method, url = n.get("method", "GET"), n.get("url", "")
+        if n.get("failure") or status == 0:
+            out.append(Evidence(
+                kind="request_failed",
+                summary=f"request failed ({n.get('failure', 'no response')}) {method} {url}",
+                state_id=state_id, seq=seq,
+                detail={"status": 0, "url": url, "method": method, "failure": n.get("failure", "")},
+            ))
+        elif status >= 400:
             out.append(Evidence(
                 kind="http_error",
-                summary=f"{status} {n.get('method', 'GET')} {n.get('url', '')}",
+                summary=f"{status} {method} {url}",
                 state_id=state_id, seq=seq,
-                detail={"status": status, "url": n.get("url", ""), "method": n.get("method", "")},
+                detail={"status": status, "url": url, "method": method},
             ))
     return out
 

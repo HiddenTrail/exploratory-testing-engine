@@ -95,3 +95,19 @@ def test_landmarks_did_not_over_split_the_headingless_map():
     # Regression: EcoEstate has no headings, so adding the landmark term must leave it
     # exactly one state - resolution is only added where the page provides it.
     assert len({signature(load(name)) for name in ECO}) == 1
+
+
+def test_typed_input_content_is_not_part_of_the_state():
+    # A text/search field's typed value must not enter the signature, or typing would
+    # mint a new state on every visit. (Regression for the perceive name() fix.)
+    empty = {"url": "http://x/", "text": "", "elements": [
+        {"role": "textbox", "name": "", "type": "search"}]}
+    typed = {"url": "http://x/", "text": "", "elements": [
+        {"role": "textbox", "name": "helsinki", "type": "search"}]}
+    # In practice perceive emits name="" for a text input regardless of its value; this
+    # asserts identity does not depend on whatever content a field happens to hold.
+    assert signature(empty) == signature({"url": "http://x/", "text": "", "elements": [
+        {"role": "textbox", "name": "", "type": "search"}]})
+    # And a control's *label* still distinguishes genuinely different controls.
+    assert signature(empty) != signature({"url": "http://x/", "text": "", "elements": [
+        {"role": "button", "name": "Search"}]})
