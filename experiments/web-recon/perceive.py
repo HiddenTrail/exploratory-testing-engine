@@ -189,3 +189,24 @@ def capture(page, collector: Collector) -> Observation:
         network=network,
         text=text,
     )
+
+
+def visual_diff(before: bytes | None, after: bytes | None, cell_delta: int = 20):
+    """Fraction of a downscaled grayscale frame that changed between two PNG screenshots,
+    or None if it cannot be computed (Pillow absent / bad capture). Lets a canvas or map
+    change the DOM signature and text cannot see still register as an effect - which is
+    what keeps a pixel-only pan/zoom from being mistaken for a dead control. Shared by the
+    deterministic crawler and the engine web-GUI adapter so both judge "did nothing" the
+    same way."""
+    if not (before and after):
+        return None
+    try:
+        import io
+        from PIL import Image
+        a = Image.open(io.BytesIO(before)).convert("L").resize((64, 64)).tobytes()
+        b = Image.open(io.BytesIO(after)).convert("L").resize((64, 64)).tobytes()
+    except Exception:
+        return None
+    if not a or len(a) != len(b):
+        return None
+    return sum(1 for x, y in zip(a, b) if abs(x - y) > cell_delta) / len(a)

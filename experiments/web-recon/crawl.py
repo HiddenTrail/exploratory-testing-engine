@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from analyze import analyze
 from identity import appearance, signature
 from oracles import run_observation_oracles
-from perceive import Collector, capture
+from perceive import Collector, capture, visual_diff
 from safety import action_plans, plan, vetted_actions
 from schema import Action, Element, Evidence, Ontology, State, Transition
 
@@ -411,21 +411,10 @@ class Crawler:
             return ""
 
     def _visual_diff(self, before, after):
-        """Fraction of a downscaled grayscale frame that changed between two screenshots,
-        or None if it cannot be computed (Pillow absent / bad capture). Lets a canvas or
-        map change that the DOM signature/text cannot see still register as an effect."""
-        if not (before and after):
-            return None
-        try:
-            import io
-            from PIL import Image
-            a = Image.open(io.BytesIO(before)).convert("L").resize((64, 64)).tobytes()
-            b = Image.open(io.BytesIO(after)).convert("L").resize((64, 64)).tobytes()
-        except Exception:
-            return None
-        if not a or len(a) != len(b):
-            return None
-        return sum(1 for x, y in zip(a, b) if abs(x - y) > 20) / len(a)
+        """Fraction of a downscaled grayscale frame that changed between two screenshots.
+        Delegates to perceive.visual_diff so the crawler and the engine web-GUI adapter
+        judge "did nothing" by the same measure."""
+        return visual_diff(before, after)
 
     def _untried(self, rec: dict) -> list[dict]:
         untried = [a for a in rec["actions"] if a["locator"] not in rec["tried"]]

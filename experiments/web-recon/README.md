@@ -12,7 +12,21 @@ the last one's map. And, decided up front: **the deterministic core does everyth
 itself; the LLM is off by default and, when on, only annotates the finished ontology —
 it never gates the crawl.**
 
-## Status: Stage 5 (of 7) — safe interaction: gestures, model-proposed controls, vetted mutations
+## Status: Stage 6 (of 7) — resume/carry + promotion to an engine adapter
+
+A run now **resumes the last one's map**: `crawl --resume prior.json` carries a previous
+ontology forward, so a state is *known on first sight* (`carried`), and a drift report
+flags carried states not reached this run (`carried_state_absent`) and states new since it
+(`new_state`). And web-recon is **promoted into the engine**: the deterministic crawl is
+the read-only recon that writes the map; the new
+[`engine/adapters/web_gui`](../../engine/adapters/web_gui/) adapter takes that ontology as
+its *carried reference* and drives the same app with the engine's LLM-Driver casting loop
+(mirroring `clash_royale`), reusing this package's perception/identity/safety. One command:
+`WEB_GUI_ONTOLOGY=...out/ontology.json python -m engine.cli --adapter web_gui`. The Driver
+may only name a `(state, control)` pair the recon cleared as safe — so the casting run
+looks and navigates only.
+
+## Earlier: Stage 5 — safe interaction: gestures, model-proposed controls, vetted mutations
 
 Beyond click/fill, every state is also probed with **non-committing gestures** at the
 viewport centre: hover, wheel up/down, ctrl+wheel zoom in/out, and a drag-pan — the safe
