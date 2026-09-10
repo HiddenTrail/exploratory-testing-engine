@@ -1,0 +1,7 @@
+# Stage 0 is deterministic and needs only a browser driver + a test runner. No model
+# client here on purpose: the LLM path is off by default and, when added, will be a
+# batched post-pass over the ontology, never in the crawl loop.
+#
+# After installing, fetch the browser once:  python -m playwright install chromium
+playwright>=1.40
+pytest>=8.0
