@@ -67,3 +67,31 @@ def test_query_string_is_not_a_new_state():
     a = {"url": "http://x/map?year=2024", "text": "", "elements": [{"role": "button", "name": "Zoom in"}]}
     b = {"url": "http://x/map?year=2023", "text": "", "elements": [{"role": "button", "name": "Zoom in"}]}
     assert same_state(a, b)
+
+
+# --- Stage 1: identity across a real multi-view app (the multi-page PoC) --------------
+
+POC = ["poc-question", "poc-yes", "poc-question-return", "poc-no"]
+
+
+def test_poc_has_three_distinct_views():
+    sigs = {name: signature(load(name)) for name in POC}
+    assert len(set(sigs.values())) == 3, sigs
+
+
+def test_yes_and_no_pages_are_distinct_despite_identical_controls():
+    # Both result pages have only a Back button; without the landmark heading in the
+    # signature they would wrongly collapse into one state.
+    yes, no = load("poc-yes"), load("poc-no")
+    assert control_keys(yes) == control_keys(no) == ["button:back"]
+    assert not same_state(yes, no)
+
+
+def test_back_returns_to_the_question_state():
+    assert same_state(load("poc-question"), load("poc-question-return"))
+
+
+def test_landmarks_did_not_over_split_the_headingless_map():
+    # Regression: EcoEstate has no headings, so adding the landmark term must leave it
+    # exactly one state - resolution is only added where the page provides it.
+    assert len({signature(load(name)) for name in ECO}) == 1

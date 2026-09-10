@@ -57,12 +57,25 @@ def control_keys(obs) -> list[str]:
     return sorted(keys)
 
 
+def landmark_keys(obs) -> list[str]:
+    """Visible heading text - the landmark signal that separates views sharing a control
+    set but differing in content (a "You said yes" page vs a "You said no" page, both
+    with only a Back button). Bounded and normalised; empty for apps with no headings
+    (a canvas map), so it never *over*-splits those - it only adds resolution where the
+    page provides it.
+    """
+    headings = obs.get("headings", []) if isinstance(obs, dict) else getattr(obs, "headings", [])
+    return [_norm(h)[:60] for h in (headings or [])[:3]]
+
+
 def signature(obs) -> str:
-    """A stable state signature: URL route + control skeleton. Same signature == same
-    state, tolerant of content (text, map position, loaded vs error) by construction."""
+    """A stable state signature: URL route + control skeleton + landmark headings. Same
+    signature == same state, tolerant of content (body text, map position, loaded vs
+    error) by construction, but resolving views that differ by heading."""
     url = obs["url"] if isinstance(obs, dict) else obs.url
     skeleton = ";".join(control_keys(obs))
-    return f"{_route(url)}|{skeleton}"
+    landmarks = ";".join(landmark_keys(obs))
+    return f"{_route(url)}|{skeleton}|{landmarks}"
 
 
 def same_state(a, b) -> bool:

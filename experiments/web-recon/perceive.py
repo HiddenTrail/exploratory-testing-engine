@@ -83,10 +83,25 @@ _ELEMENTS_JS = r"""
 }
 """
 
-# A structural outline of the accessibility tree: role[:name] per node, indented. This
-# is the semantic skeleton identity is built from - stable across a data refresh, and
-# far more meaningful than raw HTML.
-_A11Y_ROLES_TO_KEEP_NAME = {"heading", "button", "link", "tab", "menuitem", "textbox", "combobox"}
+# Visible headings, in order. These are the landmark text identity uses to tell apart
+# views that share a control set but differ in content (a "You said yes" page and a
+# "You said no" page both have only a Back button). Hidden headings - e.g. an SPA's
+# inactive sections - are excluded, or every view would carry every other view's title.
+_HEADINGS_JS = r"""
+() => {
+  const vis = (el) => {
+    const s = getComputedStyle(el);
+    if (s.display === 'none' || s.visibility === 'hidden') return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 || r.height > 0;
+  };
+  return [...document.querySelectorAll('h1, h2, h3, [role=heading]')]
+    .filter(vis)
+    .map((h) => (h.textContent || '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .slice(0, 5);
+}
+"""
 
 
 @dataclass
@@ -94,6 +109,7 @@ class Observation:
     url: str
     title: str
     a11y: dict = field(default_factory=dict)          # page.accessibility.snapshot()
+    headings: list[str] = field(default_factory=list)  # visible landmark text, in order
     elements: list[dict] = field(default_factory=list)
     console: list[dict] = field(default_factory=list)  # {type, text, location}
     network: list[dict] = field(default_factory=list)  # {method, url, status}
@@ -148,11 +164,13 @@ def capture(page, collector: Collector) -> Observation:
     except Exception:
         a11y = {}
     elements = page.evaluate(_ELEMENTS_JS)
+    headings = page.evaluate(_HEADINGS_JS)
     text = (page.inner_text("body")[:4000] if page.query_selector("body") else "")
     return Observation(
         url=page.url,
         title=page.title(),
         a11y=a11y,
+        headings=headings,
         elements=elements,
         console=console,
         network=network,

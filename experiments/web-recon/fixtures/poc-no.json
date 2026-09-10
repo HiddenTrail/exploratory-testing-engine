@@ -1,0 +1,28 @@
+{
+  "url": "http://localhost:5174/",
+  "title": "Playwright GUI PoC",
+  "a11y": {},
+  "headings": [
+    "You said no"
+  ],
+  "elements": [
+    {
+      "role": "button",
+      "name": "Back",
+      "tag": "button",
+      "type": "",
+      "locator": "#no-back",
+      "href": "",
+      "disabled": false
+    }
+  ],
+  "console": [],
+  "network": [
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8010/answer",
+      "status": 200
+    }
+  ],
+  "text": "You said no\n\nHere is what the backend had to say about that:\n\nThis isn't a test.\n\nBack"
+}

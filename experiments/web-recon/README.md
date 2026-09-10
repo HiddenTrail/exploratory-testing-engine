@@ -12,9 +12,16 @@ the last one's map. And, decided up front: **the deterministic core does everyth
 itself; the LLM is off by default and, when on, only annotates the finished ontology —
 it never gates the crawl.**
 
-## Status: Stage 0 (of 7) — foundations + identity spike
+## Status: Stage 1 (of 7) — identity hardened across a multi-view app
 
 Deterministic core, no model, nothing mutates the app.
+
+Stage 1 result: the control-skeleton signature alone collapsed two genuinely different
+views that share a control set (the PoC's "You said yes" and "You said no" pages, both
+with only a Back button). Fixed by adding **visible landmark headings** to the
+signature: the PoC now resolves to **three distinct states**, Back returns to the
+question state, and — regression — EcoEstate (no headings) stays exactly one state, so
+the extra term only adds resolution where the page provides it. Corpus: `fixtures/poc-*`.
 
 | module | what it is |
 |---|---|
