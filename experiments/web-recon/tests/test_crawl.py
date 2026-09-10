@@ -7,7 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from crawl import choose_frontier  # noqa: E402
+from crawl import choose_frontier, dedup_findings  # noqa: E402
+from schema import Evidence  # noqa: E402
 
 
 def test_none_when_no_untried_actions():
@@ -42,3 +43,14 @@ def test_skips_states_that_are_exhausted():
         {"id": "st02", "path": ["a"], "untried": ["only"]},
     ]
     assert choose_frontier(states) == ("st02", "only")
+
+
+def test_dedup_findings_collapses_identical_only():
+    fs = [
+        Evidence(kind="http_error", summary="500 x", state_id="st01"),
+        Evidence(kind="http_error", summary="500 x", state_id="st01"),   # exact dup -> dropped
+        Evidence(kind="http_error", summary="500 x", state_id="st02"),   # other state -> kept
+        Evidence(kind="console_error", summary="500 x", state_id="st01"),  # other kind -> kept
+    ]
+    out = dedup_findings(fs)
+    assert len(out) == 3

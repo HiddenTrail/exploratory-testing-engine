@@ -48,6 +48,21 @@ def test_off_site_links_are_committing_but_same_origin_is_safe():
     assert not committing(el(role="link", name="Docs", href="https://localhost:5173/docs"), base)
 
 
+def test_disabled_control_is_committing():
+    # A disabled control cannot be clicked; selecting it would hang and misreport.
+    assert committing(el(role="button", name="Yes", disabled=True))
+    assert committing(el(role="link", name="Home", href="/home", disabled=True), "http://x")
+
+
+def test_protocol_relative_and_odd_scheme_links_are_committing():
+    base = "https://localhost:5173"
+    assert committing(el(role="link", name="tiles", href="//openstreetmap.org/t.png"), base)
+    assert committing(el(role="link", name="x", href="blob:https://localhost:5173/abc"), base)
+    assert committing(el(role="link", name="x", href="ws://localhost:5173/s"), base)
+    # A protocol-relative link to the SAME host is still same-origin and safe.
+    assert not committing(el(role="link", name="local", href="//localhost:5173/y"), base)
+
+
 def test_unrecognised_role_fails_closed():
     assert committing(el(role="generic", name="the whole map container"))
     assert committing(el(role="img", name="banner"))

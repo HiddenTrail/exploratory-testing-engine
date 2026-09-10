@@ -43,9 +43,15 @@ _MUTATION_WORDS = (
 _MUTATION_RE = re.compile(r"\b(" + "|".join(re.escape(w) for w in _MUTATION_WORDS) + r")\b")
 
 
-def _origin(url: str) -> str:
-    p = urlparse(url or "")
-    return f"{p.scheme}://{p.netloc}" if p.netloc else ""
+# Schemes that are not a navigation to follow (nor http(s)): a link with one of these
+# is refused outright rather than clicked.
+_NON_NAV_SCHEMES = frozenset({
+    "mailto", "tel", "javascript", "file", "data", "blob", "ws", "wss", "about",
+})
+
+
+def _netloc(url: str) -> str:
+    return urlparse(url or "").netloc.lower()
 
 
 def classify(element: dict, base_origin: str = "") -> tuple[bool, str]:
@@ -57,6 +63,8 @@ def classify(element: dict, base_origin: str = "") -> tuple[bool, str]:
     href = (element.get("href") or "").strip()
     itype = (element.get("type") or "").strip().lower()
 
+    if element.get("disabled"):
+        return True, "the control is disabled - clicking it would hang, not act"
     if role in FORM_INPUT_ROLES:
         return True, f"a {role} would take input, which read-only does not send"
     if itype in ("submit", "reset"):
@@ -65,13 +73,17 @@ def classify(element: dict, base_origin: str = "") -> tuple[bool, str]:
         return True, f"the name {name!r} carries a mutating verb"
 
     if href:
-        scheme = urlparse(href).scheme.lower()
-        if scheme in ("mailto", "tel", "javascript", "file", "data"):
+        parsed = urlparse(href)
+        scheme = parsed.scheme.lower()
+        if scheme in _NON_NAV_SCHEMES:
             return True, f"a {scheme}: link is not a navigation to follow"
-        if scheme in ("http", "https"):
-            origin = _origin(href)
-            if base_origin and origin and origin != base_origin:
-                return True, f"an off-site link to {origin} leaves the app under test"
+        # Absolute OR protocol-relative (//host/...): if it names a host other than the
+        # app's, it leaves the app - checked by netloc so a scheme-relative link cannot
+        # slip past by having an empty scheme.
+        if parsed.netloc and _netloc(base_origin) and parsed.netloc.lower() != _netloc(base_origin):
+            return True, f"an off-site link to {parsed.netloc} leaves the app under test"
+        if scheme and scheme not in ("http", "https"):
+            return True, f"a {scheme}: link is not an http navigation"
 
     if role not in CLICKABLE_ROLES:
         # Fail closed: a control whose role we do not recognise is not proven safe.

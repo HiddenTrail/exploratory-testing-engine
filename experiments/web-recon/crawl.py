@@ -32,6 +32,25 @@ from safety import safe_actions
 from schema import Action, Element, Evidence, Ontology, State, Transition
 
 
+# A flaky reach/click gets one retry before the action is abandoned, so a transient
+# slow load does not silently drop a branch of the graph - but a persistently failing
+# control is given up after this many attempts rather than spun on forever.
+MAX_ACTION_ATTEMPTS = 2
+
+
+def dedup_findings(findings: list) -> list:
+    """Collapse identical findings (same kind, summary, state) to one - a state
+    revisited many times re-fires the same console/network error, and one defect should
+    be reported once, not per visit."""
+    seen, out = set(), []
+    for f in findings:
+        key = (f.kind, f.summary, f.state_id)
+        if key not in seen:
+            seen.add(key)
+            out.append(f)
+    return out
+
+
 def choose_frontier(open_states: list[dict]) -> tuple[str, str] | None:
     """Pick the next (state_id, locator) to try: the state with an untried safe action
     that is *nearest* the start (shortest discovery path) - breadth-first coverage. Pure.
@@ -122,11 +141,15 @@ class Crawler:
                 break
             state_id, locator = choice
             rec = self.recs[state_id]
-            rec["tried"].add(locator)
             element = next(e for e in rec["safe"] if e["locator"] == locator)
+            attempts = rec.setdefault("attempts", {})
+            attempts[locator] = attempts.get(locator, 0) + 1
+            give_up = attempts[locator] >= MAX_ACTION_ATTEMPTS
 
             before = self._reach(rec)
             if before is None:
+                if give_up:
+                    rec["tried"].add(locator)  # stop retrying a path we cannot replay
                 continue
 
             before_sig = rec["signature"]
@@ -134,7 +157,10 @@ class Crawler:
                 self.page.click(locator, timeout=3000)
             except Exception:
                 self._instability(rec, f"click failed on {locator}")
+                if give_up:
+                    rec["tried"].add(locator)
                 continue
+            rec["tried"].add(locator)  # a click that landed is done, pass or not
             _settle(self.page)
             after = capture(self.page, self.col)
             self.actions_taken += 1
@@ -172,7 +198,8 @@ class Crawler:
         return Ontology(
             target={"url": self.start_url, "origin": self.base_origin},
             session={"actions": self.actions_taken, "states": len(states)},
-            states=states, transitions=self.transitions, findings=self.findings,
+            states=states, transitions=self.transitions,
+            findings=dedup_findings(self.findings),
         )
 
 
