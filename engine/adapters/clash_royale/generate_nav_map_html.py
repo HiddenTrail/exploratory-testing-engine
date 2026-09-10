@@ -304,6 +304,17 @@ def _generate_html_from_ontology(source_dir: Path, ontology: dict) -> str:
                     margin: 8px 0;
                 }}
 
+                .surface-note {{
+                    font-size: 12px;
+                    line-height: 1.4;
+                    color: #075985;
+                    background: #e0f2fe;
+                    border: 1px solid #7dd3fc;
+                    border-radius: 4px;
+                    padding: 8px 10px;
+                    margin: 8px 0;
+                }}
+
                 .screen-image {{
                     width: 100%;
                     max-width: 300px;
@@ -611,8 +622,14 @@ def _build_svg_edges(transitions: list, positions: dict, screens_by_id: dict) ->
     for trans in transitions:
         from_id = trans["from"]
         to_id = trans["to"]
-        edge_key = (from_id, to_id)
 
+        # Self-loops (a scroll or variant that stays on the same screen) carry no
+        # navigation and would draw a degenerate zero-length path. A scrolled surface
+        # is one node by design; its scrollability shows in the detail panel instead.
+        if from_id == to_id:
+            continue
+
+        edge_key = (from_id, to_id)
         if edge_key in edges_seen:
             continue
         edges_seen.add(edge_key)
@@ -644,6 +661,20 @@ def _build_detail_panels(
         purpose = (screen.get("purpose") or "").strip() or "Unknown"
         observations = screen.get("observations", 0)
 
+        # A scrollable surface is one node, not a chain of per-offset look-alikes; the
+        # recon records that it scrolls in a "surface" block. Surface it here so a
+        # reader knows there is more content past the visible frame.
+        surface = screen.get("surface")
+        surface_note = ""
+        if surface and surface.get("axes"):
+            axes = " and ".join(surface["axes"])
+            surface_note = (
+                f'<p class="surface-note">↕ Scrollable surface ({axes}). '
+                f'{surface.get("scroll_steps", 0)} scroll(s) observed; '
+                f'at least {surface.get("revealed_cells_floor", 0)} cells of content '
+                f'sit past the visible frame.</p>'
+            )
+
         # Flag near-identical screenshots (likely a recon over-split).
         duplicate_note = ""
         siblings = similar_groups.get(screen_id)
@@ -666,9 +697,13 @@ def _build_detail_panels(
                 f'alt="{html.escape(name)}" loading="lazy">'
             )
 
-        # Find transitions from this screen
-        outgoing = [t for t in transitions if t["from"] == screen_id]
-        incoming = [t for t in transitions if t["to"] == screen_id]
+        # Find transitions from this screen. Self-loops (a scroll that stays on the
+        # same surface) are not ways to "navigate away", so they are excluded here and
+        # summarised by the surface note instead.
+        outgoing = [t for t in transitions
+                    if t["from"] == screen_id and t["to"] != screen_id]
+        incoming = [t for t in transitions
+                    if t["to"] == screen_id and t["from"] != screen_id]
 
         # Build transition details
         transition_details = ""
@@ -690,6 +725,7 @@ def _build_detail_panels(
             <div class="panel">
                 <h3>{screen_id} — {html.escape(name)}</h3>
                 {duplicate_note}
+                {surface_note}
                 {image_html}
                 <p>{html.escape(purpose)}</p>
                 <p style="font-size: 12px; color: #999;">Observed {observations} times</p>

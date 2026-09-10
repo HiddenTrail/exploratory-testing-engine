@@ -399,6 +399,147 @@ def agreement(fp: bytes, rep: bytes, volatile: set[int],
     return 1.0 - len(stable_differing) / stable_count, stable_count, differing
 
 
+# --- scroll detection -------------------------------------------------------
+#
+# A scrollable surface is one place, but it does not look like one to the identity
+# test: every scroll offset is a different picture, so `observe` mints a fresh screen
+# per offset and one feed becomes a dozen. That is the same over-split an animated
+# background causes, unbounded - a surface can be arbitrarily tall. The fix is to
+# recognise the shape a scroll leaves before it reaches `observe`: the content is the
+# same picture translated by k grid lines along one axis, under fixed chrome, with
+# fresh content revealed at the leading edge.
+#
+# It is done on row and column *profiles*, not on individual cells, and the reason is a
+# measured one. A real scroll moves a fractional number of the 18 grid rows, and the
+# HALFTONE downsample then blends each cell across two source rows - so a scrolled
+# frame never reproduces the old one cell-for-cell (a live news-feed pass matched under
+# 10% of cells at the correct shift). Averaging a whole line together smooths through
+# that blur and through a moving background: on that same pass the genuine scroll steps
+# all aligned at one shift with a mean per-byte line distance of 29-49, well under the
+# 52-90 that navigations between distinct screens sat at, and the aligned distance was
+# 0.5-0.9x the no-shift distance where a navigation could not beat 0.83x.
+
+# A shift has to leave at least this many grid lines overlapping to be judged at all -
+# fewer, and the alignment is measured on a sliver and any coincidence wins.
+SCROLL_MIN_OVERLAP = 6
+
+# The no-shift line distance below which the frame barely changed: a variant or a
+# still frame, not a scroll, whatever some shift happens to align.
+SCROLL_MIN_CHANGE = 25.0
+
+# The aligned line distance a real scroll stays under (an absolute floor), and the
+# fraction of the no-shift distance it must beat (so the shift genuinely *explains* the
+# change rather than being the least-bad of a screen that changed wholesale). Both
+# measured against a live pass - see the block comment above.
+SCROLL_ALIGN_MAX = 50.0
+SCROLL_ALIGN_RATIO = 0.90
+
+
+@dataclass(frozen=True)
+class ScrollShift:
+    """Evidence that one frame is another with its content translated.
+
+    `magnitude` is signed grid lines the content moved: positive is down (vertical) or
+    right (horizontal), matching `Action.notches`' own "away from the user is positive"
+    convention. `revealed` is how many cells of content the move brought in from off the
+    old frame, a lower bound on how much more surface there is past the edge. `align` is
+    the mean per-byte distance of the aligned overlap - lower is a cleaner scroll.
+    """
+    axis: str          # "vertical" | "horizontal"
+    magnitude: int     # signed grid lines the content moved: +down/+right, -up/-left
+    align: float       # mean per-byte distance of the aligned overlap (lower is cleaner)
+    overlap: int       # grid lines the alignment was judged on
+    pinned: int        # cells identical in place (the fixed chrome)
+    revealed: int      # cells of content the move brought in from off-frame
+
+    @property
+    def direction(self) -> str:
+        if self.axis == "vertical":
+            return "down" if self.magnitude > 0 else "up"
+        return "right" if self.magnitude > 0 else "left"
+
+
+def _rows(fp: bytes) -> list[bytes]:
+    """The frame as one byte-string per grid row (GRID_COLS cells of BGR)."""
+    stride = GRID_COLS * 3
+    return [fp[r * stride:(r + 1) * stride] for r in range(GRID_ROWS)]
+
+
+def _cols(fp: bytes) -> list[bytes]:
+    """The frame as one byte-string per grid column (GRID_ROWS cells of BGR)."""
+    cols = [bytearray() for _ in range(GRID_COLS)]
+    for r in range(GRID_ROWS):
+        base = r * GRID_COLS * 3
+        for c in range(GRID_COLS):
+            cols[c] += fp[base + c * 3:base + c * 3 + 3]
+    return [bytes(c) for c in cols]
+
+
+def _line_distance(a: bytes, b: bytes) -> float:
+    return sum(abs(x - y) for x, y in zip(a, b)) / len(a)
+
+
+def _best_line_shift(before_lines: list[bytes],
+                     after_lines: list[bytes]) -> tuple[float, tuple[int, float, int] | None]:
+    """The non-zero line shift that best aligns two profiles, and the no-shift distance.
+
+    Returns (distance_at_no_shift, (shift, distance, overlap)) with the second element
+    None when no shift leaves enough overlap to judge.
+    """
+    n = len(before_lines)
+    zero = sum(_line_distance(after_lines[r], before_lines[r]) for r in range(n)) / n
+    best: tuple[int, float, int] | None = None
+    for shift in range(-n + 1, n):
+        if shift == 0:
+            continue
+        overlap = [r for r in range(n) if 0 <= r - shift < n]
+        if len(overlap) < SCROLL_MIN_OVERLAP:
+            continue
+        avg = sum(_line_distance(after_lines[r], before_lines[r - shift]) for r in overlap) / len(overlap)
+        if best is None or avg < best[1]:
+            best = (shift, avg, len(overlap))
+    return zero, best
+
+
+def scroll_shift(before: bytes, after: bytes, delta: int) -> ScrollShift | None:
+    """Whether `after` is `before` with its content translated - a scroll.
+
+    Returns the best-fitting `ScrollShift`, or None when no coherent translation
+    explains the change: a real transition (no shift aligns the profiles well), or too
+    small a change to be a scroll (a variant, or a scroll that hit the end of the
+    surface and revealed nothing - both of which the caller handles as "not a new
+    place").
+
+    Pure, and on the same grid the identity test uses, so it can be checked against
+    synthetic frames with no client attached. Only axis-aligned shifts are searched: a
+    page scrolls vertically and a banner strip pages horizontally, and a simultaneous
+    diagonal is not a gesture this needs.
+    """
+    if len(before) != NCELLS * 3 or len(after) != NCELLS * 3:
+        return None
+    changed = diff_cells(before, after, delta)
+    if not changed:
+        return None  # identical frames: end of a feed, or nothing happened
+    pinned = NCELLS - len(changed)
+
+    candidates: list[ScrollShift] = []
+    for axis, lines, per_line in (("vertical", _rows, GRID_COLS),
+                                  ("horizontal", _cols, GRID_ROWS)):
+        zero, best = _best_line_shift(lines(before), lines(after))
+        if best is None or zero < SCROLL_MIN_CHANGE:
+            continue
+        shift, avg, overlap = best
+        if avg <= SCROLL_ALIGN_MAX and avg <= SCROLL_ALIGN_RATIO * zero:
+            candidates.append(ScrollShift(
+                axis=axis, magnitude=shift, align=avg, overlap=overlap,
+                pinned=pinned, revealed=abs(shift) * per_line))
+
+    if not candidates:
+        return None
+    # If both axes qualify (rare), take the cleaner alignment.
+    return min(candidates, key=lambda s: s.align)
+
+
 # Words that say what kind of thing a screen is rather than which one it is. Two
 # names that share only these have not agreed on anything.
 GENERIC_WORDS = {"screen", "menu", "page", "view", "window", "dialog", "the", "a", "of"}
@@ -863,6 +1004,15 @@ class Screen:
     # it walks past.
     scrolls: bool = False
     drags: bool = False
+    # Set when a scroll or drag on this screen was recognised as the *same surface
+    # translated* rather than a move to a new screen - so a scrollable feed is one node
+    # with a scroll edge on it, not the chain of look-alike screens `observe` would mint
+    # one-per-offset. `axes` is which way it scrolled, `steps` how many such edges were
+    # recorded, and `revealed` a lower bound in cells on how much content sits past the
+    # visible edge (the fresh cells each scroll brought in, summed).
+    scroll_axes: set[str] = field(default_factory=set)
+    scroll_steps: int = 0
+    scroll_revealed: int = 0
     vetting: dict | None = None
     degenerate: bool = False
     vet_budget: int = 0
@@ -875,6 +1025,12 @@ class Screen:
     def image(self) -> str:
         first = next(iter(self.variants.values()), None)
         return first.image if first else ""
+
+    def note_scroll(self, shift: "ScrollShift") -> None:
+        """Record that a scroll/drag on this screen was the surface moving, not a move."""
+        self.scroll_axes.add(shift.axis)
+        self.scroll_steps += 1
+        self.scroll_revealed += shift.revealed
 
 
 @dataclass
@@ -890,6 +1046,13 @@ class Transition:
     settle_ms: int
     count: int = 1
     first_seen: int = 0
+    # Set only on a "scrolled" edge: which axis the content translated along, how many
+    # cells it moved (signed - positive is down/right), and how many cells of fresh
+    # content the move revealed. Zero/empty on every other kind, so a plain edge
+    # serialises exactly as it did before scrolling was understood.
+    shift_axis: str = ""
+    shift_magnitude: int = 0
+    shift_revealed: int = 0
     # Close-ups of the thing this action touched: `before`, `pressed`, `after`. The
     # full-window pair either side of a transition is already in the map, and it is the
     # wrong picture for the commonest edge in it - an action that changed 4 cells of 576.
@@ -2060,7 +2223,24 @@ class Recon:
         differing = diff_cells(before_fp, after_fp, self.cell_delta)
         changed = len(differing)
 
-        if changed == 0 and before_variant is not None:
+        # A scroll or drag whose after-frame is just the before-frame translated is the
+        # same surface at a new offset, not a new place. Caught here, before `observe`
+        # would mint one screen per scroll offset - the over-split a scrollable surface
+        # causes, unbounded, since a surface can be arbitrarily tall. The cells the
+        # screen animates on its own are excluded first (the same guard the `scrolls`
+        # flag uses below), so a shimmering background cannot read as a scroll, and the
+        # detection needs at least one variant to file the edge against.
+        shift = None
+        if (action.kind in ("scroll", "drag") and (differing - screen.animated)
+                and (before_variant or screen.variants)):
+            shift = scroll_shift(before_fp, after_fp, self.cell_delta)
+
+        if shift is not None:
+            after_screen, is_new = screen, False
+            after_variant = before_variant or next(iter(screen.variants.values()))
+            kind = "scrolled"
+            screen.note_scroll(shift)
+        elif changed == 0 and before_variant is not None:
             # An identical picture cannot be a different place, and classifying it again
             # can say otherwise: two screens with large volatile masks - a puzzle grid
             # and the same grid one move on - each match almost anything, so which one
@@ -2070,16 +2250,15 @@ class Recon:
             # recut then sees a population of screen changes that starts below every
             # same-place move, concludes no threshold separates them, and gives up on
             # geometry for the whole game.
-            after_screen, after_variant, is_new = screen, before_variant, False
+            after_screen, after_variant, is_new, kind = screen, before_variant, False, "none"
         else:
             after_screen, after_variant, _, is_new = self.observe(after_fp, holding=screen)
-
-        if after_screen.id != screen.id:
-            kind = "screen"
-        elif after_variant.key != (before_variant.key if before_variant else None):
-            kind = "variant"
-        else:
-            kind = "none"
+            if after_screen.id != screen.id:
+                kind = "screen"
+            elif after_variant.key != (before_variant.key if before_variant else None):
+                kind = "variant"
+            else:
+                kind = "none"
 
         # Whether the blind modalities do anything here, which is what decides how many
         # more of them are worth spending - see `screen_actions`. Recorded on the screen
@@ -2129,6 +2308,9 @@ class Recon:
             action=action, kind=kind,
             from_variant=before_variant.id if before_variant else "",
             to_variant=after_variant.id, changed=changed, settle_ms=settle_ms,
+            shift_axis=shift.axis if shift else "",
+            shift_magnitude=shift.magnitude if shift else 0,
+            shift_revealed=shift.revealed if shift else 0,
             first_seen=self.actions_taken, crops=pictures, crop_box=list(box or ()))
         self.transitions[key] = transition
         return transition, is_new
@@ -2757,6 +2939,12 @@ class Recon:
                 split_name=entry.get("split_name") or "",
                 scrolls=explored.get("wheel_does_something", False),
                 drags=explored.get("drag_does_something", False),
+                # The surface facts a scroll established, restored so a resumed pass does
+                # not re-derive them. Absent in maps written before scrolling was
+                # understood, which read back as a screen that never scrolled.
+                scroll_axes=set((entry.get("surface") or {}).get("axes", [])),
+                scroll_steps=(entry.get("surface") or {}).get("scroll_steps", 0),
+                scroll_revealed=(entry.get("surface") or {}).get("revealed_cells_floor", 0),
             )
             if explored.get("vetted"):
                 screen.vetting = {"name": entry.get("name") or "",
@@ -2813,6 +3001,9 @@ class Recon:
                 settle_ms=record.get("settle_ms", 0),
                 count=record.get("times_taken", 1),
                 first_seen=record.get("first_seen_action", 0),
+                shift_axis=record.get("shift", {}).get("axis", ""),
+                shift_magnitude=record.get("shift", {}).get("magnitude", 0),
+                shift_revealed=record.get("shift", {}).get("revealed_cells", 0),
                 crops=record.get("crops", {}),
                 crop_box=record.get("crop_box", []))
             # What this action was measured to move, restored as the aim for this pass's
@@ -2917,6 +3108,19 @@ class Recon:
                     # tell a spinner from a countdown from these and from nothing else in
                     # the map, and the difference is whether the screen is waiting or busy.
                     "animation": screen.animation,
+                    # Set when scrolls/drags on this screen were recognised as the same
+                    # surface translated rather than moves to new screens. None when the
+                    # screen never scrolled, so an old map and a non-scrolling screen
+                    # serialise identically - see the SCHEMA note on not bumping for this.
+                    "surface": ({
+                        "axes": sorted(screen.scroll_axes),
+                        "scroll_steps": screen.scroll_steps,
+                        # A lower bound, in cells, on content past the visible edge: the
+                        # fresh cells each recognised scroll brought in, summed. It is not
+                        # the surface's true height - the pass stops scrolling when it
+                        # stops learning - which is why it is labelled a floor.
+                        "revealed_cells_floor": screen.scroll_revealed,
+                    } if screen.scroll_axes else None),
                     "hover": {
                         "probed": screen.hover_probe_count,
                         "inert": screen.hover_inert,
@@ -3025,6 +3229,11 @@ class Recon:
                                **({"horizontal": True} if t.action.horizontal else {}),
                                **({"modifiers": list(t.action.modifiers)}
                                   if t.action.modifiers else {})},
+                    # Only on a scrolled edge, so every other transition serialises as it
+                    # did before scrolling was understood.
+                    **({"shift": {"axis": t.shift_axis, "magnitude": t.shift_magnitude,
+                                  "revealed_cells": t.shift_revealed}}
+                       if t.kind == "scrolled" else {}),
                     "from_variant": t.from_variant, "to_variant": t.to_variant,
                     "before_image": self._variant_image(t.source, t.from_variant),
                     "after_image": self._variant_image(t.dest, t.to_variant),
@@ -3059,6 +3268,7 @@ EFFECT_WORDS = {
     "none": "nothing visible changed",
     "variant": "same screen, different appearance",
     "screen": "went to another screen",
+    "scrolled": "same surface, scrolled",
 }
 
 
