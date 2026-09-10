@@ -69,6 +69,19 @@ def test_external_exit_is_a_way_onward():
     assert dead_ends(onto) == []  # st01 exits off-site, st02 navigates in-app
 
 
+def test_gesture_probes_are_not_flagged_as_controls():
+    # A gesture (hover/wheel/zoom/drag) that moved nothing is not a dead control, and one
+    # that could not fire is not a blocked control - they are exploratory pokes, not controls.
+    onto = Ontology(
+        states=[State(id="st01", url="u", signature="a")],
+        transitions=[
+            _tr("g1", "st01", "gesture:hover centre", "st01", "dead"),
+            _tr("g2", "st01", "gesture:drag centre", "st01", "blocked"),
+        ])
+    assert dead_controls(onto) == []
+    assert blocked_controls(onto) == []
+
+
 def test_analyze_covers_every_oracle():
     kinds = {e.kind for e in analyze(_ontology())}
     assert {"dead_control", "blocked_control", "redundant_controls", "dead_end"} <= kinds

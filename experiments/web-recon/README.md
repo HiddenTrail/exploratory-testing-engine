@@ -20,6 +20,10 @@ half of the game kit's fuller input set (a wheel/hover/centre-drag commits nothi
 gesture's effect is judged by the same before/after screenshot diff, so a canvas that
 pans or zooms registers as `changed`. Live on EcoEstate: wheel/ctrl+wheel zoom, drag-pan
 and hover all move the Leaflet map and are captured, where click-only saw almost nothing.
+A gesture is a *probe*, not navigation: it is always recorded as a **self-transition**
+(never mints a state or a replayable discovery-path step, so replay stays deterministic),
+it is tried **after** a state's real controls (so it can't crowd genuine coverage off a
+tight budget), and a no-op gesture is never mis-reported as a "dead control".
 (Vetting-gated *form* mutations remain a later step.)
 
 ## Stage 4 (of 7) — intelligence: graph oracles + optional LLM synthesis

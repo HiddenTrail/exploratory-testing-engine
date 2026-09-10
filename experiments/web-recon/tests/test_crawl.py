@@ -52,6 +52,21 @@ def test_skips_states_that_are_exhausted():
     assert choose_frontier(states) == ("st02", "only")
 
 
+def test_real_controls_are_chosen_before_gesture_probes():
+    # A state whose next untried is a gesture is deprioritised behind one with a real
+    # control still to try, even if the gesture state is nearer - real coverage first.
+    states = [
+        {"id": "st01", "path": [], "untried": ["__gesture__:hover"]},   # nearer, but a gesture
+        {"id": "st02", "path": ["a"], "untried": ["#realbutton"]},      # farther, a real control
+    ]
+    assert choose_frontier(states) == ("st02", "#realbutton")
+
+
+def test_gesture_only_frontier_is_still_chosen_when_nothing_else_remains():
+    states = [{"id": "st01", "path": [], "untried": ["__gesture__:zoom_in"]}]
+    assert choose_frontier(states) == ("st01", "__gesture__:zoom_in")
+
+
 def test_dedup_findings_collapses_identical_only():
     fs = [
         Evidence(kind="http_error", summary="500 x", state_id="st01"),

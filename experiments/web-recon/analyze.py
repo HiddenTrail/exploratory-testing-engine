@@ -24,12 +24,20 @@ from collections import defaultdict
 from schema import Evidence, Ontology
 
 
+def _is_gesture(t) -> bool:
+    """A synthetic gesture probe (hover/wheel/zoom/drag), not a real control - its
+    element_key is 'gesture:<label>'. Gestures are exploratory pokes at the viewport, so
+    a gesture that moves nothing is not a 'dead control' and one that can't fire is not a
+    'blocked control'; the control oracles skip them."""
+    return t.action.element_key.startswith("gesture:")
+
+
 def dead_controls(onto: Ontology) -> list[Evidence]:
     """Controls whose action produced no observable change (effect == 'dead')."""
     return [
         Evidence(kind="dead_control", state_id=t.source, seq=t.first_seen,
                  summary=f"{t.action.kind} {t.action.element_key} on {t.source} changed nothing observable")
-        for t in onto.transitions if t.effect == "dead"
+        for t in onto.transitions if t.effect == "dead" and not _is_gesture(t)
     ]
 
 
@@ -38,7 +46,7 @@ def blocked_controls(onto: Ontology) -> list[Evidence]:
     return [
         Evidence(kind="blocked_control", state_id=t.source, seq=t.first_seen,
                  summary=f"{t.action.kind} {t.action.element_key} on {t.source} could not be actuated")
-        for t in onto.transitions if t.effect == "blocked"
+        for t in onto.transitions if t.effect == "blocked" and not _is_gesture(t)
     ]
 
 

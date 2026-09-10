@@ -64,6 +64,9 @@ GESTURE_PROBES = (
 )
 
 
+GESTURE_KINDS = frozenset(kind for kind, _ in GESTURE_PROBES)
+
+
 def gesture_actions() -> list[dict]:
     """The synthetic gesture-probe actions added to every state. Pure - the viewport
     centre is resolved at actuation time, so this is just the fixed descriptor list."""
@@ -106,7 +109,13 @@ def choose_frontier(open_states: list[dict]) -> tuple[str, str] | None:
     candidates = [s for s in open_states if s["untried"]]
     if not candidates:
         return None
-    nearest = min(candidates, key=lambda s: (len(s["path"]), s["id"]))
+    # A state whose next untried is a real control is preferred over one whose next is a
+    # gesture probe, so genuine controls across the whole graph are exercised before the
+    # gestures (which every state carries) can crowd out coverage on a tight budget.
+    def rank(s):
+        first_is_gesture = s["untried"][0].startswith("__gesture__:")
+        return (first_is_gesture, len(s["path"]), s["id"])
+    nearest = min(candidates, key=rank)
     return nearest["id"], nearest["untried"][0]
 
 
@@ -175,7 +184,7 @@ class Crawler:
         kind = desc.get("act_kind", "click")
         if kind == "fill":
             return self._fill(desc)
-        if kind in ("hover", "wheel_down", "wheel_up", "zoom_in", "zoom_out", "drag"):
+        if kind in GESTURE_KINDS:
             return self._gesture(kind)
         return self._click(desc)
 
@@ -325,7 +334,9 @@ class Crawler:
         return sum(1 for x, y in zip(a, b) if abs(x - y) > 20) / len(a)
 
     def _untried(self, rec: dict) -> list[dict]:
-        return [a for a in rec["actions"] if a["locator"] not in rec["tried"]]
+        untried = [a for a in rec["actions"] if a["locator"] not in rec["tried"]]
+        # Real controls first, gesture probes last (stable sort: False < True).
+        return sorted(untried, key=lambda a: a["act_kind"] in GESTURE_KINDS)
 
     def crawl(self) -> Ontology:
         self.page.goto(self.start_url, wait_until="domcontentloaded")
@@ -345,6 +356,7 @@ class Crawler:
             rec = self.recs[state_id]
             element = next(a for a in rec["actions"] if a["locator"] == locator)
             act_kind = element.get("act_kind", "click")
+            is_gesture = act_kind in GESTURE_KINDS
             element_key = f"{element['role']}:{element['name']}"
             attempts = rec.setdefault("attempts", {})
             attempts[locator] = attempts.get(locator, 0) + 1
@@ -390,6 +402,23 @@ class Crawler:
                 continue
 
             after_sig = signature(after)
+
+            if is_gesture:
+                # A gesture (hover/wheel/zoom/drag) is not a reliably-replayable
+                # navigation, so it never mints a state or a discovery-path step: it is
+                # recorded as a self-transition on the state it was tried from, its effect
+                # judged by signature/text and then the pixel diff. Oracles still run - a
+                # gesture can trigger a network error too.
+                self.findings.extend(run_observation_oracles(after, state_id, self.actions_taken))
+                vdiff = self._visual_diff(before_png, after_png)
+                changed = (after_sig != before_sig or appearance(after) != appearance(before)
+                           or (vdiff is not None and vdiff > VISUAL_CHANGE_THRESHOLD))
+                self.transitions.append(Transition(
+                    id=f"tr{len(self.transitions) + 1:03d}", source=state_id, action=action,
+                    dest=state_id, effect=("changed" if changed else "dead"), changed=changed,
+                    first_seen=self.actions_taken, after_image=shot))
+                continue
+
             dest_id = self._register(after, path=rec["path"] + [element])
             self.findings.extend(run_observation_oracles(after, dest_id, self.actions_taken))
 
