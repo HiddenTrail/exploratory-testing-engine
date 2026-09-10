@@ -12,16 +12,22 @@ the last one's map. And, decided up front: **the deterministic core does everyth
 itself; the LLM is off by default and, when on, only annotates the finished ontology —
 it never gates the crawl.**
 
-## Status: Stage 1 (of 7) — identity hardened across a multi-view app
+## Status: Stage 2 (of 7) — read-only frontier crawl → a real ontology
 
 Deterministic core, no model, nothing mutates the app.
 
-Stage 1 result: the control-skeleton signature alone collapsed two genuinely different
-views that share a control set (the PoC's "You said yes" and "You said no" pages, both
-with only a Back button). Fixed by adding **visible landmark headings** to the
-signature: the PoC now resolves to **three distinct states**, Back returns to the
-question state, and — regression — EcoEstate (no headings) stays exactly one state, so
-the extra term only adds resolution where the page provides it. Corpus: `fixtures/poc-*`.
+Stage 2 crawls an app by frontier-BFS: enumerate each state's safe actions, go to the
+nearest state with an untried one (replaying its discovery path), act, and record where
+it led plus any evidence. Proven live: the multi-page PoC yields **3 states / 4
+transitions** (the whole question ↔ Yes/No graph); **EcoEstate yields 1 state and 4
+findings** — the crawl re-catches the `property-prices` 500 with no model. The
+read-only gate (`safety.py`) refuses form inputs, mutating-verb names, submit/reset,
+off-site and non-http links, and any unrecognised role (fail-closed).
+
+Stage 1 (identity) result, still holding: the control-skeleton signature collapsed the
+PoC's "You said yes" / "You said no" pages (both only a Back button); fixed by adding
+**visible landmark headings** to the signature. Three distinct states; Back returns to
+the question; EcoEstate (no headings) stays one state.
 
 | module | what it is |
 |---|---|
@@ -29,7 +35,9 @@ the extra term only adds resolution where the page provides it. Corpus: `fixture
 | `perceive.py` | the only browser-touching module: a live page → one normalised `Observation` (URL, visible headings, interactive elements read off the DOM, console, network responses **and failures**, visible text). |
 | `identity.py` | "is this the same view?" — a state is its URL route + control skeleton + landmark headings; body text / map position is a *variant*, not a new state. No model. |
 | `oracles.py` | deterministic functional oracles: HTTP 4xx/5xx, **failed requests (a dead endpoint)**, console errors, exceptions → `Evidence`. This is where a browser beats a game — it found the 500 below for free. |
-| `capture_fixtures.py` | records a corpus of `Observation`s (in `fixtures/`) so all the above is tested offline. |
+| `safety.py` | the read-only gate: `committing(element)` — refuses form inputs, mutating-verb names, submit/reset, off-site/non-http links, unrecognised roles (fail-closed). Pure. |
+| `crawl.py` | the frontier-BFS read-only crawler → `Ontology`; `choose_frontier` is a pure planner. `python crawl.py <url> [--headed] [--max N] [--out PATH]`. |
+| `capture_fixtures.py` / `capture_poc.py` | record `Observation` corpora (in `fixtures/`) so identity/oracles are tested offline. |
 
 Run: `pip install -r requirements.txt && python -m playwright install chromium`, then
 `python -m pytest tests` (offline, no app, no browser — uses the recorded fixtures).
