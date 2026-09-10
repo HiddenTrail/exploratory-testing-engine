@@ -31,11 +31,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "game-ontology"))
 
-import calibrate  # noqa: E402
 from controller import changed_cells, readable_output, set_dpi_aware  # noqa: E402
 from recon import GRID_COLS, GRID_ROWS, fingerprint  # noqa: E402
 
-from attach import attach  # noqa: E402
+from attach import apply_calibration, attach  # noqa: E402
 
 # A lobby's slow water/flag cycle measured 4-5 cells of 576. Anything at or under
 # that is indistinguishable from a stale frame plus capture noise, so the bar is set
@@ -82,7 +81,6 @@ def main() -> int:
     budget = float(argv[0]) if argv else 300.0
     deadline = time.monotonic() + budget
     cells = GRID_COLS * GRID_ROWS
-    remembered = calibrate.load(GAME) or {}
     cycle = 0
 
     while time.monotonic() < deadline:
@@ -93,9 +91,7 @@ def main() -> int:
         # traceback because only `attach` was wrapped.
         try:
             controller = attach(GAME, verbose=cycle == 1)
-            for measured in ("startup_quiet", "screen_match", "cell_delta"):
-                if measured in remembered:
-                    setattr(controller.target, measured, remembered[measured])
+            apply_calibration(controller, GAME)
             moved = sample(controller)
         except Exception as error:                          # noqa: BLE001
             # Expected while the window is gone: closed, or not opened yet.

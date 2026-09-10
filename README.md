@@ -163,6 +163,11 @@ experiments/      # mostly earlier prototypes this package was hardened from, ke
                   #   authorised Training Camp battle, and the measurement tools (127 tests). Its
                   #   README carries the safety rules and which layer holds each - read it first,
                   #   because this one drives somebody's real account.
+clash-royale-kit/ # the two directories above, packaged as one command for somebody who is not
+                  #   going to read either README: check the machine, explore for N minutes,
+                  #   write a wiki from what was found. No agent and no code editing at run time -
+                  #   the interventions a person used to make were environmental, so they are
+                  #   checks with sentences attached now. 98 tests, and they DO run in CI.
 docs/
   exploratory-testing-engine-concept.md  # the original, broader vision
   examples/bootstrap_demo/                # a real worked example of the bootstrap pipeline's output
@@ -199,6 +204,26 @@ parameters with `--model`, `--max-checkpoints`, `--first-round-budget`,
 See [`engine/README.md`](engine/README.md) for adding a new adapter by hand,
 and the CI/testing setup.
 
+### Mapping the game client instead
+
+The non-HTTP target has its own front door, on Windows, against an already-open
+client:
+
+```bat
+python clash-royale-kit\cr.py --doctor        :: check the machine, touch nothing
+python clash-royale-kit\cr.py --minutes 15    :: explore, then build a wiki from it
+```
+
+That is a different question from a checkpoint loop: it explores an interface
+and writes down what is there, rather than forming a hypothesis and trying to
+disprove it. It exists because the wiki it produces used to need a person
+sitting beside an agent, and the interventions turned out to be environmental
+rather than bugs - a stale threshold, a client on the wrong screen, an editor
+window carrying the game's name - so they are now checks that refuse with a
+sentence saying what to do. See
+[`clash-royale-kit/README.md`](clash-royale-kit/README.md), which assumes no
+knowledge of the rest of this repo.
+
 ## Testing
 
 ```
@@ -208,7 +233,14 @@ python -m pytest engine/tests
 
 Runs automatically on every push to `master` and every PR via
 [`.github/workflows/engine-tests.yml`](.github/workflows/engine-tests.yml) -
-no Anthropic API key needed, since no test makes a real LLM call.
+no Anthropic API key needed, since no test makes a real LLM call. That workflow
+also runs `clash-royale-kit`'s 98 tests, which are cross-platform on purpose:
+the kit drives a Windows client, but its decisions live in modules that import
+no Win32, and the ones that do keep those imports function-local so a stub can
+be put under the name. What that buys is having the assertions that matter -
+that the kit’s own preflight/watch-only sampling never grabs with verification,
+that the safety layers are checked before any frame is scored, and that
+`--allow-battle` is never constructed - checked on every PR rather than only on the one machine with the game installed.
 
 The game harness carries its own suites, which CI does **not** run - they are
 Windows-only (Win32 window handles, GDI capture) while CI is Linux:

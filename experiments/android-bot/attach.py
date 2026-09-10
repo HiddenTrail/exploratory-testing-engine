@@ -39,6 +39,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "game-ontology"))
 
+import calibrate  # noqa: E402
 from controller import (Controller, Target, WindowLost, _squash,  # noqa: E402
                         process_image, visible_windows, window_owner, window_pid)
 from target import DENYLISTS  # noqa: E402
@@ -47,6 +48,11 @@ from target import DENYLISTS  # noqa: E402
 # are checked: the file name alone would match any `crosvm.exe` anywhere on the machine.
 EMULATOR = "crosvm.exe"
 INSTALL = Path(r"C:\Program Files\Google\Play Games")
+
+# The measurements a calibration pass writes that a Target can carry. Kept as a tuple here
+# rather than repeated at each call site, which is how three copies of this loop came to
+# exist and a fourth caller came to have none.
+CALIBRATED = ("startup_quiet", "screen_match", "cell_delta")
 
 
 def candidates(needle: str) -> list[tuple[int, str, int]]:
@@ -111,3 +117,34 @@ def attach(needle: str, verbose: bool = True) -> Controller:
     # Bound directly rather than through `start()`, which would fall through to a launch.
     controller.hwnd, controller.pid = hwnd, pid
     return controller
+
+
+def apply_calibration(controller: Controller, game: str,
+                      fields: tuple[str, ...] = CALIBRATED) -> dict[str, float]:
+    """Overlay what a previous pass measured for this game. Returns what it changed.
+
+    This has to be a separate call rather than something `attach` does, and the reason is
+    worth stating because it looks like an oversight. `attach` builds its own `Target` instead
+    of going through `targets.resolve`, so nothing loads the calibration file unless a caller
+    asks - and three callers grew their own copy of this loop while a fourth had none, which
+    is the trap `README.md` lists first: a script reading `controller.target.screen_match`
+    after `attach` scores against the class default of 0.94 (tolerance 138 of 2304) while the
+    measured value on disk is 0.974 (tolerance 59), a bar 2.3x looser than the recon gate.
+
+    It is still not folded into `attach` itself. Doing that would tighten `screen_match` for
+    every existing caller, and `wait_stable`/`_wait_settled` get *stricter* as it rises - so
+    the animated lobby that already fails the readiness gate at 0.94 would fail harder. The
+    seam is the fix; changing the default is a separate decision with its own measurement, and
+    `run_recon.py --screen-match` exists because that decision has not been made.
+
+    Returns the values it set, so a caller can report them in its own voice. An empty dict
+    means there is no calibration for this game, which is a fact worth printing rather than a
+    silent fall-through to defaults.
+    """
+    remembered = calibrate.load(game) or {}
+    applied = {}
+    for measured in fields:
+        if measured in remembered:
+            setattr(controller.target, measured, remembered[measured])
+            applied[measured] = remembered[measured]
+    return applied

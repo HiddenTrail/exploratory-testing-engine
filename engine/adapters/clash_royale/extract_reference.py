@@ -63,20 +63,32 @@ MAIN_SCREEN = "sc01"
 
 VERDICTS: dict[str, tuple[str, str]] = {
     "sc01": ("ok", "the main/home screen - this is where a run starts and returns to"),
-    "sc02": ("ok", "the battle deck screen, reached from the bottom navigation"),
-    "sc03": ("ok", "unnamed by the recon: it saw the screen but never labelled it"),
+    "sc02": ("ok", "the card/troop collection screen, browse-only"),
+    "sc03": ("abort", "the Market/Shop screen - a real-money purchase flow (coins, gems, chests, "
+                      "cards for sale), and the single thing this run must never be on. The Shop "
+                      "tab is denylisted, so arriving here means something got past the guard"),
     "sc04": ("abort", "a social/clan screen. The Clan tab is denylisted, so arriving here means a "
                       "vetted action reached a screen the guard was supposed to make unreachable"),
-    "sc05": ("ok", "unnamed by the recon: it saw the screen but never labelled it"),
-    "sc06": ("abort", "a second social/clan screen - same reasoning as sc04"),
-    "sc07": ("ok", "the card collection screen"),
-    "sc08": ("abort", "the Offers/Shop screen - a real-money purchase flow, and the single thing "
-                      "this run must never be on. The Shop tab is denylisted, so arriving here "
-                      "means something got past the guard"),
-    "sc09": ("ok", "the King Tower info panel, a card-detail overlay"),
-    "sc10": ("ok", "unnamed by the recon: it saw the screen but never labelled it"),
-    "sc11": ("abort", "a battle result screen, which means a battle was played. Out of scope for a "
-                      "meta-game run and evidence the board tripwire was reached too late"),
+    "sc05": ("abort", "a second social/clan screen - same reasoning as sc04"),
+    "sc06": ("ok", "the Collection Level reward popup - browse-only; its one risky control (a "
+                      "Claim button on an unclaimed reward row) was already refused by the "
+                      "per-click vetting call, which is the layer that actually guards it"),
+    "sc07": ("abort", "a third social/clan screen - same reasoning as sc04"),
+    "sc08": ("abort", "a fourth social/clan screen - same reasoning as sc04"),
+    "sc09": ("ok", "the main/home screen again, sampled mid-transition (dimmed) - same place as "
+                      "sc01, not a different one"),
+    "sc10": ("ok", "the news/events feed, one of several scroll positions the pass split into "
+                      "separate screens - browse-only, closes via an X button"),
+    "sc11": ("ok", "the news/events feed, another scroll position - same reasoning as sc10"),
+    "sc12": ("ok", "the news/events feed, another scroll position - same reasoning as sc10"),
+    "sc13": ("ok", "the news/events feed, another scroll position - same reasoning as sc10"),
+    "sc14": ("ok", "the news/events feed, another scroll position - same reasoning as sc10"),
+    "sc15": ("ok", "the news/events feed, another scroll position - same reasoning as sc10"),
+    "sc16": ("ok", "the news/events feed, another scroll position - same reasoning as sc10"),
+    "sc17": ("ok", "the news/events feed, another scroll position - same reasoning as sc10"),
+    "sc18": ("ok", "the news/events feed, another scroll position - same reasoning as sc10"),
+    "sc19": ("ok", "the news/events feed, another scroll position - same reasoning as sc10"),
+    "sc20": ("ok", "the news/events feed, another scroll position - same reasoning as sc10"),
 }
 
 

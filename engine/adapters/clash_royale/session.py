@@ -119,9 +119,11 @@ def recon_fingerprint(handle) -> bytes:
 
 # The grid and the threshold are both the carried pass's, not this file's. They are
 # not free parameters: the fingerprints in `reference.py` are 32x18 cells of BGR
-# matched at 0.94, and a different grid or a looser cut here would not be a tuning
-# choice, it would mean comparing those measurements under conditions they were
-# never taken under. `reference.check_reference` refuses a file whose grid disagrees.
+# matched at SAME_SCREEN (whatever `known_screens.json` carries - re-extracted per
+# pass, not a constant), and a different grid or a looser cut here would not be a
+# tuning choice, it would mean comparing those measurements under conditions they
+# were never taken under. `reference.check_reference` refuses a file whose grid
+# disagrees.
 GRID_COLS, GRID_ROWS = reference.GRID_COLS, reference.GRID_ROWS
 SAME_SCREEN = reference.SCREEN_MATCH
 
@@ -216,8 +218,8 @@ class Session:
         """The nearest stored appearance, or a newly registered screen.
 
         Nearest rather than first-over-threshold: two screens of this client can
-        both clear 0.94 against a third - the navigation bar alone is a large,
-        identical fraction of every meta-game screen - so taking the first match
+        both clear `SAME_SCREEN` against a third - the navigation bar alone is a
+        large, identical fraction of every meta-game screen - so taking the first match
         would make the answer depend on the order the candidates happen to be in,
         which for the carried ones is the order a different session discovered them.
         """
@@ -284,7 +286,7 @@ class Session:
         would carry on tapping at it. The reference tripwire has to be checked after
         - being *told* which screen this is is the whole mechanism - which is why
         the board is not left to it: no carried fingerprint of a board exists at
-        all, and a match at 0.94 is not something to stake the scope rule on.
+        all, and a match at `SAME_SCREEN` is not something to stake the scope rule on.
         """
         _, battle, _, _ = _harness()
         pink = battle.elixir_showing(self.controller)

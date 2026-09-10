@@ -25,3 +25,15 @@ jobs:
 
       - name: Run engine test suite
         run: python -m pytest engine/tests -v
+
+      # The Clash Royale kit's own suite. The kit drives a Windows client, but
+      # none of these tests does: the decisions are in checks.py and
+      # wikibuild.py, which import no Win32, and every module that does keeps
+      # those imports function-local so a stub can be put under the name. So
+      # unlike experiments/game-ontology and experiments/android-bot - which are
+      # genuinely Windows-only and stay out of CI - these run here, which is
+      # where the assertions that matter belong: that no frame is ever grabbed
+      # with verification, that the safety layers are checked before any frame
+      # is scored, and that --allow-battle is never constructed.
+      - name: Run Clash Royale kit test suite
+        run: python -m pytest clash-royale-kit -v

@@ -26,11 +26,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "game-ontology"))
 
-import calibrate  # noqa: E402
 from controller import log, readable_output, set_dpi_aware  # noqa: E402
-from recon import Recon, write_report  # noqa: E402
+from recon import Recon, write_report, write_session_log  # noqa: E402
 
-from attach import attach  # noqa: E402
+from attach import apply_calibration, attach  # noqa: E402
 from touch import TouchRecon  # noqa: E402
 
 OUT = Path(__file__).resolve().parent / "out"
@@ -39,18 +38,15 @@ OUT = Path(__file__).resolve().parent / "out"
 def remember(controller, game: str) -> None:
     """Apply whatever a previous pass measured for this game, and say so.
 
-    `attach` builds its own Target rather than going through `targets.resolve`, so the
-    calibration file has to be applied here or it silently would not be.
+    The overlay itself lives in `attach.apply_calibration`, because `attach` builds its own
+    Target rather than going through `targets.resolve` - so every caller has to ask, and the
+    copies of this loop that grew in three scripts left a fourth caller with none.
     """
-    remembered = calibrate.load(game)
-    if not remembered:
+    if not apply_calibration(controller, game):
         log(f"  no calibration for {game!r} yet; using defaults "
             f"(startup_quiet {controller.target.startup_quiet}s, "
             f"screen_match {controller.target.screen_match})")
         return
-    for measured in ("startup_quiet", "screen_match", "cell_delta"):
-        if measured in remembered:
-            setattr(controller.target, measured, remembered[measured])
     log(f"  calibration: startup_quiet {controller.target.startup_quiet}s, "
         f"screen_match {controller.target.screen_match}")
 
@@ -149,6 +145,7 @@ def main() -> None:
         data = session.to_json()
         log(f"\nwrote {session.save()}")
         log(f"wrote {write_report(data, out)}")
+        log(f"wrote {write_session_log(session.session_log, out)}")
         log(f"{len(session.screens)} screens, {len(session.transitions)} transitions, "
             f"{sum(len(s.variants) for s in session.screens.values())} images")
         # Deliberately not closed. See the module docstring.

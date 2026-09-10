@@ -36,12 +36,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "game-ontology"))
 
 from PIL import Image, ImageDraw  # noqa: E402
 
-import calibrate  # noqa: E402
 
 from controller import (READY_COLS, READY_ROWS, changed_cells,  # noqa: E402
                         readable_output, set_dpi_aware, variance)
 
-from attach import attach  # noqa: E402
+from attach import apply_calibration, attach  # noqa: E402
 
 GAME = "Clash Royale"
 # Used only in offline mode, where there is no Target to read them off.
@@ -218,12 +217,8 @@ def main() -> int:
         # tolerance 138 - while the recon gate that actually failed runs on the measured
         # 0.974, tolerance 59. That is a factor of 2.3, wide enough to turn a FAILS into a
         # PASSES, and the calibration file's own note flags the trap by name.
-        remembered = calibrate.load(GAME) or {}
-        source = "the target default"
-        for measured in ("screen_match", "cell_delta"):
-            if measured in remembered:
-                setattr(controller.target, measured, remembered[measured])
-                source = "the remembered calibration"
+        applied = apply_calibration(controller, GAME, ("screen_match", "cell_delta"))
+        source = "the remembered calibration" if applied else "the target default"
         delta, match = controller.target.cell_delta, controller.target.screen_match
         print(f"{frames} frames {interval}s apart, {READY_COLS}x{READY_ROWS} = {NCELLS} "
               f"cells, cell_delta {delta} (from {source})")

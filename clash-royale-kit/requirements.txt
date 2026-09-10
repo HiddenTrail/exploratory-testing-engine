@@ -1,0 +1,33 @@
+# What this kit needs, which is less than the engine needs.
+#
+# Deliberately not a pointer at engine/requirements.txt: that file also carries
+# fastapi, uvicorn and httpx for the engine's HTTP service, and nothing on this
+# path serves anything. The window is driven through ctypes against Win32, the
+# screenshots are written by a hand-rolled PNG encoder in
+# experiments/game-ontology/controller.py, and the wiki is string formatting -
+# so there is no numpy and no capture library here either.
+#
+# Python 3.13 on Windows. The version matters less than the platform: this half
+# of the kit cannot run anywhere else, because it calls user32 and gdi32
+# directly. The tests are cross-platform on purpose (see README).
+
+# Optional. Only `wikibuild.py`'s per-screen animation-map picture uses it (the boxes
+# themselves are plain arithmetic and render as a table either way) - imported lazily, so
+# a wiki still builds in full without it, just without that one picture. Not listed above
+# as a hard requirement on purpose: `pip install Pillow` if you want the picture.
+# Pillow>=10.0
+
+# The model client. The [bedrock] extra pulls boto3/botocore and is what makes
+# ENGINE_USE_BEDROCK=1 work; the 1.0 floor is required by
+# AnthropicBedrockMantle, which does not exist on 0.x.
+anthropic[bedrock]>=1.0
+
+# Reads .env, so credentials live in a file git ignores rather than in a shell
+# history. engine/client.py calls load_dotenv() on every auth decision.
+python-dotenv>=1.0
+
+# For `python -m pytest clash-royale-kit`, which is worth running once on a new
+# machine: it exercises every decision this kit makes without a game, a window
+# or a model, so a green run means the machine's Python is fine and anything
+# still broken is the client or the credentials.
+pytest>=8.0

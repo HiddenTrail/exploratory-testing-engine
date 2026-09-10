@@ -664,11 +664,11 @@ def test_the_shipped_reference_passes_its_own_check():
 
 def test_the_reference_still_classifies_the_screens_that_must_stop_a_run():
     """The concrete reason the data was carried. Named individually rather than
-    counted, because "four abort screens" would still pass if the shop were replaced
+    counted, because "five abort screens" would still pass if the shop were replaced
     by something harmless."""
     aborts = {screen.id for screen in reference.ABORT_ON}
-    assert {"sc04", "sc06", "sc08", "sc11"} <= aborts
-    shop = reference.BY_ID["sc08"]
+    assert {"sc03", "sc04", "sc05", "sc07", "sc08"} <= aborts
+    shop = reference.BY_ID["sc03"]
     assert "Shop" in (shop.name or "") and shop.verdict == "abort"
 
 
