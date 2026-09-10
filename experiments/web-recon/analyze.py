@@ -62,21 +62,25 @@ def redundant_controls(onto: Ontology) -> list[Evidence]:
 
 
 def dead_ends(onto: Ontology) -> list[Evidence]:
-    """States reachable by the crawl with no outgoing navigation to any *other* state.
+    """States the crawl *explored* that offer no way onward - no navigation to another
+    state and no off-site exit.
 
-    The entry state is exempt when it is the only state (nothing to leave to). A dead end
-    is where a real screen offers no way onward - worth flagging, though on a single-view
-    app it is simply the shape of the app, not a defect."""
+    Only states the crawl actually acted on (a recorded outgoing transition) are judged:
+    a state whose controls were never tried (a budget-limited crawl) is not a dead end,
+    just unexplored, so it is excluded to avoid a false positive. An off-site ('external')
+    navigation counts as a way onward. Skipped entirely for a one-state app, where "no
+    exit" is the shape of the app, not a finding."""
     if len(onto.states) <= 1:
         return []
+    acted = {t.source for t in onto.transitions}  # states we actually exercised
     has_exit = {
         t.source for t in onto.transitions
-        if t.effect == "navigate" and t.dest != t.source and t.dest != "external"
+        if (t.effect == "navigate" and t.dest != t.source) or t.effect == "external"
     }
     return [
         Evidence(kind="dead_end", state_id=s.id,
-                 summary=f"{s.id} has no navigation to another state - a dead end")
-        for s in onto.states if s.id not in has_exit
+                 summary=f"{s.id} was explored but has no navigation onward - a dead end")
+        for s in onto.states if s.id in acted and s.id not in has_exit
     ]
 
 

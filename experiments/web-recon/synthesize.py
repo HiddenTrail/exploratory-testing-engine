@@ -142,5 +142,8 @@ def run_synthesis(onto) -> str:
         load_dotenv(_REPO_ROOT / ".env")  # the Bedrock config (ENGINE_USE_BEDROCK, AWS_*) lives here
         review = synthesize(onto, build_client(), default_model())
         return render_synthesis(review)
-    except Exception as e:  # noqa: BLE001 - a synthesis failure must never break the wiki
+    # SystemExit (build_client raises it on a missing key/region) is a BaseException, not
+    # an Exception, so it must be named explicitly or a misconfigured --llm would abort
+    # the whole wiki instead of soft-failing to this note.
+    except (Exception, SystemExit) as e:  # noqa: BLE001 - a synthesis failure must never break the wiki
         return f'<p class="ok">(model synthesis unavailable: {type(e).__name__}: {e})</p>'

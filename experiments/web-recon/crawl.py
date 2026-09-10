@@ -38,6 +38,12 @@ from schema import Action, Element, Evidence, Ontology, State, Transition
 # control is given up after this many attempts rather than spun on forever.
 MAX_ACTION_ATTEMPTS = 2
 
+# When the DOM signature and text say an action changed nothing, a before/after
+# screenshot is compared: if this fraction of a downscaled frame moved, the action did
+# something visual the DOM could not see (a canvas/map pan or zoom) and is "changed", not
+# "dead". Keeps a "dead control" observation honest.
+VISUAL_CHANGE_THRESHOLD = 0.02
+
 # Roles Playwright's get_by_role can target by accessible name. Addressing a control by
 # (role, name) survives DOM reshuffles - async content appearing, siblings inserted -
 # far better than a positional CSS path, which silently points at the wrong node once
@@ -220,17 +226,40 @@ class Crawler:
         self.page.goto(self.start_url, wait_until="domcontentloaded")
         _settle(self.page)
 
-    def _action_shot(self) -> str:
-        """A screenshot of the page as it stands after an action - taken on every touch."""
-        if not self.images_dir:
+    def _screenshot_bytes(self):
+        try:
+            return self.page.screenshot()
+        except Exception:
+            return None
+
+    def _save_shot(self, data) -> str:
+        """Persist an action screenshot (taken on every touch) and return its wiki path."""
+        if not (self.images_dir and data):
             return ""
-        name = f"act{self.actions_taken:03d}.png"
         try:
             self.images_dir.mkdir(parents=True, exist_ok=True)
-            self.page.screenshot(path=str(self.images_dir / name))
+            name = f"act{self.actions_taken:03d}.png"
+            (self.images_dir / name).write_bytes(data)
             return f"images/{name}"
         except Exception:
             return ""
+
+    def _visual_diff(self, before, after):
+        """Fraction of a downscaled grayscale frame that changed between two screenshots,
+        or None if it cannot be computed (Pillow absent / bad capture). Lets a canvas or
+        map change that the DOM signature/text cannot see still register as an effect."""
+        if not (before and after):
+            return None
+        try:
+            import io
+            from PIL import Image
+            a = Image.open(io.BytesIO(before)).convert("L").resize((64, 64)).tobytes()
+            b = Image.open(io.BytesIO(after)).convert("L").resize((64, 64)).tobytes()
+        except Exception:
+            return None
+        if not a or len(a) != len(b):
+            return None
+        return sum(1 for x, y in zip(a, b) if abs(x - y) > 20) / len(a)
 
     def _untried(self, rec: dict) -> list[dict]:
         return [a for a in rec["actions"] if a["locator"] not in rec["tried"]]
@@ -265,6 +294,7 @@ class Crawler:
                 continue
 
             before_sig = rec["signature"]
+            before_png = self._screenshot_bytes()  # for the dead-vs-visual-change check
             if not self._actuate(element):
                 if give_up:
                     rec["tried"].add(locator)
@@ -282,7 +312,8 @@ class Crawler:
             after = capture(self.page, self.col)
             self.actions_taken += 1
             action = Action(kind=act_kind, element_key=element_key, target=locator)
-            shot = self._action_shot()  # a screenshot on every touch
+            after_png = self._screenshot_bytes()
+            shot = self._save_shot(after_png)  # a screenshot on every touch
 
             # Recovery: if the action left the app (a JS navigation off-origin the gate
             # could not foresee from the element), do not explore off-site - record it and
@@ -302,9 +333,12 @@ class Crawler:
             if after_sig != before_sig:
                 effect = "navigate"                          # went to another state
             elif appearance(after) != appearance(before):
-                effect = "changed"                           # same state, content moved
+                effect = "changed"                           # same state, text/content moved
             else:
-                effect = "dead"                              # nothing changed at all
+                # DOM/text saw nothing - confirm with pixels before calling it dead, so a
+                # canvas/map change (invisible to the signature) is not a false "dead".
+                vdiff = self._visual_diff(before_png, after_png)
+                effect = "changed" if (vdiff is not None and vdiff > VISUAL_CHANGE_THRESHOLD) else "dead"
 
             self.transitions.append(Transition(
                 id=f"tr{len(self.transitions) + 1:03d}", source=state_id, action=action,

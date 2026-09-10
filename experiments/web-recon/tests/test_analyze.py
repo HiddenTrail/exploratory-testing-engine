@@ -53,6 +53,22 @@ def test_single_state_is_not_a_dead_end():
     assert dead_ends(solo) == []
 
 
+def test_unexplored_state_is_not_a_dead_end():
+    # A state the crawl never acted on (no outgoing transitions) is unexplored, not a
+    # dead end - excluding it avoids a false positive on a budget-limited crawl.
+    onto = _ontology()
+    onto.states.append(State(id="st99", url="u", signature="z"))
+    assert "st99" not in {e.state_id for e in dead_ends(onto)}
+
+
+def test_external_exit_is_a_way_onward():
+    onto = Ontology(
+        states=[State(id="st01", url="u", signature="a"), State(id="st02", url="u", signature="b")],
+        transitions=[_tr("t1", "st01", "button:Ext", "external", "external"),
+                     _tr("t2", "st02", "button:A", "st01", "navigate")])
+    assert dead_ends(onto) == []  # st01 exits off-site, st02 navigates in-app
+
+
 def test_analyze_covers_every_oracle():
     kinds = {e.kind for e in analyze(_ontology())}
     assert {"dead_control", "blocked_control", "redundant_controls", "dead_end"} <= kinds

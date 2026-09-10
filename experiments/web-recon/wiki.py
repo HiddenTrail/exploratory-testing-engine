@@ -283,6 +283,10 @@ def main():
                          "call via the engine's auth). The rest of the wiki is deterministic.")
     args = ap.parse_args()
     onto = Ontology.load(args.ontology)
+    # Recompute structural observations at render time - deterministic and cheap - so an
+    # ontology written by any path (including a pre-observations crawl) shows them.
+    from analyze import analyze
+    onto.observations = analyze(onto)
     synthesis_html = ""
     if args.llm:
         from synthesize import run_synthesis  # imported only when asked, keeps the default path model-free
