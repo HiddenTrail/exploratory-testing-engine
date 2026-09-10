@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Clash Royale Navigation Map</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                    background: #f5f5f5;
+                    color: #333;
+                }
+
+                .header {
+                    background: white;
+                    border-bottom: 1px solid #ddd;
+                    padding: 20px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                }
+
+                .header h1 {
+                    font-size: 24px;
+                    margin-bottom: 5px;
+                }
+
+                .header p {
+                    color: #666;
+                    font-size: 14px;
+                }
+
+                .container {
+                    display: flex;
+                    height: calc(100vh - 150px);
+                }
+
+                .canvas {
+                    flex: 1;
+                    background: white;
+                    overflow: auto;
+                    border-right: 1px solid #ddd;
+                    padding: 20px;
+                }
+
+                .sidebar {
+                    width: 350px;
+                    background: white;
+                    overflow-y: auto;
+                    border-left: 1px solid #ddd;
+                    display: flex;
+                    flex-direction: column;
+                }
+
+                .panel {
+                    padding: 16px;
+                    border-bottom: 1px solid #ddd;
+                }
+
+                .panel h3 {
+                    font-size: 16px;
+                    margin-bottom: 12px;
+                    color: #000;
+                }
+
+                .panel p {
+                    font-size: 13px;
+                    line-height: 1.5;
+                    color: #555;
+                    margin-bottom: 8px;
+                }
+
+                .dup-note {
+                    font-size: 12px;
+                    line-height: 1.4;
+                    color: #92400e;
+                    background: #fef3c7;
+                    border: 1px solid #fcd34d;
+                    border-radius: 4px;
+                    padding: 8px 10px;
+                    margin: 8px 0;
+                }
+
+                .screen-image {
+                    width: 100%;
+                    max-width: 300px;
+                    border-radius: 4px;
+                    margin: 12px 0;
+                    border: 1px solid #ddd;
+                }
+
+                .elements-table {
+                    width: 100%;
+                    font-size: 12px;
+                    margin-top: 12px;
+                    border-collapse: collapse;
+                }
+
+                .elements-table th {
+                    background: #f0f0f0;
+                    padding: 6px;
+                    text-align: left;
+                    font-weight: 600;
+                    border-bottom: 1px solid #ddd;
+                }
+
+                .elements-table td {
+                    padding: 6px;
+                    border-bottom: 1px solid #eee;
+                }
+
+                .element-clickable {
+                    color: #0066cc;
+                    font-weight: 500;
+                }
+
+                .legend {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 20px;
+                    padding: 14px 20px;
+                    background: #f9f9f9;
+                    border-top: 1px solid #ddd;
+                }
+
+                .legend-item {
+                    display: flex;
+                    align-items: center;
+                    font-size: 12px;
+                }
+
+                .legend-dot {
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 50%;
+                    margin-right: 8px;
+                }
+
+                svg {
+                    display: block;
+                }
+
+                .node {
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+
+                .node:hover circle {
+                    filter: drop-shadow(0 0 8px rgba(0, 102, 204, 0.5));
+                }
+
+                .node text {
+                    pointer-events: none;
+                }
+
+                .edge {
+                    stroke: #ccc;
+                    stroke-width: 2;
+                    fill: none;
+                    marker-end: url(#arrowhead);
+                }
+
+                .edge-label {
+                    font-size: 11px;
+                    fill: #999;
+                    pointer-events: none;
+                }
+
+                .node-label {
+                    font-size: 13px;
+                    font-weight: 600;
+                    fill: white;
+                    text-anchor: middle;
+                    pointer-events: none;
+                }
+
+                .node-caption {
+                    font-size: 12px;
+                    fill: #333;
+                    text-anchor: middle;
+                    pointer-events: none;
+                }
+
+                .hidden {
+                    display: none;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Clash Royale Navigation Map</h1>
+                <p>Interactive visualization of 8 screens and 3 transitions. Click any screen for details.</p>
+            </div>
+
+            <div class="container">
+                <div class="canvas">
+                    <svg width="1090" height="540" viewBox="0 0 1090 540">
+                        <defs>
+                            <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                                <polygon points="0 0, 10 3, 0 6" fill="#ccc"/>
+                            </marker>
+                        </defs>
+
+                        <g id="edges">
+                            <path class="edge" d="M 80 230 Q 335.0 230.0 590 230"/>
+
+                        </g>
+
+                        <g id="nodes">
+                            
+        <g class="node" data-screen-id="sc01" onclick="showScreen('sc01')">
+            <circle cx="505" cy="80" r="35" fill="#666666"/>
+            <text class="node-label" x="505" y="85">sc01</text>
+            <text class="node-caption" x="505" y="135">Clash Royale main/home …</text>
+            <title>Clash Royale main/home screen</title>
+        </g>
+        
+        <g class="node" data-screen-id="sc02" onclick="showScreen('sc02')">
+            <circle cx="80" cy="230" r="35" fill="#9333ea"/>
+            <text class="node-label" x="80" y="235">sc02</text>
+            <text class="node-caption" x="80" y="285">Clash Royale Battle Dec…</text>
+            <title>Clash Royale Battle Deck screen</title>
+        </g>
+        
+        <g class="node" data-screen-id="sc04" onclick="showScreen('sc04')">
+            <circle cx="250" cy="230" r="35" fill="#666666"/>
+            <text class="node-label" x="250" y="235">sc04</text>
+            <text class="node-caption" x="250" y="285">Social screen (first of…</text>
+            <title>Social screen (first of two)</title>
+        </g>
+        
+        <g class="node" data-screen-id="sc06" onclick="showScreen('sc06')">
+            <circle cx="420" cy="230" r="35" fill="#666666"/>
+            <text class="node-label" x="420" y="235">sc06</text>
+            <text class="node-caption" x="420" y="285">Social screen (second o…</text>
+            <title>Social screen (second of two)</title>
+        </g>
+        
+        <g class="node" data-screen-id="sc07" onclick="showScreen('sc07')">
+            <circle cx="590" cy="230" r="35" fill="#dc2626"/>
+            <text class="node-label" x="590" y="235">sc07</text>
+            <text class="node-caption" x="590" y="285">Clash Royale Collection…</text>
+            <title>Clash Royale Collection/Card Deck screen</title>
+        </g>
+        
+        <g class="node" data-screen-id="sc08" onclick="showScreen('sc08')">
+            <circle cx="760" cy="230" r="35" fill="#666666"/>
+            <text class="node-label" x="760" y="235">sc08</text>
+            <text class="node-caption" x="760" y="285">Offers / Shop screen</text>
+            <title>Offers / Shop screen</title>
+        </g>
+        
+        <g class="node" data-screen-id="sc09" onclick="showScreen('sc09')">
+            <circle cx="930" cy="230" r="35" fill="#666666"/>
+            <text class="node-label" x="930" y="235">sc09</text>
+            <text class="node-caption" x="930" y="285">King Tower info panel</text>
+            <title>King Tower info panel</title>
+        </g>
+        
+        <g class="node" data-screen-id="sc11" onclick="showScreen('sc11')">
+            <circle cx="505" cy="380" r="35" fill="#666666"/>
+            <text class="node-label" x="505" y="385">sc11</text>
+            <text class="node-caption" x="505" y="435">battle result screen</text>
+            <title>battle result screen</title>
+        </g>
+        
+                        </g>
+                    </svg>
+                </div>
+
+                <div class="sidebar">
+                    <div id="detail-panels" class="detail-panels">
+                        <div id="detail-placeholder" class="panel" style="color: #999; text-align: center; padding: 40px 16px;">
+                            <p>Click a screen to see its screenshot, details, and navigation.</p>
+                        </div>
+                        
+        <div id="panel-sc01" class="screen-detail-panel hidden">
+            <div class="panel">
+                <h3>sc01 — Clash Royale main/home screen</h3>
+                
+                
+                <p>Unknown</p>
+                <p style="font-size: 12px; color: #999;">Observed 16 times</p>
+                
+            </div>
+        </div>
+        
+        <div id="panel-sc02" class="screen-detail-panel hidden">
+            <div class="panel">
+                <h3>sc02 — Clash Royale Battle Deck screen</h3>
+                
+                
+                <p>Unknown</p>
+                <p style="font-size: 12px; color: #999;">Observed 10 times</p>
+                <p><strong>Actions that navigate away:</strong></p><ul><li>→ sc07: drag at (0.5, 0.5) (navigation)</li></ul>
+            </div>
+        </div>
+        
+        <div id="panel-sc04" class="screen-detail-panel hidden">
+            <div class="panel">
+                <h3>sc04 — Social screen (first of two)</h3>
+                
+                
+                <p>Unknown</p>
+                <p style="font-size: 12px; color: #999;">Observed 0 times</p>
+                <p><strong>Actions that navigate away:</strong></p><ul><li>→ sc05: drag at (0.5, 0.5) (navigation)</li></ul>
+            </div>
+        </div>
+        
+        <div id="panel-sc06" class="screen-detail-panel hidden">
+            <div class="panel">
+                <h3>sc06 — Social screen (second of two)</h3>
+                
+                
+                <p>Unknown</p>
+                <p style="font-size: 12px; color: #999;">Observed 0 times</p>
+                
+            </div>
+        </div>
+        
+        <div id="panel-sc07" class="screen-detail-panel hidden">
+            <div class="panel">
+                <h3>sc07 — Clash Royale Collection/Card Deck screen</h3>
+                
+                
+                <p>Unknown</p>
+                <p style="font-size: 12px; color: #999;">Observed 0 times</p>
+                <p><strong>1 action(s) lead here</strong></p>
+            </div>
+        </div>
+        
+        <div id="panel-sc08" class="screen-detail-panel hidden">
+            <div class="panel">
+                <h3>sc08 — Offers / Shop screen</h3>
+                
+                
+                <p>Unknown</p>
+                <p style="font-size: 12px; color: #999;">Observed 3 times</p>
+                
+            </div>
+        </div>
+        
+        <div id="panel-sc09" class="screen-detail-panel hidden">
+            <div class="panel">
+                <h3>sc09 — King Tower info panel</h3>
+                
+                
+                <p>Unknown</p>
+                <p style="font-size: 12px; color: #999;">Observed 9 times</p>
+                <p><strong>Actions that navigate away:</strong></p><ul><li>→ sc10: drag at (0.5, 0.5) (navigation)</li></ul>
+            </div>
+        </div>
+        
+        <div id="panel-sc11" class="screen-detail-panel hidden">
+            <div class="panel">
+                <h3>sc11 — battle result screen</h3>
+                
+                
+                <p>Unknown</p>
+                <p style="font-size: 12px; color: #999;">Observed 28 times</p>
+                
+            </div>
+        </div>
+        
+                    </div>
+                </div>
+            </div>
+
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #2563eb;"></div>
+                    <span>Navigation Hub</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #0891b2;"></div>
+                    <span>Navigation Node</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #dc2626;"></div>
+                    <span>Dead End</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #9333ea;"></div>
+                    <span>Unreachable</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #ea580c;"></div>
+                    <span>Inescapable Sink</span>
+                </div>
+            </div>
+
+            <script>
+                function showScreen(screenId) {
+                    const placeholder = document.getElementById('detail-placeholder');
+                    if (placeholder) placeholder.classList.add('hidden');
+
+                    const allPanels = document.querySelectorAll('.screen-detail-panel');
+                    allPanels.forEach(p => p.classList.add('hidden'));
+
+                    const targetPanel = document.getElementById('panel-' + screenId);
+                    if (targetPanel) {
+                        targetPanel.classList.remove('hidden');
+                        // Scroll the sidebar (not the page) back to the top of the detail.
+                        targetPanel.scrollIntoView({ block: 'nearest' });
+                    }
+                }
+
+                // Add click handlers to nodes
+                document.querySelectorAll('.node').forEach(node => {
+                    node.addEventListener('click', function() {
+                        showScreen(this.dataset.screenId);
+                    });
+                });
+            </script>
+        </body>
+        </html>
+    

@@ -7,3 +7,9 @@ httpx>=0.27
 anthropic[bedrock]>=1.0
 python-dotenv>=1.0
 pytest>=8.0
+
+# Optional. Only the near-duplicate screenshot detection in
+# adapters/clash_royale/generate_nav_map_html.py uses it - imported lazily, so
+# the navigation map still renders in full without it, just without the
+# "these screens share a screenshot" warnings. `pip install Pillow` to enable.
+# Pillow>=10.0
