@@ -60,6 +60,10 @@ class Action:
     kind: str                 # "click" | "navigate" | "fill" | ...
     element_key: str = ""
     target: str = ""          # locator for a click, url for a navigate
+    # How the control was found: "" = read straight off the DOM (the default, deterministic
+    # core); "llm" = nominated by the optional model proposer and then resolved, gated and
+    # tested like any other. Lets the wiki show the driver/skeptic verdict on a proposal.
+    origin: str = ""
 
     @property
     def id(self) -> str:

@@ -29,7 +29,7 @@ from analyze import analyze
 from identity import appearance, signature
 from oracles import run_observation_oracles
 from perceive import Collector, capture
-from safety import action_plans
+from safety import action_plans, plan
 from schema import Action, Element, Evidence, Ontology, State, Transition
 
 
@@ -133,12 +133,17 @@ def _settle(page, ms: int = 900) -> None:
 
 class Crawler:
     def __init__(self, page, collector: Collector, start_url: str, max_actions: int = 40,
-                 out_dir: Path | None = None):
+                 out_dir: Path | None = None, proposer=None):
         self.page = page
         self.col = collector
         self.start_url = start_url
         self.base_origin = f"{urlparse(start_url).scheme}://{urlparse(start_url).netloc}"
         self.max_actions = max_actions
+        # Optional model proposer(obs) -> [candidate]. Off by default (None): the crawl is
+        # then wholly deterministic. When set (crawl --llm), each new state's DOM controls
+        # are supplemented with model-nominated ones that are resolved, gated and tested
+        # like any other - the model proposes, the deterministic gate and the app dispose.
+        self.proposer = proposer
         # Where per-state screenshots go (relative "images/<id>.png" recorded on each
         # state), so the wiki can show what each state looked like - the browser analog
         # of the game wiki's per-screen picture.
@@ -158,6 +163,8 @@ class Crawler:
         # box), plus the gesture probes (hover / wheel / zoom / drag) tried on every state.
         actions = [{**e, "act_kind": p.kind, "act_value": p.value}
                    for e, p in action_plans(obs.elements, self.base_origin)]
+        if self.proposer:
+            actions += self._llm_candidate_actions(obs, actions)
         actions += gesture_actions()
         # The page currently shows this just-captured state, so a screenshot now is of it.
         image = ""
@@ -187,6 +194,52 @@ class Crawler:
         if kind in GESTURE_KINDS:
             return self._gesture(kind)
         return self._click(desc)
+
+    def _llm_candidate_actions(self, obs, existing: list[dict]) -> list[dict]:
+        """Model-nominated controls, each resolved on the live page and cleared by the
+        deterministic safety gate, ready to be tested like any DOM control. A nomination
+        that resolves to no unique element, duplicates one already found, or the gate
+        refuses is dropped here - so the model can only *add candidates to test*, never
+        widen what may be touched. Returns the extra action descriptors (origin 'llm')."""
+        known = {(a.get("role"), (a.get("name") or "").lower()) for a in existing}
+        out = []
+        for cand in self.proposer(obs):
+            key = (cand.get("role"), (cand.get("name") or "").lower())
+            if key in known:
+                continue
+            el = self._resolve_candidate(cand)
+            if el is None:                       # matched no unique element -> hallucination
+                continue
+            p = plan(el, self.base_origin)
+            if p.kind is None:                   # the read-only gate refuses it
+                continue
+            known.add(key)
+            out.append({**el, "act_kind": p.kind, "act_value": p.value, "origin": "llm"})
+        return out
+
+    def _resolve_candidate(self, cand: dict) -> dict | None:
+        """Turn a model nomination (role + name) into a real element descriptor iff it
+        matches exactly one control on the page now. No unique match -> None (dropped)."""
+        role = (cand.get("role") or "").strip().lower()
+        name = (cand.get("name") or "").strip()
+        if role not in ROLE_LOCATABLE or not name or '"' in name:
+            return None
+        try:
+            loc = self.page.get_by_role(role, name=name, exact=True)
+            if loc.count() != 1:
+                return None
+            href = ""
+            if role == "link":
+                try:
+                    href = loc.get_attribute("href", timeout=1000) or ""
+                except Exception:
+                    href = ""
+        except Exception:
+            return None
+        # A role selector string: get_by_role (the click ladder's first, most robust step)
+        # actuates it, and page.click accepts it as a fallback too.
+        return {"role": role, "name": name, "tag": "", "type": "", "href": href,
+                "locator": f'role={role}[name="{name}"]'}
 
     def _gesture(self, kind: str) -> bool:
         """A non-committing gesture at the viewport centre: hover, wheel, ctrl+wheel zoom,
@@ -357,6 +410,7 @@ class Crawler:
             element = next(a for a in rec["actions"] if a["locator"] == locator)
             act_kind = element.get("act_kind", "click")
             is_gesture = act_kind in GESTURE_KINDS
+            origin = element.get("origin", "")   # "llm" if the model nominated this control
             element_key = f"{element['role']}:{element['name']}"
             attempts = rec.setdefault("attempts", {})
             attempts[locator] = attempts.get(locator, 0) + 1
@@ -378,7 +432,8 @@ class Crawler:
                     # not a functional finding: it is a fact about the control, not an app error.
                     self.transitions.append(Transition(
                         id=f"tr{len(self.transitions) + 1:03d}", source=state_id,
-                        action=Action(kind=act_kind, element_key=element_key, target=locator),
+                        action=Action(kind=act_kind, element_key=element_key, target=locator,
+                                      origin=origin),
                         dest=state_id, effect="blocked", changed=False,
                         first_seen=self.actions_taken))
                 continue
@@ -386,7 +441,7 @@ class Crawler:
             _settle(self.page)
             after = capture(self.page, self.col)
             self.actions_taken += 1
-            action = Action(kind=act_kind, element_key=element_key, target=locator)
+            action = Action(kind=act_kind, element_key=element_key, target=locator, origin=origin)
             after_png = self._screenshot_bytes()
             shot = self._save_shot(after_png)  # a screenshot on every touch
 
@@ -467,7 +522,17 @@ def main():
     ap.add_argument("--max", type=int, default=40)
     ap.add_argument("--headed", action="store_true")
     ap.add_argument("--out", default="out/ontology.json")
+    ap.add_argument("--llm", action="store_true",
+                    help="also let the model nominate interactable controls the DOM scan "
+                         "missed (off by default; each is still resolved, safety-gated and "
+                         "tested - the crawl stays deterministic and read-only either way).")
     args = ap.parse_args()
+
+    proposer = None
+    if args.llm:
+        from propose import make_proposer  # imported only when asked, keeps default path model-free
+        proposer = make_proposer()
+        print("model proposer: " + ("on" if proposer else "unavailable (no engine auth) - deterministic only"))
 
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
@@ -475,7 +540,7 @@ def main():
         page = browser.new_page(viewport={"width": 1280, "height": 900})
         col = Collector().attach(page)
         onto = Crawler(page, col, args.url, max_actions=args.max,
-                       out_dir=Path(args.out).parent).crawl()
+                       out_dir=Path(args.out).parent, proposer=proposer).crawl()
         browser.close()
 
     out = Path(args.out)

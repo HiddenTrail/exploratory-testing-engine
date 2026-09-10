@@ -26,6 +26,23 @@ it is tried **after** a state's real controls (so it can't crowd genuine coverag
 tight budget), and a no-op gesture is never mis-reported as a "dead control".
 (Vetting-gated *form* mutations remain a later step.)
 
+### The model as a proposer (`crawl --llm`, off by default)
+
+The optional half of a **driver/skeptic** loop, and it keeps the creed — *the model
+proposes, the deterministic core disposes*. With `--llm`, each newly-discovered state's
+DOM controls are supplemented by controls the **model nominates** (an icon-only button, a
+div behaving as a button, a hover-revealed control the DOM scan missed). The model never
+gets to assert an element exists or is safe: every nomination is (1) **resolved** against
+the live page — a nomination matching no unique control is a hallucination and is dropped
+before any action; (2) run through the **same deterministic safety gate** as every other
+control, so a proposal can never widen what is touched; (3) **actuated and measured** like
+any other control. A proposed-but-`dead`/`blocked` control is the skeptic's verdict,
+recorded as measurement (and shown `model-proposed` in the wiki with its effect), not the
+model's word. Off by default, one small tool-forced call per state via the engine's auth,
+soft-failing to the deterministic path. Shown live on EcoEstate: the model nominated
+controls, all were rejected at resolution (a Leaflet canvas exposes few nameable hidden
+controls), and the deterministic map was untouched — the guardrail doing its job.
+
 ## Stage 4 (of 7) — intelligence: graph oracles + optional LLM synthesis
 
 Stage 4 adds the "intelligence" layer in two halves that keep the creed:
@@ -77,6 +94,7 @@ the question; EcoEstate (no headings) stays one state.
 | `analyze.py` | deterministic graph oracles over the finished ontology → structural observations (dead/blocked/redundant controls, dead ends). Pure, no model. |
 | `wiki.py` | `ontology.json` → a self-contained HTML wiki (state + per-action screenshots, functional findings, structural observations, nav map), by arithmetic; `build_wiki` is pure. `--llm` adds an optional model-synthesis section. `python wiki.py <ontology.json> [--out wiki.html] [--llm]`. |
 | `synthesize.py` | **optional**, off by default: one batched LLM call over the ontology digest → cited, calibrated claims (measured/inferred/speculative + rival). Uses the engine's auth; soft-fails. Pure digest/validate/render, tested with a fake client. |
+| `propose.py` | **optional**, off by default (`crawl --llm`): the model nominates interactable controls the DOM scan missed; the crawler then resolves each on the live page, runs it through the deterministic safety gate, and tests it — the model proposes, the gate and the app dispose. Pure digest/validate/parse, tested with a fake client. |
 | `capture_fixtures.py` / `capture_poc.py` | record `Observation` corpora (in `fixtures/`) so identity/oracles are tested offline. |
 
 Run: `pip install -r requirements.txt && python -m playwright install chromium`, then

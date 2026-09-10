@@ -194,7 +194,9 @@ def _states_html(onto: Ontology) -> str:
 
         outs = "".join(
             f'<li>{_esc(t.action.kind)} {_esc(t.action.element_key)} '
-            f'<span class="eff">({_esc(t.effect)})</span> &rarr; {_dest_link(t)}'
+            + ('<span class="llm" title="nominated by the model, then resolved, safety-gated '
+               'and tested">model-proposed</span> ' if getattr(t.action, "origin", "") == "llm" else '')
+            + f'<span class="eff">({_esc(t.effect)})</span> &rarr; {_dest_link(t)}'
             + (f'<img class="tr-shot" src="{_esc(t.after_image)}" loading="lazy" '
                f'alt="after {_esc(t.action.element_key)}">' if getattr(t, "after_image", "") else "")
             + '</li>' for t in out_edges[s.id])
@@ -253,6 +255,7 @@ def build_wiki(onto: Ontology, synthesis_html: str = "") -> str:
   .state-shot {{ display: block; max-width: 480px; width: 100%; border: 1px solid #cbd5e1; border-radius: 4px; margin: 8px 0; }}
   .tr-shot {{ display: block; max-width: 220px; border: 1px solid #cbd5e1; border-radius: 3px; margin: 4px 0 10px; }}
   .ext {{ color: #b45309; font-style: italic; }}
+  .llm {{ background: #ede9fe; color: #6d28d9; font-size: 11px; padding: 1px 6px; border-radius: 4px; }}
 </style></head><body>
 <header>
   <h1>web-recon wiki</h1>
