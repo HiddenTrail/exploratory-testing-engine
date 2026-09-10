@@ -49,7 +49,7 @@ def _profiles(gray: Image.Image, axis: str) -> tuple[int, list[list[int]]]:
     horizontal one. The offset search is then identical for both.
     """
     w, h = gray.size
-    px = list(gray.get_flattened_data())
+    px = list(gray.getdata())
     if axis == "vertical":
         return h, [px[y * w:(y + 1) * w] for y in range(h)]
     return w, [[px[y * w + x] for y in range(h)] for x in range(w)]
