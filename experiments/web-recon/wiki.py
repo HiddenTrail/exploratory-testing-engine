@@ -32,6 +32,14 @@ _FINDING_STYLE = {
 }
 _NODE_BLUE, _NODE_RED = "#2563eb", "#dc2626"
 
+# Structural observations (graph oracles) - not defects, so cooler colours than findings.
+_OBSERVATION_STYLE = {
+    "dead_control": ("Dead control (no observable change)", "#64748b"),
+    "blocked_control": ("Blocked control (could not actuate)", "#9333ea"),
+    "redundant_controls": ("Redundant controls (same destination)", "#0891b2"),
+    "dead_end": ("Dead end (no way onward)", "#b45309"),
+}
+
 
 def _esc(x) -> str:
     return html.escape(str(x if x is not None else ""))
@@ -144,6 +152,25 @@ def _findings_html(onto: Ontology) -> str:
     return "".join(blocks)
 
 
+def _observations_html(onto: Ontology) -> str:
+    if not onto.observations:
+        return '<p class="ok">No structural observations — no dead controls, dead ends, or redundant controls.</p>'
+    by_kind = defaultdict(list)
+    for o in onto.observations:
+        by_kind[o.kind].append(o)
+    blocks = []
+    for kind, items in sorted(by_kind.items(), key=lambda kv: kv[0]):
+        label, colour = _OBSERVATION_STYLE.get(kind, (kind, "#64748b"))
+        rows = "".join(
+            f'<tr><td>{_esc(o.state_id)}</td><td>{_esc(o.summary)}</td></tr>' for o in items)
+        blocks.append(
+            f'<h3><span class="badge" style="background:{colour}">{_esc(label)}</span> '
+            f'&times;{len(items)}</h3>'
+            f'<table class="findings"><thead><tr><th>state</th><th>detail</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table>')
+    return "".join(blocks)
+
+
 def _states_html(onto: Ontology) -> str:
     out_edges = defaultdict(list)
     in_edges = defaultdict(list)
@@ -191,8 +218,11 @@ def _states_html(onto: Ontology) -> str:
     return "".join(cards)
 
 
-def build_wiki(onto: Ontology) -> str:
-    """The whole wiki as one self-contained HTML string. Pure - no I/O, no browser."""
+def build_wiki(onto: Ontology, synthesis_html: str = "") -> str:
+    """The whole wiki as one self-contained HTML string. Pure - no I/O, no browser, no
+    model. `synthesis_html`, if given, is the optional model review the caller already
+    produced (see synthesize.run_synthesis); an empty string omits that section, so the
+    default wiki is entirely deterministic."""
     target = onto.target.get("url", "?")
     n_states, n_trans, n_find = len(onto.states), len(onto.transitions), len(onto.findings)
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -233,9 +263,12 @@ def build_wiki(onto: Ontology) -> str:
 <main>
   <h2>Functional findings</h2>
   {_findings_html(onto)}
+  <h2>Structural observations</h2>
+  {_observations_html(onto)}
   <h2>Navigation map</h2>
   <p class="meta">Red = a state with findings. &#10226; on a node = a control that stayed on the same state.</p>
   {_svg_graph(onto)}
+  {'<h2>Model synthesis</h2>' + synthesis_html if synthesis_html else ''}
   <h2>States</h2>
   {_states_html(onto)}
 </main></body></html>"""
@@ -245,12 +278,21 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("ontology")
     ap.add_argument("--out", default="")
+    ap.add_argument("--llm", action="store_true",
+                    help="add an optional model synthesis section (off by default; one batched "
+                         "call via the engine's auth). The rest of the wiki is deterministic.")
     args = ap.parse_args()
     onto = Ontology.load(args.ontology)
+    synthesis_html = ""
+    if args.llm:
+        from synthesize import run_synthesis  # imported only when asked, keeps the default path model-free
+        print("running model synthesis (--llm)...")
+        synthesis_html = run_synthesis(onto)
     out = Path(args.out) if args.out else Path(args.ontology).with_name("wiki.html")
-    out.write_text(build_wiki(onto), encoding="utf-8")
+    out.write_text(build_wiki(onto, synthesis_html), encoding="utf-8")
     print(f"wrote {out}  ({len(onto.states)} states, {len(onto.transitions)} transitions, "
-          f"{len(onto.findings)} findings)")
+          f"{len(onto.findings)} findings, {len(onto.observations)} observations"
+          f"{', + model synthesis' if args.llm else ''})")
 
 
 if __name__ == "__main__":

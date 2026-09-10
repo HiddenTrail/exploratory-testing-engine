@@ -25,6 +25,7 @@ from urllib.parse import urlparse
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from analyze import analyze
 from identity import appearance, signature
 from oracles import run_observation_oracles
 from perceive import Collector, capture
@@ -324,12 +325,14 @@ class Crawler:
                                   committing=(e["locator"] not in safe_locators),
                                   href=e.get("href", ""))
                           for e in r["elements"]]))
-        return Ontology(
+        onto = Ontology(
             target={"url": self.start_url, "origin": self.base_origin},
             session={"actions": self.actions_taken, "states": len(states)},
             states=states, transitions=self.transitions,
             findings=dedup_findings(self.findings),
         )
+        onto.observations = analyze(onto)  # deterministic graph oracles over the finished map
+        return onto
 
 
 def main():

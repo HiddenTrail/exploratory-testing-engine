@@ -106,7 +106,8 @@ class Ontology:
     session: dict = field(default_factory=dict)
     states: list[State] = field(default_factory=list)
     transitions: list[Transition] = field(default_factory=list)
-    findings: list[Evidence] = field(default_factory=list)
+    findings: list[Evidence] = field(default_factory=list)      # functional (app errors)
+    observations: list[Evidence] = field(default_factory=list)  # structural (graph oracles)
     schema: str = SCHEMA
 
     def to_dict(self) -> dict:
@@ -121,6 +122,7 @@ class Ontology:
                 for t in self.transitions
             ],
             "findings": [asdict(e) for e in self.findings],
+            "observations": [asdict(e) for e in self.observations],
         }
 
     @staticmethod
@@ -138,6 +140,7 @@ class Ontology:
             evidence = [Evidence(**e) for e in t.pop("evidence", [])]
             transitions.append(Transition(action=action, evidence=evidence, **t))
         findings = [Evidence(**e) for e in data.get("findings", [])]
+        observations = [Evidence(**e) for e in data.get("observations", [])]
         return Ontology(
             schema=data.get("schema", SCHEMA),
             target=data.get("target", {}),
@@ -145,6 +148,7 @@ class Ontology:
             states=states,
             transitions=transitions,
             findings=findings,
+            observations=observations,
         )
 
     def save(self, path: str | Path) -> Path:

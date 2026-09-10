@@ -12,7 +12,21 @@ the last one's map. And, decided up front: **the deterministic core does everyth
 itself; the LLM is off by default and, when on, only annotates the finished ontology —
 it never gates the crawl.**
 
-## Status: Stage 3 (of 7) — the wiki, by arithmetic
+## Status: Stage 4 (of 7) — intelligence: graph oracles + optional LLM synthesis
+
+Stage 4 adds the "intelligence" layer in two halves that keep the creed:
+- **Deterministic graph oracles** (`analyze.py`, always on, zero tokens): flags navigation
+  anomalies over the finished ontology — dead controls, blocked controls, redundant
+  controls (two controls to one destination), dead-end states — as *structural
+  observations*, separate from functional findings and labelled observations, not defects.
+- **Optional LLM synthesis** (`synthesize.py`, **off by default**, `wiki.py --llm`): one
+  batched tool-forced call over the ontology digest → a summary and falsifiable claims,
+  each **citing a measurement**, marked measured/inferred/speculative, and naming the rival
+  it would lose to. Runs *after* the crawl, never gates it, soft-fails to a note if the
+  model is unreachable, uses the engine's auth. Shown live on EcoEstate (Bedrock) — it even
+  flagged the crawl's own read-only limits as rivals (search needs Enter; zoom may be canvas-only).
+
+## Stage 3 — the wiki, by arithmetic
 
 Deterministic core, no model, nothing mutates the app.
 
@@ -46,7 +60,9 @@ the question; EcoEstate (no headings) stays one state.
 | `oracles.py` | deterministic functional oracles: HTTP 4xx/5xx, **failed requests (a dead endpoint)**, console errors, exceptions → `Evidence`. This is where a browser beats a game — it found the 500 below for free. |
 | `safety.py` | the read-only gate: `plan(element)` → **click** (links/buttons + view-toggle selection controls: radio/checkbox/tab/switch), **fill** (a search/filter box with a benign query), or **skip** (submit/reset, mutating-verb names, sensitive or generic text fields, off-site/non-http links — off-site fails closed — unrecognised roles). Pure. |
 | `crawl.py` | the frontier-BFS read-only crawler → `Ontology` (+ a screenshot per state, and **per action** — every touch). Actuates each control's plan; clicks via a **ladder** (unique role locator → CSS → scroll+retry → `dispatch_event` → force) so a found control is reached if it possibly can be, else recorded as a `blocked` edge (not a finding). Waits for network-idle before capture/act; **reboots** to the start before every action, and if one navigates off-origin. `choose_frontier` is a pure planner. `python crawl.py <url> [--headed] [--max N] [--out PATH]`. |
-| `wiki.py` | `ontology.json` → a self-contained HTML wiki with each state's screenshot, by arithmetic; `build_wiki` is pure. `python wiki.py <ontology.json> [--out wiki.html]`. |
+| `analyze.py` | deterministic graph oracles over the finished ontology → structural observations (dead/blocked/redundant controls, dead ends). Pure, no model. |
+| `wiki.py` | `ontology.json` → a self-contained HTML wiki (state + per-action screenshots, functional findings, structural observations, nav map), by arithmetic; `build_wiki` is pure. `--llm` adds an optional model-synthesis section. `python wiki.py <ontology.json> [--out wiki.html] [--llm]`. |
+| `synthesize.py` | **optional**, off by default: one batched LLM call over the ontology digest → cited, calibrated claims (measured/inferred/speculative + rival). Uses the engine's auth; soft-fails. Pure digest/validate/render, tested with a fake client. |
 | `capture_fixtures.py` / `capture_poc.py` | record `Observation` corpora (in `fixtures/`) so identity/oracles are tested offline. |
 
 Run: `pip install -r requirements.txt && python -m playwright install chromium`, then
