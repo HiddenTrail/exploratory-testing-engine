@@ -44,6 +44,34 @@ MAX_ACTION_ATTEMPTS = 2
 # "dead". Keeps a "dead control" observation honest.
 VISUAL_CHANGE_THRESHOLD = 0.02
 
+# Gesture probes tried on every state, at the viewport centre, in addition to the DOM
+# controls. They reveal what a click/fill cannot: a map that pans and zooms, a hover
+# tooltip/menu. All are non-committing (a wheel "is not destructive on its own", a hover
+# commits nothing, a centre drag pans content) - the safe half of the game kit's fuller
+# input set. Their effect is judged by the same before/after screenshot diff, since they
+# change pixels the DOM cannot see. A drag over content that is really a slider/drag-drop
+# could mutate; that residual risk is bounded by the reboot-before-every-action and is
+# what the later vetting pass tightens.
+_WHEEL_DELTA = 400
+_DRAG_OFFSET = (160, 0)
+GESTURE_PROBES = (
+    ("hover", "hover centre"),
+    ("wheel_down", "wheel down"),
+    ("wheel_up", "wheel up"),
+    ("zoom_in", "ctrl+wheel zoom in"),
+    ("zoom_out", "ctrl+wheel zoom out"),
+    ("drag", "drag-pan centre"),
+)
+
+
+def gesture_actions() -> list[dict]:
+    """The synthetic gesture-probe actions added to every state. Pure - the viewport
+    centre is resolved at actuation time, so this is just the fixed descriptor list."""
+    return [{"role": "gesture", "name": label, "tag": "", "type": "",
+             "locator": f"__gesture__:{kind}", "href": "",
+             "act_kind": kind, "act_value": ""}
+            for kind, label in GESTURE_PROBES]
+
 # Roles Playwright's get_by_role can target by accessible name. Addressing a control by
 # (role, name) survives DOM reshuffles - async content appearing, siblings inserted -
 # far better than a positional CSS path, which silently points at the wrong node once
@@ -117,9 +145,11 @@ class Crawler:
         if sig in self.by_sig:
             return self.by_sig[sig]
         state_id = f"st{len(self.recs) + 1:02d}"
-        # Each actuable control paired with how to actuate it (click or fill a search box).
+        # Each actuable control paired with how to actuate it (click or fill a search
+        # box), plus the gesture probes (hover / wheel / zoom / drag) tried on every state.
         actions = [{**e, "act_kind": p.kind, "act_value": p.value}
                    for e, p in action_plans(obs.elements, self.base_origin)]
+        actions += gesture_actions()
         # The page currently shows this just-captured state, so a screenshot now is of it.
         image = ""
         if self.images_dir:
@@ -140,11 +170,44 @@ class Crawler:
         return state_id
 
     def _actuate(self, desc: dict) -> bool:
-        """Perform a control's planned action - fill (a search box) or click - and say
+        """Perform a control's planned action - click, fill, or a gesture probe - and say
         whether it landed."""
-        if desc.get("act_kind") == "fill":
+        kind = desc.get("act_kind", "click")
+        if kind == "fill":
             return self._fill(desc)
+        if kind in ("hover", "wheel_down", "wheel_up", "zoom_in", "zoom_out", "drag"):
+            return self._gesture(kind)
         return self._click(desc)
+
+    def _gesture(self, kind: str) -> bool:
+        """A non-committing gesture at the viewport centre: hover, wheel, ctrl+wheel zoom,
+        or a drag-pan. Returns whether it ran without error."""
+        vp = self.page.viewport_size or {"width": 1280, "height": 800}
+        cx, cy = vp["width"] // 2, vp["height"] // 2
+        try:
+            self.page.mouse.move(cx, cy)
+            if kind == "wheel_down":
+                self.page.mouse.wheel(0, _WHEEL_DELTA)
+            elif kind == "wheel_up":
+                self.page.mouse.wheel(0, -_WHEEL_DELTA)
+            elif kind in ("zoom_in", "zoom_out"):
+                self.page.keyboard.down("Control")
+                self.page.mouse.wheel(0, -_WHEEL_DELTA if kind == "zoom_in" else _WHEEL_DELTA)
+                self.page.keyboard.up("Control")
+            elif kind == "drag":
+                dx, dy = _DRAG_OFFSET
+                self.page.mouse.down()
+                self.page.mouse.move(cx + dx, cy + dy, steps=8)
+                self.page.mouse.up()
+            # "hover" is just the move above.
+            return True
+        except Exception:
+            try:
+                self.page.keyboard.up("Control")  # never leave a modifier stuck
+                self.page.mouse.up()
+            except Exception:
+                pass
+            return False
 
     def _click(self, desc: dict) -> bool:
         """Click a control, trying every reasonable way to reach it before giving up -

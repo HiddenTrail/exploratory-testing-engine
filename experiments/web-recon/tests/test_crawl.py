@@ -7,8 +7,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from crawl import choose_frontier, dedup_findings  # noqa: E402
+from crawl import choose_frontier, dedup_findings, gesture_actions  # noqa: E402
 from schema import Evidence  # noqa: E402
+
+
+def test_gesture_probes_are_synthetic_and_complete():
+    acts = gesture_actions()
+    kinds = {a["act_kind"] for a in acts}
+    assert kinds == {"hover", "wheel_down", "wheel_up", "zoom_in", "zoom_out", "drag"}
+    assert all(a["role"] == "gesture" and a["locator"].startswith("__gesture__:") for a in acts)
 
 
 def test_none_when_no_untried_actions():

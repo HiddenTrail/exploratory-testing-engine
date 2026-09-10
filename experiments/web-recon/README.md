@@ -12,7 +12,17 @@ the last one's map. And, decided up front: **the deterministic core does everyth
 itself; the LLM is off by default and, when on, only annotates the finished ontology —
 it never gates the crawl.**
 
-## Status: Stage 4 (of 7) — intelligence: graph oracles + optional LLM synthesis
+## Status: Stage 5a (of 7) — the gesture repertoire (hover / wheel / zoom / drag)
+
+Beyond click/fill, every state is also probed with **non-committing gestures** at the
+viewport centre: hover, wheel up/down, ctrl+wheel zoom in/out, and a drag-pan — the safe
+half of the game kit's fuller input set (a wheel/hover/centre-drag commits nothing). Each
+gesture's effect is judged by the same before/after screenshot diff, so a canvas that
+pans or zooms registers as `changed`. Live on EcoEstate: wheel/ctrl+wheel zoom, drag-pan
+and hover all move the Leaflet map and are captured, where click-only saw almost nothing.
+(Vetting-gated *form* mutations remain a later step.)
+
+## Stage 4 (of 7) — intelligence: graph oracles + optional LLM synthesis
 
 Stage 4 adds the "intelligence" layer in two halves that keep the creed:
 - **Deterministic graph oracles** (`analyze.py`, always on, zero tokens): flags navigation
@@ -59,7 +69,7 @@ the question; EcoEstate (no headings) stays one state.
 | `identity.py` | "is this the same view?" — a state is its URL route + control skeleton + landmark headings; body text / map position is a *variant*, not a new state. No model. |
 | `oracles.py` | deterministic functional oracles: HTTP 4xx/5xx, **failed requests (a dead endpoint)**, console errors, exceptions → `Evidence`. This is where a browser beats a game — it found the 500 below for free. |
 | `safety.py` | the read-only gate: `plan(element)` → **click** (links/buttons + view-toggle selection controls: radio/checkbox/tab/switch), **fill** (a search/filter box with a benign query), or **skip** (submit/reset, mutating-verb names, sensitive or generic text fields, off-site/non-http links — off-site fails closed — unrecognised roles). Pure. |
-| `crawl.py` | the frontier-BFS read-only crawler → `Ontology` (+ a screenshot per state, and **per action** — every touch). Actuates each control's plan; clicks via a **ladder** (unique role locator → CSS → scroll+retry → `dispatch_event` → force) so a found control is reached if it possibly can be, else recorded as a `blocked` edge (not a finding). Waits for network-idle before capture/act; **reboots** to the start before every action, and if one navigates off-origin. When the DOM says an action changed nothing, a **before/after screenshot diff** confirms it before calling the control `dead` — so a canvas/map change the DOM can't see reads as `changed`, not a false dead. `choose_frontier` is a pure planner. `python crawl.py <url> [--headed] [--max N] [--out PATH]`. |
+| `crawl.py` | the frontier-BFS read-only crawler → `Ontology` (+ a screenshot per state, and **per action** — every touch). Actuates each control's plan; clicks via a **ladder** (unique role locator → CSS → scroll+retry → `dispatch_event` → force) so a found control is reached if it possibly can be, else recorded as a `blocked` edge (not a finding). Waits for network-idle before capture/act; **reboots** to the start before every action, and if one navigates off-origin. When the DOM says an action changed nothing, a **before/after screenshot diff** confirms it before calling the control `dead` — so a canvas/map change the DOM can't see reads as `changed`, not a false dead. Also probes each state with **gesture actions** (hover, wheel, ctrl+wheel zoom, drag-pan) at the viewport centre. `choose_frontier` is a pure planner. `python crawl.py <url> [--headed] [--max N] [--out PATH]`. |
 | `analyze.py` | deterministic graph oracles over the finished ontology → structural observations (dead/blocked/redundant controls, dead ends). Pure, no model. |
 | `wiki.py` | `ontology.json` → a self-contained HTML wiki (state + per-action screenshots, functional findings, structural observations, nav map), by arithmetic; `build_wiki` is pure. `--llm` adds an optional model-synthesis section. `python wiki.py <ontology.json> [--out wiki.html] [--llm]`. |
 | `synthesize.py` | **optional**, off by default: one batched LLM call over the ontology digest → cited, calibrated claims (measured/inferred/speculative + rival). Uses the engine's auth; soft-fails. Pure digest/validate/render, tested with a fake client. |
