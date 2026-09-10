@@ -88,6 +88,7 @@ class State:
     url: str
     signature: str
     title: str = ""
+    image: str = ""           # path (relative to the ontology) to this state's screenshot
     elements: list[Element] = field(default_factory=list)
     observations: int = 1
     first_seen: int = 0

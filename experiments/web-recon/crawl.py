@@ -74,12 +74,17 @@ def _settle(page, ms: int = 800) -> None:
 
 
 class Crawler:
-    def __init__(self, page, collector: Collector, start_url: str, max_actions: int = 40):
+    def __init__(self, page, collector: Collector, start_url: str, max_actions: int = 40,
+                 out_dir: Path | None = None):
         self.page = page
         self.col = collector
         self.start_url = start_url
         self.base_origin = f"{urlparse(start_url).scheme}://{urlparse(start_url).netloc}"
         self.max_actions = max_actions
+        # Where per-state screenshots go (relative "images/<id>.png" recorded on each
+        # state), so the wiki can show what each state looked like - the browser analog
+        # of the game wiki's per-screen picture.
+        self.images_dir = (out_dir / "images") if out_dir else None
         self.recs: dict[str, dict] = {}     # state_id -> record
         self.by_sig: dict[str, str] = {}    # signature -> state_id
         self.transitions: list[Transition] = []
@@ -92,10 +97,19 @@ class Crawler:
             return self.by_sig[sig]
         state_id = f"st{len(self.recs) + 1:02d}"
         safe = safe_actions(obs.elements, self.base_origin)
+        # The page currently shows this just-captured state, so a screenshot now is of it.
+        image = ""
+        if self.images_dir:
+            try:
+                self.images_dir.mkdir(parents=True, exist_ok=True)
+                self.page.screenshot(path=str(self.images_dir / f"{state_id}.png"))
+                image = f"images/{state_id}.png"
+            except Exception:
+                image = ""
         self.recs[state_id] = {
             "id": state_id, "signature": sig, "url": obs.url, "title": obs.title,
-            "headings": obs.headings, "elements": obs.elements, "path": list(path),
-            "safe": safe, "tried": set(), "first_seen": self.actions_taken,
+            "image": image, "headings": obs.headings, "elements": obs.elements,
+            "path": list(path), "safe": safe, "tried": set(), "first_seen": self.actions_taken,
         }
         self.by_sig[sig] = state_id
         return state_id
@@ -188,7 +202,7 @@ class Crawler:
     def _build(self) -> Ontology:
         states = [
             State(id=r["id"], url=r["url"], signature=r["signature"], title=r["title"],
-                  first_seen=r["first_seen"],
+                  image=r.get("image", ""), first_seen=r["first_seen"],
                   elements=[Element(key=f"{e['role']}:{e['name']}", role=e["role"],
                                     name=e["name"], kind=e.get("tag", ""), locator=e["locator"],
                                     committing=(e not in r["safe"]), href=e.get("href", ""))
@@ -216,7 +230,8 @@ def main():
         browser = p.chromium.launch(headless=not args.headed, slow_mo=400 if args.headed else 0)
         page = browser.new_page(viewport={"width": 1280, "height": 900})
         col = Collector().attach(page)
-        onto = Crawler(page, col, args.url, max_actions=args.max).crawl()
+        onto = Crawler(page, col, args.url, max_actions=args.max,
+                       out_dir=Path(args.out).parent).crawl()
         browser.close()
 
     out = Path(args.out)

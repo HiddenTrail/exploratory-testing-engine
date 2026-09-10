@@ -12,17 +12,26 @@ the last one's map. And, decided up front: **the deterministic core does everyth
 itself; the LLM is off by default and, when on, only annotates the finished ontology —
 it never gates the crawl.**
 
-## Status: Stage 2 (of 7) — read-only frontier crawl → a real ontology
+## Status: Stage 3 (of 7) — the wiki, by arithmetic
 
 Deterministic core, no model, nothing mutates the app.
 
+Stage 3 turns an `ontology.json` into a browsable **HTML wiki** with `wiki.py`
+(`build_wiki` is a pure function of the ontology): a summary, the headline **Functional
+findings** page a game wiki never had (every HTTP error / failed request / console
+error / exception with the state it fired in), an SVG **navigation map** (states as
+nodes, transitions as edges; a state with findings is red), and a per-state detail card
+with **a screenshot of the state** (the browser analog of the game wiki's per-screen
+picture), its signature, URL, exits, findings, and interactive elements. Proven on both
+crawls — the
+EcoEstate wiki names the `property-prices` 500 with its evidence; the PoC wiki draws the
+whole question ↔ Yes/No graph.
+
 Stage 2 crawls an app by frontier-BFS: enumerate each state's safe actions, go to the
 nearest state with an untried one (replaying its discovery path), act, and record where
-it led plus any evidence. Proven live: the multi-page PoC yields **3 states / 4
-transitions** (the whole question ↔ Yes/No graph); **EcoEstate yields 1 state and 4
-findings** — the crawl re-catches the `property-prices` 500 with no model. The
-read-only gate (`safety.py`) refuses form inputs, mutating-verb names, submit/reset,
-off-site and non-http links, and any unrecognised role (fail-closed).
+it led plus any evidence. The read-only gate (`safety.py`) refuses form inputs,
+mutating-verb names, submit/reset, off-site and non-http links, and any unrecognised
+role (fail-closed).
 
 Stage 1 (identity) result, still holding: the control-skeleton signature collapsed the
 PoC's "You said yes" / "You said no" pages (both only a Back button); fixed by adding
@@ -36,7 +45,8 @@ the question; EcoEstate (no headings) stays one state.
 | `identity.py` | "is this the same view?" — a state is its URL route + control skeleton + landmark headings; body text / map position is a *variant*, not a new state. No model. |
 | `oracles.py` | deterministic functional oracles: HTTP 4xx/5xx, **failed requests (a dead endpoint)**, console errors, exceptions → `Evidence`. This is where a browser beats a game — it found the 500 below for free. |
 | `safety.py` | the read-only gate: `committing(element)` — refuses form inputs, mutating-verb names, submit/reset, off-site/non-http links, unrecognised roles (fail-closed). Pure. |
-| `crawl.py` | the frontier-BFS read-only crawler → `Ontology`; `choose_frontier` is a pure planner. `python crawl.py <url> [--headed] [--max N] [--out PATH]`. |
+| `crawl.py` | the frontier-BFS read-only crawler → `Ontology` (+ a screenshot per state under `images/`); `choose_frontier` is a pure planner. `python crawl.py <url> [--headed] [--max N] [--out PATH]`. |
+| `wiki.py` | `ontology.json` → a self-contained HTML wiki with each state's screenshot, by arithmetic; `build_wiki` is pure. `python wiki.py <ontology.json> [--out wiki.html]`. |
 | `capture_fixtures.py` / `capture_poc.py` | record `Observation` corpora (in `fixtures/`) so identity/oracles are tested offline. |
 
 Run: `pip install -r requirements.txt && python -m playwright install chromium`, then
