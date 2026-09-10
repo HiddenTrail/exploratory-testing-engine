@@ -737,6 +737,42 @@ consumer can take the observed claims and leave the guesses.
     read 13% darker and moved 1045 of 2304 cells, which a downstream check duly reported as
     an unknown screen when it was the right screen under a veil.
 
+29. **A scrollable screen was a new screen at every offset, and one feed became a dozen.**
+    The wheel and drag from item 26 could *reach* a scrollable list, but identity had no
+    notion of one: a scroll changes most of the frame, so `observe` filed each offset as a
+    fresh screen and a news feed split into eight look-alikes named `sc10`..`sc17` - the
+    same over-split an animated background causes (item 15/16), except unbounded, since a
+    surface can be arbitrarily tall. It is also the exact shape the model kept re-describing
+    with slightly different words, which the split ceiling could not catch because the
+    frames genuinely differ.
+
+    `scroll_shift` recognises the shape a scroll leaves *before* `observe` mints a screen:
+    the content is the previous frame translated along one axis, under fixed chrome, with
+    new content at the leading edge. It is done on **row and column profiles, not cells**,
+    and that is a measured choice - a real scroll moves a fractional number of the 18 grid
+    rows and the HALFTONE downsample then blends each cell across two source rows, so at the
+    *correct* shift under 10% of cells reproduce. Averaging a whole grid line together
+    smooths through that blur and through a moving background: on a live feed the genuine
+    scroll steps all aligned at one shift with a mean per-byte line distance of 29-49, where
+    navigations between distinct screens sat at 52-90 and could not beat 0.83x the no-shift
+    distance. A `scrolled` transition keeps `after_screen == the source screen`, so it is a
+    self-loop and **cannot merge two distinct screens** - the worst it can do is record a
+    scroll that was not one, on the screen you were already on. A live pass confirmed it: 9
+    feed scrolls recorded as self-loops with a consistent magnitude, versus 0 before.
+
+    The surface is then one node, so it can be shown as one page. `stitch.py` composes the
+    saved per-offset frames into a panorama - the fixed chrome once, then each frame's
+    newly-revealed strip - finding the seam by the same profile correlation and **stopping
+    at a bad seam rather than splicing** a near-duplicate. It is offline-testable against
+    sliced synthetic frames and needs Pillow only for the picture; the `surface` facts and
+    the raw frames are the record either way. Two limits are deliberate: the offset search
+    caps at ~80% of the viewport, so a fling that scrolls almost a whole page off-screen
+    leaves nothing to align and the chain stops (a truncated page beats a fabricated one),
+    and frames are kept for the **first axis scrolled only**, since a page stitches along
+    one axis and mixing them would break the seam chain. The live *capture* of those frames
+    is gated behind item 28: the feed screens that scroll are the animated ones the
+    readiness gate cannot settle, so a clean end-to-end capture is still pending that fix.
+
 ## What is reused, and what standalone means
 
 `probe.py` is imported for capture, input, PNG writing and window finding - it was

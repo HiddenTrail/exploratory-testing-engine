@@ -434,6 +434,12 @@ SCROLL_MIN_CHANGE = 25.0
 SCROLL_ALIGN_MAX = 50.0
 SCROLL_ALIGN_RATIO = 0.90
 
+# How many scroll frames to keep per surface for the stitched panorama. A cap because
+# a tall feed can be scrolled indefinitely and each frame is a full-res PNG; a dozen
+# offsets is already several screens of page, and the stitch stops at the first bad
+# seam anyway.
+MAX_SCROLL_VIEWS = 12
+
 
 @dataclass(frozen=True)
 class ScrollShift:
@@ -1013,6 +1019,16 @@ class Screen:
     scroll_axes: set[str] = field(default_factory=set)
     scroll_steps: int = 0
     scroll_revealed: int = 0
+    # Ordered full-res frames captured at each recognised scroll offset, and the stitched
+    # panorama built from them - the whole page as one picture, not the viewport. The
+    # frames are the raw evidence (so the panorama can be re-stitched offline); the
+    # panorama is derived. Both are image paths relative to the pass directory.
+    scroll_views: list[str] = field(default_factory=list)
+    # The axis those views were captured along. A surface can be scrolled both ways over
+    # a pass; the panorama can only stitch one, so views are only kept for the first axis
+    # scrolled, and the rest of that axis's frames stay a clean single-axis sequence.
+    panorama_axis: str = ""
+    panorama: str = ""
     vetting: dict | None = None
     degenerate: bool = False
     vet_budget: int = 0
@@ -1092,6 +1108,9 @@ class Recon:
         self.splits = 0
         self.match_scores: list[float] = []
         self.resumed_from = ""
+        # Scroll-view count last stitched into each surface's panorama, so a periodic
+        # save only re-stitches a surface whose frames have actually grown.
+        self.panorama_view_counts: dict[str, int] = {}
         # Which screen the last classified frame was filed as, so the *next* frame can be
         # judged against the place we are standing in. Without it the incumbent
         # preference in `_match_screen` only holds inside a single recorded action, and
@@ -2240,6 +2259,17 @@ class Recon:
             after_variant = before_variant or next(iter(screen.variants.values()))
             kind = "scrolled"
             screen.note_scroll(shift)
+            # Keep the full-res frame at this offset, in order, for the stitched
+            # panorama. The window still shows the scrolled state at this point (the
+            # action has settled and been observed), so a plain capture is that frame.
+            # Only one axis can be stitched into a page, so fix on the first axis scrolled
+            # and ignore the other's frames - mixing them would break the seam chain.
+            if not screen.panorama_axis:
+                screen.panorama_axis = shift.axis
+            if shift.axis == screen.panorama_axis and len(screen.scroll_views) < MAX_SCROLL_VIEWS:
+                name = f"{screen.id}-scroll{len(screen.scroll_views) + 1}.png"
+                self.controller.save_png(self.images / name)
+                screen.scroll_views.append(f"images/{name}")
         elif changed == 0 and before_variant is not None:
             # An identical picture cannot be a different place, and classifying it again
             # can say otherwise: two screens with large volatile masks - a puzzle grid
@@ -2945,6 +2975,9 @@ class Recon:
                 scroll_axes=set((entry.get("surface") or {}).get("axes", [])),
                 scroll_steps=(entry.get("surface") or {}).get("scroll_steps", 0),
                 scroll_revealed=(entry.get("surface") or {}).get("revealed_cells_floor", 0),
+                scroll_views=list((entry.get("surface") or {}).get("views", [])),
+                panorama_axis=(entry.get("surface") or {}).get("views_axis") or "",
+                panorama=(entry.get("surface") or {}).get("panorama") or "",
             )
             if explored.get("vetted"):
                 screen.vetting = {"name": entry.get("name") or "",
@@ -3120,6 +3153,12 @@ class Recon:
                         # the surface's true height - the pass stops scrolling when it
                         # stops learning - which is why it is labelled a floor.
                         "revealed_cells_floor": screen.scroll_revealed,
+                        # The ordered frames the scroll passed through, the axis they
+                        # were captured along, and the whole page stitched from them
+                        # (None if Pillow was absent or nothing aligned).
+                        "views": screen.scroll_views,
+                        "views_axis": screen.panorama_axis or None,
+                        "panorama": screen.panorama or None,
                     } if screen.scroll_axes else None),
                     "hover": {
                         "probed": screen.hover_probe_count,
@@ -3256,7 +3295,36 @@ class Recon:
             return ""
         return next((v.image for v in screen.variants.values() if v.id == variant_id), "")
 
+    def _stitch_surfaces(self) -> None:
+        """Build each scrollable surface's panorama from its ordered scroll frames.
+
+        Pillow is imported lazily and its absence is not an error - the panorama is a
+        convenience, the frames and the "surface" facts are the record. Re-stitches a
+        surface only when its frame count has grown since the last save, so a periodic
+        checkpoint does not redo every panorama.
+        """
+        surfaces = [s for s in self.screens.values() if s.scroll_axes and s.scroll_views]
+        if not surfaces:
+            return
+        try:
+            import stitch
+        except ImportError:
+            return
+        for screen in surfaces:
+            frames = ([self.out / screen.image()] if screen.image() else []) \
+                + [self.out / v for v in screen.scroll_views]
+            frames = [p for p in frames if p.exists()]
+            if len(frames) < 2 or self.panorama_view_counts.get(screen.id) == len(frames):
+                continue
+            axis = screen.panorama_axis or ("vertical" if "vertical" in screen.scroll_axes
+                                            else "horizontal")
+            out = self.images / f"surface-{screen.id}.png"
+            if stitch.stitch_to_file([str(p) for p in frames], out, axis=axis):
+                screen.panorama = f"images/surface-{screen.id}.png"
+            self.panorama_view_counts[screen.id] = len(frames)
+
     def save(self) -> Path:
+        self._stitch_surfaces()
         path = self.out / "ontology.json"
         path.write_text(json.dumps(self.to_json(), indent=2), encoding="utf-8")
         return path

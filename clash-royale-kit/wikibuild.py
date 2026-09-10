@@ -745,6 +745,24 @@ def screen_page(screen: dict, data: dict, facts: Facts, ctx: Ctx, run_dir: Path)
     if screen.get("image"):
         body += [f"![{sid}]({ctx.image(screen['image'])})", ""]
 
+    # A scrollable surface is one page, not the chain of look-alike screens a scroll
+    # would otherwise mint. Show the whole page stitched from the scroll frames, so the
+    # reader sees everything past the fold in one picture rather than one viewport.
+    surface = screen.get("surface")
+    if surface and surface.get("axes"):
+        axes = " and ".join(surface["axes"])
+        body += ["## The whole page", "",
+                 f"This screen scrolls ({axes}); the recon recognised {surface.get('scroll_steps', 0)} "
+                 f"scroll(s) on it as the same surface rather than new screens, and at least "
+                 f"{surface.get('revealed_cells_floor', 0)} cells of content sit past the visible "
+                 f"frame.{_cite('ontology')}", ""]
+        if surface.get("panorama"):
+            body += [f"![{sid} - whole page]({ctx.image(surface['panorama'])})", ""]
+        else:
+            body += ["*(No stitched picture - either Pillow was not installed when the pass "
+                     "ran (`pip install Pillow`) or fewer than two scroll frames were "
+                     "captured. The scroll facts above are the same either way.)*", ""]
+
     regions = animation_regions(screen, data["session"].get("grid") or [1, 1])
     if regions["red"] or regions["orange"]:
         body += ["## Where this screen animates on its own", ""]

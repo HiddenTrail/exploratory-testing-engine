@@ -143,6 +143,11 @@ class FakeController:
 
     def __init__(self) -> None:
         self.target = Target(name="Fake", exe="")
+        self.saved: list = []
+
+    def save_png(self, path) -> None:
+        # The scrolled branch captures the offset frame; a no-op stub is enough here.
+        self.saved.append(path)
 
 
 def _screen_showing(fp: bytes) -> Screen:

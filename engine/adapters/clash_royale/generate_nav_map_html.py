@@ -315,6 +315,15 @@ def _generate_html_from_ontology(source_dir: Path, ontology: dict) -> str:
                     margin: 8px 0;
                 }}
 
+                .surface-panorama {{
+                    display: block;
+                    width: 100%;
+                    max-width: 300px;
+                    border: 1px solid #7dd3fc;
+                    border-radius: 4px;
+                    margin: 8px 0;
+                }}
+
                 .screen-image {{
                     width: 100%;
                     max-width: 300px;
@@ -674,6 +683,14 @@ def _build_detail_panels(
                 f'at least {surface.get("revealed_cells_floor", 0)} cells of content '
                 f'sit past the visible frame.</p>'
             )
+            # The whole page stitched from the scroll frames, when one was built - this
+            # is the payoff of treating the surface as one node rather than a chain.
+            panorama = surface.get("panorama")
+            if panorama:
+                surface_note += (
+                    f'<img class="surface-panorama" src="{html.escape(panorama)}" '
+                    f'alt="{html.escape(name)} - whole page" loading="lazy">'
+                )
 
         # Flag near-identical screenshots (likely a recon over-split).
         duplicate_note = ""
