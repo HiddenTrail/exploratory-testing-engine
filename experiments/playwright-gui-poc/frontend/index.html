@@ -8,10 +8,25 @@
   </head>
   <body>
     <main id="app">
-      <h1>Is this a test?</h1>
-      <button id="yes-btn">Yes</button>
-      <button id="no-btn">No</button>
-      <p id="response"></p>
+      <section id="question-page">
+        <h1>Is this a test?</h1>
+        <button id="yes-btn">Yes</button>
+        <button id="no-btn">No</button>
+      </section>
+
+      <section id="yes-page" hidden>
+        <h1>You said yes</h1>
+        <p>Here is what the backend had to say about that:</p>
+        <p id="yes-text"></p>
+        <button class="back-btn" id="yes-back">Back</button>
+      </section>
+
+      <section id="no-page" hidden>
+        <h1>You said no</h1>
+        <p>Here is what the backend had to say about that:</p>
+        <p id="no-text"></p>
+        <button class="back-btn" id="no-back">Back</button>
+      </section>
     </main>
     <script type="module" src="/src/main.js"></script>
   </body>
