@@ -65,12 +65,40 @@ _SENSITIVE_TYPES = frozenset({"password", "email", "tel", "number", "date", "fil
 # Link schemes that are not a same-app navigation to follow.
 _NON_NAV_SCHEMES = frozenset({"mailto", "tel", "javascript", "file", "data", "blob", "ws", "wss", "about"})
 
+# Stage 5b vetting. Two disjoint sets decide whether a *committing* control - one the
+# read-only gate refuses - may be actuated when the operator explicitly enables mutations
+# (crawl --mutate). Fail-closed throughout: a committing control is touched only if it is
+# affirmatively reversible AND carries no destructive verb; anything unrecognised is refused.
+#
+# NEVER actuated, mutations enabled or not: irreversible, destructive, money, auth, or
+# data-writing. This is stricter than a bare read-only skip - it is the "even if you asked,
+# no" list, so a --mutate run cannot delete, buy, send, publish, or sign out.
+_DESTRUCTIVE_WORDS = (
+    "delete", "remove", "discard", "buy", "purchase", "pay", "checkout", "order",
+    "save", "send", "confirm", "create", "publish", "post", "book", "upload",
+    "subscribe", "unsubscribe", "sign out", "signout", "log out", "logout", "reset",
+    "add to cart", "add to basket", "download", "accept", "agree", "edit", "update",
+)
+_DESTRUCTIVE_RE = re.compile(r"\b(" + "|".join(re.escape(w) for w in _DESTRUCTIVE_WORDS) + r")\b")
+# The only committing actions a vetting pass admits: a search / filter / sort / show query,
+# which is a read on the server (an idempotent GET-style request), reversible by nature.
+_REVERSIBLE_WORDS = ("search", "filter", "find", "show", "sort", "calculate", "compute",
+                     "preview", "refresh", "lookup", "go")
+_REVERSIBLE_RE = re.compile(r"\b(" + "|".join(re.escape(w) for w in _REVERSIBLE_WORDS) + r")\b")
+
 
 @dataclass(frozen=True)
 class Plan:
     kind: str | None       # "click" | "fill" | None (skip)
     reason: str
     value: str = ""        # what to type, for a "fill"
+
+
+@dataclass(frozen=True)
+class Vetting:
+    kind: str | None       # "submit_search" | "submit" | None (refuse)
+    reason: str
+    value: str = ""        # what to type, for a submit_search
 
 
 def _netloc(url: str) -> str:
@@ -125,6 +153,55 @@ def plan(element: dict, base_origin: str = "") -> Plan:
 def committing(element: dict, base_origin: str = "") -> bool:
     """True if the read-only crawl must NOT act on this element at all."""
     return plan(element, base_origin).kind is None
+
+
+def vet(element: dict, base_origin: str = "", enabled: bool = False) -> Vetting:
+    """Stage 5b: may this *committing* control be actuated as a vetted mutation?
+
+    Pure, deterministic, and fail-closed - the model never reaches this decision. It admits
+    exactly one class: a **reversible, read-style query submit** (a search / filter / sort /
+    show), which is an idempotent GET on the server, not a data write. Anything carrying a
+    destructive verb (delete, buy, send, save, publish, sign out, ...) is refused even here,
+    as is a sensitive field and anything unrecognised. Returns how to actuate it, or refuse.
+
+    `enabled` gates the whole pass: with mutations off (the default) every control is
+    refused, so the crawl stays read-only unless the operator opts in with --mutate."""
+    if not enabled:
+        return Vetting(None, "mutations are disabled - the crawl is read-only")
+    role = element.get("role", "")
+    name = (element.get("name") or "").strip().lower()
+    itype = (element.get("type") or "").strip().lower()
+    field = _field_text(element)
+
+    if element.get("disabled"):
+        return Vetting(None, "the control is disabled")
+    if _DESTRUCTIVE_RE.search(name) or _DESTRUCTIVE_RE.search(field):
+        return Vetting(None, "carries a destructive/irreversible verb - refused even under --mutate")
+
+    # A text field: the sensitive guard applies here (never type into a password/card/price
+    # box). A search/filter box may be filled with a benign query and submitted (Enter) -
+    # the read-only pass fills but will not submit; this is its vetted, reversible extension.
+    if role in TEXT_ROLES:
+        if itype in _SENSITIVE_TYPES or _SENSITIVE_RE.search(field):
+            return Vetting(None, "a sensitive field - never submitted")
+        if itype == "search" or _SEARCHY_RE.search(field):
+            return Vetting("submit_search", "submit a search/filter query - an idempotent, reversible read", SEARCH_PROBE)
+        return Vetting(None, "a generic text field - not a vetted query")
+    # A submit button, or a button named like a reversible query action (Search / Filter / Sort).
+    if (itype == "submit" or role == "button") and _REVERSIBLE_RE.search(name):
+        return Vetting("submit", "a reversible query submit (search/filter/sort/show)")
+    return Vetting(None, "not an affirmatively-reversible commit - fail closed")
+
+
+def vetted_actions(elements: list[dict], base_origin: str = "", enabled: bool = False
+                   ) -> list[tuple[dict, Vetting]]:
+    """Each committing element paired with its vetting, for the ones a mutation pass admits."""
+    out = []
+    for e in elements:
+        v = vet(e, base_origin, enabled)
+        if v.kind is not None:
+            out.append((e, v))
+    return out
 
 
 def action_plans(elements: list[dict], base_origin: str = "") -> list[tuple[dict, Plan]]:

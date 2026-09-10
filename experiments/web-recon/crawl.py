@@ -29,7 +29,7 @@ from analyze import analyze
 from identity import appearance, signature
 from oracles import run_observation_oracles
 from perceive import Collector, capture
-from safety import action_plans, plan
+from safety import action_plans, plan, vetted_actions
 from schema import Action, Element, Evidence, Ontology, State, Transition
 
 
@@ -133,7 +133,7 @@ def _settle(page, ms: int = 900) -> None:
 
 class Crawler:
     def __init__(self, page, collector: Collector, start_url: str, max_actions: int = 40,
-                 out_dir: Path | None = None, proposer=None):
+                 out_dir: Path | None = None, proposer=None, mutate: bool = False):
         self.page = page
         self.col = collector
         self.start_url = start_url
@@ -144,6 +144,10 @@ class Crawler:
         # are supplemented with model-nominated ones that are resolved, gated and tested
         # like any other - the model proposes, the deterministic gate and the app dispose.
         self.proposer = proposer
+        # Stage 5b: when True (crawl --mutate, off by default), committing controls that the
+        # deterministic vetting pass admits - only reversible query submits (search/filter/
+        # sort) - are also actuated. Everything destructive stays refused even then.
+        self.mutate = mutate
         # Where per-state screenshots go (relative "images/<id>.png" recorded on each
         # state), so the wiki can show what each state looked like - the browser analog
         # of the game wiki's per-screen picture.
@@ -165,6 +169,8 @@ class Crawler:
                    for e, p in action_plans(obs.elements, self.base_origin)]
         if self.proposer:
             actions += self._llm_candidate_actions(obs, actions)
+        if self.mutate:
+            actions += self._mutation_actions(obs.elements)
         actions += gesture_actions()
         # The page currently shows this just-captured state, so a screenshot now is of it.
         image = ""
@@ -191,8 +197,11 @@ class Crawler:
         kind = desc.get("act_kind", "click")
         if kind == "fill":
             return self._fill(desc)
+        if kind == "submit_search":
+            return self._submit_search(desc)
         if kind in GESTURE_KINDS:
             return self._gesture(kind)
+        # "click" and a vetted "submit" button both go through the click ladder.
         return self._click(desc)
 
     def _llm_candidate_actions(self, obs, existing: list[dict]) -> list[dict]:
@@ -215,6 +224,18 @@ class Crawler:
                 continue
             known.add(key)
             out.append({**el, "act_kind": p.kind, "act_value": p.value, "origin": "llm"})
+        return out
+
+    def _mutation_actions(self, elements: list[dict]) -> list[dict]:
+        """Vetted committing controls (only reversible query submits - search/filter/sort)
+        added as extra actions when --mutate is on. Each gets a distinct '__mutate__:'
+        identity so it coexists with the read-only fill of the same field, and carries its
+        real selector in 'act_target'. Everything destructive the vetting pass refuses."""
+        out = []
+        for e, v in vetted_actions(elements, self.base_origin, enabled=True):
+            css = e["locator"]
+            out.append({**e, "act_kind": v.kind, "act_value": v.value, "origin": "mutation",
+                        "locator": f"__mutate__:{v.kind}:{css}", "act_target": css})
         return out
 
     def _resolve_candidate(self, cand: dict) -> dict | None:
@@ -285,7 +306,8 @@ class Crawler:
 
         Only reached for controls the safety gate already cleared, so trying harder does
         not widen what may be touched - it only makes reaching it more reliable."""
-        role, name, css = desc.get("role", ""), (desc.get("name") or ""), desc["locator"]
+        role, name = desc.get("role", ""), (desc.get("name") or "")
+        css = desc.get("act_target") or desc["locator"]
         if role in ROLE_LOCATABLE and name:
             try:
                 loc = self.page.get_by_role(role, name=name, exact=True)
@@ -313,9 +335,22 @@ class Crawler:
         Enter. Enter can submit an enclosing <form> (a POST the gate never vetted, and a
         server write the reboot cannot undo). Live-filter UIs react to the input itself;
         a submit-only search is missed on purpose, the safe read-only choice."""
-        css, value = desc["locator"], desc.get("act_value", "test")
+        css, value = (desc.get("act_target") or desc["locator"]), desc.get("act_value", "test")
         try:
             self.page.fill(css, value, timeout=4000)
+            return True
+        except Exception:
+            return False
+
+    def _submit_search(self, desc: dict) -> bool:
+        """A vetted mutation (--mutate only): fill a search/filter box with a benign query
+        and press Enter to submit it. Unlike the read-only _fill, this *does* submit - but
+        only for a control the deterministic vetting pass confirmed is a reversible,
+        idempotent query (a GET-style search), never a data-writing form."""
+        css, value = (desc.get("act_target") or desc["locator"]), desc.get("act_value", "test")
+        try:
+            self.page.fill(css, value, timeout=4000)
+            self.page.press(css, "Enter")
             return True
         except Exception:
             return False
@@ -526,6 +561,10 @@ def main():
                     help="also let the model nominate interactable controls the DOM scan "
                          "missed (off by default; each is still resolved, safety-gated and "
                          "tested - the crawl stays deterministic and read-only either way).")
+    ap.add_argument("--mutate", action="store_true",
+                    help="also actuate committing controls the deterministic vetting pass "
+                         "admits - only reversible query submits (search/filter/sort); "
+                         "destructive controls stay refused. OFF by default (read-only).")
     args = ap.parse_args()
 
     proposer = None
@@ -533,6 +572,8 @@ def main():
         from propose import make_proposer  # imported only when asked, keeps default path model-free
         proposer = make_proposer()
         print("model proposer: " + ("on" if proposer else "unavailable (no engine auth) - deterministic only"))
+    if args.mutate:
+        print("mutations: ON - vetted, reversible query submits only (search/filter/sort)")
 
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
@@ -540,7 +581,7 @@ def main():
         page = browser.new_page(viewport={"width": 1280, "height": 900})
         col = Collector().attach(page)
         onto = Crawler(page, col, args.url, max_actions=args.max,
-                       out_dir=Path(args.out).parent, proposer=proposer).crawl()
+                       out_dir=Path(args.out).parent, proposer=proposer, mutate=args.mutate).crawl()
         browser.close()
 
     out = Path(args.out)

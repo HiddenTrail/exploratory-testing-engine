@@ -128,6 +128,20 @@ def test_llm_candidates_are_resolved_gated_and_marked():
     assert out[0]["origin"] == "llm" and out[0]["act_kind"] == "click"
 
 
+def test_mutation_actions_are_vetted_and_carry_a_distinct_identity():
+    c = Crawler(page=None, collector=None, start_url="http://app.example/", mutate=True)
+    elements = [
+        {"role": "textbox", "name": "Search postcodes", "type": "text", "locator": "#q", "href": ""},
+        {"role": "button", "name": "Delete", "type": "submit", "locator": "#del", "href": ""},  # refused
+    ]
+    out = c._mutation_actions(elements)
+    assert len(out) == 1
+    a = out[0]
+    assert a["act_kind"] == "submit_search" and a["origin"] == "mutation"
+    # distinct identity (coexists with the read-only fill of the same field) + real selector
+    assert a["locator"] == "__mutate__:submit_search:#q" and a["act_target"] == "#q"
+
+
 def test_dedup_findings_collapses_identical_only():
     fs = [
         Evidence(kind="http_error", summary="500 x", state_id="st01"),

@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from safety import action_plans, committing, plan, safe_actions  # noqa: E402
+from safety import action_plans, committing, plan, safe_actions, vet, vetted_actions  # noqa: E402
 
 
 def el(**kw):
@@ -85,6 +85,46 @@ def test_unrecognised_role_fails_closed():
     assert committing(el(role="img", name="banner"))
     assert committing(el(role="slider", name="Year"))
     assert committing(el(role="combobox", name="Mode"))
+
+
+def test_vetting_is_off_unless_enabled():
+    # With mutations disabled (the default) every control is refused - the crawl is read-only.
+    assert vet(el(role="button", name="Search", type="submit"), enabled=False).kind is None
+    assert vet(el(role="textbox", name="Search postcodes"), enabled=False).kind is None
+
+
+def test_vetting_admits_only_reversible_query_submits():
+    # A search/filter box -> a submit_search (fill + Enter); a Search/Filter/Sort button -> submit.
+    assert vet(el(role="textbox", name="Search postcodes", type="text"), enabled=True).kind == "submit_search"
+    assert vet(el(role="searchbox", name="", type="search"), enabled=True).kind == "submit_search"
+    assert vet(el(role="button", name="Search", type="submit"), enabled=True).kind == "submit"
+    assert vet(el(role="button", name="Apply filter"), enabled=True).kind == "submit"
+    assert vet(el(role="button", name="Sort by price"), enabled=True).kind == "submit"
+
+
+def test_vetting_refuses_destructive_even_when_enabled():
+    # The "even if you asked, no" list: irreversible / money / auth / data-writing.
+    for n in ("Delete", "Buy now", "Pay", "Checkout", "Save", "Send", "Publish",
+              "Sign out", "Subscribe", "Confirm order", "Reset", "Upload"):
+        assert vet(el(role="button", name=n, type="submit"), enabled=True).kind is None, n
+
+
+def test_vetting_refuses_sensitive_and_unrecognised_even_when_enabled():
+    assert vet(el(role="textbox", name="Password", type="password"), enabled=True).kind is None
+    assert vet(el(role="textbox", name="Card number"), enabled=True).kind is None
+    # A plain submit with no reversible-query name is not affirmatively reversible -> refused.
+    assert vet(el(role="button", name="Continue", type="submit"), enabled=True).kind is None
+    assert vet(el(role="button", name="OK"), enabled=True).kind is None
+    assert vet(el(role="button", name="Search", type="submit", disabled=True), enabled=True).kind is None
+
+
+def test_vetted_actions_pairs_only_admitted_controls():
+    elements = [el(role="textbox", name="Search postcodes", type="text"),
+                el(role="button", name="Delete", type="submit"),
+                el(role="button", name="Filter", type="submit")]
+    got = {e["name"]: v.kind for e, v in vetted_actions(elements, enabled=True)}
+    assert got == {"Search postcodes": "submit_search", "Filter": "submit"}
+    assert vetted_actions(elements, enabled=False) == []   # off by default
 
 
 def test_safe_actions_and_plans():

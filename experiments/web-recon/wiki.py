@@ -196,6 +196,9 @@ def _states_html(onto: Ontology) -> str:
             f'<li>{_esc(t.action.kind)} {_esc(t.action.element_key)} '
             + ('<span class="llm" title="nominated by the model, then resolved, safety-gated '
                'and tested">model-proposed</span> ' if getattr(t.action, "origin", "") == "llm" else '')
+            + ('<span class="mut" title="a committing control the deterministic vetting pass '
+               'admitted as a reversible query submit">vetted mutation</span> '
+               if getattr(t.action, "origin", "") == "mutation" else '')
             + f'<span class="eff">({_esc(t.effect)})</span> &rarr; {_dest_link(t)}'
             + (f'<img class="tr-shot" src="{_esc(t.after_image)}" loading="lazy" '
                f'alt="after {_esc(t.action.element_key)}">' if getattr(t, "after_image", "") else "")
@@ -256,6 +259,7 @@ def build_wiki(onto: Ontology, synthesis_html: str = "") -> str:
   .tr-shot {{ display: block; max-width: 220px; border: 1px solid #cbd5e1; border-radius: 3px; margin: 4px 0 10px; }}
   .ext {{ color: #b45309; font-style: italic; }}
   .llm {{ background: #ede9fe; color: #6d28d9; font-size: 11px; padding: 1px 6px; border-radius: 4px; }}
+  .mut {{ background: #fef3c7; color: #b45309; font-size: 11px; padding: 1px 6px; border-radius: 4px; }}
 </style></head><body>
 <header>
   <h1>web-recon wiki</h1>

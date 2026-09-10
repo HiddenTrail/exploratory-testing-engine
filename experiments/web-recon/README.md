@@ -12,7 +12,7 @@ the last one's map. And, decided up front: **the deterministic core does everyth
 itself; the LLM is off by default and, when on, only annotates the finished ontology —
 it never gates the crawl.**
 
-## Status: Stage 5a (of 7) — the gesture repertoire (hover / wheel / zoom / drag)
+## Status: Stage 5 (of 7) — safe interaction: gestures, model-proposed controls, vetted mutations
 
 Beyond click/fill, every state is also probed with **non-committing gestures** at the
 viewport centre: hover, wheel up/down, ctrl+wheel zoom in/out, and a drag-pan — the safe
@@ -42,6 +42,23 @@ model's word. Off by default, one small tool-forced call per state via the engin
 soft-failing to the deterministic path. Shown live on EcoEstate: the model nominated
 controls, all were rejected at resolution (a Leaflet canvas exposes few nameable hidden
 controls), and the deterministic map was untouched — the guardrail doing its job.
+
+### Vetting-gated mutations (`crawl --mutate`, off by default)
+
+Stage 5b lets the crawl cross the read-only line — but only through a **deterministic
+vetting pass** (`safety.vet`), opt-in and fail-closed, with the model kept out of the
+decision entirely (the creed: the model never authorizes a mutation). Two disjoint word
+sets decide: a committing control is actuated only if it is **affirmatively reversible**
+(a search / filter / sort / show query — an *idempotent, GET-style read* on the server)
+**and** carries no verb from the **destructive denylist** (delete, buy, pay, send, save,
+publish, sign out, …) — which is refused *even under* `--mutate`. So the one thing this
+unlocks is the query submit the read-only pass deliberately avoided: a search box is now
+filled *and* Enter-pressed, a "Search"/"Filter"/"Sort" button is clicked; a "Delete",
+"Buy", or "Save" never is, mutations on or off. Each vetted action is a distinct
+`__mutate__:` action alongside the read-only fill of the same field, tested and measured
+like any other, and shown `vetted mutation` in the wiki with its effect. Live on EcoEstate:
+the "Search postcodes" box gets its vetted fill+Enter submit (read-only only filled it),
+measured `dead` — one honest extra transition, the map otherwise unchanged.
 
 ## Stage 4 (of 7) — intelligence: graph oracles + optional LLM synthesis
 
@@ -89,8 +106,8 @@ the question; EcoEstate (no headings) stays one state.
 | `perceive.py` | the only browser-touching module: a live page → one normalised `Observation` (URL, visible headings, interactive elements read off the DOM, console, network responses **and failures**, visible text). |
 | `identity.py` | "is this the same view?" — a state is its URL route + control skeleton + landmark headings; body text / map position is a *variant*, not a new state. No model. |
 | `oracles.py` | deterministic functional oracles: HTTP 4xx/5xx, **failed requests (a dead endpoint)**, console errors, exceptions → `Evidence`. This is where a browser beats a game — it found the 500 below for free. |
-| `safety.py` | the read-only gate: `plan(element)` → **click** (links/buttons + view-toggle selection controls: radio/checkbox/tab/switch), **fill** (a search/filter box with a benign query), or **skip** (submit/reset, mutating-verb names, sensitive or generic text fields, off-site/non-http links — off-site fails closed — unrecognised roles). Pure. |
-| `crawl.py` | the frontier-BFS read-only crawler → `Ontology` (+ a screenshot per state, and **per action** — every touch). Actuates each control's plan; clicks via a **ladder** (unique role locator → CSS → scroll+retry → `dispatch_event` → force) so a found control is reached if it possibly can be, else recorded as a `blocked` edge (not a finding). Waits for network-idle before capture/act; **reboots** to the start before every action, and if one navigates off-origin. When the DOM says an action changed nothing, a **before/after screenshot diff** confirms it before calling the control `dead` — so a canvas/map change the DOM can't see reads as `changed`, not a false dead. Also probes each state with **gesture actions** (hover, wheel, ctrl+wheel zoom, drag-pan) at the viewport centre. `choose_frontier` is a pure planner. `python crawl.py <url> [--headed] [--max N] [--out PATH]`. |
+| `safety.py` | the read-only gate: `plan(element)` → **click** (links/buttons + view-toggle selection controls: radio/checkbox/tab/switch), **fill** (a search/filter box with a benign query), or **skip** (submit/reset, mutating-verb names, sensitive or generic text fields, off-site/non-http links — off-site fails closed — unrecognised roles). Pure. `vet()` is the Stage 5b extension: with mutations enabled it admits *only* an affirmatively-reversible query submit (search/filter/sort) and refuses a destructive-verb control even then. |
+| `crawl.py` | the frontier-BFS read-only crawler → `Ontology` (+ a screenshot per state, and **per action** — every touch). Actuates each control's plan; clicks via a **ladder** (unique role locator → CSS → scroll+retry → `dispatch_event` → force) so a found control is reached if it possibly can be, else recorded as a `blocked` edge (not a finding). Waits for network-idle before capture/act; **reboots** to the start before every action, and if one navigates off-origin. When the DOM says an action changed nothing, a **before/after screenshot diff** confirms it before calling the control `dead` — so a canvas/map change the DOM can't see reads as `changed`, not a false dead. Also probes each state with **gesture actions** (hover, wheel, ctrl+wheel zoom, drag-pan) at the viewport centre. `choose_frontier` is a pure planner. `python crawl.py <url> [--headed] [--max N] [--out PATH] [--llm] [--mutate]` (the last two off by default; `--llm` adds model-proposed controls, `--mutate` adds vetted reversible query submits). |
 | `analyze.py` | deterministic graph oracles over the finished ontology → structural observations (dead/blocked/redundant controls, dead ends). Pure, no model. |
 | `wiki.py` | `ontology.json` → a self-contained HTML wiki (state + per-action screenshots, functional findings, structural observations, nav map), by arithmetic; `build_wiki` is pure. `--llm` adds an optional model-synthesis section. `python wiki.py <ontology.json> [--out wiki.html] [--llm]`. |
 | `synthesize.py` | **optional**, off by default: one batched LLM call over the ontology digest → cited, calibrated claims (measured/inferred/speculative + rival). Uses the engine's auth; soft-fails. Pure digest/validate/render, tested with a fake client. |
@@ -133,4 +150,5 @@ fixtures differ.
 Stage 1 hardens identity across a multi-view app; Stage 2 adds read-only frontier
 exploration + evidence capture → a real `ontology.json`; Stage 3 the wiki; Stage 4 the
 optional, batched LLM review (hypotheses + Skeptic + Oracle heuristics); Stage 5
-safety-gated mutations; Stage 6 resume/carry + promotion to an `engine/` adapter.
+safe interaction (gestures, model-proposed controls, vetting-gated mutations); Stage 6
+resume/carry + promotion to an `engine/` adapter.
