@@ -76,6 +76,7 @@ class Transition:
     changed: bool = False
     count: int = 1
     first_seen: int = 0
+    after_image: str = ""     # screenshot taken right after this action (every touch)
     evidence: list[Evidence] = field(default_factory=list)
 
 

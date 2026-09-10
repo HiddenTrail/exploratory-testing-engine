@@ -1,38 +1,45 @@
-"""The read-only safety gate: may the crawl act on this control?
+"""The read-only safety gate: *how* may the crawl act on this control - or not at all?
 
-The browser analog of the game kit's modality gating + coordinate denylist, and it
-holds the same line: in a read-only pass the bot looks and navigates but never *commits*
-anything - no form submitted, nothing deleted, bought, saved or sent. It is a pure
-function of a captured element, so it is exhaustively unit-testable with no browser.
+The browser analog of the game kit's modality gating. A read-only pass looks, navigates,
+toggles a view and runs a search, but never *commits* data - nothing deleted, bought,
+saved, sent, or typed into a sensitive field. `plan()` is a pure function of a captured
+element returning how to actuate it, so it is exhaustively unit-testable with no browser.
 
-It fails safe by denying whole risky *classes* rather than trusting a control to look
-harmless: anything we would have to type into, anything whose name carries a mutating
-verb, a submit/reset input, an off-site or non-http link, and any control whose role we
-do not recognise are all refused. What is left - plain links to the same origin and
-buttons/tabs/menu items with a benign name - is what the read-only crawl is allowed to
-click. A benignly-named button that secretly mutates would slip through; that residual
-risk is what the Stage 5 vetting pass exists to close, and until then read-only is the
-honest posture rather than a guaranteed one.
+What it allows, and why each is non-mutating:
+- **click** a link/button/tab/menu item with a benign name, and a *selection* control
+  (radio, checkbox, tab, switch) - a view toggle changes what you see, not server state.
+- **fill** a *search/filter* text box with a benign probe value - a query, not a write.
+
+What it refuses (fail-safe by denying whole classes rather than trusting a control to
+look harmless): a submit/reset, any name carrying a mutating verb, an off-site or
+non-http link, a disabled control, a sensitive field (password/email/amount/…) or any
+generic text box, a combobox/slider/listbox we cannot actuate without guessing, and any
+role we do not recognise. A benignly-named control that secretly mutates would still slip
+through; closing that is the Stage 5 vetting pass's job, and until then this is the honest
+posture, not a guaranteed one.
 """
 
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from urllib.parse import urlparse
 
-# Roles the crawl would have to *enter* something into. Off limits in read-only.
-FORM_INPUT_ROLES = frozenset({
-    "textbox", "checkbox", "radio", "combobox", "listbox", "slider", "switch",
-    "spinbutton", "searchbox", "menuitemcheckbox", "menuitemradio",
+# Selection controls: clicking one toggles a view/selection, not server state.
+SELECTION_ROLES = frozenset({
+    "radio", "checkbox", "switch", "tab", "menuitemcheckbox", "menuitemradio",
 })
+# Everything a read-only crawl may click.
+CLICK_ROLES = frozenset({"link", "button", "tab", "menuitem"}) | SELECTION_ROLES
+# Text entry roles - only fillable when they are clearly a search/filter box.
+TEXT_ROLES = frozenset({"textbox", "searchbox"})
 
-# Roles the crawl may click when nothing else refuses them.
-CLICKABLE_ROLES = frozenset({"link", "button", "tab", "menuitem"})
+# A benign probe typed into a search box - a query that writes nothing.
+SEARCH_PROBE = "test"
 
-# Mutating verbs in an accessible name. Word-ish boundaries so "saved search" is caught
-# but "unsaved" is not the trigger and "delete" inside "undeletable" does not misfire on
-# a substring alone - kept deliberately broad, since a false "committing" only costs
-# coverage while a false "safe" could mutate real data.
+# Mutating verbs in an accessible name. Word boundaries so "saved search" is caught but a
+# substring like "delete" inside "undeletable" is not the sole trigger. Deliberately
+# broad: a false "skip" only costs coverage, a false "act" could mutate real data.
 _MUTATION_WORDS = (
     "delete", "remove", "discard", "buy", "purchase", "pay", "checkout", "order",
     "submit", "save", "send", "confirm", "create", "update", "edit", "publish",
@@ -42,60 +49,89 @@ _MUTATION_WORDS = (
 )
 _MUTATION_RE = re.compile(r"\b(" + "|".join(re.escape(w) for w in _MUTATION_WORDS) + r")\b")
 
+# A text field that is clearly a search/filter - safe to type a query into.
+_SEARCHY_RE = re.compile(r"\b(search|filter|find|postcode|postal|zip|query|lookup)\b")
+# A field we must never type into, by name or by input type.
+_SENSITIVE_RE = re.compile(
+    r"\b(password|passcode|email|e-mail|card|cvv|cvc|iban|account|amount|price|"
+    r"quantity|qty|phone|tel|ssn|login|username|user\s?name)\b")
+_SENSITIVE_TYPES = frozenset({"password", "email", "tel", "number", "date", "file"})
 
-# Schemes that are not a navigation to follow (nor http(s)): a link with one of these
-# is refused outright rather than clicked.
-_NON_NAV_SCHEMES = frozenset({
-    "mailto", "tel", "javascript", "file", "data", "blob", "ws", "wss", "about",
-})
+# Link schemes that are not a same-app navigation to follow.
+_NON_NAV_SCHEMES = frozenset({"mailto", "tel", "javascript", "file", "data", "blob", "ws", "wss", "about"})
+
+
+@dataclass(frozen=True)
+class Plan:
+    kind: str | None       # "click" | "fill" | None (skip)
+    reason: str
+    value: str = ""        # what to type, for a "fill"
 
 
 def _netloc(url: str) -> str:
     return urlparse(url or "").netloc.lower()
 
 
-def classify(element: dict, base_origin: str = "") -> tuple[bool, str]:
-    """Return (committing, reason). `committing` True means the read-only crawl must NOT
-    act on it. `reason` explains the verdict, shown before anything clicks, as the game
-    kit shows its refusals."""
+def _field_text(element: dict) -> str:
+    return f"{element.get('name', '')} {element.get('type', '')}".strip().lower()
+
+
+def plan(element: dict, base_origin: str = "") -> Plan:
+    """How to actuate this control in a read-only pass: click, fill, or skip (with why)."""
     role = element.get("role", "")
     name = (element.get("name") or "").strip().lower()
     href = (element.get("href") or "").strip()
     itype = (element.get("type") or "").strip().lower()
 
     if element.get("disabled"):
-        return True, "the control is disabled - clicking it would hang, not act"
-    if role in FORM_INPUT_ROLES:
-        return True, f"a {role} would take input, which read-only does not send"
+        return Plan(None, "the control is disabled - acting would hang, not act")
     if itype in ("submit", "reset"):
-        return True, f"an input of type {itype!r} commits a form"
+        return Plan(None, f"an input of type {itype!r} commits a form")
     if name and _MUTATION_RE.search(name):
-        return True, f"the name {name!r} carries a mutating verb"
+        return Plan(None, f"the name {name!r} carries a mutating verb")
 
     if href:
         parsed = urlparse(href)
         scheme = parsed.scheme.lower()
         if scheme in _NON_NAV_SCHEMES:
-            return True, f"a {scheme}: link is not a navigation to follow"
-        # Absolute OR protocol-relative (//host/...): if it names a host other than the
-        # app's, it leaves the app - checked by netloc so a scheme-relative link cannot
-        # slip past by having an empty scheme.
-        if parsed.netloc and _netloc(base_origin) and parsed.netloc.lower() != _netloc(base_origin):
-            return True, f"an off-site link to {parsed.netloc} leaves the app under test"
+            return Plan(None, f"a {scheme}: link is not a navigation to follow")
+        # Any link naming a host other than the app's (absolute or protocol-relative)
+        # leaves the page and is refused. Fail closed: if the base origin is unknown we
+        # cannot confirm same-origin, so a hosted link is refused too. A relative link
+        # (no netloc) stays in the app and is allowed.
+        if parsed.netloc and parsed.netloc.lower() != _netloc(base_origin):
+            return Plan(None, f"an off-site link to {parsed.netloc} leaves the app under test")
         if scheme and scheme not in ("http", "https"):
-            return True, f"a {scheme}: link is not an http navigation"
+            return Plan(None, f"a {scheme}: link is not an http navigation")
 
-    if role not in CLICKABLE_ROLES:
-        # Fail closed: a control whose role we do not recognise is not proven safe.
-        return True, f"role {role!r} is not a recognised safe-to-click control"
+    if role in CLICK_ROLES:
+        return Plan("click", "a same-origin navigation / benign control / view toggle")
 
-    return False, "safe: a same-origin navigation / benign control"
+    if role in TEXT_ROLES:
+        if itype in _SENSITIVE_TYPES or _SENSITIVE_RE.search(_field_text(element)):
+            return Plan(None, "a sensitive field - read-only never types into it")
+        if itype == "search" or _SEARCHY_RE.search(_field_text(element)):
+            return Plan("fill", "a search/filter box - safe to type a query", SEARCH_PROBE)
+        return Plan(None, "a generic text field - read-only does not fill it")
+
+    return Plan(None, f"role {role!r} is not a recognised actuable control")
 
 
 def committing(element: dict, base_origin: str = "") -> bool:
-    return classify(element, base_origin)[0]
+    """True if the read-only crawl must NOT act on this element at all."""
+    return plan(element, base_origin).kind is None
+
+
+def action_plans(elements: list[dict], base_origin: str = "") -> list[tuple[dict, Plan]]:
+    """Each element paired with its actuation plan, for the ones the crawl may act on."""
+    out = []
+    for e in elements:
+        p = plan(e, base_origin)
+        if p.kind is not None:
+            out.append((e, p))
+    return out
 
 
 def safe_actions(elements: list[dict], base_origin: str = "") -> list[dict]:
-    """The subset of a state's elements the read-only crawl may act on."""
-    return [e for e in elements if not committing(e, base_origin)]
+    """The elements the read-only crawl may act on (click or fill)."""
+    return [e for e, _ in action_plans(elements, base_origin)]

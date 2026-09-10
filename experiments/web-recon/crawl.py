@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from identity import appearance, signature
 from oracles import run_observation_oracles
 from perceive import Collector, capture
-from safety import safe_actions
+from safety import action_plans
 from schema import Action, Element, Evidence, Ontology, State, Transition
 
 
@@ -40,9 +40,12 @@ MAX_ACTION_ATTEMPTS = 2
 # Roles Playwright's get_by_role can target by accessible name. Addressing a control by
 # (role, name) survives DOM reshuffles - async content appearing, siblings inserted -
 # far better than a positional CSS path, which silently points at the wrong node once
-# the tree around it changes. Only the roles a read-only crawl actually clicks are here
-# (form roles are always committing and never reach _click); Stage 5 can widen it.
-ROLE_LOCATABLE = frozenset({"button", "link", "tab", "menuitem"})
+# the tree around it changes. Covers the clickable controls plus the selection controls
+# the safety gate now allows (a view toggle is not a mutation).
+ROLE_LOCATABLE = frozenset({
+    "button", "link", "tab", "menuitem", "radio", "checkbox", "switch",
+    "menuitemradio", "menuitemcheckbox",
+})
 
 
 def dedup_findings(findings: list) -> list:
@@ -107,7 +110,9 @@ class Crawler:
         if sig in self.by_sig:
             return self.by_sig[sig]
         state_id = f"st{len(self.recs) + 1:02d}"
-        safe = safe_actions(obs.elements, self.base_origin)
+        # Each actuable control paired with how to actuate it (click or fill a search box).
+        actions = [{**e, "act_kind": p.kind, "act_value": p.value}
+                   for e, p in action_plans(obs.elements, self.base_origin)]
         # The page currently shows this just-captured state, so a screenshot now is of it.
         image = ""
         if self.images_dir:
@@ -120,19 +125,35 @@ class Crawler:
         self.recs[state_id] = {
             "id": state_id, "signature": sig, "url": obs.url, "title": obs.title,
             "image": image, "headings": obs.headings, "elements": obs.elements,
-            "path": list(path), "safe": safe, "tried": set(), "first_seen": self.actions_taken,
+            "path": list(path), "actions": actions,
+            "action_locators": {a["locator"] for a in actions},
+            "tried": set(), "first_seen": self.actions_taken,
         }
         self.by_sig[sig] = state_id
         return state_id
 
+    def _actuate(self, desc: dict) -> bool:
+        """Perform a control's planned action - fill (a search box) or click - and say
+        whether it landed."""
+        if desc.get("act_kind") == "fill":
+            return self._fill(desc)
+        return self._click(desc)
+
     def _click(self, desc: dict) -> bool:
-        """Click a control robustly. Prefer a (role, accessible-name) locator, which is
-        stable across DOM changes; fall back to the captured CSS path. Returns whether a
-        click actually landed."""
+        """Click a control, trying every reasonable way to reach it before giving up -
+        the browser transposition of the game kit's "try all the locators". A control the
+        ontology *found* should be actuated if it possibly can, so:
+
+        1. a unique (role, accessible-name) locator - stable across DOM reshuffles;
+        2. the exact captured CSS path;
+        3. scroll it into view, then the CSS path (it may be off-screen);
+        4. dispatch a click event straight at the node (bypasses hit-testing, so an
+           overlay that intercepts a real pointer does not block it);
+        5. a forced click (bypasses the actionability wait).
+
+        Only reached for controls the safety gate already cleared, so trying harder does
+        not widen what may be touched - it only makes reaching it more reliable."""
         role, name, css = desc.get("role", ""), (desc.get("name") or ""), desc["locator"]
-        # Use the role locator only when it uniquely identifies the control; if the name
-        # is shared (two "Back" buttons), fall back to the exact CSS path so we click the
-        # node we actually recorded rather than an arbitrary .first.
         if role in ROLE_LOCATABLE and name:
             try:
                 loc = self.page.get_by_role(role, name=name, exact=True)
@@ -141,8 +162,27 @@ class Crawler:
                     return True
             except Exception:
                 pass
+        for attempt in (
+            lambda: self.page.click(css, timeout=3000),
+            lambda: (self.page.locator(css).scroll_into_view_if_needed(timeout=2000),
+                     self.page.click(css, timeout=2000)),
+            lambda: self.page.dispatch_event(css, "click"),
+            lambda: self.page.click(css, timeout=2000, force=True),
+        ):
+            try:
+                attempt()
+                return True
+            except Exception:
+                continue
+        return False
+
+    def _fill(self, desc: dict) -> bool:
+        """Type a benign query into a search box and submit it. Read-only: a query, not
+        a write, and only ever on a field the safety gate classified search/filter."""
+        css, value = desc["locator"], desc.get("act_value", "test")
         try:
-            self.page.click(css, timeout=4000)
+            self.page.fill(css, value, timeout=4000)
+            self.page.press(css, "Enter")
             return True
         except Exception:
             return False
@@ -154,8 +194,8 @@ class Crawler:
         self.page.goto(self.start_url, wait_until="domcontentloaded")
         _settle(self.page)
         for desc in rec["path"]:
-            if not self._click(desc):
-                self._instability(rec, f"could not replay click on {desc.get('name') or desc['locator']}")
+            if not self._actuate(desc):
+                self._instability(rec, f"could not replay action on {desc.get('name') or desc['locator']}")
                 return None
             _settle(self.page)
         here = capture(self.page, self.col)  # also drains the replay's own evidence
@@ -168,8 +208,30 @@ class Crawler:
         self.findings.append(Evidence(kind="state_unstable", summary=f"{rec['id']}: {why}",
                                       state_id=rec["id"], seq=self.actions_taken))
 
+    def _same_origin(self, url: str) -> bool:
+        return urlparse(url).netloc == urlparse(self.start_url).netloc
+
+    def _reboot(self) -> None:
+        """Return to a clean starting page - the recovery for anything that landed
+        somewhere unexpected. (The per-action _reach already reboots before every action,
+        so a stray effect never compounds; this is the explicit off-origin case.)"""
+        self.page.goto(self.start_url, wait_until="domcontentloaded")
+        _settle(self.page)
+
+    def _action_shot(self) -> str:
+        """A screenshot of the page as it stands after an action - taken on every touch."""
+        if not self.images_dir:
+            return ""
+        name = f"act{self.actions_taken:03d}.png"
+        try:
+            self.images_dir.mkdir(parents=True, exist_ok=True)
+            self.page.screenshot(path=str(self.images_dir / name))
+            return f"images/{name}"
+        except Exception:
+            return ""
+
     def _untried(self, rec: dict) -> list[dict]:
-        return [e for e in rec["safe"] if e["locator"] not in rec["tried"]]
+        return [a for a in rec["actions"] if a["locator"] not in rec["tried"]]
 
     def crawl(self) -> Ontology:
         self.page.goto(self.start_url, wait_until="domcontentloaded")
@@ -187,7 +249,9 @@ class Crawler:
                 break
             state_id, locator = choice
             rec = self.recs[state_id]
-            element = next(e for e in rec["safe"] if e["locator"] == locator)
+            element = next(a for a in rec["actions"] if a["locator"] == locator)
+            act_kind = element.get("act_kind", "click")
+            element_key = f"{element['role']}:{element['name']}"
             attempts = rec.setdefault("attempts", {})
             attempts[locator] = attempts.get(locator, 0) + 1
             give_up = attempts[locator] >= MAX_ACTION_ATTEMPTS
@@ -199,24 +263,35 @@ class Crawler:
                 continue
 
             before_sig = rec["signature"]
-            if not self._click(element):
+            if not self._actuate(element):
                 if give_up:
                     rec["tried"].add(locator)
-                    # A control we identified but could not actuate (obscured, or not
-                    # interactive as a user click). Recorded as a *blocked edge*, not a
-                    # functional finding: it is a fact about the control, not an app error.
+                    # A control we identified but could not actuate even after the whole
+                    # ladder (obscured / not interactive). Recorded as a *blocked edge*,
+                    # not a functional finding: it is a fact about the control, not an app error.
                     self.transitions.append(Transition(
                         id=f"tr{len(self.transitions) + 1:03d}", source=state_id,
-                        action=Action(kind="click",
-                                      element_key=f"{element['role']}:{element['name']}",
-                                      target=locator),
+                        action=Action(kind=act_kind, element_key=element_key, target=locator),
                         dest=state_id, effect="blocked", changed=False,
                         first_seen=self.actions_taken))
                 continue
-            rec["tried"].add(locator)  # a click that landed is done, pass or not
+            rec["tried"].add(locator)  # an action that landed is done, pass or not
             _settle(self.page)
             after = capture(self.page, self.col)
             self.actions_taken += 1
+            action = Action(kind=act_kind, element_key=element_key, target=locator)
+            shot = self._action_shot()  # a screenshot on every touch
+
+            # Recovery: if the action left the app (a JS navigation off-origin the gate
+            # could not foresee from the element), do not explore off-site - record it and
+            # reboot to the start.
+            if not self._same_origin(after.url):
+                self.transitions.append(Transition(
+                    id=f"tr{len(self.transitions) + 1:03d}", source=state_id, action=action,
+                    dest="external", effect="external", changed=True,
+                    first_seen=self.actions_taken, after_image=shot))
+                self._reboot()
+                continue
 
             after_sig = signature(after)
             dest_id = self._register(after, path=rec["path"] + [element])
@@ -229,19 +304,17 @@ class Crawler:
             else:
                 effect = "dead"                              # nothing changed at all
 
-            action = Action(kind="click", element_key=f"{element['role']}:{element['name']}",
-                            target=locator)
             self.transitions.append(Transition(
                 id=f"tr{len(self.transitions) + 1:03d}", source=state_id, action=action,
                 dest=dest_id, effect=effect, changed=(effect != "dead"),
-                first_seen=self.actions_taken))
+                first_seen=self.actions_taken, after_image=shot))
 
         return self._build()
 
     def _build(self) -> Ontology:
         states = []
         for r in self.recs.values():
-            safe_locators = {e["locator"] for e in r["safe"]}
+            safe_locators = r["action_locators"]
             states.append(State(
                 id=r["id"], url=r["url"], signature=r["signature"], title=r["title"],
                 image=r.get("image", ""), first_seen=r["first_seen"],

@@ -1,4 +1,4 @@
-"""The read-only safety gate: safe controls pass, everything risky is refused."""
+"""The read-only gate plans an action per control: click, fill, or skip - safely."""
 
 from __future__ import annotations
 
@@ -7,17 +7,41 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from safety import classify, committing, safe_actions  # noqa: E402
+from safety import action_plans, committing, plan, safe_actions  # noqa: E402
 
 
 def el(**kw):
     return {"role": "button", "name": "", "href": "", "type": "", **kw}
 
 
-def test_benign_link_and_buttons_are_safe():
-    assert not committing(el(role="link", name="Home", href="/home"), "http://x")
+def test_links_and_buttons_are_clicked():
+    assert plan(el(role="link", name="Home", href="/home"), "http://x").kind == "click"
     for n in ("Yes", "No", "Back", "Zoom in", "Next", "Details", "Open menu"):
-        assert not committing(el(role="button", name=n)), n
+        assert plan(el(role="button", name=n)).kind == "click", n
+
+
+def test_selection_controls_are_clicked_not_skipped():
+    # A radio/checkbox/tab/switch toggles a view - non-mutating, so the crawl actuates it.
+    for r in ("radio", "checkbox", "switch", "tab"):
+        assert plan(el(role=r, name="Price heatmap")).kind == "click", r
+
+
+def test_a_mutating_named_selection_is_still_skipped():
+    assert committing(el(role="checkbox", name="Delete on save"))
+
+
+def test_search_box_is_filled_with_a_benign_query():
+    p = plan(el(role="textbox", name="Search postcodes", type="text"))
+    assert p.kind == "fill" and p.value
+    p2 = plan(el(role="searchbox", name="", type="search"))
+    assert p2.kind == "fill"
+
+
+def test_sensitive_and_generic_text_fields_are_skipped():
+    assert committing(el(role="textbox", name="Password", type="password"))
+    assert committing(el(role="textbox", name="Email", type="email"))
+    assert committing(el(role="textbox", name="Card number"))
+    assert committing(el(role="textbox", name="Comment", type="text"))  # generic, not a search
 
 
 def test_mutating_names_are_committing():
@@ -26,14 +50,9 @@ def test_mutating_names_are_committing():
         assert committing(el(role="button", name=n)), n
 
 
-def test_form_inputs_are_committing():
-    for r in ("textbox", "checkbox", "radio", "combobox", "slider", "searchbox"):
-        assert committing(el(role=r, name="x")), r
-
-
 def test_submit_and_reset_inputs_are_committing():
-    assert committing(el(role="button", name="", type="submit"))
-    assert committing(el(role="button", name="", type="reset"))
+    assert committing(el(role="button", name="Go", type="submit"))
+    assert committing(el(role="button", name="Clear", type="reset"))
 
 
 def test_special_scheme_links_are_committing():
@@ -42,41 +61,37 @@ def test_special_scheme_links_are_committing():
     assert committing(el(role="link", name="Run", href="javascript:void(0)"))
 
 
-def test_off_site_links_are_committing_but_same_origin_is_safe():
+def test_off_site_links_are_refused_and_same_origin_is_kept():
     base = "https://localhost:5173"
     assert committing(el(role="link", name="OSM", href="https://openstreetmap.org/x"), base)
+    assert committing(el(role="link", name="Leaflet", href="//leafletjs.com/y"), base)
     assert not committing(el(role="link", name="Docs", href="https://localhost:5173/docs"), base)
+    assert not committing(el(role="link", name="Rel", href="/local/page"), base)
+
+
+def test_off_site_fails_closed_when_base_unknown():
+    # No base origin -> any hosted link is refused (cannot confirm same-origin).
+    assert committing(el(role="link", name="x", href="https://anywhere.example/x"))
+    # ...but a relative link stays in the app and is fine.
+    assert not committing(el(role="link", name="x", href="/still/here"))
 
 
 def test_disabled_control_is_committing():
-    # A disabled control cannot be clicked; selecting it would hang and misreport.
     assert committing(el(role="button", name="Yes", disabled=True))
-    assert committing(el(role="link", name="Home", href="/home", disabled=True), "http://x")
-
-
-def test_protocol_relative_and_odd_scheme_links_are_committing():
-    base = "https://localhost:5173"
-    assert committing(el(role="link", name="tiles", href="//openstreetmap.org/t.png"), base)
-    assert committing(el(role="link", name="x", href="blob:https://localhost:5173/abc"), base)
-    assert committing(el(role="link", name="x", href="ws://localhost:5173/s"), base)
-    # A protocol-relative link to the SAME host is still same-origin and safe.
-    assert not committing(el(role="link", name="local", href="//localhost:5173/y"), base)
 
 
 def test_unrecognised_role_fails_closed():
     assert committing(el(role="generic", name="the whole map container"))
     assert committing(el(role="img", name="banner"))
+    assert committing(el(role="slider", name="Year"))
+    assert committing(el(role="combobox", name="Mode"))
 
 
-def test_safe_actions_keeps_only_the_safe_ones():
+def test_safe_actions_and_plans():
     elements = [el(role="button", name="Yes"), el(role="button", name="Delete"),
-                el(role="textbox", name="query"), el(role="link", name="Home", href="/h")]
+                el(role="textbox", name="Comment", type="text"),
+                el(role="radio", name="Trend"), el(role="link", name="Home", href="/h")]
     names = [e["name"] for e in safe_actions(elements, "http://x")]
-    assert names == ["Yes", "Home"]
-
-
-def test_classify_explains_itself():
-    is_committing, reason = classify(el(role="button", name="Delete account"))
-    assert is_committing and "mutating" in reason
-    ok, reason = classify(el(role="link", name="Home", href="/home"), "http://x")
-    assert not ok and "safe" in reason
+    assert names == ["Yes", "Trend", "Home"]
+    kinds = {e["name"]: p.kind for e, p in action_plans(elements, "http://x")}
+    assert kinds == {"Yes": "click", "Trend": "click", "Home": "click"}

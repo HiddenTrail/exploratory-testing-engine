@@ -161,8 +161,12 @@ def _states_html(onto: Ontology) -> str:
             f'<td>{"committing" if e.committing else "safe"}</td>'
             f'<td class="loc">{_esc(e.locator)}</td></tr>' for e in s.elements)
         outs = "".join(
-            f'<li>{_esc(t.action.element_key)} <span class="eff">({_esc(t.effect)})</span> &rarr; '
-            f'<a href="#{_esc(t.dest)}">{_esc(t.dest)}</a></li>' for t in out_edges[s.id])
+            f'<li>{_esc(t.action.kind)} {_esc(t.action.element_key)} '
+            f'<span class="eff">({_esc(t.effect)})</span> &rarr; '
+            f'<a href="#{_esc(t.dest)}">{_esc(t.dest)}</a>'
+            + (f'<img class="tr-shot" src="{_esc(t.after_image)}" loading="lazy" '
+               f'alt="after {_esc(t.action.element_key)}">' if getattr(t, "after_image", "") else "")
+            + '</li>' for t in out_edges[s.id])
         ins = ", ".join(sorted({_esc(t.source) for t in in_edges[s.id]})) or "—"
         finds = "".join(f'<li>{_esc(f.kind)}: {_esc(f.summary)[:120]}</li>'
                         for f in findings_by_state[s.id])
@@ -213,6 +217,7 @@ def build_wiki(onto: Ontology) -> str:
   .meta {{ font-size: 13px; color: #334155; margin: 6px 0 2px; }} .eff {{ color: #64748b; }}
   .finds li {{ color: #b91c1c; }} details summary {{ cursor: pointer; color: #2563eb; font-size: 13px; }}
   .state-shot {{ display: block; max-width: 480px; width: 100%; border: 1px solid #cbd5e1; border-radius: 4px; margin: 8px 0; }}
+  .tr-shot {{ display: block; max-width: 220px; border: 1px solid #cbd5e1; border-radius: 3px; margin: 4px 0 10px; }}
 </style></head><body>
 <header>
   <h1>web-recon wiki</h1>
