@@ -197,14 +197,25 @@ def visual_diff(before: bytes | None, after: bytes | None, cell_delta: int = 20)
     change the DOM signature and text cannot see still register as an effect - which is
     what keeps a pixel-only pan/zoom from being mistaken for a dead control. Shared by the
     deterministic crawler and the engine web-GUI adapter so both judge "did nothing" the
-    same way."""
+    same way.
+
+    Each frame is autocontrast-stretched (histogram to full 0-255, ignoring the 1% extremes)
+    before comparison. On a pale, low-contrast surface - a light choropleth map, a mostly
+    white page - a genuine change lives in near-white values whose raw delta sits under
+    cell_delta and would be missed; stretching spreads those values across the range so the
+    change registers, while a true no-op stays at 0 (measured: it ~doubles the signal on a
+    real pan/zoom and leaves an unchanged frame at 0.0)."""
     if not (before and after):
         return None
     try:
         import io
-        from PIL import Image
-        a = Image.open(io.BytesIO(before)).convert("L").resize((64, 64)).tobytes()
-        b = Image.open(io.BytesIO(after)).convert("L").resize((64, 64)).tobytes()
+        from PIL import Image, ImageOps
+
+        def _prep(png):
+            im = Image.open(io.BytesIO(png)).convert("L")
+            return ImageOps.autocontrast(im, cutoff=1).resize((64, 64)).tobytes()
+
+        a, b = _prep(before), _prep(after)
     except Exception:
         return None
     if not a or len(a) != len(b):
