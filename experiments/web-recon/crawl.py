@@ -254,8 +254,7 @@ class Crawler:
         if role not in ROLE_LOCATABLE or not name or '"' in name:
             return None
         try:
-            loc = self.page.get_by_role(role, name=name, exact=True)
-            if loc.count() != 1:
+            if loc.count() != 1 or not loc.is_enabled():
                 return None
             href = ""
             if role == "link":
