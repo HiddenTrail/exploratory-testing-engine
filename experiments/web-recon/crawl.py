@@ -173,7 +173,9 @@ class Crawler:
         actions = [{**e, "act_kind": p.kind, "act_value": p.value}
                    for e, p in action_plans(obs.elements, self.base_origin)]
         if self.proposer:
-            actions += self._llm_candidate_actions(obs, actions)
+            llm_actions = self._llm_candidate_actions(obs, actions)
+            actions += llm_actions
+            obs.elements += llm_actions
         if self.mutate:
             actions += self._mutation_actions(obs.elements)
         actions += gesture_actions()
