@@ -1,0 +1,27 @@
+{
+  "url": "http://localhost:5174/",
+  "title": "Playwright GUI PoC",
+  "headings": [
+    "You said yes"
+  ],
+  "elements": [
+    {
+      "role": "button",
+      "name": "Back",
+      "tag": "button",
+      "type": "",
+      "locator": "#yes-back",
+      "href": "",
+      "disabled": false
+    }
+  ],
+  "console": [],
+  "network": [
+    {
+      "method": "POST",
+      "url": "http://127.0.0.1:8010/answer",
+      "status": 200
+    }
+  ],
+  "text": "You said yes\n\nHere is what the backend had to say about that:\n\nThis is a test.\n\nBack"
+}

@@ -19,7 +19,6 @@ the last click.
 
 import asyncio
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -29,11 +28,19 @@ from dotenv import load_dotenv
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+# Authenticate the same way as the rest of the repo: the engine picks the direct
+# Anthropic API or Bedrock from ENGINE_USE_BEDROCK, and returns the right model id for
+# whichever it built (Bedrock's Messages endpoint does not carry the direct-API model).
+# Reused rather than duplicated so this PoC cannot drift from how the engine authenticates.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from engine.client import build_client, default_model, use_bedrock  # noqa: E402
+
 # Model-generated text can contain non-ASCII characters that the default
 # Windows console codec can't encode, crashing a plain print().
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-MODEL = "claude-sonnet-4-6"
 MAX_ATTEMPTS = 3
 MAX_SCENARIO_TURNS = 10
 NUM_SCENARIOS = 2
@@ -47,7 +54,7 @@ BACKEND_DOCS_URL = "http://127.0.0.1:8010/docs"
 NPX_CMD = "npx.cmd" if sys.platform == "win32" else "npx"
 
 
-def call_tool_with_retry(client, *, system, tools, tool_name, user_message, max_tokens, validate_fn):
+def call_tool_with_retry(client, *, model, system, tools, tool_name, user_message, max_tokens, validate_fn):
     """Same call->validate->retry shape every experiment's run_live.py
     uses - retries feed the model's own malformed call and the concrete
     validation errors back as a tool_result, so a systematic
@@ -56,7 +63,7 @@ def call_tool_with_retry(client, *, system, tools, tool_name, user_message, max_
     last_errors = ["no attempts made"]
     for attempt in range(1, MAX_ATTEMPTS + 1):
         message = client.messages.create(
-            model=MODEL, max_tokens=max_tokens, system=system, tools=tools,
+            model=model, max_tokens=max_tokens, system=system, tools=tools,
             tool_choice={"type": "tool", "name": tool_name}, messages=messages,
         )
         tool_use = next((b for b in message.content if b.type == "tool_use"), None)
@@ -198,7 +205,7 @@ def mcp_tool_to_anthropic(tool) -> dict:
     return {"name": tool.name, "description": tool.description or "", "input_schema": tool.input_schema}
 
 
-async def run_scenario(anthropic_client: Anthropic, session: ClientSession, mcp_tools: list[dict], scenario: dict, scenario_number: int) -> dict:
+async def run_scenario(anthropic_client: Anthropic, session: ClientSession, mcp_tools: list[dict], scenario: dict, scenario_number: int, model: str) -> dict:
     """Carries out one scenario via a real multi-turn agentic loop against
     Playwright MCP tools. tool_choice is deliberately NOT forced - the
     model freely chooses among browser actions each turn; the system
@@ -223,7 +230,7 @@ you've actually observed a real result in the browser."""
 
     for turn in range(1, MAX_SCENARIO_TURNS + 1):
         message = anthropic_client.messages.create(
-            model=MODEL, max_tokens=2048, system=request_system, tools=request_tools, messages=messages,
+            model=model, max_tokens=2048, system=request_system, tools=request_tools, messages=messages,
         )
         messages.append({"role": "assistant", "content": message.content})
 
@@ -257,11 +264,13 @@ you've actually observed a real result in the browser."""
 
 
 async def main():
-    load_dotenv()
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise SystemExit("Set ANTHROPIC_API_KEY in .env (see .env.example)")
-    anthropic_client = Anthropic(api_key=api_key)
+    # Load the repo-root .env, which carries the Bedrock config (ENGINE_USE_BEDROCK,
+    # AWS_REGION, AWS_PROFILE). The PoC's own .env only ever held a direct API key, so
+    # loading it alone would send this down the direct-API path build_client falls back to.
+    load_dotenv(_REPO_ROOT / ".env")
+    anthropic_client = build_client()
+    model = default_model()
+    print(f"Using model {model} ({'Bedrock' if use_bedrock() else 'direct API'}).")
 
     base_dir = Path(__file__).parent
     out_dir = base_dir / "results"
@@ -292,6 +301,7 @@ async def main():
             print(f"\nAsking Claude to propose {NUM_SCENARIOS} test scenarios...")
             casting = call_tool_with_retry(
                 anthropic_client,
+                model=model,
                 system=CASTING_SYSTEM_PROMPT,
                 tools=[CASTING_TOOL],
                 tool_name="submit_test_scenarios",
@@ -305,7 +315,7 @@ async def main():
             for i, scenario in enumerate(casting["scenarios"], start=1):
                 print(f"\nScenario {i}: {scenario['goal']}")
                 print(f"  predicted: {scenario['predicted_outcome']}")
-                result = await run_scenario(anthropic_client, session, mcp_tools, scenario, i)
+                result = await run_scenario(anthropic_client, session, mcp_tools, scenario, i, model)
                 print(f"  status: {result['status']}")
                 if result["status"] == "completed":
                     print(f"  observed: {result['observed_outcome']}")

@@ -1,0 +1,206 @@
+{
+  "url": "http://localhost:5173/",
+  "title": "EcoEstate",
+  "headings": [],
+  "elements": [
+    {
+      "role": "generic",
+      "name": "+\u2212 Leaflet | \u00a9 OpenStreetMap contributorsError: Failed to fetch property prices for 2024.",
+      "tag": "div",
+      "type": "",
+      "locator": "body > div > div > div",
+      "href": "",
+      "disabled": false
+    },
+    {
+      "role": "button",
+      "name": "Zoom in",
+      "tag": "a",
+      "type": "",
+      "locator": "body > div > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > a:nth-of-type(1)",
+      "href": "#",
+      "disabled": false
+    },
+    {
+      "role": "button",
+      "name": "Zoom out",
+      "tag": "a",
+      "type": "",
+      "locator": "body > div > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > a:nth-of-type(2)",
+      "href": "#",
+      "disabled": false
+    },
+    {
+      "role": "link",
+      "name": "A JavaScript library for interactive maps",
+      "tag": "a",
+      "type": "",
+      "locator": "body > div > div > div > div:nth-of-type(2) > div:nth-of-type(4) > div > a:nth-of-type(1)",
+      "href": "https://leafletjs.com",
+      "disabled": false
+    },
+    {
+      "role": "link",
+      "name": "OpenStreetMap",
+      "tag": "a",
+      "type": "",
+      "locator": "body > div > div > div > div:nth-of-type(2) > div:nth-of-type(4) > div > a:nth-of-type(2)",
+      "href": "https://www.openstreetmap.org/copyright",
+      "disabled": false
+    }
+  ],
+  "console": [],
+  "network": [
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/12/2330/1185.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/12/2331/1184.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/12/2332/1184.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/12/2330/1186.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/12/2333/1185.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/12/2332/1186.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/12/2331/1185.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/12/2333/1186.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/12/2332/1183.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/12/2331/1186.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/12/2331/1187.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/12/2330/1184.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/12/2332/1187.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/12/2330/1183.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/12/2333/1184.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/12/2332/1185.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/12/2333/1183.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/12/2329/1185.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/12/2331/1183.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/12/2334/1185.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/12/2330/1187.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/12/2334/1184.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/12/2329/1184.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/12/2333/1187.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/12/2329/1186.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/12/2334/1186.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://a.tile.openstreetmap.org/12/2329/1187.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/12/2329/1183.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://b.tile.openstreetmap.org/12/2334/1183.png",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://c.tile.openstreetmap.org/12/2334/1187.png",
+      "status": 200
+    }
+  ],
+  "text": "+\n\u2212\n Leaflet | \u00a9 OpenStreetMap contributors\nError: Failed to fetch property prices for 2024."
+}

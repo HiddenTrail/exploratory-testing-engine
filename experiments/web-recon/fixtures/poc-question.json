@@ -1,0 +1,62 @@
+{
+  "url": "http://localhost:5174/",
+  "title": "Playwright GUI PoC",
+  "headings": [
+    "Is this a test?"
+  ],
+  "elements": [
+    {
+      "role": "button",
+      "name": "Yes",
+      "tag": "button",
+      "type": "",
+      "locator": "#yes-btn",
+      "href": "",
+      "disabled": false
+    },
+    {
+      "role": "button",
+      "name": "No",
+      "tag": "button",
+      "type": "",
+      "locator": "#no-btn",
+      "href": "",
+      "disabled": false
+    }
+  ],
+  "console": [
+    {
+      "type": "debug",
+      "text": "[vite] connecting...",
+      "location": "{'url': 'http://localhost:5174/@vite/client', 'line': 854, 'column': 8, 'lineNumber': 854, 'columnNumber': 8}"
+    },
+    {
+      "type": "debug",
+      "text": "[vite] connected.",
+      "location": "{'url': 'http://localhost:5174/@vite/client', 'line': 963, 'column': 11, 'lineNumber': 963, 'columnNumber': 11}"
+    }
+  ],
+  "network": [
+    {
+      "method": "GET",
+      "url": "http://localhost:5174/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5174/src/main.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5174/@vite/client",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5174/node_modules/vite/dist/client/env.mjs",
+      "status": 200
+    }
+  ],
+  "text": "Is this a test?\nYes No"
+}

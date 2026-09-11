@@ -1,0 +1,292 @@
+{
+  "url": "http://localhost:5173/",
+  "title": "EcoEstate",
+  "headings": [],
+  "elements": [
+    {
+      "role": "generic",
+      "name": "+\u2212 Leaflet | \u00a9 OpenStreetMap contributorsLoading map data...",
+      "tag": "div",
+      "type": "",
+      "locator": "body > div > div > div",
+      "href": "",
+      "disabled": false
+    },
+    {
+      "role": "button",
+      "name": "Zoom in",
+      "tag": "a",
+      "type": "",
+      "locator": "body > div > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > a:nth-of-type(1)",
+      "href": "#",
+      "disabled": false
+    },
+    {
+      "role": "button",
+      "name": "Zoom out",
+      "tag": "a",
+      "type": "",
+      "locator": "body > div > div > div > div:nth-of-type(2) > div:nth-of-type(1) > div > a:nth-of-type(2)",
+      "href": "#",
+      "disabled": false
+    },
+    {
+      "role": "link",
+      "name": "A JavaScript library for interactive maps",
+      "tag": "a",
+      "type": "",
+      "locator": "body > div > div > div > div:nth-of-type(2) > div:nth-of-type(4) > div > a:nth-of-type(1)",
+      "href": "https://leafletjs.com",
+      "disabled": false
+    },
+    {
+      "role": "link",
+      "name": "OpenStreetMap",
+      "tag": "a",
+      "type": "",
+      "locator": "body > div > div > div > div:nth-of-type(2) > div:nth-of-type(4) > div > a:nth-of-type(2)",
+      "href": "https://www.openstreetmap.org/copyright",
+      "disabled": false
+    }
+  ],
+  "console": [
+    {
+      "type": "error",
+      "text": "The Content Security Policy directive 'frame-ancestors' is ignored when delivered via a <meta> element.",
+      "location": "{'url': 'http://localhost:5173/', 'line': 13, 'column': 0, 'lineNumber': 13, 'columnNumber': 0}"
+    },
+    {
+      "type": "debug",
+      "text": "[vite] connecting...",
+      "location": "{'url': 'http://localhost:5173/@vite/client', 'line': 788, 'column': 8, 'lineNumber': 788, 'columnNumber': 8}"
+    },
+    {
+      "type": "debug",
+      "text": "[vite] connected.",
+      "location": "{'url': 'http://localhost:5173/@vite/client', 'line': 911, 'column': 14, 'lineNumber': 911, 'columnNumber': 14}"
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+      "location": "{'url': 'http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=0c252ff6', 'line': 17986, 'column': 53, 'lineNumber': 17986, 'columnNumber': 53}"
+    }
+  ],
+  "network": [
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/main.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/@vite/client",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/react.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/@react-refresh",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/index.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/App.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/vite/dist/client/env.mjs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/chunk-G3PMV62Z.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/chunk-UGC3UZ7L.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/App.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/MapComponent.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/leaflet/dist/leaflet.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/react-leaflet.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PostcodeBoundaries.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/chunk-HE4GKDYE.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/leaflet.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/axios.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/LayerControl.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/Legend.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PeriodSlider.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/YearSlider.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/VisualizationSelector.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PostcodeSearch.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PostcodeInfoPanel.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/utils/stringUtils.ts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/utils/favorites.ts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/FavoritesList.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/chunk-NB5MQSEJ.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/node_modules/.vite/deps/proj4.js?v=0c252ff6",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/LayerControl.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/Legend.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PeriodSlider.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/YearSlider.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/VisualizationSelector.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PostcodeSearch.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PostcodeInfoPanel.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/utils/notes.ts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PostcodeNotes.tsx",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/FavoritesList.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://localhost:5173/src/components/PostcodeNotes.css",
+      "status": 200
+    }
+  ],
+  "text": "+\n\u2212\nProperty Prices (\u20ac/m\u00b2)\n< 2000\n2000 - 3000\n3000 - 4000\n4000 - 5000\n5000 - 6000\n> 6000\nNo data\n Leaflet | \u00a9 OpenStreetMap contributors\nLoading heatmap data...\nVisualization Type\nPrice Heatmap\nPrice Trend\nYear: 2024\n2010\n2025"
+}

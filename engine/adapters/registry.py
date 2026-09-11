@@ -13,6 +13,10 @@ _ADAPTERS = {
     # attached to by check_sut_ready, which is also where the safety preflight
     # runs. See engine/adapters/clash_royale/actions.py before running it.
     "clash_royale": "engine.adapters.clash_royale.adapter",
+    # A live web app, driven by named (state, control) actions over web-recon's perception.
+    # Loading it starts nothing: the browser is launched only by check_sut_ready, which also
+    # loads the carried reference (WEB_GUI_ONTOLOGY). See engine/adapters/web_gui/adapter.py.
+    "web_gui": "engine.adapters.web_gui.adapter",
 }
 
 
