@@ -139,6 +139,33 @@ def test_mid_run_saves_already_carry_the_usage_recorded_so_far(monkeypatch, tmp_
     assert all(record["input_tokens"] == 50 for view in mid_run_views for record in view)
 
 
+def _hypothesis_with_anomaly(*a, **kw):
+    return {"observed_behavior": "b", "anomalies": [{"title": "x", "description": "y"}],
+            "untested_areas": ["u"], "prior_gaps_response": []}
+
+
+def test_bug_report_failure_does_not_clobber_a_successful_run_verdict(monkeypatch, tmp_path):
+    # A bug-report generation failure (e.g. the tool call exhausting its retries on a
+    # max_tokens cutoff) must NOT rewrite a run that already concluded as "error" and
+    # discard its verdict - it degrades to "no bug reports written" + a note.
+    monkeypatch.setattr(loop, "get_casting_round", _fake_casting_round)
+    monkeypatch.setattr(loop, "get_checkpoint_hypothesis", _hypothesis_with_anomaly)
+    monkeypatch.setattr(loop, "get_skeptic_review", lambda *a, **kw: _skeptic_review("strong_enough"))
+
+    def boom(*a, **kw):
+        raise RuntimeError("bug-report tool exhausted retries")
+    monkeypatch.setattr(runner, "get_bug_reports", boom)
+
+    output = runner.run(_FAKE_ADAPTER, RunConfig(max_checkpoints=3, out_dir=tmp_path))
+
+    assert "error" not in output
+    assert output["stopped_reason"] == "skeptic_satisfied"   # the real verdict, preserved
+    assert output["anomaly_found"] is True
+    assert "bug-report tool exhausted retries" in output.get("bug_report_error", "")
+    on_disk = json.loads((tmp_path / "output.json").read_text())
+    assert on_disk["stopped_reason"] == "skeptic_satisfied"
+
+
 def test_output_json_reflects_final_state_on_a_clean_run(monkeypatch, tmp_path):
     monkeypatch.setattr(loop, "get_casting_round", _fake_casting_round)
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", _fake_hypothesis)

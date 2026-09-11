@@ -126,6 +126,18 @@ def test_actuate_clicks_a_button_control():
     assert sess.page.calls[-1][0] in ("click_role", "click_css")
 
 
+def test_classify_same_known_new_screen():
+    ref = ref_mod.Reference(_ontology())      # carried sigs: st01 and st02's signatures
+    sess = live_session.Session.__new__(live_session.Session)
+    sess.reference, sess.seen_signatures = ref, set()
+    st01 = "/|button:A;button:Dead|"
+    assert sess._classify(st01, st01) == "same_screen"               # signature unchanged
+    assert sess._classify(st01, "/p2|button:Back|") == "known_screen"  # a carried signature
+    assert sess._classify(st01, "brand-new") == "new_screen"          # unmapped, unseen
+    sess.seen_signatures.add("seen-earlier")
+    assert sess._classify(st01, "seen-earlier") == "known_screen"     # seen already this run
+
+
 # ---- outcome envelope ----------------------------------------------------------------
 
 def _result(**kw):
