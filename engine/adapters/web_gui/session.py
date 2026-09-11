@@ -31,6 +31,7 @@ if str(_WEB_RECON) not in sys.path:
 
 from identity import appearance, signature       # noqa: E402
 from perceive import Collector, capture, visual_diff  # noqa: E402
+from safety import SEARCH_PROBE, TEXT_ROLES        # noqa: E402
 
 from engine.adapters.web_gui import reference as ref_mod  # noqa: E402
 
@@ -52,12 +53,18 @@ _HEADED_ENV = "WEB_GUI_HEADED"
 _VISUAL_CHANGE_THRESHOLD = 0.02
 
 
-def _settle(page, ms: int = 900) -> None:
+def _settle(page, quiet_ms: int = 2000, floor_ms: int = 350) -> None:
+    """Wait for the page to go quiet, then a short floor. networkidle is capped low
+    (quiet_ms): a driven run does many settles (reboot, each path step, after the action),
+    and on a live-traffic app - streaming map tiles, polling - the page never truly idles,
+    so a long cap just burns wall-clock every time (~6s each was the measured cost). A
+    client-side effect (zoom/pan/filter) renders within the floor; the cap only bites when
+    real traffic is in flight, and then briefly."""
     try:
-        page.wait_for_load_state("networkidle", timeout=5000)
+        page.wait_for_load_state("networkidle", timeout=quiet_ms)
     except Exception:
         pass
-    page.wait_for_timeout(ms)
+    page.wait_for_timeout(floor_ms)
 
 
 class Session:
@@ -93,9 +100,16 @@ class Session:
             return None
 
     def _actuate(self, step: dict) -> bool:
-        """Reach and click one control: a unique (role, name) locator first, then the exact
-        selector, then a forced click - the compact form of web-recon's click ladder."""
+        """Actuate one control the way the recon's safety gate classified it: a text/search
+        box is *filled* with a benign query (only search/filter boxes reach here - the gate
+        marks any other text field committing, so it never enters the action space), and
+        everything else is *clicked*. Clicking a search box instead of filling it merely
+        focuses it and looks like a dead control - the false reading this exists to avoid."""
         role, name, css = step.get("role", ""), step.get("name", ""), step.get("locator", "")
+        if role in TEXT_ROLES:
+            return self._fill(role, name, css)
+        # Click ladder: a unique (role, name) locator first, then the exact selector, then a
+        # forced click - the compact form of web-recon's ladder.
         if role in _ROLE_LOCATABLE and name:
             try:
                 loc = self.page.get_by_role(role, name=name, exact=True)
@@ -112,6 +126,24 @@ class Session:
             except Exception:
                 continue
         return False
+
+    def _fill(self, role: str, name: str, css: str, value: str = SEARCH_PROBE) -> bool:
+        """Type a benign query into a search/filter box - and deliberately NOT press Enter,
+        matching the read-only recon: a live-filter reacts to the input itself, a submit-only
+        search is missed on purpose rather than risk submitting a form the gate never vetted."""
+        if name:
+            try:
+                loc = self.page.get_by_role(role, name=name, exact=True)
+                if loc.count() == 1:
+                    loc.fill(value, timeout=4000)
+                    return True
+            except Exception:
+                pass
+        try:
+            self.page.fill(css, value, timeout=4000)
+            return True
+        except Exception:
+            return False
 
     def _classify(self, before_sig: str, after_sig: str) -> str:
         if after_sig == before_sig:
@@ -221,6 +253,15 @@ def check_ready(adapter) -> None:
     calls to discover otherwise."""
     global _SESSION
     reference = ref_mod.load(_resolve_ontology_path())
+    # Fail closed on a file that is not a web-recon ontology: its elements would lack the
+    # 'committing' safety flag, and while the catalogue now defaults such elements to
+    # committing (excluded), rejecting a foreign file up front is clearer than a run that
+    # silently finds no controls. A canonical recon writes schema "web-recon/<n>".
+    if not reference.schema.startswith("web-recon"):
+        raise SystemExit(
+            f"{_ONTOLOGY_ENV} does not look like a web-recon ontology (schema="
+            f"{reference.schema or 'absent'!r}). Point it at one produced by "
+            f"experiments/web-recon/crawl.py, whose safety flags this adapter relies on.")
     base_url = os.environ.get(_URL_ENV) or reference.base_url
     if not base_url:
         raise SystemExit(f"No base URL: the carried ontology has no target.url and {_URL_ENV} is unset.")

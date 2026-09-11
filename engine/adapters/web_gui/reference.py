@@ -32,6 +32,7 @@ class Reference:
     """A loaded web-recon ontology, indexed for the adapter's needs."""
 
     def __init__(self, data: dict):
+        self.schema = data.get("schema", "")
         self.base_url = (data.get("target") or {}).get("url", "")
         self.states = data.get("states", [])
         self.transitions = data.get("transitions", [])
@@ -85,7 +86,11 @@ class Reference:
             if path is None:                         # not reachable by navigation from entry
                 continue
             for e in s.get("elements", []):
-                if e.get("committing") or not e.get("name"):
+                # Fail CLOSED: an element must be *explicitly* non-committing to enter the
+                # action space. A missing/misspelled 'committing' key (a foreign or
+                # hand-edited ontology) defaults to committing=True and is excluded, rather
+                # than silently offering an unvetted - possibly destructive - control.
+                if e.get("committing", True) or not e.get("name"):
                     continue
                 cat[(s["id"], e["key"])] = {
                     "path": path,

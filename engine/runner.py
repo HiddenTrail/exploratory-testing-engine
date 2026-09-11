@@ -86,10 +86,20 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
         if anomalies:
             plural = "y" if len(anomalies) == 1 else "ies"
             print(f"Writing bug report(s) for {len(anomalies)} anomal{plural}...")
-            bug_reports = get_bug_reports(
-                client, adapter, run_config, final_hypothesis, final_skeptic_review, stopped_reason, casting_log,
-                usage_sink=usage_log,
-            )
+            # Isolated from the run's verdict: the checkpoint loop has already concluded
+            # (stopped_reason / anomaly_found are set above), so a bug-report generation
+            # failure - e.g. the tool call exhausting its retries on a max_tokens cutoff -
+            # must degrade to "no bug reports written", not rewrite a successful run as
+            # "error" and discard its conclusion.
+            try:
+                bug_reports = get_bug_reports(
+                    client, adapter, run_config, final_hypothesis, final_skeptic_review, stopped_reason, casting_log,
+                    usage_sink=usage_log,
+                )
+            except Exception as e:
+                print(f"  bug-report generation failed ({type(e).__name__}: {e}); "
+                      f"keeping the run verdict, writing no bug reports.")
+                output["bug_report_error"] = str(e)
     except RuntimeError as e:
         print(f"Stopped early: {e}")
         output["error"] = str(e)

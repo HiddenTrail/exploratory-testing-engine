@@ -60,6 +60,14 @@ def test_reference_briefing_lists_the_action_space_only():
     assert "button:Buy" not in briefing                    # the committing control is never offered
 
 
+def test_reference_fails_closed_on_a_missing_committing_flag():
+    data = _ontology()
+    # An element with no 'committing' key (foreign/hand-edited ontology) must NOT be offered.
+    data["states"][0]["elements"].append(
+        {"key": "button:Mystery", "role": "button", "name": "Mystery", "locator": "#m"})
+    assert ("st01", "button:Mystery") not in ref_mod.Reference(data).pairs()
+
+
 def test_reference_ignores_states_unreachable_by_navigation():
     data = _ontology()
     data["states"].append({"id": "st09", "url": "u", "signature": "/orphan|button:X|", "first_seen": 9,
@@ -67,6 +75,55 @@ def test_reference_ignores_states_unreachable_by_navigation():
                                           "locator": "#x", "committing": False}]})
     ref = ref_mod.Reference(data)   # st09 has no navigation into it -> no path -> not offered
     assert ("st09", "button:X") not in ref.pairs()
+
+
+# ---- actuation: fill text controls, click the rest -----------------------------------
+
+class _FakeLoc:
+    def __init__(self, page, tag):
+        self.page, self.tag = page, tag
+
+    def count(self):
+        return 1
+
+    def click(self, timeout=None):
+        self.page.calls.append(("click_role", self.tag))
+
+    def fill(self, value, timeout=None):
+        self.page.calls.append(("fill_role", value))
+
+
+class _FakePage:
+    def __init__(self):
+        self.calls = []
+
+    def get_by_role(self, role, name, exact=False):
+        return _FakeLoc(self, (role, name))
+
+    def click(self, css, timeout=None, force=False):
+        self.calls.append(("click_css", css))
+
+    def fill(self, css, value, timeout=None):
+        self.calls.append(("fill_css", value))
+
+
+def _bare_session():
+    sess = live_session.Session.__new__(live_session.Session)   # no browser launched
+    sess.page = _FakePage()
+    return sess
+
+
+def test_actuate_fills_a_search_box_rather_than_clicking_it():
+    sess = _bare_session()
+    assert sess._actuate({"role": "textbox", "name": "Search postcodes", "locator": "#q"}) is True
+    kind, val = sess.page.calls[-1][0], sess.page.calls[-1]
+    assert kind in ("fill_role", "fill_css")   # a fill, not a click -> no false dead-control
+
+
+def test_actuate_clicks_a_button_control():
+    sess = _bare_session()
+    assert sess._actuate({"role": "button", "name": "Zoom in", "locator": "#z"}) is True
+    assert sess.page.calls[-1][0] in ("click_role", "click_css")
 
 
 # ---- outcome envelope ----------------------------------------------------------------
