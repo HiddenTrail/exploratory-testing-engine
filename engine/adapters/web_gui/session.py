@@ -175,7 +175,7 @@ class Session:
         reached = replayed and self.reference._by_id.get(state_id, {}).get("signature") == before_sig
 
         t0 = time.time()
-        sent = self._actuate(plan["target"])
+        sent = reached and self._actuate(plan["target"])
         _settle(self.page)
         settle = round(time.time() - t0, 2)
 
