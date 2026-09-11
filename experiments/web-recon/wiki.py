@@ -295,7 +295,10 @@ def main():
     # Recompute structural observations at render time - deterministic and cheap - so an
     # ontology written by any path (including a pre-observations crawl) shows them.
     from analyze import analyze
-    onto.observations = analyze(onto)
+    graph_kinds = {"dead_control", "blocked_control", "redundant_controls", "dead_end"}
+    onto.observations = analyze(onto) + [
+        o for o in onto.observations if o.kind not in graph_kinds
+    ]
     synthesis_html = ""
     if args.llm:
         from synthesize import run_synthesis  # imported only when asked, keeps the default path model-free
