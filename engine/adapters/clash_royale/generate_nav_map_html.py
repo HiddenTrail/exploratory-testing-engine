@@ -130,11 +130,32 @@ def _parse_screen_entity(file_path: Path) -> dict | None:
         if obs_match:
             observations = int(obs_match.group(1))
 
+    surface = None
+    surface_match = re.search(
+        r"This screen scrolls \(([^)]+)\);.*?recognised (\d+) scroll\(s\).*?"
+        r"at least (\d+) cells of content sit past the visible frame\.",
+        body,
+        re.DOTALL,
+    )
+    if surface_match:
+        axes = [axis.strip() for axis in re.split(r"\s+and\s+", surface_match.group(1)) if axis.strip()]
+        panorama_match = re.search(
+            r"!\[[^\]]*whole page[^\]]*\]\(([^)]+)\)",
+            body[surface_match.end():],
+        )
+        surface = {
+            "axes": axes,
+            "scroll_steps": int(surface_match.group(2)),
+            "revealed_cells_floor": int(surface_match.group(3)),
+            "panorama": panorama_match.group(1) if panorama_match else None,
+        }
+
     return {
         "id": screen_id,
         "name": title,
         "purpose": description,
         "observations": observations,
+        "surface": surface,
         "identity_is_weak": False,
         "animated_cells": 0,
         "variants": [],
