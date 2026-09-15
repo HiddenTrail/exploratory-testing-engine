@@ -20,6 +20,7 @@ import stitch  # noqa: E402
 
 W, VIEW, STEP, N = 120, 300, 120, 5
 CHROME = 40
+CHROME_RGB = (10, 20, 30)
 
 
 def _pixel(x: int, y: int) -> tuple[int, int, int]:
@@ -37,7 +38,7 @@ def _tall_source(height: int) -> Image.Image:
 def _slice_vertical(source: Image.Image, out_dir: Path) -> list[Path]:
     """Overlapping viewports stepping down STEP px, each with a constant top chrome band."""
     paths = []
-    chrome = Image.new("RGB", (W, CHROME), (10, 20, 30))
+    chrome = Image.new("RGB", (W, CHROME), CHROME_RGB)
     for i in range(N):
         top = i * STEP
         frame = source.crop((0, top, W, top + VIEW)).copy()
@@ -59,6 +60,11 @@ def test_stitch_reconstructs_the_scrolled_height(tmp_path):
     # Downscale rounding allows a few px of drift per seam.
     assert abs(panorama.size[1] - expected) <= 4 * N
     assert panorama.size[1] > VIEW  # it actually grew past a single frame
+    assert panorama.getpixel((0, 0)) == CHROME_RGB
+    assert panorama.getpixel((W - 1, CHROME - 1)) == CHROME_RGB
+    assert panorama.getpixel((17, CHROME)) == _pixel(17, CHROME)
+    assert panorama.getpixel((23, VIEW + STEP // 2)) == _pixel(23, VIEW + STEP // 2)
+    assert panorama.getpixel((31, VIEW + 3 * STEP + STEP // 2)) == _pixel(31, VIEW + 3 * STEP + STEP // 2)
 
 
 def test_single_frame_is_returned_unchanged(tmp_path):
@@ -92,7 +98,7 @@ def _wide_source(width: int) -> Image.Image:
 def _slice_horizontal(source: Image.Image, out_dir: Path) -> list[Path]:
     """Overlapping viewports stepping right STEP px, each with a constant left chrome band."""
     paths = []
-    chrome = Image.new("RGB", (CHROME, W), (10, 20, 30))
+    chrome = Image.new("RGB", (CHROME, W), CHROME_RGB)
     for i in range(N):
         left = i * STEP
         frame = source.crop((left, 0, left + VIEW, W)).copy()
@@ -112,6 +118,11 @@ def test_horizontal_surface_is_stitched_wide(tmp_path):
     expected_w = VIEW + (N - 1) * STEP
     assert abs(panorama.size[0] - expected_w) <= 4 * N
     assert panorama.size[1] == W  # the non-scroll axis is preserved
+    assert panorama.getpixel((0, 0)) == CHROME_RGB
+    assert panorama.getpixel((CHROME - 1, W - 1)) == CHROME_RGB
+    assert panorama.getpixel((CHROME, 19)) == _pixel(CHROME, 19)
+    assert panorama.getpixel((VIEW + STEP // 2, 27)) == _pixel(VIEW + STEP // 2, 27)
+    assert panorama.getpixel((VIEW + 3 * STEP + STEP // 2, 33)) == _pixel(VIEW + 3 * STEP + STEP // 2, 33)
 
 
 def test_unalignable_frames_yield_no_panorama(tmp_path):
