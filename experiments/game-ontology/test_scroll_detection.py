@@ -195,3 +195,32 @@ def test_record_scroll_that_moved_nothing_is_not_a_surface(tmp_path):
 
     assert transition.kind == "none"
     assert screen.scroll_steps == 0
+
+
+def test_record_stops_panorama_capture_after_other_axis_scroll(tmp_path):
+    vertical_surface = list(range(100))
+    horizontal_surface = list(range(100, 200))
+    first = vertical_viewport(vertical_surface, offset=10)
+    second = vertical_viewport(vertical_surface, offset=7)
+    sideways = horizontal_viewport(horizontal_surface, offset=10)
+    sideways_after = horizontal_viewport(horizontal_surface, offset=7)
+    third = vertical_viewport(vertical_surface, offset=4)
+
+    controller = FakeController()
+    session = Recon(controller, tmp_path)
+    screen = _screen_showing(first)
+    session.screens[screen.id] = screen
+    session.standing = screen.id
+
+    session._record(
+        screen, Action("scroll", at=(0.5, 0.5), notches=-3), first, second, settle_ms=120)
+    session._record(
+        screen, Action("scroll", at=(0.5, 0.5), notches=3, horizontal=True),
+        sideways, sideways_after, settle_ms=120)
+    session._record(
+        screen, Action("scroll", at=(0.5, 0.5), notches=-3), second, third, settle_ms=120)
+
+    assert screen.panorama_axis == "vertical"
+    assert screen.panorama_stopped is True
+    assert screen.scroll_views == ["images/sc01-scroll1.png"]
+    assert controller.saved == [tmp_path / "images" / "sc01-scroll1.png"]

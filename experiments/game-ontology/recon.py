@@ -1026,8 +1026,11 @@ class Screen:
     scroll_views: list[str] = field(default_factory=list)
     # The axis those views were captured along. A surface can be scrolled both ways over
     # a pass; the panorama can only stitch one, so views are only kept for the first axis
-    # scrolled, and the rest of that axis's frames stay a clean single-axis sequence.
+    # scrolled, and the rest of that axis's frames stay a clean single-axis sequence. If
+    # the user later scrolls the other axis, the single-axis run is broken and no more
+    # views are appended for this surface during the pass or any resumed continuation.
     panorama_axis: str = ""
+    panorama_stopped: bool = False
     panorama: str = ""
     vetting: dict | None = None
     degenerate: bool = False
@@ -2266,7 +2269,11 @@ class Recon:
             # and ignore the other's frames - mixing them would break the seam chain.
             if not screen.panorama_axis:
                 screen.panorama_axis = shift.axis
-            if shift.axis == screen.panorama_axis and len(screen.scroll_views) < MAX_SCROLL_VIEWS:
+            elif shift.axis != screen.panorama_axis:
+                screen.panorama_stopped = True
+            if (not screen.panorama_stopped
+                    and shift.axis == screen.panorama_axis
+                    and len(screen.scroll_views) < MAX_SCROLL_VIEWS):
                 name = f"{screen.id}-scroll{len(screen.scroll_views) + 1}.png"
                 self.controller.save_png(self.images / name)
                 screen.scroll_views.append(f"images/{name}")
@@ -2977,6 +2984,7 @@ class Recon:
                 scroll_revealed=(entry.get("surface") or {}).get("revealed_cells_floor", 0),
                 scroll_views=list((entry.get("surface") or {}).get("views", [])),
                 panorama_axis=(entry.get("surface") or {}).get("views_axis") or "",
+                panorama_stopped=(entry.get("surface") or {}).get("views_stopped", False),
                 panorama=(entry.get("surface") or {}).get("panorama") or "",
             )
             if explored.get("vetted"):
@@ -3154,10 +3162,12 @@ class Recon:
                         # stops learning - which is why it is labelled a floor.
                         "revealed_cells_floor": screen.scroll_revealed,
                         # The ordered frames the scroll passed through, the axis they
-                        # were captured along, and the whole page stitched from them
-                        # (None if Pillow was absent or nothing aligned).
+                        # were captured along, whether capture stopped after the other axis
+                        # was used, and the whole page stitched from them (None if Pillow
+                        # was absent or nothing aligned).
                         "views": screen.scroll_views,
                         "views_axis": screen.panorama_axis or None,
+                        "views_stopped": screen.panorama_stopped or None,
                         "panorama": screen.panorama or None,
                     } if screen.scroll_axes else None),
                     "hover": {
