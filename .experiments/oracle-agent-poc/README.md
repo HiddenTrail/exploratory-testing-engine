@@ -1,5 +1,7 @@
 # Oracle Agent PoC
 
+> **Archive, with one exception.** A finished experiment, kept for history, except `heuristics/catalog.json`, which is still added to (see CLAUDE.md, "Standing practices").
+
 A first, deliberately narrow slice of the "Oracle layer" described in
 [`docs/exploratory-testing-engine-concept.md`](../../docs/exploratory-testing-engine-concept.md)
 §3.4 - distributing judgment across narrow, specialized heuristics instead
@@ -63,7 +65,8 @@ follows one template (`keyword`, `type` - `"model"` vs `"technique"`,
 vs `"cataloged"`, `source`). HTSM's "Project Environment" category
 (testing-project logistics, not SUT behavior) is deliberately excluded -
 a different kind of thing than everything else here. Standing practice:
-append newly invented heuristics here, following the same template.
+append newly invented heuristics here, following the same template. Mark new
+entries `status: "cataloged"` until something actually uses them.
 
 ## Wired into the real Driver
 
@@ -71,8 +74,10 @@ This run's output (`results/oracle_library.json`, copied verbatim, not
 regenerated) is now committed at
 [`engine/adapters/token_purchase/oracle_library.json`](../../engine/adapters/token_purchase/oracle_library.json)
 and merged into the real `token_purchase` adapter's `onboarding_extra` -
-see [`adapter.py`](../../engine/adapters/token_purchase/adapter.py). The
-Driver sees it as ordinary evidence alongside the schema and known
+see [`adapter.py`](../../engine/adapters/token_purchase/adapter.py). The adapter
+now also passes a ranked top-15 slice built by `engine/ontology/oracle_creator.py`
+(`oracle_ranked`), and the full library stays in `onboarding_extra` for the report
+exhibit. The Driver sees it as ordinary evidence alongside the schema and known
 accounts, and it renders as its own "Oracle library" exhibit in the HTML
 report. A real live run confirmed the effect isn't just cosmetic: given
 the library, the Driver's first-round reasoning explicitly cited the

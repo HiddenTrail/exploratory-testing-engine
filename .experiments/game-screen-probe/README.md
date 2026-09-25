@@ -4,6 +4,10 @@ The smallest useful perceive/act probe against a live **native** game window:
 deliver one synthetic input, and print whenever anything moves on the game's
 screen. No engine, no adapter, no claims, no LLM.
 
+`probe.py` is a live dependency. `game-ontology/controller.py` imports it for capture and
+input, so the `clash_royale` engine adapter and `clash-royale-kit` load it at run time. It
+isn't archive, and renaming anything in it can break them.
+
 It has since grown far enough to *play* the game - read the board, choose a
 move, place a tile, score a match, take a level-up reward - which is a stronger
 result than the original question asked for.

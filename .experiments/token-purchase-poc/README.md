@@ -1,5 +1,7 @@
 # Token-Purchase PoC
 
+> **Archive.** A finished experiment, kept for history. It isn't maintained. It was ported to `engine/adapters/token_purchase/`, and `engine/tests/test_tools_parity.py` still reads `run_live.py` from here, so don't edit it (issue #77).
+
 A third live-SUT PoC, and a genuinely different kind of test from the first two.
 `live-sut-poc` and `complex-sut-poc` both validated the same question: can the
 Driver rediscover a bug we deliberately planted and know is there? This one asks

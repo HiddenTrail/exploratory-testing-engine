@@ -1,12 +1,16 @@
 # Wiki Generator PoC
 
+> **Archive.** A finished experiment, kept for history. It isn't maintained.
+
 Proves the "wiki-ingest" mechanics described in the repo-root
 [`AGENTS.md`](../../AGENTS.md) as real, testable code, instead of only an
 interactive Claude Code slash command
 ([`.claude/commands/wiki-ingest.md`](../../.claude/commands/wiki-ingest.md)).
 If this holds up, it graduates to `engine/wiki/` the way `token-purchase-poc`
-became `engine/adapters/token_purchase` and `oracle-agent-poc` became
-`engine/ontology` - proven here first, hardened there.
+became `engine/adapters/token_purchase` and `oracle-agent-poc`'s output became
+`engine/adapters/token_purchase/oracle_library.json`, which `engine/ontology`
+reads - proven here first, hardened there. It hasn't graduated yet: there is
+no `engine/wiki/`.
 
 **This is a wiki about the product under test, not about this repo's own
 testing machinery.** `raw/` holds only product-facing material a tester with

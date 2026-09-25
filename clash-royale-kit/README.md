@@ -57,9 +57,9 @@ launched the command. That only reaches the repo root if nothing between `engine
 root has its own `.env`; a stray one anywhere in between (an old `engine/.env` from before this
 kit existed, say) is found first and silently shadows the repo-root file, with no error and no
 mention of which one won. If auth looks configured but keeps resolving to the wrong provider or
-model, run `python -c "from dotenv import find_dotenv; print(find_dotenv())"` from the repo
-root to see which `.env` is actually being read, and remove or fix whichever one is not the
-repo-root file. `run.cmd` still gets you to the repo root either way.
+model, check whether a stray `engine\.env` exists (`dir engine\.env`) and delete it if so. A
+`python -c` check with `find_dotenv` searches from your current directory, not from `engine\`,
+so it can't show this. `run.cmd` still gets you to the repo root either way.
 
 Verify the install without a game or a model:
 
@@ -93,8 +93,8 @@ clash-royale-kit\run.cmd --minutes 20 --synthesize
 
 What happens, in order:
 
-1. **Preflight.** The window is found and identified, the client area is measured, both safety
-   layers are verified, the idle animation is sampled for sixty seconds, this session's
+1. **Preflight.** The window is found and identified, the client area is measured, the
+   coordinate denylist and the carried screen reference are verified, the idle animation is sampled for sixty seconds, this session's
    screen-match threshold is derived from that sample, and the screen the client is sitting on
    is identified. Nothing is tapped. Any of these can refuse the run.
 2. **The model check.** One token, to prove the vetting call the pass depends on can be made.
@@ -118,7 +118,8 @@ out\20260907-141230\
                             is the same run cut by wall-clock instead, for retracing
                             what happened at a given moment
   wiki\                  the bundle: overview.md, summaries\, entities\, concepts\, log\
-  wiki-html\             the same thing browsable, if Node.js was available
+  wiki.html              the same wiki as one browsable file, if Node.js was available
+  qpf.config.yml         config the HTML renderer reads
 ```
 
 ## What is in the wiki
@@ -170,7 +171,8 @@ them and cannot switch any of them off.
 
 | rule | held by |
 |---|---|
-| **money is untouchable** - gems, gold, shop, chests | 6 coordinate boxes in `.experiments\game-ontology\target.py` **and** the model vetting call |
+| **money is untouchable** - gems, gold, shop, chests | 4 of the 6 coordinate boxes in `.experiments\game-ontology\target.py` (gems, gold, Pass Royale banner, Shop tab) **and** the model vetting call. Chests are guarded by the vetting call only |
+| **no messages or gifts to other players** | the Clan tab box in `.experiments\game-ontology\target.py` |
 | **the Battle button stays blocked** - it is a live ladder match | a coordinate box, verified in preflight before any frame is scored |
 | **no battle is fought** | `battle.py` refuses without `--allow-battle`, and this kit never passes it - there is a test asserting the flag is never even constructed |
 | **nothing opens the launcher** | `Target.exe` is empty on purpose, and the restart path refuses before it acts |

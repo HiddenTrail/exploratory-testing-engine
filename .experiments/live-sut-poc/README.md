@@ -1,5 +1,7 @@
 # Live-SUT PoC
 
+> **Archive.** A finished experiment, kept for history. It isn't maintained.
+
 `pattern-detection-poc` tested reasoning against a hand-typed, mocked call sequence.
 This closes a real gap: it never actually ran the disconfirm test it proposed. This
 version stands up a real local server with a genuine bug, and the harness gives

@@ -1,5 +1,7 @@
 # Token-Purchase Oracle Value
 
+> **Archive.** A finished experiment, kept for history. It isn't maintained.
+
 A measurement experiment: does the oracle library wired into the real
 `engine/adapters/token_purchase` adapter change real Driver+Skeptic checkpoint-loop outcomes?
 Unlike `pattern-detection-oracle-poc`, this drives the actual production pipeline
@@ -15,6 +17,10 @@ answer. See [REPORT.md](REPORT.md) for the findings.
 ```
 python run_comparison.py
 ```
+
+A re-run today isn't comparable with REPORT.md. The with-oracle arm uses the
+real `token_purchase` adapter, which now also passes a ranked top-15 slice from
+`engine/ontology` (`oracle_ranked`).
 
 Requires the repo root `.env` (`ANTHROPIC_API_KEY`) - no separate env file here, since this
 imports `engine/` directly rather than being a self-contained experiment. Starts and restarts

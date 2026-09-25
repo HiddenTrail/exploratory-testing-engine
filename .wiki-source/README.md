@@ -8,8 +8,10 @@ synthesized from raw sources, instead of a human writing it by hand.
 This folder is **reference material to replicate that pattern in this repo**, not a
 working workspace itself.
 
-It has now been used once for real, which the "how to adapt this" section below predates:
-`.experiments/android-bot/wiki/` is a wiki built by this pattern from recon output against a
+It has been used for real in `.experiments/android-bot/wiki/` and by
+`.experiments/wiki-generator-poc/`. The repo's own wiki rules are in the root `AGENTS.md`
+and `.claude/commands/wiki-ingest.md`. The "how to adapt this" section below predates
+both. `.experiments/android-bot/wiki/` is a wiki built by this pattern from recon output against a
 live Clash Royale client — an overview, a log, and one entity page per screen and per
 persistent UI element. So the open question is no longer whether the pattern transfers; it
 is whether an *append-only* wiki stays true as the target changes underneath it. That
@@ -41,9 +43,11 @@ templates/
     CLAUDE.md             thin pointer so Claude Code also picks up AGENTS.md
 ```
 
-These are QPF's actual, working files — not rewritten or simplified. `scaffold.mjs`,
-`rebuild-index.mjs` and `render-html.mjs` are runnable as-is (`node`, no dependencies)
-once you adjust the paths below.
+These are QPF's actual, working files, not rewritten or simplified.
+`rebuild-index.mjs` and `render-html.mjs` run as-is (`node`, no dependencies) on any
+directory that has a `qpf.config.yml` and a `wiki/`. `scaffold.mjs` does not run from this
+copy: it needs QPF files that weren't copied (`VERSION`, `standards/`, and some
+`templates/workspace/` files).
 
 ## The pattern in one paragraph
 
@@ -84,17 +88,17 @@ concept pages → derived index) are generic. To stand up a wiki for **this** re
    files work fine as raw sources; an LLM with vision can summarize a screenshot the same
    way it summarizes a transcript, and JSON is just structured text to read faithfully.
 
-2. **Adjust `scaffold.mjs`** (or just run it once and re-arrange): change the `dirs` array
-   and the `raw/...` subfolders to match step 1, then run:
+2. **Create the skeleton by hand.** `scaffold.mjs` can't run from this copy (see above).
+   Make the directories `wiki/{log,summaries,entities,concepts}` and a `qpf.config.yml`
+   containing:
    ```
-   node scripts/scaffold.mjs --customer "qes-exploration" --dir /c/Users/pmarj/qes-exploration --force
+   qpf:
+     customer: "qes-exploration"
+     language: en
    ```
-   `--force` is needed because the target isn't empty — check what it writes before
-   committing; it won't touch existing files outside the specific paths it creates.
-   Note it also writes `guidelines/` and a customer-flavored `AGENTS.md`/`CLAUDE.md`/
-   `README.md`/`qpf.config.yml` — drop or rewrite whatever doesn't fit (the wiki/log/
+   That's what `.experiments/wiki-generator-poc/generate.py` does. The wiki/log/
    summaries/entities/concepts skeleton and `rebuild-index.mjs` are the reusable core;
-   the Guidelines-tailoring machinery is QPF-specific and can be deleted).
+   QPF's Guidelines-tailoring machinery isn't needed.
 
 3. **Strip the QPF-specific framing** from `templates/workspace/AGENTS.md` before adopting
    it here: drop the Guidelines/Playbook operations (§ "Build Guidelines", "Generate
@@ -104,8 +108,9 @@ concept pages → derived index) are generic. To stand up a wiki for **this** re
 4. **Ingest sources** by following the same steps as [commands/qpf-ingest.md](commands/qpf-ingest.md):
    read one raw file faithfully, write a page from the matching template into
    `wiki/summaries/` (or `entities/`/`concepts/` as appropriate), cite the raw file in
-   `sources:`, then run `node scripts/rebuild-index.mjs --dir <workspace>` to regenerate
-   `wiki/index.md`. `rebuild-index.mjs` also tries to render `guidelines/guidelines.yml` —
+   `sources:`, then run `node .wiki-source/scripts/rebuild-index.mjs --dir <workspace>`
+   from the repo root to regenerate `wiki/index.md` (`<workspace>` must contain
+   `qpf.config.yml` and `wiki/`). `rebuild-index.mjs` also tries to render `guidelines/guidelines.yml`:
    harmless no-op if that file doesn't exist, it just prints a warning and skips it.
 
 5. **Log it.** Append one line to `wiki/log/<today>.md` per ingest run so there's an audit

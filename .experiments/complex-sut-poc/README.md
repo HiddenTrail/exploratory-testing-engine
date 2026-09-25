@@ -1,5 +1,7 @@
 # Complex-SUT PoC
 
+> **Archive.** A finished experiment, kept for history. It isn't maintained. It was ported to `engine/adapters/complex_sut/`, and `engine/tests/test_complex_sut_parity.py` still reads `run_live.py` from here, so don't edit it (issue #77).
+
 `live-sut-poc` used a single-request bug (catastrophic regex backtracking) where
 sequential testing was always enough to eventually stumble onto the trigger. This
 one is deliberately harder: a genuine TOCTOU (check-then-act) race condition in

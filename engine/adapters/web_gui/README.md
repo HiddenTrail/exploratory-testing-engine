@@ -13,7 +13,7 @@ divide cleanly:
   writes an `ontology.json` — the map, discovered not declared, with a read-only safety
   gate deciding which controls are non-committing.
 - **This adapter** takes that ontology as its **carried reference** (the analog of
-  clash_royale's carried 11-screen fingerprint set): it *is* the action space. The Driver
+  clash_royale's carried screen fingerprint set, `known_screens.json`): it *is* the action space. The Driver
   may only name a `(state, control)` pair the recon found and cleared as safe; there is no
   free-text selector and no coordinate, so the run looks and navigates only — nothing it
   can name mutates the app.

@@ -775,6 +775,11 @@ consumer can take the observed claims and leave the guesses.
 
 ## What is reused, and what standalone means
 
+The engine depends on this directory. `engine/adapters/clash_royale/session.py` and
+`clash-royale-kit` put it on `sys.path` and import `controller`, `recon`, `target` and
+`calibrate` at run time. It's maintained, not archive, and renaming anything here can break
+them without CI noticing.
+
 `probe.py` is imported for capture, input, PNG writing and window finding - it was
 already fully general, and it stayed that way through one addition: the wheel, and the
 three modifier keys, which are input primitives no game knowledge went into. Everything

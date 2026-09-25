@@ -1,18 +1,20 @@
 # AI Exploratory Testing Engine
 
-A reusable Driver+Skeptic checkpoint-loop harness, hardened from four rounds
-of experimentation in `.experiments/` (mostly kept there as a historical
-archive - this package is a port, not a rewrite). See
-`docs/exploratory-testing-engine-concept.md` for the original vision this is
-one deliberately narrow slice of.
+A reusable Driver+Skeptic checkpoint-loop harness, hardened from earlier
+experiments in `.experiments/` (most of them now an archive - this package is
+a port, not a rewrite). See `docs/exploratory-testing-engine-concept.md` for
+the original vision this is one deliberately narrow slice of.
 
-The "archive" framing has one live exception. `adapters/clash_royale/` does not
-port its harness: `session.py` puts `.experiments/game-ontology` and
-`.experiments/android-bot` on `sys.path` and imports them at call time, rather
-than copying 1,600 lines of Win32 window handling that have been hardened
-against a real client. Its own comment records that as a knowing debt. Those
-two directories are therefore **maintained, not frozen**, they have their own
-pytest suites (72 and 127 tests), and CI runs neither - they are Windows-only.
+The "archive" framing has exceptions. `adapters/clash_royale/session.py` puts
+`.experiments/game-ontology`, `.experiments/android-bot` and
+`.experiments/game-screen-probe` on `sys.path` and imports them at call time,
+rather than copying about 1,800 lines of Win32 window handling that have been
+hardened against a real client. `adapters/web_gui/session.py` does the same
+with `.experiments/web-recon`. Both comments record this as a knowing debt, and
+moving that code out of the archive is issue #48. Those folders are
+**maintained, not frozen**. game-ontology and android-bot have their own pytest
+suites, which are Windows-only, so CI runs neither. The parity tests also read
+`.experiments/complex-sut-poc` and `.experiments/token-purchase-poc` (issue #77).
 
 ## What it does
 
@@ -44,9 +46,8 @@ the comment on that field in `engine/tools.py`. Carried forward deliberately, no
 evidence's oracle content from `engine/ontology/` - a ranked, prioritized
 test-idea list rather than the old flat claim dump - see the root README's
 "Ontology layer" section and `docs/ontology-todo.md` for what's proven and
-what's still open (claim matching between a Driver-written hypothesis and an
-oracle claim is currently exact-string only, so re-ranking doesn't yet
-reflect a run's actual results).
+what's still open. Each ranked idea has a stable id the Driver cites as
+`oracle_claim_id`, so a run's results do change the ranking on the next run.
 
 ## Layout
 
@@ -64,16 +65,22 @@ engine/
   report.py     # generic HTML rendering (prose, badges, CSS, page/checkpoint structure)
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output
   cli.py        # python -m engine.cli --adapter <name>
+  config.py     # RunConfig: model, checkpoint and test budgets, output folder
+  http.py, redact.py, util.py  # small shared helpers
   adapters/
     registry.py           # name -> adapter module, resolved lazily
     token_purchase/        # first adapter, ported from .experiments/token-purchase-poc
     complex_sut/            # second adapter - concurrency/rate-limiting domain
     clash_royale/           # third adapter - a live game client, not a web service. Read actions.py first
-                            #   known_screens.json is measured data, not configuration: eleven screens a
-                            #   game-ontology recon pass fingerprinted against this client, extracted by
-                            #   extract_reference.py and loaded by reference.py. Four are classified
-                            #   "abort", which is what lets a run notice it has reached the shop
-  bootstrap/                # generate a draft adapter from a live SUT - see below  ontology/                  # prioritization layer stack (heuristics/domain/context/ranked oracle) - see root README  tests/                    # deterministic regression + parity tests (no LLM calls)
+                            #   known_screens.json is measured data, not configuration: the screens a
+                            #   game-ontology recon pass fingerprinted against this client (twenty today),
+                            #   extracted by extract_reference.py and loaded by reference.py. Some are
+                            #   classified "abort", which is what lets a run notice it has reached the shop
+    web_gui/                # fourth adapter - a live web app in a browser. Its action space is a
+                            #   web-recon ontology.json. See its README
+  bootstrap/                # generate a draft adapter from a live SUT - see below
+  ontology/                 # prioritization layer stack (heuristics/domain/context/ranked oracle) - see root README
+  tests/                    # deterministic regression + parity tests (no LLM calls)
 ```
 
 `engine/*` never imports from `engine/adapters/*` - adapters import from
@@ -106,7 +113,9 @@ normal AWS chain - SSO cache, profile, env vars, instance role - so there is no
 long-lived key in the repo or the environment.
 
 The default model changes with the provider, because Bedrock names models
-differently. Two important details:
+differently: `claude-sonnet-4-6` on the direct API and
+`anthropic.claude-sonnet-5` on Bedrock (see `engine/client.py`). Override it
+with `--model`. Two important details:
 
 - Bedrock's Messages-API endpoint exposes a **different, smaller catalogue**
   than the `aws bedrock list-inference-profiles` output. The `eu.anthropic.*`
@@ -121,16 +130,18 @@ an unavailable model fails fast with a 404 and costs nothing.
 
 ## Adding a new adapter
 
-1. Create `engine/adapters/<name>/` with your mock SUT and an `adapter.py`.
+1. Create `engine/adapters/<name>/` with an `adapter.py` (plus a mock SUT if
+   you are testing one).
 2. In `adapter.py`, define the genuinely per-SUT pieces and build one
    `ADAPTER = SUTAdapter(...)` instance - see
    `engine/adapters/token_purchase/adapter.py` for a complete worked example.
-   Required fields: `name`, `display_name`, `base_url`, `test_endpoint_path`,
-   `casting_tool_schema`, `casting_system_prompt`, `validate_casting_response`,
-   `execute_test`, `render_test_entry`, `render_onboarding_section`.
-   `validate_adapter()` (in `engine/adapter.py`) checks these are present and
-   raises a clear error naming what's missing, before any HTTP/Anthropic
-   calls are made.
+   Required fields: `name`, `display_name`, `casting_tool_schema`,
+   `casting_system_prompt`, `validate_casting_response`, `execute_test`,
+   `render_test_entry`, `render_onboarding_section`. To reach the SUT, set
+   `base_url` and `test_endpoint_path` for a web service, or supply both
+   `check_sut_ready` and `fetch_happy_day_example` for anything else.
+   `validate_adapter()` (in `engine/adapter.py`) checks all this and raises a
+   clear error naming what's missing, before any HTTP/Anthropic calls are made.
 3. Register it in `engine/adapters/registry.py`'s `_ADAPTERS` map.
 4. Do **not** touch `engine/tools.py` - the hypothesis/Skeptic schema is
    shared across every adapter by design.
@@ -151,9 +162,10 @@ pip install -r engine/requirements.txt
 python -m pytest engine/tests
 ```
 
-Runs automatically on every push to `master` and every PR via
+Runs on every push to `master`, every PR into `master`, and on demand, via
 `.github/workflows/engine-tests.yml` - no Anthropic API key needed, since no
-test makes a real LLM call.
+test makes a real LLM call. The same workflow compile-checks `engine/` and
+runs the `clash-royale-kit` tests.
 
 Most tests (`test_sut_regression.py`, `test_client_retry.py`, the
 `*_parity.py` files) run in-process against the mock SUT via FastAPI's
