@@ -2,6 +2,7 @@
 used by every tool-forced call in the checkpoint loop. Identical logic
 existed in every prior experiment's run_live.py."""
 
+import json
 import os
 import time
 from datetime import datetime, timezone
@@ -148,6 +149,40 @@ def _cacheable_content(cached_segments: list[str], user_message: str) -> list[di
     return content
 
 
+def unstring_json_fields(value, schema, path: str = "") -> tuple[object, list[str]]:
+    """The model sometimes sends a list or object field as JSON *text*
+    ('"observations": "[{...}]"'), which the validator rejects and which cost a
+    retry on about half the hypothesis calls in early runs (issue #91). Where the
+    schema says a field is an array or an object and the model sent a string that
+    parses into exactly that, use the parsed value. Anything else - text that
+    doesn't parse, or parses into the wrong type - is left alone so the validator
+    still sees it and reports it. Returns the value and the paths it fixed."""
+    fixed = []
+    expected = schema.get("type") if isinstance(schema, dict) else None
+    if expected in ("array", "object") and isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except ValueError:
+            return value, fixed
+        if isinstance(parsed, list if expected == "array" else dict):
+            value = parsed
+            fixed.append(path or "(the whole answer)")
+    if expected == "object" and isinstance(value, dict):
+        value = dict(value)
+        for key, sub_schema in schema.get("properties", {}).items():
+            if key in value:
+                value[key], sub_fixed = unstring_json_fields(value[key], sub_schema, f"{path}.{key}" if path else key)
+                fixed.extend(sub_fixed)
+    elif expected == "array" and isinstance(value, list):
+        items = []
+        for i, item in enumerate(value):
+            item, sub_fixed = unstring_json_fields(item, schema.get("items", {}), f"{path}[{i}]")
+            items.append(item)
+            fixed.extend(sub_fixed)
+        value = items
+    return value, fixed
+
+
 def _now_iso() -> str:
     """Wall-clock stamp for usage records. Wall clock rather than a monotonic
     reading because the thing it exists to measure - cache TTL expiry - is a
@@ -270,9 +305,13 @@ def call_tool_with_retry(
             messages.append({"role": "user", "content": "You must call the tool. Try again."})
             continue
 
-        errors = validate_fn(tool_use.input)
+        tool_schema = next((t.get("input_schema", {}) for t in tools if t.get("name") == tool_name), {})
+        answer, unstrung = unstring_json_fields(tool_use.input, tool_schema)
+        if unstrung:
+            print(f"  [{tool_name}] turned JSON text back into structure at: {', '.join(unstrung)}")
+        errors = validate_fn(answer)
         if not errors:
-            return tool_use.input
+            return answer
 
         # A reply that ran out of budget fails validation too, and it fails it in a way
         # that impersonates a model ignoring the instructions - a schema-shaped answer
