@@ -168,7 +168,14 @@ python -m pytest .experiments/game-ontology .experiments/android-bot   # Windows
 
 ### Benchmark runs (real LLM calls, they cost money)
 
-When a change needs a before/after comparison, keep the runs short. Slightly
+**First ask whether you need a live run at all.** A live run is only worth its
+cost when the change affects what the model is asked or how its answers are
+judged: prompts, tool schemas, validators, the evidence sent. A change the model
+never sees (the report, the runner, file output) is checked for free: re-render
+existing run output with `engine.report.render_report_from_dir`, and let the unit
+tests cover the rest.
+
+When a change does need a before/after comparison, keep the runs short. Slightly
 less reliable numbers are better than using up the quota and not testing at all.
 
 ```
@@ -176,8 +183,12 @@ python -m engine.cli --adapter <sut> --out-dir runs/<name>/<sut>_<n> \
   --max-checkpoints 2 --first-round-budget 6 --default-budget 4
 ```
 
-- Do 3 runs each on `complex_sut` and `token_purchase`. Start each mock SUT
-  on port 8000 first (see the README), one at a time.
+- Do 2 runs each on `complex_sut` and `token_purchase`, and a third only if the
+  result is close. Start each mock SUT on port 8000 first (see the README), one
+  at a time.
+- Retries are the biggest cost in a run: each one resends the whole prompt and
+  pays for a full new answer. Fix known retry causes before benchmarking, and
+  count the retries in the run log (`attempt N produced malformed output`).
 - Run one first and check its cost from `usage_summary` in `output.json`
   before starting the rest. A short run should cost well under $1.
 - Only compare runs made with the same settings and the same model.
