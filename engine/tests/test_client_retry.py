@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 import anthropic
-from engine.client import call_tool_with_retry, summarize_usage
+from engine.client import call_tool_with_retry, summarize_usage, unstring_json_fields
 from engine.config import RunConfig
 from engine.loop import get_skeptic_review
 from engine.tools import SKEPTIC_SYSTEM_PROMPT
@@ -510,3 +510,53 @@ def test_non_retryable_error_propagates_immediately_without_retrying(monkeypatch
     # A permanent error (bad API key) shouldn't burn attempt budget retrying -
     # only the first, failing call should have happened.
     assert client.messages.call_count == 1
+
+
+_LIST_TOOL = {"name": "t", "input_schema": {"type": "object", "properties": {
+    "items": {"type": "array", "items": {"type": "object", "properties": {
+        "tags": {"type": "array", "items": {"type": "string"}}}}},
+    "meta": {"type": "object", "properties": {"n": {"type": "integer"}}},
+}}}
+
+
+def _needs_real_lists(data):
+    errors = []
+    if not isinstance(data.get("items"), list):
+        errors.append("'items' must be a list")
+    elif not all(isinstance(i.get("tags"), list) for i in data["items"]):
+        errors.append("'tags' must be a list")
+    return errors
+
+
+def test_a_list_sent_as_json_text_is_turned_back_into_a_list_without_a_retry(capsys):
+    # Issue #91: this cost a retry on about half the hypothesis calls.
+    client = _FakeClient([_FakeMessage([_FakeToolUse("id1", {"items": '[{"tags": ["a"]}]'})])])
+
+    result = call_tool_with_retry(
+        client, model="m", system="s", tools=[_LIST_TOOL], tool_name="t", user_message="u",
+        validate_fn=_needs_real_lists, max_tokens=10,
+    )
+
+    assert result == {"items": [{"tags": ["a"]}]}
+    assert client.messages.call_count == 1
+    assert "turned JSON text back into structure at: items" in capsys.readouterr().out
+
+
+def test_nested_json_text_is_fixed_too():
+    value, fixed = unstring_json_fields(
+        {"items": [{"tags": '["a", "b"]'}], "meta": '{"n": 1}'}, _LIST_TOOL["input_schema"])
+    assert value == {"items": [{"tags": ["a", "b"]}], "meta": {"n": 1}}
+    assert fixed == ["items[0].tags", "meta"]
+
+
+def test_text_that_doesnt_parse_or_has_the_wrong_type_is_left_for_the_validator():
+    schema = _LIST_TOOL["input_schema"]
+    for raw in ("not json", '{"an": "object, not a list"}', "3"):
+        value, fixed = unstring_json_fields({"items": raw}, schema)
+        assert value == {"items": raw} and fixed == [], raw
+
+
+def test_the_model_s_answer_is_not_changed_in_place():
+    original = {"items": '[{"tags": ["a"]}]'}
+    unstring_json_fields(original, _LIST_TOOL["input_schema"])
+    assert original == {"items": '[{"tags": ["a"]}]'}
