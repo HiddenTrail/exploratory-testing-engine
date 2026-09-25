@@ -1,5 +1,5 @@
 """The generic Driver+Skeptic checkpoint loop: propose and execute a batch of
-tests, form one hypothesis about behavior and any anomalies noticed, get a
+tests, form one hypothesis about behavior and anything that looks wrong, get a
 cold Skeptic review, and either continue (Skeptic says "weak") or conclude
 (Skeptic says "strong_enough" or the checkpoint cap is reached). Ported
 almost verbatim from token-purchase-poc/run_live.py's unified checkpoint
@@ -25,6 +25,8 @@ from engine.tools import (
     HYPOTHESIS_TOOL,
     SKEPTIC_SYSTEM_PROMPT,
     SKEPTIC_TOOL,
+    stamp_gap_ids,
+    stamp_observation_ids,
     validate_bug_reports,
     validate_hypothesis_response,
     validate_skeptic_response,
@@ -129,19 +131,31 @@ def get_checkpoint_hypothesis(
     prior_skeptic_review: dict | None = None,
     usage_sink: list[dict] | None = None,
     run_diagnostics: dict | None = None,
+    earlier_observations: list[dict] | None = None,
 ) -> dict:
+    """earlier_observations: every earlier checkpoint's observations, shown to the
+    Driver as id, kind and claim so a new observation can 'continues' one of them
+    instead of restating it under a new id. They are the only ids 'continues' may
+    name."""
+    earlier_observations = earlier_observations or []
     cached_segments = _cacheable_evidence_segments(
         adapter, happy_day_example, "ALL TESTS THIS SESSION", history_segments
     )
+    open_gap_ids = tuple(gap["id"] for gap in prior_skeptic_review["gaps"]) if prior_skeptic_review else ()
     # Both of these go in the FRESH message, not the cached segments: they change
     # every checkpoint, and one changing block at the end of a cached prefix costs
     # nothing, while a changing block inside it would invalidate everything after
     # it. See _cacheable_evidence_segments.
     fresh_evidence = {}
+    if earlier_observations:
+        fresh_evidence["earlier_observations"] = [
+            {key: o[key] for key in ("id", "kind", "claim")} for o in earlier_observations
+        ]
     if prior_skeptic_review is not None:
         fresh_evidence["prior_skeptic_review"] = prior_skeptic_review
     if run_diagnostics:
         fresh_evidence["run_diagnostics"] = run_diagnostics
+    known_observation_ids = tuple(o["id"] for o in earlier_observations)
     return call_tool_with_retry(
         client,
         model=run_config.model,
@@ -150,7 +164,9 @@ def get_checkpoint_hypothesis(
         tool_name="submit_checkpoint_hypothesis",
         cached_segments=cached_segments,
         user_message=json.dumps(fresh_evidence, indent=2),
-        validate_fn=validate_hypothesis_response,
+        validate_fn=lambda data: validate_hypothesis_response(
+            data, known_observation_ids=known_observation_ids, open_gap_ids=open_gap_ids,
+        ),
         max_tokens=2560,
         max_attempts=run_config.max_attempts,
         cache_static_content=True,
@@ -162,12 +178,7 @@ def get_skeptic_review(
     client: Anthropic, run_config: RunConfig, hypothesis: dict, prior_skeptic_review: dict | None = None,
     usage_sink: list[dict] | None = None,
 ) -> dict:
-    evidence = {
-        "observed_behavior": hypothesis["observed_behavior"],
-        "anomalies": hypothesis["anomalies"],
-        "untested_areas": hypothesis["untested_areas"],
-        "prior_gaps_response": hypothesis.get("prior_gaps_response", []),
-    }
+    evidence = {key: hypothesis[key] for key in ("summary", "behaviors", "observations", "untested", "prior_gaps")}
     if prior_skeptic_review is not None:
         evidence["your_own_prior_review"] = prior_skeptic_review
     return call_tool_with_retry(
@@ -177,7 +188,7 @@ def get_skeptic_review(
         tools=[SKEPTIC_TOOL],
         tool_name="submit_skeptic_review",
         user_message=json.dumps(evidence, indent=2),
-        validate_fn=lambda data: validate_skeptic_response(data, expected_anomaly_count=len(hypothesis["anomalies"])),
+        validate_fn=lambda data: validate_skeptic_response(data, expected_anomaly_count=len(hypothesis["observations"])),
         max_tokens=3072,
         max_attempts=run_config.max_attempts,
         # The system prompt and tool schema are the same on every checkpoint, and
@@ -240,6 +251,8 @@ def run_checkpoint_loop(
     run_diagnostics = None
     stopped_reason = "checkpoints_exhausted"
     history_segments: list[str] = []
+    # Every observation so far, in order: what a later 'continues' may point at.
+    earlier_observations: list[dict] = []
 
     for checkpoint_num in range(1, run_config.max_checkpoints + 1):
         is_first_checkpoint = checkpoint_num == 1
@@ -309,14 +322,20 @@ def run_checkpoint_loop(
         hypothesis = get_checkpoint_hypothesis(
             client, adapter, run_config, happy_day_example, history_segments, prior_skeptic_review,
             usage_sink=usage_sink, run_diagnostics=diagnostics.for_model(findings),
+            earlier_observations=list(earlier_observations),
         )
-        print(f"  observed_behavior: {hypothesis['observed_behavior']}")
-        print(f"  anomalies noticed: {len(hypothesis['anomalies'])}")
-        if hypothesis["prior_gaps_response"]:
-            print(f"  prior gaps responded to: {len(hypothesis['prior_gaps_response'])}")
+        # Ids go on before the Skeptic sees the hypothesis, so its review can name them.
+        stamp_observation_ids(checkpoint_num, hypothesis)
+        earlier_observations.extend(hypothesis["observations"])
+        print(f"  summary: {hypothesis['summary']}")
+        for o in hypothesis["observations"]:
+            print(f"  {o['id']} {o['kind']}: {o['claim']}")
+        if hypothesis["prior_gaps"]:
+            print(f"  prior gaps answered: {len(hypothesis['prior_gaps'])}")
 
         print("Asking Skeptic for a cold review...")
         skeptic_review = get_skeptic_review(client, run_config, hypothesis, prior_skeptic_review, usage_sink=usage_sink)
+        stamp_gap_ids(checkpoint_num, skeptic_review)
         print(f"  skeptic verdict: {skeptic_review['verdict']}")
 
         checkpoints.append({

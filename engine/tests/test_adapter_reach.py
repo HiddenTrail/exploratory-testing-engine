@@ -108,8 +108,8 @@ def _stub_a_finished_loop(monkeypatch):
         runner, "run_checkpoint_loop",
         lambda *a, **k: ([], [{
             "checkpoint": 1,
-            "hypothesis": {"observed_behavior": "b", "anomalies": [], "untested_areas": [],
-                           "prior_gaps_response": []},
+            "hypothesis": {"summary": "b", "behaviors": [], "observations": [], "untested": [],
+                           "prior_gaps": []},
             "skeptic_review": {"verdict": "strong_enough", "gaps": [],
                                "coverage_breadth": {"material": False, "note": ""},
                                "anomaly_checks": [], "recommended_next_tests": [],

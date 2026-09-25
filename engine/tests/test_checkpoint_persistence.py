@@ -41,9 +41,9 @@ def _make_fakes(num_checkpoints_before_strong_enough):
             }],
         }
 
-    def fake_hypothesis(client, adapter, run_config, happy_day_example, casting_log, prior_skeptic_review=None, run_diagnostics=None, usage_sink=None):
+    def fake_hypothesis(client, adapter, run_config, happy_day_example, casting_log, prior_skeptic_review=None, run_diagnostics=None, usage_sink=None, earlier_observations=None):
         calls["hypothesis"] += 1
-        return {"observed_behavior": "b", "anomalies": [], "untested_areas": ["u"], "prior_gaps_response": []}
+        return {"summary": "b", "behaviors": [], "observations": [], "untested": [{"area": "u"}], "prior_gaps": []}
 
     def fake_skeptic(client, run_config, hypothesis, prior_skeptic_review=None, usage_sink=None):
         calls["skeptic"] += 1

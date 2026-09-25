@@ -290,7 +290,7 @@ def test_the_skeptic_call_caches_its_system_prompt():
         "anomaly_checks": [], "recommended_next_tests": ["t1", "t2"], "prior_critique_addressed": "n/a",
     }
     client = _FakeClient([_FakeMessage([_FakeToolUse("id1", review)])])
-    hypothesis = {"observed_behavior": "b", "anomalies": [], "untested_areas": ["u"], "prior_gaps_response": []}
+    hypothesis = {"summary": "b", "behaviors": [], "observations": [], "untested": [{"area": "u"}], "prior_gaps": []}
 
     get_skeptic_review(client, RunConfig(model="m"), hypothesis)
 

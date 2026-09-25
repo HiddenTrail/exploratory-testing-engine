@@ -42,8 +42,8 @@ def _fake_casting_round(client, adapter, run_config, happy_day_example, casting_
     return {"give_up": False, "reasoning": "r", "candidate_tests": [{"linked_hypothesis": "", "predicted_outcome": "x"}]}
 
 
-def _fake_hypothesis(client, adapter, run_config, happy_day_example, casting_log, prior_skeptic_review=None, run_diagnostics=None, usage_sink=None):
-    return {"observed_behavior": "b", "anomalies": [], "untested_areas": ["u"], "prior_gaps_response": []}
+def _fake_hypothesis(client, adapter, run_config, happy_day_example, casting_log, prior_skeptic_review=None, run_diagnostics=None, usage_sink=None, earlier_observations=None):
+    return {"summary": "b", "behaviors": [], "observations": [], "untested": [{"area": "u"}], "prior_gaps": []}
 
 
 def _skeptic_review(verdict):
@@ -77,7 +77,7 @@ def test_output_json_written_incrementally_and_survives_a_mid_run_crash(monkeypa
     # disk by save_progress and is not lost.
     on_disk = json.loads((tmp_path / "output.json").read_text())
     assert len(on_disk["checkpoints"]) == 1
-    assert on_disk["checkpoints"][0]["hypothesis"]["observed_behavior"] == "b"
+    assert on_disk["checkpoints"][0]["hypothesis"]["summary"] == "b"
 
 
 def _casting_round_billing(tokens):
@@ -140,8 +140,10 @@ def test_mid_run_saves_already_carry_the_usage_recorded_so_far(monkeypatch, tmp_
 
 
 def _hypothesis_with_anomaly(*a, **kw):
-    return {"observed_behavior": "b", "anomalies": [{"title": "x", "description": "y"}],
-            "untested_areas": ["u"], "prior_gaps_response": []}
+    return {"summary": "b", "behaviors": [], "untested": [{"area": "u"}], "prior_gaps": [],
+            "observations": [{"id": "C1.O1", "kind": "anomaly", "continues": "", "claim": "x", "tests": [1],
+                              "violates": "", "reproduced": "once", "mechanism": "m", "rival": "r",
+                              "rival_ruled_out": False, "why": "w", "severity": "low"}]}
 
 
 def test_bug_report_failure_does_not_clobber_a_successful_run_verdict(monkeypatch, tmp_path):

@@ -80,12 +80,12 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
 
         final_hypothesis = checkpoints[-1]["hypothesis"]
         final_skeptic_review = checkpoints[-1]["skeptic_review"]
-        anomalies = final_hypothesis.get("anomalies", [])
-        output["anomaly_found"] = len(anomalies) > 0
+        observations = final_hypothesis.get("observations", [])
+        output["anomaly_found"] = len(observations) > 0
 
-        if anomalies:
-            plural = "y" if len(anomalies) == 1 else "ies"
-            print(f"Writing bug report(s) for {len(anomalies)} anomal{plural}...")
+        if observations:
+            plural = "" if len(observations) == 1 else "s"
+            print(f"Writing bug report(s) for {len(observations)} observation{plural}...")
             # Isolated from the run's verdict: the checkpoint loop has already concluded
             # (stopped_reason / anomaly_found are set above), so a bug-report generation
             # failure - e.g. the tool call exhausting its retries on a max_tokens cutoff -
