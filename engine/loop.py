@@ -180,6 +180,11 @@ def get_skeptic_review(
         validate_fn=lambda data: validate_skeptic_response(data, expected_anomaly_count=len(hypothesis["anomalies"])),
         max_tokens=3072,
         max_attempts=run_config.max_attempts,
+        # The system prompt and tool schema are the same on every checkpoint, and
+        # Skeptic calls in a run are about 90 to 130 seconds apart, inside the
+        # cache's 5-minute window. So every Skeptic call after the first reads them
+        # from the cache. The evidence changes every call and stays uncached.
+        cache_static_content=True,
         usage_sink=usage_sink,
     )
 

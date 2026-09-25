@@ -9,6 +9,9 @@ import pytest
 
 import anthropic
 from engine.client import call_tool_with_retry, summarize_usage
+from engine.config import RunConfig
+from engine.loop import get_skeptic_review
+from engine.tools import SKEPTIC_SYSTEM_PROMPT
 
 
 class _FakeToolUse:
@@ -277,6 +280,24 @@ def test_cache_static_content_marks_one_breakpoint_at_the_end_of_system():
     # marking the last tool as well would spend a second of the four available
     # breakpoints on a strictly shorter prefix.
     assert sent["tools"] == [{"name": "t1"}, {"name": "t2"}]
+
+
+def test_the_skeptic_call_caches_its_system_prompt():
+    # Issue #69: the Skeptic's system prompt and schema are identical on every
+    # checkpoint, but it was the one call site sending them uncached every time.
+    review = {
+        "verdict": "weak", "gaps": ["g1", "g2"], "coverage_breadth": {"material": False, "note": "n"},
+        "anomaly_checks": [], "recommended_next_tests": ["t1", "t2"], "prior_critique_addressed": "n/a",
+    }
+    client = _FakeClient([_FakeMessage([_FakeToolUse("id1", review)])])
+    hypothesis = {"observed_behavior": "b", "anomalies": [], "untested_areas": ["u"], "prior_gaps_response": []}
+
+    get_skeptic_review(client, RunConfig(model="m"), hypothesis)
+
+    sent = client.messages.last_kwargs
+    assert sent["system"] == [{"type": "text", "text": SKEPTIC_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}]
+    # The evidence changes every call, so it must stay uncached.
+    assert isinstance(sent["messages"][0]["content"], str)
 
 
 def test_cache_static_content_does_not_mutate_the_original_tools_list():
