@@ -23,9 +23,9 @@ import time
 from pathlib import Path
 
 # web-recon is the source of truth for perception, identity and the safety gate; reuse it
-# rather than reimplement. It lives under experiments/, so put it on the path here (the one
+# rather than reimplement. It lives under .experiments/, so put it on the path here (the one
 # place this adapter crosses that line), exactly as web-recon's own scripts do.
-_WEB_RECON = Path(__file__).resolve().parents[3] / "experiments" / "web-recon"
+_WEB_RECON = Path(__file__).resolve().parents[3] / ".experiments" / "web-recon"
 if str(_WEB_RECON) not in sys.path:
     sys.path.insert(0, str(_WEB_RECON))
 
@@ -226,8 +226,8 @@ def _resolve_ontology_path() -> Path:
         raise SystemExit(
             f"The web-GUI adapter needs a carried reference. Set {_ONTOLOGY_ENV} to a "
             f"web-recon ontology.json, produced by the deterministic recon first:\n"
-            f"    cd experiments/web-recon && python crawl.py <url> --out out/ontology.json\n"
-            f"    set {_ONTOLOGY_ENV}=...\\experiments\\web-recon\\out\\ontology.json")
+            f"    cd .experiments/web-recon && python crawl.py <url> --out out/ontology.json\n"
+            f"    set {_ONTOLOGY_ENV}=...\\.experiments\\web-recon\\out\\ontology.json")
     path = Path(raw)
     if not path.is_file():
         raise SystemExit(f"{_ONTOLOGY_ENV} points at {path}, which does not exist.")
@@ -261,7 +261,7 @@ def check_ready(adapter) -> None:
         raise SystemExit(
             f"{_ONTOLOGY_ENV} does not look like a web-recon ontology (schema="
             f"{reference.schema or 'absent'!r}). Point it at one produced by "
-            f"experiments/web-recon/crawl.py, whose safety flags this adapter relies on.")
+            f".experiments/web-recon/crawl.py, whose safety flags this adapter relies on.")
     base_url = os.environ.get(_URL_ENV) or reference.base_url
     if not base_url:
         raise SystemExit(f"No base URL: the carried ontology has no target.url and {_URL_ENV} is unset.")

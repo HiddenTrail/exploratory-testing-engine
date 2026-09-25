@@ -53,8 +53,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "experiments" / "game-ontology"))
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "experiments" / "android-bot"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".experiments" / "game-ontology"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".experiments" / "android-bot"))
 
 import checks  # noqa: E402
 from engine.adapters.clash_royale import reference  # noqa: E402

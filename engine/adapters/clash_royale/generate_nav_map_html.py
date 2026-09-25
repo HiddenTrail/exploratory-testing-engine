@@ -2,11 +2,11 @@
 
 Usage (from recon pass):
     python -m engine.adapters.clash_royale.generate_nav_map_html \\
-        "experiments/android-bot/out/Clash Royale-20260903-153913"
+        ".experiments/android-bot/out/Clash Royale-20260903-153913"
 
 Usage (from wiki):
     python -m engine.adapters.clash_royale.generate_nav_map_html \\
-        "experiments/android-bot/wiki"
+        ".experiments/android-bot/wiki"
 
 Produces: navigation_map.html in the specified directory.
 

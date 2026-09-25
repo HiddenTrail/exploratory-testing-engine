@@ -3,7 +3,7 @@
 Run once, by hand, when a recon pass has produced a map worth carrying:
 
     python -m engine.adapters.clash_royale.extract_reference \\
-        "experiments/android-bot/out/Clash Royale-20260903-153913"
+        ".experiments/android-bot/out/Clash Royale-20260903-153913"
 
 Why this exists rather than the adapter reading the pass directly
 ----------------------------------------------------------------
@@ -230,7 +230,7 @@ def extract(pass_dir: Path) -> dict:
         "grid": [GRID_COLS, GRID_ROWS],
         # The recon's own calibrated numbers, carried so the adapter uses the
         # threshold these fingerprints were measured under rather than one guessed
-        # alongside them. See experiments/game-ontology/calibration/clashroyale.json:
+        # alongside them. See .experiments/game-ontology/calibration/clashroyale.json:
         # the admissible range was [0.896, 0.974] and this pass ran at 0.94 with a
         # median match score of 1.0 and no screens split by name.
         "screen_match": session["screen_match_threshold"],

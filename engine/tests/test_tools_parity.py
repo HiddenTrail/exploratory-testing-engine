@@ -1,5 +1,5 @@
 """Asserts engine.tools and the token_purchase adapter's per-SUT pieces are
-unchanged from experiments/token-purchase-poc/run_live.py - the literal
+unchanged from .experiments/token-purchase-poc/run_live.py - the literal
 contract this port must not silently drift from. Loads the original module
 directly from its file path (it's not an importable package)."""
 
@@ -14,7 +14,7 @@ from engine import tools as engine_tools
 from engine.adapters.token_purchase import adapter as token_purchase_adapter
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ORIGINAL_DIR = REPO_ROOT / "experiments" / "token-purchase-poc"
+ORIGINAL_DIR = REPO_ROOT / ".experiments" / "token-purchase-poc"
 
 
 @pytest.fixture(scope="module")

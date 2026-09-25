@@ -53,14 +53,14 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "experiments" / "game-ontology"))
-sys.path.insert(0, str(ROOT / "experiments" / "android-bot"))
+sys.path.insert(0, str(ROOT / ".experiments" / "game-ontology"))
+sys.path.insert(0, str(ROOT / ".experiments" / "android-bot"))
 sys.path.insert(0, str(HERE))
 
 import checks  # noqa: E402
 import wikibuild  # noqa: E402
 
-RECON = ROOT / "experiments" / "android-bot" / "run_recon.py"
+RECON = ROOT / ".experiments" / "android-bot" / "run_recon.py"
 WIKI_SCRIPTS = ROOT / ".wiki-source" / "scripts"
 GAME = "Clash Royale"
 
@@ -109,7 +109,7 @@ def recon(run_dir: Path, minutes: float, threshold: float, resume: Path | None) 
     if resume is not None:
         command += ["--resume", str(resume)]
     print(f"\n$ {' '.join(command)}\n", flush=True)
-    return subprocess.run(command, cwd=str(ROOT / "experiments" / "android-bot")).returncode
+    return subprocess.run(command, cwd=str(ROOT / ".experiments" / "android-bot")).returncode
 
 
 def explore(out: Path, minutes: float, threshold: float, limit: int) -> Path | None:

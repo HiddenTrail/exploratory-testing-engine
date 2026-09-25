@@ -64,8 +64,8 @@ they were keyed by claim text under the old, non-functional scheme.
    been run: unranked vs. ranked claim order at a fixed test budget, to
    measure whether ranking actually improves what gets found. Cheap to run,
    reuses the existing paired-trial methodology from
-   `experiments/token-purchase-oracle-value/` and
-   `experiments/ecoestate-notes-oracle-value/`.
+   `.experiments/token-purchase-oracle-value/` and
+   `.experiments/ecoestate-notes-oracle-value/`.
 
 ## Not yet in scope
 

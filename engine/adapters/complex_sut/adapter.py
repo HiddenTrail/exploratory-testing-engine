@@ -2,7 +2,7 @@
 genuine TOCTOU concurrency race (not simulated - FastAPI dispatches sync
 handlers across a real thread pool, and time.sleep() releases the GIL, so
 concurrent requests for the same client_id really do interleave). Ported
-from experiments/complex-sut-poc/run_live.py and report.py.
+from .experiments/complex-sut-poc/run_live.py and report.py.
 
 The second adapter ever built against SUTAdapter, and deliberately the most
 different from the first (token_purchase): tests here can mean firing a

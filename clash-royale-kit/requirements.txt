@@ -4,7 +4,7 @@
 # fastapi, uvicorn and httpx for the engine's HTTP service, and nothing on this
 # path serves anything. The window is driven through ctypes against Win32, the
 # screenshots are written by a hand-rolled PNG encoder in
-# experiments/game-ontology/controller.py, and the wiki is string formatting -
+# .experiments/game-ontology/controller.py, and the wiki is string formatting -
 # so there is no numpy and no capture library here either.
 #
 # Python 3.13 on Windows. The version matters less than the platform: this half

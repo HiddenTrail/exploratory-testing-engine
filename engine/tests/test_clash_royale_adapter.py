@@ -13,7 +13,7 @@ The session tests are the other half: screen identification, the board tripwire,
 and recovery after landing somewhere new. These use a fake controller, because the
 thing under test is the bookkeeping around a frame comparison and not the frame
 comparison itself - which is `battle.fraction_changed`, already tested against real
-captures in experiments/android-bot/test_battle.py.
+captures in .experiments/android-bot/test_battle.py.
 
 Where the real geometry matters - does the shipped denylist actually cover the
 shipped action points - a fake target would be testing the fake. Those tests import

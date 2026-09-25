@@ -1,5 +1,5 @@
 """Asserts the complex_sut adapter's per-SUT pieces are unchanged from
-experiments/complex-sut-poc/run_live.py, except for two deliberate
+.experiments/complex-sut-poc/run_live.py, except for two deliberate
 divergences: the proactive addition of client_id/payload string-type checks
 (the same class of gap fixed in the token_purchase adapter after PR review,
 applied here before it could be hit a second time), and a fix to
@@ -16,7 +16,7 @@ import pytest
 from engine.adapters.complex_sut import adapter as complex_sut_adapter
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-ORIGINAL_DIR = REPO_ROOT / "experiments" / "complex-sut-poc"
+ORIGINAL_DIR = REPO_ROOT / ".experiments" / "complex-sut-poc"
 
 
 @pytest.fixture(scope="module")

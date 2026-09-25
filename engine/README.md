@@ -1,14 +1,14 @@
 # AI Exploratory Testing Engine
 
 A reusable Driver+Skeptic checkpoint-loop harness, hardened from four rounds
-of experimentation in `experiments/` (mostly kept there as a historical
+of experimentation in `.experiments/` (mostly kept there as a historical
 archive - this package is a port, not a rewrite). See
 `docs/exploratory-testing-engine-concept.md` for the original vision this is
 one deliberately narrow slice of.
 
 The "archive" framing has one live exception. `adapters/clash_royale/` does not
-port its harness: `session.py` puts `experiments/game-ontology` and
-`experiments/android-bot` on `sys.path` and imports them at call time, rather
+port its harness: `session.py` puts `.experiments/game-ontology` and
+`.experiments/android-bot` on `sys.path` and imports them at call time, rather
 than copying 1,600 lines of Win32 window handling that have been hardened
 against a real client. Its own comment records that as a knowing debt. Those
 two directories are therefore **maintained, not frozen**, they have their own
@@ -66,7 +66,7 @@ engine/
   cli.py        # python -m engine.cli --adapter <name>
   adapters/
     registry.py           # name -> adapter module, resolved lazily
-    token_purchase/        # first adapter, ported from experiments/token-purchase-poc
+    token_purchase/        # first adapter, ported from .experiments/token-purchase-poc
     complex_sut/            # second adapter - concurrency/rate-limiting domain
     clash_royale/           # third adapter - a live game client, not a web service. Read actions.py first
                             #   known_screens.json is measured data, not configuration: eleven screens a

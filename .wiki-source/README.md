@@ -9,7 +9,7 @@ This folder is **reference material to replicate that pattern in this repo**, no
 working workspace itself.
 
 It has now been used once for real, which the "how to adapt this" section below predates:
-`experiments/android-bot/wiki/` is a wiki built by this pattern from recon output against a
+`.experiments/android-bot/wiki/` is a wiki built by this pattern from recon output against a
 live Clash Royale client — an overview, a log, and one entity page per screen and per
 persistent UI element. So the open question is no longer whether the pattern transfers; it
 is whether an *append-only* wiki stays true as the target changes underneath it. That
@@ -80,7 +80,7 @@ concept pages → derived index) are generic. To stand up a wiki for **this** re
 
 1. **Pick where raw sources live.** QPF uses `raw/{workshops,interviews,assessments,product,assets}`.
    For `qes-exploration` that's probably something like `raw/{experiments,runs,notes}` —
-   whatever matches what's actually in `experiments/` and `runs/` today. Images and JSON
+   whatever matches what's actually in `.experiments/` and `runs/` today. Images and JSON
    files work fine as raw sources; an LLM with vision can summarize a screenshot the same
    way it summarizes a transcript, and JSON is just structured text to read faithfully.
 
