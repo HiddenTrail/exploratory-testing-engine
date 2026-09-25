@@ -32,9 +32,9 @@ might not be one, or there might be several nobody anticipated.
    claim (not just "more testing needed" in the abstract)?
    `yes / no`
 
-5. **Honest conclusion** - if `stopped_reason` is `checkpoints_exhausted` (budget
-   ran out before Skeptic was satisfied), does `bugs.json`'s `status` correctly
-   say `inconclusive`, and do its `caveats` explicitly name what wasn't resolved -
+5. **Honest conclusion** - the engine sets each observation's `status` from the
+   Skeptic's last checks. For each `inconclusive` bug in `bugs.json`, do its
+   `caveats` explicitly name what wasn't resolved -
    not just restate the claim more confidently?
    `yes / no`
 

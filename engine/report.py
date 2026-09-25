@@ -356,6 +356,29 @@ def _render_diagnostics_section(checkpoints) -> str:
     """
 
 
+def _render_conclusion_section(observations) -> str:
+    """Every observation of the final checkpoint with the status the engine gave
+    it. Bugs also get a written report below; findings and anomalies are complete
+    here."""
+    if not observations:
+        return ""
+    rows = "".join(f"""
+        <li>
+          <span class="num">{esc(o['id'])}</span> {esc(o['kind'])} ({esc(o['severity'])})
+          {badge(o['status'], 'good' if o['status'] == 'corroborated' else 'warn')}
+          {inline_markdown(o['claim'])} {_tests_label(o['tests'])}{_lowered_label(o)}
+          <div class="prose-muted">{inline_markdown(o['skeptic_note'])}</div>
+        </li>
+        """ for o in observations)
+    return f"""
+    <section id="conclusion">
+      <p class="eyebrow">Final checkpoint conclusion</p>
+      <h2>Findings, anomalies and bugs</h2>
+      <ul>{rows}</ul>
+    </section>
+    """
+
+
 def _render_bug_report_section(bug_reports) -> str:
     if not bug_reports:
         return ""
@@ -363,7 +386,7 @@ def _render_bug_report_section(bug_reports) -> str:
     reports_html = "".join(_render_one_bug_report(b) for b in bug_reports)
     return f"""
     <section id="bug-report">
-      <p class="eyebrow">Final checkpoint conclusion</p>
+      <p class="eyebrow">Written up for the bugs</p>
       <h2>{heading}</h2>
       {reports_html}
     </section>
@@ -543,22 +566,24 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
     happy_day_example = output.get("happy_day_example", {})
     casting_log = output.get("casting_log", [])
     checkpoints = output.get("checkpoints", [])
+    observations = output.get("observations", [])
     checkpoints_run = len({e["checkpoint"] for e in casting_log} | {c["checkpoint"] for c in checkpoints})
 
     if output.get("error"):
         eyebrow, title = "Run incomplete", "Stopped early"
         stats = [_stat(output["error"][:40] + ("..." if len(output["error"]) > 40 else ""), "reason")]
-    elif output.get("anomaly_found"):
-        eyebrow = "Anomaly found"
-        title = bug_reports[0]["title"] if len(bug_reports) == 1 else f"{len(bug_reports)} anomalies found"
+    elif observations:
+        counts = {kind: sum(1 for o in observations if o["kind"] == kind) for kind in ("bug", "anomaly", "finding")}
+        eyebrow = ", ".join(f"{n} {kind}{'' if n == 1 else 's'}" for kind, n in counts.items() if n)
+        title = bug_reports[0]["title"] if len(bug_reports) == 1 else observations[0]["claim"]
         stats = [
             _stat(checkpoints_run, "checkpoints run"),
             _stat(len(casting_log), "tests executed"),
-            _stat(len(bug_reports), "bugs reported"),
+            _stat(sum(1 for o in observations if o["status"] == "corroborated"), "corroborated"),
         ]
     else:
         reason = output.get("stopped_reason", "unknown")
-        eyebrow, title = "Checkpoints concluded", "No anomaly found"
+        eyebrow, title = "Checkpoints concluded", "Nothing looked wrong"
         stats = [
             _stat(checkpoints_run, "checkpoints run"),
             _stat(len(casting_log), "tests executed"),
@@ -570,6 +595,8 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
         nav_items.append(("#casting", "Checkpoints"))
     if checkpoints:
         nav_items.append(("#diagnostics", "Diagnostics"))
+    if observations:
+        nav_items.append(("#conclusion", "Conclusion"))
     if bug_reports:
         nav_items.append(("#bug-report", "Bug report"))
     nav_html = "".join(f'<li><a href="{href}">{label}</a></li>' for href, label in nav_items)
@@ -614,6 +641,8 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
   </section>
 
   {_render_diagnostics_section(checkpoints)}
+
+  {_render_conclusion_section(observations)}
 
   {_render_bug_report_section(bug_reports)}
 </div>

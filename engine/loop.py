@@ -386,15 +386,21 @@ def get_bug_reports(
     client: Anthropic,
     adapter: SUTAdapter,
     run_config: RunConfig,
-    final_hypothesis: dict,
+    bugs: list[dict],
     final_skeptic_review: dict,
     stopped_reason: str,
     casting_log: list[dict],
     usage_sink: list[dict] | None = None,
 ) -> list[dict]:
+    """bugs: the final observations of kind 'bug', with the status the engine
+    gave them (see final_observations). The model writes the report text; the
+    id, kind, severity and status come from the observation, not from the model."""
+    bug_ids = tuple(b["id"] for b in bugs)
     evidence = {
-        "final_hypothesis": final_hypothesis,
-        "final_skeptic_review": final_skeptic_review,
+        "bugs": bugs,
+        "blocking_gaps": [
+            g for g in final_skeptic_review["gaps"] if g["blocks_verdict"] and set(g["about"]) & set(bug_ids)
+        ],
         "stopped_reason": stopped_reason,
         "all_tests_this_session": _redact(adapter, casting_log),
     }
@@ -405,7 +411,7 @@ def get_bug_reports(
         tools=[BUG_REPORT_TOOL],
         tool_name="submit_bug_reports",
         user_message=json.dumps(evidence, indent=2),
-        validate_fn=validate_bug_reports,
+        validate_fn=lambda data: validate_bug_reports(data, bug_ids=bug_ids),
         max_tokens=3072,
         max_attempts=run_config.max_attempts,
         # Measured as a no-op in practice: this call site's tools+system prefix
@@ -416,4 +422,8 @@ def get_bug_reports(
         cache_static_content=True,
         usage_sink=usage_sink,
     )
-    return result["bugs"]
+    by_id = {b["id"]: b for b in bugs}
+    return [
+        {**report, **{key: by_id[report["observation_id"]][key] for key in ("kind", "severity", "status")}}
+        for report in result["bugs"]
+    ]

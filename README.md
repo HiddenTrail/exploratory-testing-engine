@@ -39,10 +39,12 @@ Against a live system under test (SUT), each **checkpoint**:
 Observations and gaps get ids from the engine (`C1.O2`, `C1.G3`), so a later
 checkpoint answers an earlier gap, or continues an earlier observation, by id.
 
-If the final hypothesis has observations, a bug report is written per claim -
-honestly marked `inconclusive` if the checkpoint budget ran out while the
-Skeptic still had objections, `corroborated` only if it was satisfied. Output
-is a JSON result, a JSON bug list, and a self-contained HTML report.
+At the end, every observation of the final checkpoint gets a status decided by
+the engine, not by a model: `corroborated` if the Skeptic's last check says its
+evidence discriminates it from its rival and no blocking gap is about it,
+otherwise `inconclusive`. All observations go into `output.json` under
+`observations`. Only **bugs** get a written bug report (one LLM call for all of
+them), because findings and anomalies are already complete as they are. Output is a JSON result, a JSON bug list, and a self-contained HTML report.
 
 ## Bootstrapping a new adapter automatically
 
@@ -224,7 +226,7 @@ To authenticate through Amazon Bedrock instead of an API key, set
 the same IDs `aws bedrock list-inference-profiles` reports.
 
 Writes `runs/<adapter>/output.json`, `runs/<adapter>/bugs.json` (if any
-anomalies were found), and `runs/<adapter>/report.html`. Override run
+bugs were found), and `runs/<adapter>/report.html`. Override run
 parameters with `--model`, `--max-checkpoints`, `--first-round-budget`,
 `--default-budget`, `--out-dir`.
 

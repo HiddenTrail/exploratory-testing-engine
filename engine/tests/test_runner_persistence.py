@@ -138,11 +138,21 @@ def test_mid_run_saves_already_carry_the_usage_recorded_so_far(monkeypatch, tmp_
     assert all(record["input_tokens"] == 50 for view in mid_run_views for record in view)
 
 
-def _hypothesis_with_anomaly(*a, **kw):
-    return {"summary": "b", "behaviors": [], "untested": [{"area": "u"}], "prior_gaps": [],
-            "observations": [{"id": "C1.O1", "kind": "anomaly", "continues": "", "claim": "x", "tests": [1],
-                              "violates": "", "reproduced": "once", "mechanism": "m", "rival": "r",
-                              "rival_ruled_out": False, "why": "w", "severity": "low"}]}
+def _hypothesis_with(kind):
+    def hypothesis(*a, **kw):
+        return {"summary": "b", "behaviors": [], "untested": [{"area": "u"}], "prior_gaps": [],
+                "observations": [{"kind": kind, "continues": "", "claim": "x", "tests": [1],
+                                  "violates": "the limit is 5" if kind == "bug" else "",
+                                  "reproduced": "consistent", "mechanism": "m", "rival": "r",
+                                  "rival_ruled_out": True, "why": "w", "severity": "low"}]}
+    return hypothesis
+
+
+def _review_checking_one_observation(verdict):
+    review = _skeptic_review(verdict)
+    review["observation_checks"] = [{"observation_id": "C1.O1", "discriminates_from_rival": True,
+                                     "rival_is_genuine": True, "kind": "bug", "note": "n"}]
+    return review
 
 
 def test_bug_report_failure_does_not_clobber_a_successful_run_verdict(monkeypatch, tmp_path):
@@ -150,8 +160,8 @@ def test_bug_report_failure_does_not_clobber_a_successful_run_verdict(monkeypatc
     # max_tokens cutoff) must NOT rewrite a run that already concluded as "error" and
     # discard its verdict - it degrades to "no bug reports written" + a note.
     monkeypatch.setattr(loop, "get_casting_round", _fake_casting_round)
-    monkeypatch.setattr(loop, "get_checkpoint_hypothesis", _hypothesis_with_anomaly)
-    monkeypatch.setattr(loop, "get_skeptic_review", lambda *a, **kw: _skeptic_review("strong_enough"))
+    monkeypatch.setattr(loop, "get_checkpoint_hypothesis", _hypothesis_with("bug"))
+    monkeypatch.setattr(loop, "get_skeptic_review", lambda *a, **kw: _review_checking_one_observation("strong_enough"))
 
     def boom(*a, **kw):
         raise RuntimeError("bug-report tool exhausted retries")
@@ -180,3 +190,19 @@ def test_output_json_reflects_final_state_on_a_clean_run(monkeypatch, tmp_path):
     on_disk = json.loads((tmp_path / "output.json").read_text())
     assert on_disk["stopped_reason"] == "skeptic_satisfied"
     assert len(on_disk["checkpoints"]) == 1
+
+
+def test_only_bugs_get_a_written_report_and_every_observation_gets_a_status(monkeypatch, tmp_path):
+    # An anomaly is complete in output["observations"]; spending an LLM call to write
+    # it up again is exactly what issue #41 removed.
+    monkeypatch.setattr(loop, "get_casting_round", _fake_casting_round)
+    monkeypatch.setattr(loop, "get_checkpoint_hypothesis", _hypothesis_with("anomaly"))
+    monkeypatch.setattr(loop, "get_skeptic_review", lambda *a, **kw: _review_checking_one_observation("strong_enough"))
+    calls = []
+    monkeypatch.setattr(runner, "get_bug_reports", lambda *a, **kw: calls.append(a) or [])
+
+    output = runner.run(_FAKE_ADAPTER, RunConfig(max_checkpoints=3, out_dir=tmp_path))
+
+    assert calls == []
+    assert output["anomaly_found"] is True
+    assert [(o["id"], o["kind"], o["status"]) for o in output["observations"]] == [("C1.O1", "anomaly", "corroborated")]

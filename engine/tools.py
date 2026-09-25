@@ -726,33 +726,51 @@ def reconcile_kinds(hypothesis: dict, skeptic_review: dict) -> None:
             observation["kind"] = skeptic_kind
 
 
+BUG_REPORT_WORD_LIMITS = {
+    "bug.title": 15,
+    "bug.description": 60,
+    "bug.step": 30,
+    "bug.expected": 30,
+    "bug.actual": 30,
+    "bug.caveats": 50,
+}
+WORD_LIMITS.update(BUG_REPORT_WORD_LIMITS)
+MAX_STEPS = 8
+
 BUG_REPORT_TOOL = {
     "name": "submit_bug_reports",
-    "description": "Write the final bug report(s) - deliberately NOT redacted, since this needs real repro steps. One entry per distinct anomaly.",
+    "description": (
+        "Write the final bug reports - deliberately NOT redacted, since they need real repro steps. "
+        "One entry per bug in the evidence, by id."
+    ),
     "input_schema": {
         "type": "object",
         "properties": {
             "bugs": {
                 "type": "array",
-                "description": "One entry per distinct anomaly in the final hypothesis.",
-                "minItems": 1,
+                "description": "Exactly one entry per bug in the evidence.",
                 "items": {
                     "type": "object",
                     "properties": {
-                        "title": {"type": "string"},
-                        "description": {"type": "string"},
-                        "steps_to_reproduce": {"type": "array", "items": {"type": "string"}, "minItems": 1},
-                        "expected_behavior": {"type": "string"},
-                        "actual_behavior": {"type": "string"},
-                        "severity": {"type": "string", "enum": ["low", "medium", "high"]},
-                        "status": {
-                            "type": "string",
-                            "enum": ["corroborated", "inconclusive"],
-                            "description": "'corroborated' if Skeptic was satisfied; 'inconclusive' if the checkpoint budget ran out while Skeptic still had objections.",
+                        "observation_id": {"type": "string", "description": "The bug's id, for example 'C2.O1'."},
+                        "title": {"type": "string", "description": _limit("bug.title")},
+                        "description": {"type": "string", "description": _limit("bug.description")},
+                        "steps_to_reproduce": {
+                            "type": "array",
+                            "description": f"Literal steps with the real values that reproduced it. At most {MAX_STEPS} steps.",
+                            "items": {"type": "string", "description": _limit("bug.step")},
                         },
-                        "caveats": {"type": "string", "description": "Honest caveats about what wasn't resolved or verified."},
+                        "expected_behavior": {"type": "string", "description": _limit("bug.expected")},
+                        "actual_behavior": {"type": "string", "description": _limit("bug.actual")},
+                        "caveats": {
+                            "type": "string",
+                            "description": f"What wasn't resolved or verified, stated honestly. {_limit('bug.caveats')}",
+                        },
                     },
-                    "required": ["title", "description", "steps_to_reproduce", "expected_behavior", "actual_behavior", "severity", "status", "caveats"],
+                    "required": [
+                        "observation_id", "title", "description", "steps_to_reproduce",
+                        "expected_behavior", "actual_behavior", "caveats",
+                    ],
                 },
             },
         },
@@ -760,38 +778,70 @@ BUG_REPORT_TOOL = {
     },
 }
 
-BUG_REPORT_SYSTEM_PROMPT = """Write the final bug report(s) based on everything in the evidence: the
-final checkpoint hypothesis (including its anomaly claims), Skeptic's critique, stopped_reason, and
-the full test history. Write ONE entry per distinct anomaly claimed in the final hypothesis. Include
-literal, concrete repro steps (real values that actually reproduced the issue, referencing real test
-numbers) - each report needs to be independently actionable, not a redacted summary. Be honest in
-caveats about anything that wasn't fully resolved - if the checkpoint budget ran out while Skeptic
-still had objections (stopped_reason is "checkpoints_exhausted"), say so explicitly rather than
-overstating confidence, and set status to "inconclusive" rather than "corroborated".
+BUG_REPORT_SYSTEM_PROMPT = """Write one bug report for each bug in the evidence, by its id. Each bug comes
+with its observation (claim, tests, the fact it violates, mechanism, rival), its status, and the Skeptic's
+last check of it. The full test history is there for the real values.
+
+Include literal, concrete repro steps: the real values that actually reproduced the issue, referencing
+real test numbers. Each report must be independently actionable, not a redacted summary. Keep every field
+short: each one has a word limit.
+
+The engine has already decided each bug's status and severity, so don't argue with them. Be honest in
+caveats about anything that wasn't resolved. If a bug's status is 'inconclusive', say why, from the
+Skeptic's check and any gap that blocks it.
 
 Call submit_bug_reports with your answer."""
 
 
-def validate_bug_reports(data) -> list[str]:
-    errors = []
+def validate_bug_reports(data, *, bug_ids=()) -> list[str]:
+    """bug_ids: the ids of the bugs that each need exactly one report."""
     if not isinstance(data, dict):
         return [f"expected an object, got {type(data).__name__}"]
     bugs = data.get("bugs")
-    if not isinstance(bugs, list) or not bugs:
-        errors.append("'bugs' must be a non-empty list")
-        return errors
+    if not isinstance(bugs, list):
+        return ["'bugs' must be a list"]
+    errors = []
+    reported = []
     for i, bug in enumerate(bugs):
+        where = f"bugs[{i}]"
         if not isinstance(bug, dict):
-            errors.append(f"bugs[{i}] must be an object")
+            errors.append(f"{where} must be an object")
             continue
-        for key in ("title", "description", "steps_to_reproduce", "expected_behavior", "actual_behavior", "severity", "status", "caveats"):
-            if key not in bug:
-                errors.append(f"bugs[{i}] missing '{key}'")
+        observation_id = bug.get("observation_id")
+        if observation_id not in bug_ids:
+            errors.append(f"{where}.observation_id is '{observation_id}', which isn't a bug in the evidence "
+                          f"(bugs: {', '.join(bug_ids)})")
+        reported.append(observation_id)
+        for field, key in (("title", "bug.title"), ("description", "bug.description"),
+                           ("expected_behavior", "bug.expected"), ("actual_behavior", "bug.actual"),
+                           ("caveats", "bug.caveats")):
+            _check_text(errors, f"{where}.{field}", bug.get(field), key)
         steps = bug.get("steps_to_reproduce")
-        if not isinstance(steps, list) or not steps or not all(isinstance(s, str) for s in steps):
-            errors.append(f"bugs[{i}].steps_to_reproduce must be a non-empty list of strings")
-        if bug.get("severity") not in ("low", "medium", "high"):
-            errors.append(f"bugs[{i}].severity must be low/medium/high")
-        if bug.get("status") not in ("corroborated", "inconclusive"):
-            errors.append(f"bugs[{i}].status must be 'corroborated' or 'inconclusive'")
+        if not isinstance(steps, list) or not steps:
+            errors.append(f"{where}.steps_to_reproduce must be a non-empty list of steps")
+        else:
+            if len(steps) > 2 * MAX_STEPS:
+                errors.append(f"{where}.steps_to_reproduce has {len(steps)} steps, limit {MAX_STEPS}")
+            for n, step in enumerate(steps):
+                _check_text(errors, f"{where}.steps_to_reproduce[{n}]", step, "bug.step")
+    errors.extend(_once_each("bugs", "bug", reported, bug_ids))
     return errors
+
+
+def final_observations(hypothesis: dict, skeptic_review: dict) -> list[dict]:
+    """The run's conclusion: every observation of the final checkpoint with its
+    status, decided by the engine rather than by a model. An observation is
+    'corroborated' when the Skeptic's last check says its evidence discriminates
+    it from its rival and no blocking gap is about it; otherwise 'inconclusive'."""
+    checks = {c["observation_id"]: c for c in skeptic_review["observation_checks"]}
+    blocked = {oid for gap in skeptic_review["gaps"] if gap["blocks_verdict"] for oid in gap["about"]}
+    concluded = []
+    for observation in hypothesis["observations"]:
+        check = checks.get(observation["id"], {})
+        corroborated = check.get("discriminates_from_rival") is True and observation["id"] not in blocked
+        concluded.append({
+            **observation,
+            "status": "corroborated" if corroborated else "inconclusive",
+            "skeptic_note": check.get("note", ""),
+        })
+    return concluded

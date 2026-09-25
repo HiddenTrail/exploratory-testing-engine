@@ -43,9 +43,12 @@ Against a live SUT, each checkpoint:
 The engine stamps ids on observations (`C<n>.O<k>`) and gaps (`C<n>.G<k>`), so
 the next checkpoint can answer a gap or continue an observation by id.
 
-If the final hypothesis has observations, a bug report is written per claim -
-honestly marked `inconclusive` if the checkpoint budget ran out while the
-Skeptic still had objections, `corroborated` only if it was satisfied.
+At the end, every observation of the final checkpoint gets a status decided by
+the engine, not by a model: `corroborated` if the Skeptic's last check says its
+evidence discriminates it from its rival and no blocking gap is about it,
+otherwise `inconclusive`. All observations go into `output.json` under
+`observations`. Only **bugs** get a written bug report (one LLM call for all of
+them), because findings and anomalies are already complete as they are.
 
 **Known, accepted limitation:** the Skeptic's per-observation `discriminates_from_rival`
 check (in `observation_checks`) doesn't account for realistic value rounding/precision
@@ -111,7 +114,7 @@ python -m engine.cli --adapter token_purchase
 ```
 
 Writes `runs/<adapter>/output.json`, `runs/<adapter>/bugs.json` (if any
-anomalies were found), and `runs/<adapter>/report.html`. Override run
+bugs were found), and `runs/<adapter>/report.html`. Override run
 parameters with `--model`, `--max-checkpoints`, `--first-round-budget`,
 `--default-budget`, `--out-dir`.
 

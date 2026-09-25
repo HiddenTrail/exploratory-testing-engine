@@ -12,6 +12,7 @@ from engine.client import build_client, summarize_usage
 from engine.config import RunConfig
 from engine.http import default_check_sut_ready
 from engine.loop import get_bug_reports, get_happy_day_example, run_checkpoint_loop
+from engine.tools import final_observations
 from engine.report import render_report
 
 
@@ -80,12 +81,19 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
 
         final_hypothesis = checkpoints[-1]["hypothesis"]
         final_skeptic_review = checkpoints[-1]["skeptic_review"]
-        observations = final_hypothesis.get("observations", [])
-        output["anomaly_found"] = len(observations) > 0
+        observations = final_observations(final_hypothesis, final_skeptic_review)
+        output["observations"] = observations
+        # Findings alone don't count: an anomaly_found run has a real problem in it.
+        output["anomaly_found"] = any(o["kind"] in ("anomaly", "bug") for o in observations)
+        for o in observations:
+            print(f"  {o['id']} {o['kind']} ({o['status']}): {o['claim']}")
 
-        if observations:
-            plural = "" if len(observations) == 1 else "s"
-            print(f"Writing bug report(s) for {len(observations)} observation{plural}...")
+        # Only bugs get a written report. Findings and anomalies are already complete
+        # in output["observations"], so they need no LLM call.
+        bugs = [o for o in observations if o["kind"] == "bug"]
+        if bugs:
+            plural = "" if len(bugs) == 1 else "s"
+            print(f"Writing bug report{plural} for {len(bugs)} bug{plural}...")
             # Isolated from the run's verdict: the checkpoint loop has already concluded
             # (stopped_reason / anomaly_found are set above), so a bug-report generation
             # failure - e.g. the tool call exhausting its retries on a max_tokens cutoff -
@@ -93,7 +101,7 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
             # "error" and discard its conclusion.
             try:
                 bug_reports = get_bug_reports(
-                    client, adapter, run_config, final_hypothesis, final_skeptic_review, stopped_reason, casting_log,
+                    client, adapter, run_config, bugs, final_skeptic_review, stopped_reason, casting_log,
                     usage_sink=usage_log,
                 )
             except Exception as e:
@@ -140,6 +148,6 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
         if output.get("anomaly_found"):
             print("Now score it by hand against rubric.md.")
         else:
-            print("No anomaly found. See checkpoints for the final hypothesis and Skeptic's critique of it.")
+            print("No anomaly or bug found. See checkpoints for the final hypothesis and the Skeptic's review of it.")
 
     return output
