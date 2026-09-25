@@ -277,7 +277,12 @@ def run_checkpoint_loop(
                     **result,
                 })
                 result_detail = adapter.describe_result_for_log(result) if adapter.describe_result_for_log else str(result.get("response", {}).get("body", {}))
-                print(f"    actual: {result_detail} - prediction {'matched' if result['prediction_matched'] else 'MISSED'}")
+                # A skipped test never ran, so there's no prediction to check. Not
+                # every adapter sets prediction_matched on a skip, so don't read it.
+                if result.get("skipped"):
+                    print(f"    actual: {result_detail} - not run")
+                else:
+                    print(f"    actual: {result_detail} - prediction {'matched' if result.get('prediction_matched') else 'MISSED'}")
 
         new_entries = _redact(adapter, casting_log[entries_before:])
         if new_entries:

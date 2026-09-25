@@ -156,6 +156,9 @@ def execute_test(test: dict, test_number: int) -> dict:
             "request": request,
             "predicted_outcome": test["predicted_outcome"],
             "predicted_correctness": test["predicted_correctness"],
+            # Nothing ran, so the prediction can't have matched. Same as the
+            # clash_royale and web_gui adapters' skipped results.
+            "prediction_matched": False,
             "skipped": True,
             "skip_reason": (
                 f"request_count {request_count} exceeds the safe ceiling of {MAX_REQUEST_COUNT} "
