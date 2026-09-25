@@ -1,0 +1,108 @@
+# Test targets: real web apps to point the engine at.
+#
+# Start them with:
+#   docker compose -f test-targets/docker-compose.yml up -d
+#
+# Each one is a different kind of app, so between them they cover the cases a
+# browser-driving adapter (web_gui, web-recon) has to handle:
+#
+#   juice-shop   OWASP Juice Shop. An Angular single-page app: the product list
+#                is rendered in the browser, so a plain HTTP fetch sees almost
+#                nothing. Port 3000.
+#   sauce-demo   Sauce Labs' sample shop. Also a single-page app, but you have to
+#                log in before you see anything. Port 3001.
+#   prestashop   A server-rendered PHP/MySQL shop: real URLs, real forms, lots of
+#                linked pages and state (cart, checkout). The opposite of the two
+#                single-page apps. Port 8080.
+#
+# Every target has the label qes.sandbox=true. It means the app is a throwaway
+# test target, so exploration that changes data (adding to a cart, submitting
+# forms) is allowed against it. Nothing reads the label yet. It's there so the
+# file says which containers are safe to break.
+#
+# Versions are pinned so runs stay comparable over time.
+#
+# This started as a copy of Spoor's ../ht-spoor/fixtures/docker-compose.yml.
+# Container names differ (test-targets-* here, fixtures-* there), so don't run
+# both at once: they use the same host ports.
+
+services:
+  juice-shop:
+    image: bkimminich/juice-shop:v17.1.1
+    ports:
+      - "3000:3000"
+    labels:
+      qes.sandbox: "true"
+    # No healthcheck: the image has no shell, curl or node on PATH, so a check
+    # inside the container is fragile. To see if it's ready, poll
+    # http://127.0.0.1:3000 from outside.
+
+  sauce-demo:
+    # No trustworthy prebuilt image exists, so this builds it from a pinned
+    # source commit. See sauce-demo/Dockerfile. The first build takes a few
+    # minutes.
+    build: ./sauce-demo
+    ports:
+      # Change the host port with SAUCE_DEMO_PORT=3002 if 3001 is taken.
+      # The container always serves on 80.
+      - "${SAUCE_DEMO_PORT:-3001}:80"
+    labels:
+      qes.sandbox: "true"
+
+  prestashop:
+    # The official image installs the shop into the database on first boot.
+    # That first boot takes a few minutes. After that the installed shop lives
+    # in the ps-data volume and starts fast.
+    image: prestashop/prestashop:8.1
+    depends_on:
+      prestashop-db:
+        condition: service_healthy
+    ports:
+      # Change the host port with PRESTASHOP_PORT=8090 if 8080 is taken.
+      # The container always serves on 80.
+      - "${PRESTASHOP_PORT:-8080}:80"
+    environment:
+      # PrestaShop builds its links from this. It has to match the host port,
+      # or the shop redirects you to an address nothing is serving.
+      PS_DOMAIN: "127.0.0.1:${PRESTASHOP_PORT:-8080}"
+      PS_INSTALL_AUTO: "1"
+      # Keep the installed shop between restarts.
+      PS_ERASE_DB: "0"
+      PS_DEV_MODE: "0"
+      DB_SERVER: prestashop-db
+      DB_NAME: prestashop
+      DB_USER: prestashop
+      DB_PASSWD: prestashop
+      # Admin is at http://127.0.0.1:8080/admin-dev. These are local test
+      # credentials only; the container isn't meant to be reachable from outside.
+      PS_FOLDER_ADMIN: admin-dev
+      PS_FOLDER_INSTALL: install-dev
+      ADMIN_MAIL: admin@qes.test
+      ADMIN_PASSWD: qes-admin-pw
+    volumes:
+      - ps-data:/var/www/html
+    labels:
+      qes.sandbox: "true"
+
+  prestashop-db:
+    # PrestaShop's database. Not a test target itself, so no sandbox label and
+    # no port on the host.
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: prestashop
+      MARIADB_USER: prestashop
+      MARIADB_PASSWORD: prestashop
+      MARIADB_ROOT_PASSWORD: prestashop-root
+    volumes:
+      - ps-db-data:/var/lib/mysql
+    healthcheck:
+      # Wait until the database really accepts connections, not just until the
+      # container is up. Otherwise the PrestaShop install starts too early and fails.
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  ps-data:
+  ps-db-data:

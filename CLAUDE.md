@@ -164,9 +164,10 @@ them by name.
   Always cap the run (`--max-depth`, `--max-states`, `--max-seconds`).
   `spoor run config.yaml -o out.json` extracts data with a config. The
   [Spoor README](../ht-spoor/README.md) has the rest.
-- **Local test targets** live in Spoor's repo, not here. They are Juice Shop
-  (port 3000), Sauce Demo (3001) and PrestaShop (8080). Start them with
-  `docker compose -f ../ht-spoor/fixtures/docker-compose.yml up -d`.
+- **Local test targets** are in `test-targets/`: Juice Shop (port 3000), Sauce
+  Demo (3001) and PrestaShop (8080). Start them with
+  `docker compose -f test-targets/docker-compose.yml up -d`. Spoor has the same
+  set in its own `fixtures/`. They use the same ports, so run only one of them.
 - Only use `--sandbox` against those local targets or another throwaway system
   you control. Without it, Spoor skips destructive actions like buy, delete
   and log out. Keep it that way.

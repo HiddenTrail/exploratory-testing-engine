@@ -168,6 +168,9 @@ clash-royale-kit/ # the two directories above, packaged as one command for someb
                   #   write a wiki from what was found. No agent and no code editing at run time -
                   #   the interventions a person used to make were environmental, so they are
                   #   checks with sentences attached now. 98 tests, and they DO run in CI.
+test-targets/     # docker-compose.yml with real web apps to test against: Juice Shop (3000),
+                  #   Sauce Demo (3001), PrestaShop (8080).
+                  #   docker compose -f test-targets/docker-compose.yml up -d
 docs/
   exploratory-testing-engine-concept.md  # the original, broader vision
   examples/bootstrap_demo/                # a real worked example of the bootstrap pipeline's output
