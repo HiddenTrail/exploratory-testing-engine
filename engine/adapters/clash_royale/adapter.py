@@ -49,6 +49,7 @@ Driver reads rather than an exception that kills the run.
 
 from engine import outcome
 from engine.adapter import SUTAdapter
+from engine.tools import CASTING_REASONING_DESCRIPTION, PRIOR_FEEDBACK_GUIDE, casting_envelope_errors
 from engine.adapters.clash_royale import reference
 from engine.adapters.clash_royale import session as live_session
 from engine.adapters.clash_royale.actions import (
@@ -349,10 +350,7 @@ CASTING_TOOL = {
                 "type": "boolean",
                 "description": "Set true only if you have no more good ideas worth proposing this round.",
             },
-            "reasoning": {
-                "type": "string",
-                "description": "Your reasoning for this round's batch, per the system prompt's instructions.",
-            },
+            "reasoning": {"type": "string", "description": CASTING_REASONING_DESCRIPTION},
             "candidate_tests": {
                 "type": "array",
                 "description": (
@@ -417,10 +415,8 @@ out except a button that is off-screen, a control whose meaning changes with an 
 that lead to the same place, a transition slow enough that a second tap lands somewhere unintended)?
 Use that to decide what to look at first. State this reasoning explicitly."""
     else:
-        context_instruction = """You now have real transitions, and prior_checkpoint_feedback holds the
-previous checkpoint's hypothesis plus Skeptic's cold critique of it. If that hypothesis claimed an
-anomaly Skeptic found weak, prioritise taps that could confirm OR refute that SPECIFIC claim - and
-remember that repeating a tap is a real experiment here, because the same control landing somewhere
+        context_instruction = f"""You now have real transitions. {PRIOR_FEEDBACK_GUIDE}
+Remember that repeating a tap is a real experiment here, because the same control landing somewhere
 different on the second visit, or the same screen being registered as new twice, are both findings.
 Briefly state what THIS client has actually shown you so far and how it changes your approach."""
 
@@ -459,22 +455,9 @@ Call submit_casting_round with your answer."""
 
 
 def validate_casting_response(data) -> list[str]:
-    errors = []
-    if not isinstance(data, dict):
-        return [f"expected an object, got {type(data).__name__}"]
-
-    for key in ("give_up", "reasoning", "candidate_tests"):
-        if key not in data:
-            errors.append(f"missing required field '{key}'")
-
-    if not isinstance(data.get("give_up"), bool):
-        errors.append("'give_up' must be a boolean")
-
-    tests = data.get("candidate_tests")
-    if not isinstance(tests, list):
-        errors.append("'candidate_tests' must be a list")
-    elif not data.get("give_up") and not tests:
-        errors.append("'candidate_tests' must be non-empty unless give_up is true")
+    errors, tests = casting_envelope_errors(data)
+    if not isinstance(tests, list) or not tests:
+        return errors
     else:
         for i, test in enumerate(tests or []):
             if not isinstance(test, dict):

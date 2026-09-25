@@ -16,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from engine import outcome
 from engine.adapter import SUTAdapter
+from engine.tools import CASTING_REASONING_DESCRIPTION, PRIOR_FEEDBACK_GUIDE, casting_envelope_errors
 from engine.http import call_sut_once
 from engine.report import badge, bool_badge, esc, inline_markdown, render_json_block
 from engine.util import unwrap_accidental_json_body
@@ -210,10 +211,7 @@ CASTING_TOOL = {
                 "type": "boolean",
                 "description": "Set true only if you have no more good ideas worth proposing this round.",
             },
-            "reasoning": {
-                "type": "string",
-                "description": "Your reasoning for this round's batch, per the system prompt's instructions.",
-            },
+            "reasoning": {"type": "string", "description": CASTING_REASONING_DESCRIPTION},
             "candidate_tests": {
                 "type": "array",
                 "description": (
@@ -281,14 +279,10 @@ of unusual client_id values, input validation gaps)? Use that to inform your hyp
 substitute for testing, but as a reason to prioritize some categories over others when you're
 starting from nothing. State this reasoning explicitly."""
     else:
-        context_instruction = """You now have real test results, and prior_checkpoint_feedback holds the
-previous checkpoint's hypothesis plus Skeptic's cold critique of it. If that hypothesis claimed any
-anomalies that Skeptic found weak, prioritize tests that could confirm OR refute those SPECIFIC
-claims - operationalize Skeptic's anomaly_critique and gaps into literal tests, not just unrelated
-new exploration. If Skeptic flagged the absence of any anomaly claim as premature given what's been
-tested, prioritize whatever category it pointed at. Briefly state what you've actually learned so
-far (not what's typical for this category in general, but what THIS system has actually shown) and
-how that's changing your approach this round."""
+        context_instruction = f"""You now have real test results. {PRIOR_FEEDBACK_GUIDE}
+If the Skeptic's coverage says whole areas are untouched, prioritize those. Briefly state what you've
+actually learned so far (not what's typical for this category in general, but what THIS system has
+actually shown) and how that's changing your approach this round."""
 
     return f"""You are testing a live API endpoint (POST /submit, a rate-limited submission
 service) to look for bugs or unexpected behavior. You've been shown the API's schema
@@ -335,22 +329,9 @@ Call submit_casting_round with your answer."""
 
 
 def validate_casting_response(data) -> list[str]:
-    errors = []
-    if not isinstance(data, dict):
-        return [f"expected an object, got {type(data).__name__}"]
-
-    for key in ("give_up", "reasoning", "candidate_tests"):
-        if key not in data:
-            errors.append(f"missing required field '{key}'")
-
-    if not isinstance(data.get("give_up"), bool):
-        errors.append("'give_up' must be a boolean")
-
-    tests = data.get("candidate_tests")
-    if not isinstance(tests, list):
-        errors.append("'candidate_tests' must be a list")
-    elif not data.get("give_up") and not tests:
-        errors.append("'candidate_tests' must be non-empty unless give_up is true")
+    errors, tests = casting_envelope_errors(data)
+    if not isinstance(tests, list) or not tests:
+        return errors
     else:
         required_test_keys = (
             "linked_hypothesis", "client_id", "payload", "priority",

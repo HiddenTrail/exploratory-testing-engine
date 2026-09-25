@@ -276,7 +276,7 @@ def run_checkpoint_loop(
         )
 
         entries_before = len(casting_log)
-        if casting["give_up"]:
+        if casting.get("give_up", False):
             print(f"  Claude gave up casting: {casting['reasoning']}")
         else:
             print(f"  round reasoning: {casting['reasoning']}")
@@ -374,9 +374,10 @@ def run_checkpoint_loop(
 
         prior_feedback = {"hypothesis": hypothesis, "skeptic_review": skeptic_review}
         # A separate key rather than nested inside prior_checkpoint_feedback, whose
-        # contents every adapter's casting prompt describes as "the previous
-        # checkpoint's hypothesis plus Skeptic's critique". Slipping a third thing
-        # in there would make four prompts quietly inaccurate.
+        # contents every adapter's casting prompt describes through the shared
+        # PRIOR_FEEDBACK_GUIDE (engine/tools.py) as the previous checkpoint's
+        # hypothesis and Skeptic review. Slipping a third thing in there would make
+        # that description quietly inaccurate in four prompts at once.
         run_diagnostics = diagnostics.for_model(findings)
 
     return casting_log, checkpoints, stopped_reason
