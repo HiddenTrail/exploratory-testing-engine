@@ -19,20 +19,32 @@ Against a live system under test (SUT), each **checkpoint**:
 
 1. **Casts** a batch of real tests (an adapter-defined test-proposal schema),
    executes them for real, and records predicted vs. actual outcomes.
-2. Forms **one hypothesis** about the system's behavior and any anomalies
-   noticed - a specific, falsifiable claim per anomaly, not a vague suspicion.
+2. Forms **one hypothesis** about the system's behavior: a one-sentence
+   summary, what was confirmed as normal, and **observations** of anything that
+   looks wrong. Each observation is a specific, falsifiable claim with its test
+   numbers and a rival explanation, and it's one of three kinds: a **finding**
+   (iffy, worth a look), an **anomaly** (a real problem that doesn't clearly
+   break a known fact, or doesn't reproduce consistently) or a **bug** (breaks a
+   named known fact and reproduces consistently).
 3. Gets a **cold Skeptic review** of that hypothesis: a second LLM call that
-   never sees the raw test data, only the hypothesis itself. It checks
-   whether the cited evidence actually discriminates the claim from its own
-   named rival explanation - not just whether evidence exists - and returns a
-   `weak` (keep going) or `strong_enough` (stop) verdict.
-4. The loop continues on `weak`, informed by the Skeptic's critique, or stops
-   on `strong_enough` or a checkpoint cap.
+   never sees the raw test data, only the hypothesis itself. For each
+   observation it checks whether the cited evidence actually discriminates the
+   claim from its own rival - not just whether evidence exists - and it can
+   lower an observation's kind. Its verdict is `weak` (keep going) only if it
+   raises a concrete objection, and `strong_enough` (stop) only if it raises
+   none.
+4. The loop continues on `weak`, informed by the Skeptic's gaps and the test
+   that would close each one, or stops on `strong_enough` or a checkpoint cap.
 
-If the final hypothesis claims anomalies, a bug report is written per claim -
-honestly marked `inconclusive` if the checkpoint budget ran out while the
-Skeptic still had objections, `corroborated` only if it was satisfied. Output
-is a JSON result, a JSON bug list, and a self-contained HTML report.
+Observations and gaps get ids from the engine (`C1.O2`, `C1.G3`), so a later
+checkpoint answers an earlier gap, or continues an earlier observation, by id.
+
+At the end, every observation of the final checkpoint gets a status decided by
+the engine, not by a model: `corroborated` if the Skeptic's last check says its
+evidence discriminates it from its rival and no blocking gap is about it,
+otherwise `inconclusive`. All observations go into `output.json` under
+`observations`. Only **bugs** get a written bug report (one LLM call for all of
+them), because findings and anomalies are already complete as they are. Output is a JSON result, a JSON bug list, and a self-contained HTML report.
 
 ## Bootstrapping a new adapter automatically
 
@@ -214,7 +226,7 @@ To authenticate through Amazon Bedrock instead of an API key, set
 the same IDs `aws bedrock list-inference-profiles` reports.
 
 Writes `runs/<adapter>/output.json`, `runs/<adapter>/bugs.json` (if any
-anomalies were found), and `runs/<adapter>/report.html`. Override run
+bugs were found), and `runs/<adapter>/report.html`. Override run
 parameters with `--model`, `--max-checkpoints`, `--first-round-budget`,
 `--default-budget`, `--out-dir`.
 

@@ -130,13 +130,10 @@ def test_observation_ids_are_stamped_per_checkpoint():
     assert [o["id"] for o in data["observations"]] == ["C2.O1", "C2.O2"]
 
 
-def test_gap_ids_are_stamped_and_plain_string_gaps_become_objects():
-    review = {"gaps": ["first gap", {"gap": "second gap", "blocks_verdict": True}]}
+def test_gap_ids_are_stamped_per_checkpoint():
+    review = {"gaps": [{"gap": "first gap"}, {"gap": "second gap", "blocks_verdict": True}]}
     stamp_gap_ids(3, review)
-    assert review["gaps"] == [
-        {"gap": "first gap", "id": "C3.G1"},
-        {"gap": "second gap", "blocks_verdict": True, "id": "C3.G2"},
-    ]
+    assert [g["id"] for g in review["gaps"]] == ["C3.G1", "C3.G2"]
 
 
 def test_the_next_checkpoint_is_shown_the_earlier_observations_with_their_ids(monkeypatch):
@@ -158,8 +155,7 @@ def test_the_next_checkpoint_is_shown_the_earlier_observations_with_their_ids(mo
         return _hypothesis(observations=[dict(_OBSERVATION)])
 
     def fake_skeptic(*a, **kw):
-        return {"verdict": "weak", "gaps": ["g"], "coverage_breadth": {"material": False, "note": "c"},
-                "anomaly_checks": [], "recommended_next_tests": ["t"], "prior_critique_addressed": "n/a"}
+        return {"verdict": "weak", "verdict_reason": "r", "observation_checks": [], "coverage": {"material": True, "untouched": [], "note": "c"}, "gaps": [{"gap": "g", "next_test": "t", "blocks_verdict": False, "about": []}], "prior_gaps_check": []}
 
     monkeypatch.setattr(loop, "get_casting_round", fake_casting)
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", fake_hypothesis)

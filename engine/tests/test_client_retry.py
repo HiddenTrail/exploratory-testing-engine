@@ -286,8 +286,7 @@ def test_the_skeptic_call_caches_its_system_prompt():
     # Issue #69: the Skeptic's system prompt and schema are identical on every
     # checkpoint, but it was the one call site sending them uncached every time.
     review = {
-        "verdict": "weak", "gaps": ["g1", "g2"], "coverage_breadth": {"material": False, "note": "n"},
-        "anomaly_checks": [], "recommended_next_tests": ["t1", "t2"], "prior_critique_addressed": "n/a",
+        "verdict": "weak", "verdict_reason": "r", "observation_checks": [], "coverage": {"material": True, "untouched": [], "note": "c"}, "gaps": [{"gap": "g", "next_test": "t", "blocks_verdict": False, "about": []}], "prior_gaps_check": [],
     }
     client = _FakeClient([_FakeMessage([_FakeToolUse("id1", review)])])
     hypothesis = {"summary": "b", "behaviors": [], "observations": [], "untested": [{"area": "u"}], "prior_gaps": []}

@@ -87,12 +87,12 @@ section 7.
 7. **No anomaly claimed** - score the exploration instead:
    - Was every action in the catalogue used at least once? (Five actions, and a
      first-round budget of five: an unused action is unexplored territory.)
-   - Does `untested_areas` name what could not be reached rather than restating
+   - Does `untested` name what could not be reached rather than restating
      the action list - specifically, does it recognise that anything two taps deep
      needs a second round?
-   - Did the Skeptic's `coverage_breadth` catch a gap the Driver missed, and did
+   - Did the Skeptic's `coverage` catch a gap the Driver missed, and did
      the following checkpoint actually operationalise it?
-   - Is the final `observed_behavior` a navigation model someone else could act
+   - Is the final `summary` (with its `behaviors`) a navigation model someone else could act
      on (which control leads where, which is the way back), or a narration of
      what was tapped?
 

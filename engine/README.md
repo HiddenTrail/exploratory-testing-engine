@@ -21,24 +21,37 @@ suites, which are Windows-only, so CI runs neither. The parity tests also read
 Against a live SUT, each checkpoint:
 1. **Casts** a batch of real tests (an adapter-defined test-proposal schema),
    executes them for real, and records predicted vs. actual outcomes.
-2. Forms **one hypothesis** about the system's behavior and any anomalies
-   noticed (zero, one, or several) - a specific, falsifiable claim per
-   anomaly, not a vague suspicion.
-3. Gets a **cold Skeptic review** of that hypothesis - a second LLM call that
-   never sees the raw test data, only the hypothesis itself. It checks
-   whether the cited evidence actually discriminates a claim from its own
-   named rival (not just whether evidence exists), tracks whether its own
-   prior critique was actually addressed across checkpoints, and gives a
-   `weak` (keep going) or `strong_enough` (stop) verdict.
-4. The loop continues on `weak`, informed by the critique, or stops on
+2. Forms **one hypothesis** about the system's behavior (`HYPOTHESIS_TOOL`):
+   a one-sentence summary, confirmed behaviors, and zero or more
+   **observations**. Each observation is a finding, an anomaly or a bug, cites
+   its test numbers and a genuine rival, and says how it reproduced. A bug must
+   name the known fact it violates and reproduce consistently. Every field has
+   a word limit.
+3. Gets a **cold Skeptic review** of that hypothesis (`SKEPTIC_TOOL`) - a second
+   LLM call that never sees the raw test data, only the hypothesis itself. Per
+   observation it checks whether the cited evidence actually discriminates the
+   claim from its own rival (not just whether evidence exists) and gives its
+   own view of the kind; the engine keeps the more cautious of the two. It
+   checks whether the Driver's answers to its prior gaps hold up, and names new
+   gaps with the test that would close each. Its verdict must follow from its
+   objections: `weak` needs at least one (evidence that doesn't discriminate,
+   material coverage, a blocking gap, or a rejected prior answer), and
+   `strong_enough` allows none. The validator enforces this.
+4. The loop continues on `weak`, informed by the gaps, or stops on
    `strong_enough` or a checkpoint cap.
 
-If the final hypothesis claims anomalies, a bug report is written per claim -
-honestly marked `inconclusive` if the checkpoint budget ran out while the
-Skeptic still had objections, `corroborated` only if it was satisfied.
+The engine stamps ids on observations (`C<n>.O<k>`) and gaps (`C<n>.G<k>`), so
+the next checkpoint can answer a gap or continue an observation by id.
 
-**Known, accepted limitation:** the Skeptic's per-anomaly `discriminates_from_rival`
-check (in `anomaly_checks`) doesn't account for realistic value rounding/precision
+At the end, every observation of the final checkpoint gets a status decided by
+the engine, not by a model: `corroborated` if the Skeptic's last check says its
+evidence discriminates it from its rival and no blocking gap is about it,
+otherwise `inconclusive`. All observations go into `output.json` under
+`observations`. Only **bugs** get a written bug report (one LLM call for all of
+them), because findings and anomalies are already complete as they are.
+
+**Known, accepted limitation:** the Skeptic's per-observation `discriminates_from_rival`
+check (in `observation_checks`) doesn't account for realistic value rounding/precision
 when deciding whether cited evidence discriminates a claim from its rival - see
 the comment on that field in `engine/tools.py`. Carried forward deliberately, not fixed.
 
@@ -101,7 +114,7 @@ python -m engine.cli --adapter token_purchase
 ```
 
 Writes `runs/<adapter>/output.json`, `runs/<adapter>/bugs.json` (if any
-anomalies were found), and `runs/<adapter>/report.html`. Override run
+bugs were found), and `runs/<adapter>/report.html`. Override run
 parameters with `--model`, `--max-checkpoints`, `--first-round-budget`,
 `--default-budget`, `--out-dir`.
 

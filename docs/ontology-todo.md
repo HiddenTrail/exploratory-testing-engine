@@ -3,9 +3,8 @@
 Tracking plan for the 4-layer ontology stack under `engine/ontology/` — a
 prioritization layer sitting between the domain-grounded oracle claims and
 the Driver, plus a heuristic library and a context/results feed. See
-`docs/exploratory-testing-engine-concept.md` for the original vision and
-`/memories/repo/ontology-phase0-status.md` for the full session history that
-led here.
+`docs/exploratory-testing-engine-concept.md` for the original vision. The backlog
+below is tracked in GitHub Issues; each item names its issue.
 
 ## Status: Phase 0 proven on `token_purchase`; claim-matching gap fixed
 
@@ -51,16 +50,20 @@ proving a merged result actually changes a claim's score.
 `context_token_purchase.json`'s prior demo `test_results` were cleared since
 they were keyed by claim text under the old, non-functional scheme.
 
-## Backlog (not yet started)
+## Backlog
 
-1. **Skeptic-guided case selection.** Right now the Driver just pulls from the
+1. **Skeptic-guided case selection** (#40, not started). Right now the Driver just pulls from the
    top of the ranked list. The Skeptic should instead steer which prioritized
    cases get run next, based on what still needs proving/disproving for the
    current hypothesis — not a fixed top-N pull.
-2. **Driver/Skeptic output verbosity.** Free-text reasoning/hypothesis/critique
-   fields are very large per checkpoint. Needs a pass at trimming or
-   restructuring before this scales to more checkpoints or more SUTs.
-3. **Prioritization ablation** (still open from before Phase 0 started) — hasn't
+2. **Driver/Skeptic output verbosity** (#41, mostly done). The hypothesis and
+   the Skeptic's review are now short structured fields with word limits and
+   engine-assigned ids, the verdict must follow from the Skeptic's objections,
+   and the report shows each checkpoint's conclusion first. On a short
+   `complex_sut` run that took the visible report from about 2,000 words per
+   checkpoint to about 200. Still open: the casting round's long reasoning
+   (#64, #70).
+3. **Prioritization ablation** (#42, still open from before Phase 0 started) — hasn't
    been run: unranked vs. ranked claim order at a fixed test budget, to
    measure whether ranking actually improves what gets found. Cheap to run,
    reuses the existing paired-trial methodology from

@@ -122,97 +122,156 @@ def _tests_label(tests) -> str:
     return f'<span class="prose-muted">(tests {", ".join(f"#{n}" for n in tests)})</span>'
 
 
-def _render_checkpoint_conclusion(checkpoint_entry) -> str:
-    """Every checkpoint forms a hypothesis (behavior + anything that looks wrong) and
-    gets a cold Skeptic review of it. A "weak" verdict is what sends the process
-    into another checkpoint; "strong_enough" is what ends it. Fully generic - the
+def _check_badge(check) -> str:
+    if not check:
+        return ""
+    return bool_badge(check["discriminates_from_rival"], "discriminates", "doesn't discriminate")
+
+
+def _lowered_label(observation) -> str:
+    if "driver_kind" not in observation:
+        return ""
+    return f' <span class="prose-muted">(the Driver said {esc(observation["driver_kind"])}, the Skeptic lowered it)</span>'
+
+
+def _observation_line(observation, check) -> str:
+    return (
+        f'<li><span class="idtag">{esc(observation["id"])}</span> {esc(observation["kind"])} '
+        f'({esc(observation["severity"])}) {inline_markdown(observation["claim"])} '
+        f'{_tests_label(observation["tests"])} {_check_badge(check)}{_lowered_label(observation)}</li>'
+    )
+
+
+def _gap_line(gap) -> str:
+    blocks = f" {badge('blocks verdict', 'bad')}" if gap["blocks_verdict"] else ""
+    return (
+        f'<li><span class="idtag">{esc(gap["id"])}</span> {inline_markdown(gap["gap"])}{blocks}'
+        f'<div class="prose-muted">Next test: {inline_markdown(gap["next_test"])}</div></li>'
+    )
+
+
+def _prior_gaps_line(prior_gaps, prior_gaps_check) -> str:
+    """One sentence for the whole continuity check, e.g. 'Prior gaps: 3 tested,
+    2 not attempted. The Skeptic accepted 3 of 5 answers.'"""
+    if not prior_gaps:
+        return ""
+    statuses = {}
+    for g in prior_gaps:
+        statuses[g["status"]] = statuses.get(g["status"], 0) + 1
+    answered = ", ".join(f"{n} {status.replace('_', ' ')}" for status, n in statuses.items())
+    accepted = sum(1 for c in prior_gaps_check if c["accepted"])
+    return (f'<p class="prose-muted">Prior gaps: {esc(answered)}. The Skeptic accepted '
+            f'{accepted} of {len(prior_gaps_check)} answers.</p>')
+
+
+def _observation_details(observation, check) -> str:
+    ruled_out = "ruled out" if observation.get("rival_ruled_out") else "not ruled out"
+    rows = [
+        ("Violates", observation.get("violates")),
+        ("Reproduced", observation.get("reproduced")),
+        ("Mechanism", observation.get("mechanism")),
+        ("Rival", f"{observation.get('rival', '')} ({ruled_out} by the Driver)"),
+        ("Why", observation.get("why")),
+        ("Skeptic", (check or {}).get("note")),
+    ]
+    items = "".join(f"<li><strong>{label}:</strong> {inline_markdown(value)}</li>" for label, value in rows if value)
+    return f'<p><span class="idtag">{esc(observation["id"])}</span></p><ul>{items}</ul>'
+
+
+def _prior_gap_detail(gap, skeptic_check) -> str:
+    judged = ""
+    if skeptic_check:
+        judged = (f" {bool_badge(skeptic_check['accepted'], 'accepted', 'not accepted')} "
+                  f"{inline_markdown(skeptic_check['note'])}")
+    return (f'<li><span class="idtag">{esc(gap["gap_id"])}</span> {esc(gap["status"].replace("_", " "))} '
+            f'{_tests_label(gap["tests"])} {inline_markdown(gap["reason"])}{judged}</li>')
+
+
+def _render_checkpoint(checkpoint_num, checkpoint_entry, rounds, render_test_entry) -> str:
+    """One checkpoint, conclusion first. What a reader needs is visible: the
+    verdict, the Driver's one-sentence summary, the Skeptic's one-sentence
+    reason, one line per observation and one line per gap. Everything else -
+    behaviors, each observation's mechanism and rival, coverage, the prior-gap
+    answers, and the tests themselves - is folded underneath. Fully generic: the
     hypothesis/Skeptic schema is the same for every adapter."""
+    test_count = sum(len(entries) for entries in rounds.values())
+    tests_fold = f"""
+      <details class="fold">
+        <summary>Tests this checkpoint ({test_count})</summary>
+        {_render_rounds(rounds, render_test_entry)}
+      </details>"""
+    if not checkpoint_entry:
+        return f'<div class="checkpoint"><h3>Checkpoint {checkpoint_num}</h3>{tests_fold}</div>'
+
     hypothesis = checkpoint_entry["hypothesis"]
     skeptic = checkpoint_entry["skeptic_review"]
-    observations = hypothesis.get("observations", [])
-    behaviors = "".join(
-        f"<li>{inline_markdown(b['claim'])} {_tests_label(b['tests'])}</li>" for b in hypothesis.get("behaviors", [])
-    )
-    untested = "".join(f"<li>{inline_markdown(u['area'])}</li>" for u in hypothesis.get("untested", []))
-    gaps = "".join(
-        f"<li><span class=\"num\">{esc(g['id'])}</span> {inline_markdown(g['gap'])}</li>" for g in skeptic.get("gaps", [])
-    )
-    next_tests = "".join(f"<li>{inline_markdown(t)}</li>" for t in skeptic.get("recommended_next_tests", []))
-
-    prior_gaps_html = ""
-    prior_gaps = hypothesis.get("prior_gaps", [])
-    if prior_gaps:
-        prior_gaps_items = "".join(
-            f"<li><span class=\"num\">{esc(g['gap_id'])}</span> {esc(g['status'].replace('_', ' '))} "
-            f"{_tests_label(g['tests'])} {inline_markdown(g['reason'])}</li>"
-            for g in prior_gaps
-        )
-        prior_gaps_html = f"""
-        <p><strong>Driver's response to the prior checkpoint's named gaps</strong></p>
-        <ul>{prior_gaps_items}</ul>
-        """
-
-    prior_critique_html = ""
-    prior_critique = skeptic.get("prior_critique_addressed")
-    if prior_critique and prior_critique.strip().lower() != "n/a":
-        prior_critique_html = f"""
-        <p><strong>Was the Skeptic's own prior critique addressed?</strong></p>
-        <div class="prose">{render_prose(prior_critique)}</div>
-        """
+    observations = hypothesis["observations"]
+    checks = {c["observation_id"]: c for c in skeptic["observation_checks"]}
 
     if observations:
-        observation_items = "".join(
-            f"<li><span class=\"num\">{esc(o['id'])}</span> {esc(o['kind'])} ({esc(o['severity'])}) "
-            f"{inline_markdown(o['claim'])} {_tests_label(o['tests'])}</li>"
-            for o in observations
-        )
-        observations_html = f"""
-        <p><strong>Observations ({len(observations)})</strong></p>
-        <ul>{observation_items}</ul>
-        """
+        observations_html = ('<ul class="line-list">'
+                             + "".join(_observation_line(o, checks.get(o["id"])) for o in observations) + "</ul>")
     else:
         observations_html = '<p class="prose-muted">Nothing looked wrong this checkpoint.</p>'
+    gaps_html = ""
+    if skeptic["gaps"]:
+        gaps_html = ('<p><strong>Gaps and the tests that would close them</strong></p><ul class="line-list">'
+                     + "".join(_gap_line(g) for g in skeptic["gaps"]) + "</ul>")
 
-    coverage_breadth = skeptic.get("coverage_breadth", {})
+    behaviors = "".join(
+        f"<li>{inline_markdown(b['claim'])} {_tests_label(b['tests'])}</li>" for b in hypothesis["behaviors"])
+    untested = "".join(f"<li>{inline_markdown(u['area'])}</li>" for u in hypothesis["untested"])
+    coverage = skeptic["coverage"]
+    untouched = "".join(f"<li>{inline_markdown(a)}</li>" for a in coverage["untouched"])
+    skeptic_checks = {c["gap_id"]: c for c in skeptic["prior_gaps_check"]}
+    prior = "".join(_prior_gap_detail(g, skeptic_checks.get(g["gap_id"])) for g in hypothesis["prior_gaps"])
 
-    anomaly_checks = skeptic.get("anomaly_checks", [])
-    if anomaly_checks:
-        check_items = "".join(f"""
-        <li>
-          <strong>{inline_markdown(check.get('anomaly_ref', ''))}</strong>
-          {bool_badge(check.get('discriminates_from_rival'), 'discriminates', "doesn't discriminate")}
-          {bool_badge(check.get('rival_is_genuine'), 'genuine rival', 'strawman rival')}
-          <div class="prose">{render_prose(check.get('note'))}</div>
-        </li>
-        """ for check in anomaly_checks)
-        anomaly_checks_html = f"""
-        <p><strong>Anomaly checks ({len(anomaly_checks)})</strong></p>
-        <ul>{check_items}</ul>
-        """
-    else:
-        anomaly_checks_html = '<p class="prose-muted">No observations this checkpoint, so nothing to check.</p>'
+    details = []
+    if behaviors:
+        details.append(f"<p><strong>Confirmed behavior</strong></p><ul>{behaviors}</ul>")
+    if observations:
+        details.append("<p><strong>Observations in detail</strong></p>"
+                       + "".join(_observation_details(o, checks.get(o["id"])) for o in observations))
+    if untested:
+        details.append(f"<p><strong>Untested, according to the Driver</strong></p><ul>{untested}</ul>")
+    details.append(f"<p><strong>Coverage</strong> {bool_badge(coverage['material'], 'material', 'not material')}</p>"
+                   f'<div class="prose">{inline_markdown(coverage["note"])}</div><ul>{untouched}</ul>')
+    if prior:
+        details.append(f"<p><strong>Prior gaps: the Driver's answers and the Skeptic's judgment</strong></p><ul>{prior}</ul>")
 
     return f"""
-    <div class="exhibit">
-      <p class="eyebrow">Checkpoint {checkpoint_entry['checkpoint']} hypothesis</p>
-      <h4>{inline_markdown(hypothesis.get('summary'))}</h4>
-      <p><strong>Confirmed behavior</strong></p>
-      <ul>{behaviors}</ul>
+    <div class="checkpoint">
+      <h3>Checkpoint {checkpoint_num} {verdict_badge(skeptic['verdict'])}</h3>
+      <p class="summary">{inline_markdown(hypothesis['summary'])}</p>
+      <p class="skeptic-line"><strong>Skeptic:</strong> {inline_markdown(skeptic['verdict_reason'])}</p>
       {observations_html}
-      <p><strong>Untested areas named by the Driver</strong></p>
-      <ul>{untested}</ul>
-      {prior_gaps_html}
-      <h4>Skeptic review {verdict_badge(skeptic.get('verdict'))}</h4>
-      <p><strong>Gaps identified</strong></p>
-      <ul>{gaps}</ul>
-      <p><strong>Coverage breadth</strong> {bool_badge(coverage_breadth.get('material'), 'material', 'not material')}</p>
-      <div class="prose">{render_prose(coverage_breadth.get('note'))}</div>
-      {anomaly_checks_html}
-      <p><strong>Recommended next tests</strong></p>
-      <ul>{next_tests}</ul>
-      {prior_critique_html}
+      {gaps_html}
+      {_prior_gaps_line(hypothesis['prior_gaps'], skeptic['prior_gaps_check'])}
+      <details class="fold">
+        <summary>Details: evidence, coverage and prior gaps</summary>
+        {''.join(details)}
+      </details>
+      {tests_fold}
     </div>
     """
+
+
+def _render_rounds(rounds, render_test_entry) -> str:
+    if not rounds:
+        return '<p class="prose-muted">No rounds executed - the Driver gave up immediately at the start of this checkpoint.</p>'
+    parts = []
+    for round_num in sorted(rounds):
+        entries = rounds[round_num]
+        reasoning = entries[0].get("round_reasoning", "")
+        tests_html = "".join(render_test_entry(e) for e in entries)
+        parts.append(f"""
+        <div class="round">
+          <p class="eyebrow">Round {round_num}</p>
+          <div class="prose reasoning-text">{render_prose(reasoning)}</div>
+          <div class="test-grid">{tests_html}</div>
+        </div>
+        """)
+    return "".join(parts)
 
 
 def _render_casting_section(casting_log, checkpoints, render_test_entry) -> str:
@@ -227,41 +286,10 @@ def _render_casting_section(casting_log, checkpoints, render_test_entry) -> str:
     # + Skeptic review. Iterating only over by_checkpoint's keys would silently drop
     # that checkpoint's conclusion entirely, even though it's real, generated data.
     all_checkpoint_nums = sorted(set(by_checkpoint) | set(checkpoint_by_num))
-
-    parts = []
-    for checkpoint_num in all_checkpoint_nums:
-        rounds = by_checkpoint.get(checkpoint_num, {})
-        round_html = []
-        for round_num in sorted(rounds):
-            entries = rounds[round_num]
-            reasoning = entries[0].get("round_reasoning", "")
-            tests_html = "".join(render_test_entry(e) for e in entries)
-            round_html.append(f"""
-            <div class="round">
-              <p class="eyebrow">Round {round_num}</p>
-              <details class="reasoning" open>
-                <summary>Reasoning</summary>
-                <div class="prose">{render_prose(reasoning)}</div>
-              </details>
-              <div class="test-grid">{tests_html}</div>
-            </div>
-            """)
-        if not rounds:
-            round_html.append('<p class="prose-muted">No rounds executed - the Driver gave up immediately at the start of this checkpoint.</p>')
-
-        conclusion_html = ""
-        checkpoint_entry = checkpoint_by_num.get(checkpoint_num)
-        if checkpoint_entry:
-            conclusion_html = _render_checkpoint_conclusion(checkpoint_entry)
-
-        parts.append(f"""
-        <div class="checkpoint">
-          <h3>Checkpoint {checkpoint_num}</h3>
-          {''.join(round_html)}
-          {conclusion_html}
-        </div>
-        """)
-    return "".join(parts)
+    return "".join(
+        _render_checkpoint(n, checkpoint_by_num.get(n), by_checkpoint.get(n, {}), render_test_entry)
+        for n in all_checkpoint_nums
+    )
 
 
 def _render_one_bug_report(bug_report) -> str:
@@ -341,6 +369,29 @@ def _render_diagnostics_section(checkpoints) -> str:
     """
 
 
+def _render_conclusion_section(observations) -> str:
+    """Every observation of the final checkpoint with the status the engine gave
+    it. Bugs also get a written report below; findings and anomalies are complete
+    here."""
+    if not observations:
+        return ""
+    rows = "".join(f"""
+        <li>
+          <span class="idtag">{esc(o['id'])}</span> {esc(o['kind'])} ({esc(o['severity'])})
+          {badge(o['status'], 'good' if o['status'] == 'corroborated' else 'warn')}
+          {inline_markdown(o['claim'])} {_tests_label(o['tests'])}{_lowered_label(o)}
+          <div class="prose-muted">{inline_markdown(o['skeptic_note'])}</div>
+        </li>
+        """ for o in observations)
+    return f"""
+    <section id="conclusion">
+      <p class="eyebrow">Final checkpoint conclusion</p>
+      <h2>Findings, anomalies and bugs</h2>
+      <ul>{rows}</ul>
+    </section>
+    """
+
+
 def _render_bug_report_section(bug_reports) -> str:
     if not bug_reports:
         return ""
@@ -348,7 +399,7 @@ def _render_bug_report_section(bug_reports) -> str:
     reports_html = "".join(_render_one_bug_report(b) for b in bug_reports)
     return f"""
     <section id="bug-report">
-      <p class="eyebrow">Final checkpoint conclusion</p>
+      <p class="eyebrow">Written up for the bugs</p>
       <h2>{heading}</h2>
       {reports_html}
     </section>
@@ -435,14 +486,30 @@ h4 { font-size: 1rem; margin: 1.25rem 0 0.4rem; }
 .checkpoint { margin: 1.75rem 0; }
 .round { margin: 1.25rem 0 1.75rem; }
 
-details.reasoning { margin: 0.5rem 0 1rem; }
-details.reasoning summary {
+.checkpoint {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 1rem 1.5rem 1.25rem;
+}
+.checkpoint h3 { margin-top: 0.25rem; }
+.checkpoint .summary { font-size: 1.02rem; margin: 0.25rem 0 0.4rem; }
+.checkpoint .skeptic-line { font-size: 0.94rem; color: var(--ink-soft); margin: 0 0 0.75rem; }
+.line-list { margin: 0.4rem 0 0.9rem; padding-left: 1.1rem; font-size: 0.92rem; }
+.line-list li { margin: 0.35rem 0; }
+.idtag {
+  font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-soft);
+  background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 0 0.35rem;
+}
+
+details.fold { margin: 0.6rem 0 0; border-top: 1px solid var(--line); padding-top: 0.6rem; }
+details.fold summary {
   cursor: pointer; font-size: 0.8rem; color: var(--ink-soft);
   text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600;
 }
-details.reasoning summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-details.reasoning .prose {
-  color: var(--ink-soft); margin: 0.6rem 0 0;
+details.fold summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+details.fold[open] summary { margin-bottom: 0.6rem; }
+details.fold ul { font-size: 0.9rem; padding-left: 1.1rem; }
+.reasoning-text {
+  color: var(--ink-soft); margin: 0.2rem 0 0.8rem;
   border-left: 2px solid var(--line); padding-left: 0.85rem;
 }
 
@@ -528,22 +595,24 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
     happy_day_example = output.get("happy_day_example", {})
     casting_log = output.get("casting_log", [])
     checkpoints = output.get("checkpoints", [])
+    observations = output.get("observations", [])
     checkpoints_run = len({e["checkpoint"] for e in casting_log} | {c["checkpoint"] for c in checkpoints})
 
     if output.get("error"):
         eyebrow, title = "Run incomplete", "Stopped early"
         stats = [_stat(output["error"][:40] + ("..." if len(output["error"]) > 40 else ""), "reason")]
-    elif output.get("anomaly_found"):
-        eyebrow = "Anomaly found"
-        title = bug_reports[0]["title"] if len(bug_reports) == 1 else f"{len(bug_reports)} anomalies found"
+    elif observations:
+        counts = {kind: sum(1 for o in observations if o["kind"] == kind) for kind in ("bug", "anomaly", "finding")}
+        eyebrow = ", ".join(f"{n} {kind}{'' if n == 1 else 's'}" for kind, n in counts.items() if n)
+        title = bug_reports[0]["title"] if len(bug_reports) == 1 else observations[0]["claim"]
         stats = [
             _stat(checkpoints_run, "checkpoints run"),
             _stat(len(casting_log), "tests executed"),
-            _stat(len(bug_reports), "bugs reported"),
+            _stat(sum(1 for o in observations if o["status"] == "corroborated"), "corroborated"),
         ]
     else:
         reason = output.get("stopped_reason", "unknown")
-        eyebrow, title = "Checkpoints concluded", "No anomaly found"
+        eyebrow, title = "Checkpoints concluded", "Nothing looked wrong"
         stats = [
             _stat(checkpoints_run, "checkpoints run"),
             _stat(len(casting_log), "tests executed"),
@@ -555,6 +624,8 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
         nav_items.append(("#casting", "Checkpoints"))
     if checkpoints:
         nav_items.append(("#diagnostics", "Diagnostics"))
+    if observations:
+        nav_items.append(("#conclusion", "Conclusion"))
     if bug_reports:
         nav_items.append(("#bug-report", "Bug report"))
     nav_html = "".join(f'<li><a href="{href}">{label}</a></li>' for href, label in nav_items)
@@ -599,6 +670,8 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
   </section>
 
   {_render_diagnostics_section(checkpoints)}
+
+  {_render_conclusion_section(observations)}
 
   {_render_bug_report_section(bug_reports)}
 </div>

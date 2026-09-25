@@ -49,8 +49,7 @@ def _make_fakes(num_checkpoints_before_strong_enough):
         calls["skeptic"] += 1
         verdict = "strong_enough" if calls["skeptic"] >= num_checkpoints_before_strong_enough else "weak"
         return {
-            "verdict": verdict, "gaps": ["g1", "g2"], "coverage_breadth": {"material": False, "note": "c"},
-            "anomaly_checks": [], "recommended_next_tests": ["t1", "t2"], "prior_critique_addressed": "n/a",
+            "verdict": verdict, "verdict_reason": "r", "observation_checks": [], "coverage": {"material": verdict == "weak", "untouched": [], "note": "c"}, "gaps": [{"gap": "g", "next_test": "t", "blocks_verdict": False, "about": []}], "prior_gaps_check": [],
         }
 
     return calls, fake_casting_round, fake_hypothesis, fake_skeptic

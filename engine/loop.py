@@ -25,6 +25,7 @@ from engine.tools import (
     HYPOTHESIS_TOOL,
     SKEPTIC_SYSTEM_PROMPT,
     SKEPTIC_TOOL,
+    reconcile_kinds,
     stamp_gap_ids,
     stamp_observation_ids,
     validate_bug_reports,
@@ -181,6 +182,7 @@ def get_skeptic_review(
     evidence = {key: hypothesis[key] for key in ("summary", "behaviors", "observations", "untested", "prior_gaps")}
     if prior_skeptic_review is not None:
         evidence["your_own_prior_review"] = prior_skeptic_review
+    open_gap_ids = tuple(gap["id"] for gap in prior_skeptic_review["gaps"]) if prior_skeptic_review else ()
     return call_tool_with_retry(
         client,
         model=run_config.model,
@@ -188,7 +190,9 @@ def get_skeptic_review(
         tools=[SKEPTIC_TOOL],
         tool_name="submit_skeptic_review",
         user_message=json.dumps(evidence, indent=2),
-        validate_fn=lambda data: validate_skeptic_response(data, expected_anomaly_count=len(hypothesis["observations"])),
+        validate_fn=lambda data: validate_skeptic_response(
+            data, observations=hypothesis["observations"], open_gap_ids=open_gap_ids,
+        ),
         max_tokens=3072,
         max_attempts=run_config.max_attempts,
         # The system prompt and tool schema are the same on every checkpoint, and
@@ -336,7 +340,11 @@ def run_checkpoint_loop(
         print("Asking Skeptic for a cold review...")
         skeptic_review = get_skeptic_review(client, run_config, hypothesis, prior_skeptic_review, usage_sink=usage_sink)
         stamp_gap_ids(checkpoint_num, skeptic_review)
-        print(f"  skeptic verdict: {skeptic_review['verdict']}")
+        reconcile_kinds(hypothesis, skeptic_review)
+        print(f"  skeptic verdict: {skeptic_review['verdict']} - {skeptic_review['verdict_reason']}")
+        for o in hypothesis["observations"]:
+            if "driver_kind" in o:
+                print(f"  {o['id']} lowered from {o['driver_kind']} to {o['kind']} by the Skeptic")
 
         checkpoints.append({
             "checkpoint": checkpoint_num,
@@ -378,15 +386,21 @@ def get_bug_reports(
     client: Anthropic,
     adapter: SUTAdapter,
     run_config: RunConfig,
-    final_hypothesis: dict,
+    bugs: list[dict],
     final_skeptic_review: dict,
     stopped_reason: str,
     casting_log: list[dict],
     usage_sink: list[dict] | None = None,
 ) -> list[dict]:
+    """bugs: the final observations of kind 'bug', with the status the engine
+    gave them (see final_observations). The model writes the report text; the
+    id, kind, severity and status come from the observation, not from the model."""
+    bug_ids = tuple(b["id"] for b in bugs)
     evidence = {
-        "final_hypothesis": final_hypothesis,
-        "final_skeptic_review": final_skeptic_review,
+        "bugs": bugs,
+        "blocking_gaps": [
+            g for g in final_skeptic_review["gaps"] if g["blocks_verdict"] and set(g["about"]) & set(bug_ids)
+        ],
         "stopped_reason": stopped_reason,
         "all_tests_this_session": _redact(adapter, casting_log),
     }
@@ -397,7 +411,7 @@ def get_bug_reports(
         tools=[BUG_REPORT_TOOL],
         tool_name="submit_bug_reports",
         user_message=json.dumps(evidence, indent=2),
-        validate_fn=validate_bug_reports,
+        validate_fn=lambda data: validate_bug_reports(data, bug_ids=bug_ids),
         max_tokens=3072,
         max_attempts=run_config.max_attempts,
         # Measured as a no-op in practice: this call site's tools+system prefix
@@ -408,4 +422,8 @@ def get_bug_reports(
         cache_static_content=True,
         usage_sink=usage_sink,
     )
-    return result["bugs"]
+    by_id = {b["id"]: b for b in bugs}
+    return [
+        {**report, **{key: by_id[report["observation_id"]][key] for key in ("kind", "severity", "status")}}
+        for report in result["bugs"]
+    ]
