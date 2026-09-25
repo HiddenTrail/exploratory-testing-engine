@@ -1,7 +1,7 @@
 # web-recon
 
 An intelligent browser-exploration bot that maps a web app *and* finds what's broken on
-it, then (later stages) writes a wiki about it. It combines the two halves this repo
+it, then writes a wiki about it. It combines the two halves this repo
 already has: the **Clash Royale kit's** discipline — the map is discovered not declared,
 systematic coverage, safety that fails closed, a wiki built by arithmetic — running on
 **Playwright's** semantic perception instead of a game's pixels.
@@ -9,10 +9,11 @@ systematic coverage, safety that fails closed, a wiki built by arithmetic — ru
 **The creed:** the map is discovered, not declared; record evidence, don't assert;
 safety fails closed; the wiki is measurement, the model only synthesizes; a run resumes
 the last one's map. And, decided up front: **the deterministic core does everything by
-itself; the LLM is off by default and, when on, only annotates the finished ontology —
-it never gates the crawl.**
+itself; the LLM is off by default. When on, it annotates the finished ontology or
+proposes candidate controls during the crawl, and the deterministic gate still decides
+every one. It never gates the crawl.**
 
-## Status: Stage 6 (of 7) — resume/carry + promotion to an engine adapter
+## Status: Stages 0-6 done: resume/carry + promotion to an engine adapter
 
 A run now **resumes the last one's map**: `crawl --resume prior.json` carries a previous
 ontology forward, so a state is *known on first sight* (`carried`), and a drift report
@@ -38,9 +39,12 @@ A gesture is a *probe*, not navigation: it is always recorded as a **self-transi
 (never mints a state or a replayable discovery-path step, so replay stays deterministic),
 it is tried **after** a state's real controls (so it can't crowd genuine coverage off a
 tight budget), and a no-op gesture is never mis-reported as a "dead control".
-(Vetting-gated *form* mutations remain a later step.)
+(Vetting-gated mutations are Stage 5b, below.)
 
 ### The model as a proposer (`crawl --llm`, off by default)
+
+> **Currently broken:** `crawl.py` drops every nominated control before it's resolved,
+> because a line went missing in an autofix. See issue #83.
 
 The optional half of a **driver/skeptic** loop, and it keeps the creed — *the model
 proposes, the deterministic core disposes*. With `--llm`, each newly-discovered state's
@@ -74,7 +78,7 @@ like any other, and shown `vetted mutation` in the wiki with its effect. Live on
 the "Search postcodes" box gets its vetted fill+Enter submit (read-only only filled it),
 measured `dead` — one honest extra transition, the map otherwise unchanged.
 
-## Stage 4 (of 7) — intelligence: graph oracles + optional LLM synthesis
+## Stage 4: intelligence: graph oracles + optional LLM synthesis
 
 Stage 4 adds the "intelligence" layer in two halves that keep the creed:
 - **Deterministic graph oracles** (`analyze.py`, always on, zero tokens): flags navigation
@@ -159,7 +163,7 @@ the sibling `playwright-gui-poc` (question → yes/no pages), or ideally the rea
 GUI — to exercise the *mapping* strength. The identity code is ready for both; only the
 fixtures differ.
 
-## Next (not built yet)
+## Stage plan (all built)
 
 Stage 1 hardens identity across a multi-view app; Stage 2 adds read-only frontier
 exploration + evidence capture → a real `ontology.json`; Stage 3 the wiki; Stage 4 the

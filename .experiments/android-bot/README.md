@@ -15,8 +15,9 @@ is not a Windows executable, has no accessibility tree, cannot be launched, and 
 somebody's actual account.
 
 It is also **live dependency of the engine**, not an archived prototype:
-`engine/adapters/clash_royale/session.py` puts this directory and `game-ontology` on
-`sys.path` and imports them at call time, to drive the engine's first non-HTTP SUT. That
+`engine/adapters/clash_royale/session.py` (together with `game-ontology` and
+`game-screen-probe`) and `clash-royale-kit/cr.py` and `preflight.py` put this directory on
+`sys.path` and import from it at call time, to drive the engine's first non-HTTP SUT. That
 import is a knowing debt - its own comment says so - taken because the controller here is
 the part that has been hardened against a real client. Breaking a name in this directory can
 break that adapter, and nothing in CI will tell you.
@@ -50,7 +51,7 @@ These are decisions a person made, not inferences:
 
 | rule | held by |
 |---|---|
-| **money is untouchable** - gems, gold, shop, chests | 6 coordinate boxes in `game-ontology/target.py` **and** the model vetting call |
+| **money is untouchable** - gems, gold, shop, chests | 4 of the 6 coordinate boxes in `game-ontology/target.py` (gems, gold, Pass Royale, Shop tab) **and** the model vetting call. Chests are guarded by the vetting call only |
 | **the Battle button stays blocked** - it is a live ladder match | coordinate box at `(0.32, 0.72, 0.37, 0.12)` |
 | **Training Camp is the only authorised battle** | `battle.py` refuses without `--allow-battle` |
 | **nothing may open the launcher** | `Target.exe` empty, and `_restart` refusing before it acts |
@@ -62,8 +63,7 @@ control**, because it did not exist when the boxes were drawn. Conversely a box 
 geometry and screen-blind: the lobby's "Catch Up" offer sits at y 0.60-0.71 and Training
 Camp's confirm button is at `(0.681, 0.578)`, about 0.02 clear, so boxing the offer would
 block the one battle that is allowed. **Coordinates cannot scale with a game that changes;
-descriptions can.** See also `coordinate-denylists-dont-block-destinations`: a swipe once
-walked *around* a Shop-tab box and landed on a one-tap purchase, because a denylist filters
+descriptions can.** A swipe once walked *around* a Shop-tab box and landed on a one-tap purchase, because a denylist filters
 where a gesture starts, not where it ends.
 
 ## Entry points
@@ -114,19 +114,20 @@ do not assume every high threshold is now wrong: measured the same day, `battle.
 lobby-vs-itself agreement was 0.979-1.000 against its 0.9 bar.
 
 `--screen-match 0.93` is a person's guess repeated until it works. `clash-royale-kit/cr.py`
-does the same thing arithmetically instead: it watches the untouched window for six seconds,
+does the same thing arithmetically instead: it watches the untouched window for sixty seconds,
 takes the *worst* second rather than the mean, and cuts the threshold just below it - so the
-number moves with the lobby rather than with whoever last ran a pass. Six seconds because a
-healthy lobby measured 5, 0, 0, 0, 0, 5: two samples read no movement about two times in
-three, and cut a threshold no frame of that lobby survives. The reasoning and the measurement
+number moves with the lobby rather than with whoever last ran a pass. Sixty, not the six it
+started with: on 2026-09-08 a six-second sample missed the lobby's slower bursts, and the pass
+then failed its settle-wait (see `DRIFT_SAMPLES` in `clash-royale-kit/preflight.py`). The reasoning and the measurement
 are written into `preflight.json` and into the wiki, because a threshold whose argument was
 left in a terminal scrollback is one nobody can check later.
 
 Whatever a previous calibration pass measured is applied by `attach.apply_calibration`, which
 every caller must ask for: `attach` builds its own `Target` rather than going through
-`targets.resolve`, so it hands out the `Target` defaults and not the file. Deliberately still
-opt-in - tightening `screen_match` from 0.94 to the measured 0.974 also tightens `wait_stable`
-and `_wait_settled`, which is what killed a pass on the animated lobby in the first place.
+`targets.resolve`, so it hands out the `Target` defaults and not the file. The calibration
+file currently sets `screen_match` to 0.8 (recalibrated 2026-09-07 after the lobby got busier),
+which loosens it from the 0.94 default. `run_recon.py`, `wait_live.py`, `sweep_stability.py`
+and the kit all apply it.
 
 ## Known traps, not yet fixed
 
@@ -152,7 +153,7 @@ and `_wait_settled`, which is what killed a pass on the animated lobby in the fi
 python -m pytest .experiments/android-bot .experiments/game-ontology
 ```
 
-127 tests here, 72 next door. All deterministic and LLM-free; every real-window call is
+That runs this folder's tests and `game-ontology`'s together. All deterministic and LLM-free; every real-window call is
 monkeypatched, so nothing needs to be installed and no game has to be running. **CI does
 not run them** - they are Windows-only while CI is Linux - so run them by hand.
 

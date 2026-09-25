@@ -1,5 +1,7 @@
 # Playwright-MCP GUI PoC
 
+> **Archive.** A finished experiment, kept for history. It isn't maintained.
+
 Validating a genuinely different SUT shape for the Driver+Skeptic
 disconfirmation engine: a browser GUI, driven via Playwright MCP tools,
 instead of a REST API driven via plain HTTP. Short version of the reasoning:

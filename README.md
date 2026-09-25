@@ -2,7 +2,8 @@
 
 [![engine tests](https://github.com/HiddenTrail/exploratory-testing-engine/actions/workflows/engine-tests.yml/badge.svg)](https://github.com/HiddenTrail/exploratory-testing-engine/actions/workflows/engine-tests.yml)
 
-An LLM-based **disconfirmation engine** for exploratory API testing: instead of
+An LLM-based **disconfirmation engine** for exploratory testing of live
+systems (HTTP APIs, web apps and a game client): instead of
 running a fixed, pre-scripted test plan, it drives a live system, forms a
 falsifiable hypothesis about its behavior, and puts that hypothesis through a
 cold, adversarial review before trusting it - mirroring how real scientific
@@ -139,8 +140,10 @@ engine/
                             #   The first non-HTTP SUT, which is what moved the engine's HTTP assumption
                             #   behind check_sut_ready / fetch_happy_day_example. Read actions.py first:
                             #   it is the whole safety argument for driving a real account. known_screens.json
-                            #   carries eleven screens an earlier recon pass measured against this client, four
-                            #   of them classified "abort" - which is how a run notices it reached the shop.
+                            #   carries the screens an earlier recon pass measured against this client (twenty
+                            #   today), some classified "abort" - which is how a run notices it reached the shop.
+    web_gui/                # fourth adapter: a live web app in a browser. Its actions are named (state,
+                            #   control) pairs from a web-recon ontology.json. See its README.
   bootstrap/
     discovery.py  # Phase 1 - fetch and parse a live OpenAPI/Swagger document
     freetext.py   # Phase 2 - LLM fallback: infer a schema from free-text spec text
@@ -152,29 +155,40 @@ engine/
     cli.py        # python -m engine.bootstrap.cli - chains all 4 phases end to end
   ontology/       # prioritization layer stack (heuristics/domain/context/ranked oracle) - see above
   tests/          # deterministic regression + parity tests (no LLM calls, runs in CI)
-.experiments/     # mostly earlier prototypes this package was hardened from, kept as a historical
-                  #   archive. Two are NOT archive: they are worked on, and the clash_royale adapter
-                  #   imports them at run time (see session.py's own note on that debt), so a rename
-                  #   in either can break the engine with nothing in CI to catch it:
+.experiments/     # mostly earlier prototypes this package was hardened from, kept as an archive.
+                  #   Not all of it is archive. The engine loads four of these at run time, so a
+                  #   rename in them can break it (moving them out is issue #48):
   game-ontology/  #   the general game harness - window identity, readiness, input safety, screen
-                  #   discovery. Has its own pytest suite (72 tests). Read its README's "Things that
+                  #   discovery. Own pytest suite, Windows-only. Read its README's "Things that
                   #   bit" before changing anything in controller.py.
   android-bot/    #   the Clash Royale target built on that harness: attach, recon, errands, one
-                  #   authorised Training Camp battle, and the measurement tools (127 tests). Its
-                  #   README carries the safety rules and which layer holds each - read it first,
-                  #   because this one drives somebody's real account.
-clash-royale-kit/ # the two directories above, packaged as one command for somebody who is not
+                  #   authorised Training Camp battle, and the measurement tools. Own pytest suite,
+                  #   Windows-only. Its README carries the safety rules and which layer holds each -
+                  #   read it first, because this one drives somebody's real account.
+  game-screen-probe/ # PNG and frame helpers the two above import.
+  web-recon/      #   the read-only web crawler whose ontology.json the web_gui adapter uses. Own tests.
+                  # Two more are read by the parity tests: complex-sut-poc and token-purchase-poc
+                  #   (replacing that with fixtures is issue #77).
+clash-royale-kit/ # game-ontology and android-bot packaged as one command for somebody who is not
                   #   going to read either README: check the machine, explore for N minutes,
                   #   write a wiki from what was found. No agent and no code editing at run time -
                   #   the interventions a person used to make were environmental, so they are
-                  #   checks with sentences attached now. 98 tests, and they DO run in CI.
+                  #   checks with sentences attached now. Its tests DO run in CI.
 test-targets/     # docker-compose.yml with real web apps to test against: Juice Shop (3000),
                   #   Sauce Demo (3001), PrestaShop (8080).
                   #   docker compose -f test-targets/docker-compose.yml up -d
 docs/
   exploratory-testing-engine-concept.md  # the original, broader vision
+  ontology-todo.md                        # ontology layer status and backlog
+  ontology-layer-reference.md             # how the four ontology layers fit together
   examples/bootstrap_demo/                # a real worked example of the bootstrap pipeline's output
+CLAUDE.md         # how coding agents work in this repo: workflow, rules, testing
+AGENTS.md         # the schema for the product wiki (not a coding guide)
 ```
+
+The backlog is [GitHub Issues](https://github.com/HiddenTrail/exploratory-testing-engine/issues).
+For scraping and mapping websites the repo uses Spoor, a separate project
+checked out next to this one (`../ht-spoor`); see CLAUDE.md.
 
 `engine/*` never imports from `engine/adapters/*` - adapters import from
 `engine`, never the reverse. `engine/adapters/registry.py` is the only place
@@ -205,7 +219,8 @@ parameters with `--model`, `--max-checkpoints`, `--first-round-budget`,
 `--default-budget`, `--out-dir`.
 
 See [`engine/README.md`](engine/README.md) for adding a new adapter by hand,
-and the CI/testing setup.
+and the CI/testing setup. To drive a web app in a browser, see
+[`engine/adapters/web_gui/README.md`](engine/adapters/web_gui/README.md).
 
 ### Mapping the game client instead
 
@@ -234,10 +249,10 @@ pip install -r engine/requirements.txt
 python -m pytest engine/tests
 ```
 
-Runs automatically on every push to `master` and every PR via
+Runs on every push to `master`, every PR into `master`, and on demand, via
 [`.github/workflows/engine-tests.yml`](.github/workflows/engine-tests.yml) -
 no Anthropic API key needed, since no test makes a real LLM call. That workflow
-also runs `clash-royale-kit`'s 98 tests, which are cross-platform on purpose:
+also compile-checks `engine/` and runs `clash-royale-kit`'s tests, which are cross-platform on purpose:
 the kit drives a Windows client, but its decisions live in modules that import
 no Win32, and the ones that do keep those imports function-local so a stub can
 be put under the name. What that buys is having the assertions that matter -

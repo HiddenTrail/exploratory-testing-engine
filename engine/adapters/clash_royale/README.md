@@ -17,7 +17,7 @@ python -m engine.adapters.clash_royale.extract_reference \
 **Output:** `known_screens.json` with screen fingerprints, variants, and click-only transitions.
 
 ### `generate_nav_map_html.py`
-Generates an interactive HTML navigation map from either a **recon pass** or **wiki directory**. Creates a browsable visualization of all screens and transitions that persists as a standalone HTML file.
+Generates an interactive HTML navigation map from either a **recon pass** directory (anything with an `ontology.json`, including a kit run's `recon-N`) or the hand-built **`.experiments/android-bot/wiki`**. Wikis built by clash-royale-kit aren't supported (their pages are named differently); point it at their `recon-N` directory instead. Creates a browsable visualization of all screens and transitions that persists as a standalone HTML file.
 
 **From a fresh recon pass:**
 ```bash
@@ -48,7 +48,7 @@ python -m engine.adapters.clash_royale.generate_nav_map_html \
 - `adapter.py` — Main adapter class integrating with the qes-exploration engine
 - `actions.py` — Action space definition for Clash Royale
 - `reference.py` — Screen reference data and matching
-- `session.py` — Test session state management
-- `preview.py` — Screen preview rendering
+- `session.py`: the live client. Attaches to the window and identifies screens against the carried reference. It imports the harness from `.experiments/game-ontology`, `.experiments/android-bot` and `.experiments/game-screen-probe` at run time, so renaming anything there can break this adapter.
+- `preview.py`: photographs the live client with the allowed taps and the denylist boxes drawn on it, without clicking anything. Run `python -m engine.adapters.clash_royale.preview`.
 - `known_screens.json` — Extracted screen database (committed)
 - `rubric.md` — Adapter rubric and quality standards

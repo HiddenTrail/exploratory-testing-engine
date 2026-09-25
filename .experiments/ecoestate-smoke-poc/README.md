@@ -1,5 +1,7 @@
 # EcoEstate Smoke PoC
 
+> **Archive.** A finished experiment, kept for history. It isn't maintained.
+
 The smallest possible live check before going deeper on EcoEstate: does the Driver agent work at
 all against this real, running server? One checkpoint, one test, no hypothesis-forming, no
 Skeptic, no oracle library - none of the engine's full checkpoint-loop machinery.
@@ -21,7 +23,8 @@ python run_live.py
 ```
 
 Starts and stops the EcoEstate server itself - nothing needs to be running first, and port 3001
-must be free before you run it. Writes `results/output.json`.
+must be free before you run it. Writes `results/output.json`. It needs a local EcoEstate
+checkout at `C:\Users\pmarj\ecoestate\server`, which is hard-coded in `run_live.py`.
 
 ## Result
 

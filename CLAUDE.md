@@ -40,8 +40,17 @@ mostly an archive of the prototypes that `engine/` grew out of.
    from start to finish, the way you'd review a colleague's work. Look for
    leftover debug code, dead branches, naming that doesn't match, and clumsy
    logic. Green tests don't replace reading the diff, and reading the diff
-   doesn't replace tests. Do both.
-6. **Don't merge your own PRs.** Open the PR, wait for CI, then stop and tell
+   doesn't replace tests. Do both. Part of that review is the READMEs: see
+   step 6.
+6. **Update the READMEs your change affects, in the same PR.** This is a normal
+   part of every change, not a separate chore. If you add, rename, move or
+   delete a file, command, flag, adapter or folder, or change what something
+   does, find every README that mentions it (`git grep -l <name> -- '*README*'`)
+   and fix it. That includes layout blocks, commands, test counts, roadmap
+   status and which folders the engine depends on. A PR that leaves a README
+   wrong isn't finished. If a README was already wrong before your change and
+   fixing it is out of scope, open an issue for it.
+7. **Don't merge your own PRs.** Open the PR, wait for CI, then stop and tell
    the user what's in it: what changed, how you checked it, and anything you're
    unsure about. A person merges it, or tells you to. People review PRs, and a
    merge they didn't see coming is the kind of surprise this rule prevents.
@@ -101,14 +110,22 @@ and wiki pages.
   only the timing is open. Don't tie them closer together. Keep what passes
   between them a clean data format that could become an API later.
 
-## `.experiments/`: an archive, with two live exceptions
+## `.experiments/`: an archive, with some live exceptions
 
 Treat `.experiments/*` as history. Don't refactor it and don't copy fixes back
-into it. **The exceptions are `.experiments/game-ontology/` and
-`.experiments/android-bot/`.** `engine/adapters/clash_royale/session.py` imports
-them at run time, so renaming or moving something in them can break the engine
-without CI noticing. Their tests only run on Windows and CI doesn't run them, so
-run them yourself (see below) before you merge a change to them.
+into it. **The exceptions are the folders other code depends on:**
+
+- **Loaded by the engine at run time:** `game-ontology/`, `android-bot/` and
+  `game-screen-probe/` (by `engine/adapters/clash_royale/session.py` and
+  `clash-royale-kit/`), and `web-recon/` (by `engine/adapters/web_gui/`).
+  Renaming or moving something in them can break the engine without CI
+  noticing. The game-ontology and android-bot tests only run on Windows and CI
+  doesn't run them, so run them yourself (see below) before a PR that changes
+  them. Moving these out of the archive is issue #48.
+- **Read by tests:** `complex-sut-poc/` and `token-purchase-poc/` (by the two
+  parity tests). Replacing that with test fixtures is issue #77.
+- **Still added to:** `oracle-agent-poc/heuristics/catalog.json` (see
+  "Standing practices").
 
 New prototypes go in their own `.experiments/<name>/` folder with a README and a
 `requirements.txt`. When code moves into `engine/`, port it and harden it. Never
@@ -243,12 +260,14 @@ every commit.
   heuristic, add it to `.experiments/oracle-agent-poc/heuristics/catalog.json`
   using the existing template. Mark it `status: "cataloged"` until something
   actually uses it.
-- **Keep the docs true.** If your change makes the README, an area README or
-  `docs/ontology-todo.md` wrong (roadmap checkmarks included), fix them in the
-  same PR.
+- **Keep the docs true.** READMEs are covered by workflow step 6. The same goes
+  for `docs/ontology-todo.md` and the other files in `docs/`: if your change
+  makes them wrong (roadmap checkmarks included), fix them in the same PR.
 - **The product wiki (`wiki/`)** describes the product being tested, not this
-  engine. Follow [AGENTS.md](AGENTS.md). `wiki/index.md` is generated, so rebuild
-  it with `node .wiki-source/scripts/rebuild-index.mjs --dir .` instead of
+  engine. Follow [AGENTS.md](AGENTS.md). There is no `wiki/` yet; creating one
+  also needs a `qpf.config.yml` at the root (see `.wiki-source/README.md`).
+  `wiki/index.md` is generated, so rebuild it with
+  `node .wiki-source/scripts/rebuild-index.mjs --dir .` instead of
   editing it.
 
 ## Windows notes

@@ -1,5 +1,7 @@
 # Pattern-detection PoC
 
+> **Archive.** A finished experiment, kept for history. It isn't maintained.
+
 `hypothesis-poc` tested reasoning given a pre-flagged anomaly. This tests the step
 before that: given a raw, unflagged sequence of calls, can Claude notice a pattern
 itself, notice which call breaks it, and still produce a good hypothesis and a
