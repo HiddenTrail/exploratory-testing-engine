@@ -84,6 +84,20 @@ def test_compute_correctness_correct_when_within_limit():
     assert (accepted_count, limit, actual_correctness) == (3, 5, "correct")
 
 
+def test_a_test_over_the_request_ceiling_is_skipped_with_a_prediction_result():
+    # A live run asked for 50 concurrent requests. The skipped result had no
+    # prediction_matched, and loop.py crashed reading it (issue #60). Nothing is
+    # sent, so no SUT needs to be running.
+    test = {
+        "client_id": "c", "payload": "p", "priority": "normal",
+        "request_count": complex_sut_adapter.MAX_REQUEST_COUNT + 1, "concurrent": True,
+        "predicted_outcome": "overcounts", "predicted_correctness": "overcounted",
+    }
+    result = complex_sut_adapter.execute_test(test, 1)
+    assert result["skipped"] is True
+    assert result["prediction_matched"] is False
+
+
 def test_compute_correctness_unknown_when_limit_missing_from_every_response():
     # The bug a PR review caught: this used to silently default to "correct"
     # when every response was malformed/missing the limit field, asserting
