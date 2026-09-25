@@ -116,22 +116,37 @@ def render_json_block(data) -> str:
     return f'<pre class="payload">{esc(json.dumps(data, ensure_ascii=False))}</pre>'
 
 
+def _tests_label(tests) -> str:
+    if not tests:
+        return ""
+    return f'<span class="prose-muted">(tests {", ".join(f"#{n}" for n in tests)})</span>'
+
+
 def _render_checkpoint_conclusion(checkpoint_entry) -> str:
-    """Every checkpoint forms a hypothesis (behavior + any anomalies noticed) and
+    """Every checkpoint forms a hypothesis (behavior + anything that looks wrong) and
     gets a cold Skeptic review of it. A "weak" verdict is what sends the process
     into another checkpoint; "strong_enough" is what ends it. Fully generic - the
     hypothesis/Skeptic schema is the same for every adapter."""
     hypothesis = checkpoint_entry["hypothesis"]
     skeptic = checkpoint_entry["skeptic_review"]
-    anomalies = hypothesis.get("anomalies", [])
-    untested = "".join(f"<li>{inline_markdown(a)}</li>" for a in hypothesis.get("untested_areas", []))
-    gaps = "".join(f"<li>{inline_markdown(g)}</li>" for g in skeptic.get("gaps", []))
+    observations = hypothesis.get("observations", [])
+    behaviors = "".join(
+        f"<li>{inline_markdown(b['claim'])} {_tests_label(b['tests'])}</li>" for b in hypothesis.get("behaviors", [])
+    )
+    untested = "".join(f"<li>{inline_markdown(u['area'])}</li>" for u in hypothesis.get("untested", []))
+    gaps = "".join(
+        f"<li><span class=\"num\">{esc(g['id'])}</span> {inline_markdown(g['gap'])}</li>" for g in skeptic.get("gaps", [])
+    )
     next_tests = "".join(f"<li>{inline_markdown(t)}</li>" for t in skeptic.get("recommended_next_tests", []))
 
     prior_gaps_html = ""
-    prior_gaps_response = hypothesis.get("prior_gaps_response", [])
-    if prior_gaps_response:
-        prior_gaps_items = "".join(f"<li>{inline_markdown(g)}</li>" for g in prior_gaps_response)
+    prior_gaps = hypothesis.get("prior_gaps", [])
+    if prior_gaps:
+        prior_gaps_items = "".join(
+            f"<li><span class=\"num\">{esc(g['gap_id'])}</span> {esc(g['status'].replace('_', ' '))} "
+            f"{_tests_label(g['tests'])} {inline_markdown(g['reason'])}</li>"
+            for g in prior_gaps
+        )
         prior_gaps_html = f"""
         <p><strong>Driver's response to the prior checkpoint's named gaps</strong></p>
         <ul>{prior_gaps_items}</ul>
@@ -145,15 +160,18 @@ def _render_checkpoint_conclusion(checkpoint_entry) -> str:
         <div class="prose">{render_prose(prior_critique)}</div>
         """
 
-    anomalies_html = ""
-    if anomalies:
-        anomaly_items = "".join(f"<li>{inline_markdown(a)}</li>" for a in anomalies)
-        anomalies_html = f"""
-        <p><strong>Anomalies noticed ({len(anomalies)})</strong></p>
-        <ul>{anomaly_items}</ul>
+    if observations:
+        observation_items = "".join(
+            f"<li><span class=\"num\">{esc(o['id'])}</span> {esc(o['kind'])} ({esc(o['severity'])}) "
+            f"{inline_markdown(o['claim'])} {_tests_label(o['tests'])}</li>"
+            for o in observations
+        )
+        observations_html = f"""
+        <p><strong>Observations ({len(observations)})</strong></p>
+        <ul>{observation_items}</ul>
         """
     else:
-        anomalies_html = '<p class="prose-muted">No anomalies claimed this checkpoint.</p>'
+        observations_html = '<p class="prose-muted">Nothing looked wrong this checkpoint.</p>'
 
     coverage_breadth = skeptic.get("coverage_breadth", {})
 
@@ -172,14 +190,15 @@ def _render_checkpoint_conclusion(checkpoint_entry) -> str:
         <ul>{check_items}</ul>
         """
     else:
-        anomaly_checks_html = '<p class="prose-muted">No anomalies were claimed this checkpoint, so nothing to check.</p>'
+        anomaly_checks_html = '<p class="prose-muted">No observations this checkpoint, so nothing to check.</p>'
 
     return f"""
     <div class="exhibit">
       <p class="eyebrow">Checkpoint {checkpoint_entry['checkpoint']} hypothesis</p>
-      <h4>Observed behavior</h4>
-      <div class="prose">{render_prose(hypothesis.get('observed_behavior'))}</div>
-      {anomalies_html}
+      <h4>{inline_markdown(hypothesis.get('summary'))}</h4>
+      <p><strong>Confirmed behavior</strong></p>
+      <ul>{behaviors}</ul>
+      {observations_html}
       <p><strong>Untested areas named by the Driver</strong></p>
       <ul>{untested}</ul>
       {prior_gaps_html}

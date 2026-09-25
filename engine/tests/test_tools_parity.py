@@ -40,23 +40,11 @@ def original():
 _UNACCEPTED_INPUT_RIVAL = "NEVER ACCEPTED"
 
 
-def test_hypothesis_tool_schema_matches_apart_from_the_added_rival(original):
-    # Deliberately no longer byte-identical: the 'anomalies' description now names
-    # the unaccepted-input rival (see _UNACCEPTED_INPUT_RIVAL). Everything else must
-    # still match exactly, so the check is "identical once that one field is set
-    # aside", not a weaker "looks similar".
-    engine_copy = copy.deepcopy(engine_tools.HYPOTHESIS_TOOL)
-    original_copy = copy.deepcopy(original.HYPOTHESIS_TOOL)
-    engine_anomalies = engine_copy["input_schema"]["properties"]["anomalies"].pop("description")
-    original_anomalies = original_copy["input_schema"]["properties"]["anomalies"].pop("description")
-    assert engine_copy == original_copy
-
-    assert "the input was never accepted at all" in engine_anomalies
-    assert "never accepted" not in original_anomalies.lower()
-    # The original's own teaching about the anomalies field is not replaced by it.
-    for phrase in ("specific, falsifiable claim", "not a strawman you'd easily dismiss"):
-        assert phrase in original_anomalies
-        assert phrase in engine_anomalies
+# The Driver's hypothesis schema and prompt are no longer compared with the original:
+# issue #41 replaced them on purpose with a structured schema (short fields, word
+# limits, engine-assigned ids, and finding / anomaly / bug kinds). What must survive
+# the redesign is checked directly below and in test_hypothesis_schema.py, notably
+# the unaccepted-input rival.
 
 
 def test_skeptic_tool_schema_covers_everything_the_original_required(original):
@@ -108,23 +96,14 @@ def test_bug_report_tool_schema_matches(original):
     assert engine_tools.BUG_REPORT_TOOL == original.BUG_REPORT_TOOL
 
 
-def test_hypothesis_system_prompt_keeps_the_original_and_adds_the_rival(original):
-    # Was byte-identical until the unaccepted-input rival was added (see
-    # _UNACCEPTED_INPUT_RIVAL). The original is required to still be present
-    # verbatim, as a contiguous block, so the addition can only be an addition -
-    # this fails if a future edit rewords the ported prompt while touching it.
-    assert original.HYPOTHESIS_SYSTEM_PROMPT.strip() != ""
-    added = engine_tools.HYPOTHESIS_SYSTEM_PROMPT
-    assert _UNACCEPTED_INPUT_RIVAL in added
-    for paragraph in original.HYPOTHESIS_SYSTEM_PROMPT.split("\n\n"):
-        assert paragraph.strip() in added
-
-
 def test_hypothesis_prompt_prefers_one_cause_over_several_broken_controls():
     # The specific reasoning the addition exists to install, and the reason it is in
     # the shared prompt rather than one adapter's: a claim resting on several inputs
     # that each did nothing must consider that nothing was being accepted at all.
     prompt = engine_tools.HYPOTHESIS_SYSTEM_PROMPT
+    assert _UNACCEPTED_INPUT_RIVAL in prompt
+    assert "the input was never accepted at all" in engine_tools.HYPOTHESIS_TOOL["input_schema"]["properties"][
+        "observations"]["description"]
     assert "one cause instead of many" in prompt
     assert "identical observation" in prompt
     # And the Skeptic must be able to fail a hypothesis for not ruling it out,
@@ -164,11 +143,7 @@ def test_bug_report_system_prompt_matches(original):
     assert normalize(engine_tools.BUG_REPORT_SYSTEM_PROMPT) == normalize(original_generalized)
 
 
-def test_hypothesis_and_bug_report_validator_behavior_matches_on_sample_inputs(original):
-    # Unaffected by the coverage_breadth_check addition - these should still match exactly.
-    sample_bad_hyp = {"observed_behavior": "x"}
-    assert engine_tools.validate_hypothesis_response(sample_bad_hyp) == original.validate_hypothesis_response(sample_bad_hyp)
-
+def test_bug_report_validator_behavior_matches_on_sample_inputs(original):
     sample_bad_bugs = {"bugs": []}
     assert engine_tools.validate_bug_reports(sample_bad_bugs) == original.validate_bug_reports(sample_bad_bugs)
 
@@ -205,7 +180,7 @@ def test_skeptic_validator_checks_anomaly_checks_count_against_hypothesis():
     }
     assert engine_tools.validate_skeptic_response(sample, expected_anomaly_count=1) == []
     errors = engine_tools.validate_skeptic_response(sample, expected_anomaly_count=2)
-    assert any("exactly one entry per claimed anomaly" in e for e in errors)
+    assert any("exactly one entry per observation" in e for e in errors)
 
 
 # --- token_purchase adapter's per-SUT pieces vs. the original ---

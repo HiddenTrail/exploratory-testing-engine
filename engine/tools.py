@@ -1,107 +1,370 @@
 """HYPOTHESIS_TOOL, SKEPTIC_TOOL, BUG_REPORT_TOOL: the domain-agnostic core of
-the checkpoint loop, ported verbatim from token-purchase-poc's most-evolved
-version (the one that survived several deliberate hardening passes -
-inference-validity checking, recommended-next-tests, prior-critique
-continuity tracking). These are NOT adapter-overridable: their wording never
+the checkpoint loop. These are NOT adapter-overridable: their wording never
 references domain nouns (card numbers, credit counts, etc.) - only "test
-numbers," "anomaly claims," "rival explanations" - so there is no present
-need to let a per-SUT adapter drift them.
+numbers," "observations," "rival explanations" - so there is no present need
+to let a per-SUT adapter drift them.
+
+The Driver's hypothesis is structured (issue #41): short fields with word
+limits, test numbers as evidence, and ids the engine assigns after each call
+(`C<checkpoint>.O<n>` for observations, `C<checkpoint>.G<n>` for the Skeptic's
+gaps), so a later checkpoint can refer to an earlier item by id instead of
+quoting it back. The SKEPTIC_TOOL and BUG_REPORT_TOOL below were ported from
+token-purchase-poc's most-evolved version.
 """
+
+OBSERVATION_KINDS = ("finding", "anomaly", "bug")
+REPRODUCED = ("consistent", "inconsistent", "once")
+SEVERITIES = ("low", "medium", "high")
+PRIOR_GAP_STATUSES = ("tested", "untestable", "resolved", "not_attempted")
+
+# Word limits for the short text fields. Each limit is written into the field's
+# description. The validator only rejects an answer that runs past twice the
+# limit, so a 32-word answer to a 30-word limit doesn't cost a retry, but a
+# paragraph where a sentence was asked for does.
+WORD_LIMITS = {
+    "summary": 30,
+    "behavior.claim": 25,
+    "observation.claim": 30,
+    "observation.violates": 25,
+    "observation.mechanism": 25,
+    "observation.rival": 25,
+    "observation.why": 25,
+    "untested.area": 15,
+    "prior_gap.reason": 25,
+}
+MAX_BEHAVIORS = 5
+MAX_UNTESTED = 5
+
+
+def _limit(key: str) -> str:
+    return f"At most {WORD_LIMITS[key]} words."
+
+
+def is_far_too_long(text: str, key: str) -> bool:
+    return len(text.split()) > 2 * WORD_LIMITS[key]
+
+
+_TESTS = {"type": "array", "items": {"type": "integer"}, "description": "The test numbers this rests on."}
 
 HYPOTHESIS_TOOL = {
     "name": "submit_checkpoint_hypothesis",
-    "description": "Characterize the system's behavior based on real test results so far, including any anomalies (possible bugs) noticed.",
+    "description": "Characterize the system's behavior based on real test results so far, including anything that looks wrong.",
     "input_schema": {
         "type": "object",
         "properties": {
-            "observed_behavior": {
+            "summary": {
                 "type": "string",
-                "description": "General characterization: confirmed patterns, categories tested and found normal.",
+                "description": f"One sentence: what you now believe about the system. {_limit('summary')}",
             },
-            "anomalies": {
+            "behaviors": {
                 "type": "array",
-                "items": {"type": "string"},
+                "description": f"Behavior you confirmed as normal. At most {MAX_BEHAVIORS} entries.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "claim": {"type": "string", "description": _limit("behavior.claim")},
+                        "tests": _TESTS,
+                    },
+                    "required": ["claim", "tests"],
+                },
+            },
+            "observations": {
+                "type": "array",
                 "description": (
-                    "Zero or more possible bugs noticed. Each entry should be a specific, falsifiable claim "
-                    "in its own words - which test number(s) revealed it, what you believe the mechanism is, "
-                    "how severe it would be if true, and a genuine competing explanation for the same "
-                    "observation (not a strawman you'd easily dismiss). For any claim that something did "
-                    "nothing or did the wrong thing, the rival 'the input was never accepted at all' is "
-                    "always available - address it or say why it doesn't apply. Leave empty if nothing anomalous has "
-                    "been found yet - don't force a claim that isn't there. It's entirely possible this "
-                    "implementation has no bugs at all."
+                    "Everything that looks wrong or worth a closer look, zero or more entries. Leave it "
+                    "empty if nothing has turned up - this implementation may have no problems at all. "
+                    "Each entry is one specific, falsifiable claim, with a genuine competing explanation "
+                    "(not a strawman you'd easily dismiss). For any claim that something did nothing or "
+                    "did the wrong thing, the rival 'the input was never accepted at all' is always "
+                    "available - rule it out or say why it doesn't apply."
                 ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "kind": {
+                            "type": "string",
+                            "enum": list(OBSERVATION_KINDS),
+                            "description": (
+                                "finding: something iffy worth a look, no problem shown yet. "
+                                "anomaly: a real problem, but it doesn't clearly contradict a known fact, "
+                                "or it doesn't reproduce consistently. "
+                                "bug: contradicts a known fact (the spec, the docs, an oracle claim, a value "
+                                "the system itself disclosed) or breaks or blocks something, and reproduces "
+                                "consistently."
+                            ),
+                        },
+                        "continues": {
+                            "type": "string",
+                            "description": (
+                                "The id of an earlier observation this one refines or repeats, for example "
+                                "'C1.O2'. Empty if it's new."
+                            ),
+                        },
+                        "claim": {"type": "string", "description": _limit("observation.claim")},
+                        "tests": _TESTS,
+                        "violates": {
+                            "type": "string",
+                            "description": (
+                                "Required for a bug: the known fact it contradicts, and where that fact "
+                                f"comes from. Empty for a finding or an anomaly. {_limit('observation.violates')}"
+                            ),
+                        },
+                        "reproduced": {
+                            "type": "string",
+                            "enum": list(REPRODUCED),
+                            "description": "How it behaved when repeated. 'once' means it hasn't been repeated yet.",
+                        },
+                        "mechanism": {"type": "string", "description": f"Your best guess at the cause. {_limit('observation.mechanism')}"},
+                        "rival": {"type": "string", "description": f"A genuine competing explanation. {_limit('observation.rival')}"},
+                        "rival_ruled_out": {"type": "boolean", "description": "Does your evidence rule the rival out?"},
+                        "why": {
+                            "type": "string",
+                            "description": f"Why the rival is or isn't ruled out, citing tests. {_limit('observation.why')}",
+                        },
+                        "severity": {"type": "string", "enum": list(SEVERITIES), "description": "How bad it would be if true."},
+                    },
+                    "required": [
+                        "kind", "continues", "claim", "tests", "violates", "reproduced",
+                        "mechanism", "rival", "rival_ruled_out", "why", "severity",
+                    ],
+                },
             },
-            "untested_areas": {
+            "untested": {
                 "type": "array",
-                "items": {"type": "string"},
-                "description": "At least 1-2 things not yet tried, worth trying next.",
-                "minItems": 1,
+                "description": f"Things not tried yet that are worth trying next. At most {MAX_UNTESTED} entries.",
+                "items": {
+                    "type": "object",
+                    "properties": {"area": {"type": "string", "description": _limit("untested.area")}},
+                    "required": ["area"],
+                },
             },
-            "prior_gaps_response": {
+            "prior_gaps": {
                 "type": "array",
-                "items": {"type": "string"},
                 "description": (
-                    "Only relevant if your evidence includes 'prior_skeptic_review' (a prior checkpoint's "
-                    "Skeptic critique naming gaps/recommended_next_tests). For EACH one it named, say "
-                    "plainly one of: it was tested this checkpoint (cite the test number), it's untestable "
-                    "with the current scenario data (state exactly why - e.g. 'no known account has two "
-                    "cards, so this can't be constructed'), it's already conclusively resolved by existing "
-                    "evidence (state why no further test could add anything), or it's simply not yet "
-                    "attempted (a genuine remaining gap). Don't declare something untestable or resolved "
-                    "just to avoid testing it - the Skeptic will judge whether your stated reason actually "
-                    "holds up. Leave empty if there was no prior review (first checkpoint)."
+                    "One entry for EACH gap in 'prior_skeptic_review', if your evidence has one. Empty on "
+                    "the first checkpoint."
                 ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "gap_id": {"type": "string", "description": "The gap's id, for example 'C1.G2'."},
+                        "status": {
+                            "type": "string",
+                            "enum": list(PRIOR_GAP_STATUSES),
+                            "description": (
+                                "tested: a test this checkpoint covered it (cite it in tests). untestable: "
+                                "the current scenario data can't construct it. resolved: existing evidence "
+                                "already settles it. not_attempted: still open."
+                            ),
+                        },
+                        "tests": _TESTS,
+                        "reason": {
+                            "type": "string",
+                            "description": (
+                                "Required unless tested. Concrete and checkable (e.g. 'no known account has "
+                                f"two cards'), not 'didn't get to it'. {_limit('prior_gap.reason')}"
+                            ),
+                        },
+                    },
+                    "required": ["gap_id", "status", "tests", "reason"],
+                },
             },
         },
-        "required": ["observed_behavior", "anomalies", "untested_areas", "prior_gaps_response"],
+        "required": ["summary", "behaviors", "observations", "untested", "prior_gaps"],
     },
 }
 
 HYPOTHESIS_SYSTEM_PROMPT = """You are characterizing this system's behavior based on real test results
-from this session so far. Describe the general behavior pattern, and list any anomalies (possible
-bugs) you've noticed - each as a specific, falsifiable claim referencing the test number(s) that
-revealed it, your best guess at the mechanism, its severity if true, and a genuine rival explanation
-for the same observation (not a strawman). If nothing anomalous has turned up yet, leave anomalies
-empty rather than forcing a claim that isn't there - this implementation may genuinely have no bugs.
-List what's still untested.
+from this session so far. Keep every field short: each one has a word limit, and test numbers are the
+evidence, not prose.
+
+Say what you now believe in one sentence (summary), list the behavior you confirmed as normal
+(behaviors), and list anything that looks wrong or worth a closer look (observations). If nothing has
+turned up, leave observations empty rather than forcing a claim - this implementation may have no
+problems at all. List what's still untested.
+
+Each observation has a kind:
+- finding: something iffy worth a look. No problem shown yet.
+- anomaly: a real problem, but it doesn't clearly contradict a known fact, or it doesn't reproduce
+  consistently.
+- bug: contradicts a known fact (the spec, the docs, an oracle claim, a value the system itself
+  disclosed) or breaks or blocks something, and reproduces consistently. Say which fact in 'violates'.
+Pick the most cautious kind the evidence supports. A claim seen once can't be a bug yet.
+
+Your evidence may include 'earlier_observations': what earlier checkpoints found, with ids like 'C1.O2'.
+If a new observation refines or repeats one of them, put that id in 'continues' instead of starting over.
 
 One rival explanation is always available and is the easiest to skip past: THE INPUT WAS NEVER ACCEPTED.
-Before claiming that something did nothing, or did the wrong thing, ask whether it was processed at all - whether the system was in a state that ignores or refuses input, whether it was
-still busy with the previous test, whether what came back is the result of your input or just the
-unchanged state that was already there. This matters most when SEVERAL inputs each appear to do
-nothing: "these controls are individually broken" and "the system was accepting nothing at that
-point" predict the identical observation, and the second is one cause instead of many, so it is the
-better explanation until something distinguishes them. A test that could tell them apart is worth
-more than another test that reproduces the same silence.
+Before claiming that something did nothing, or did the wrong thing, ask whether it was processed at all -
+whether the system was in a state that ignores or refuses input, whether it was still busy with the
+previous test, whether what came back is the result of your input or just the unchanged state that was
+already there. This matters most when SEVERAL inputs each appear to do nothing: "these controls are
+individually broken" and "the system was accepting nothing at that point" predict
+the identical observation, and the second is one cause instead of many, so it is the better
+explanation until something distinguishes them. A test that could tell them apart is worth more than another test that
+reproduces the same silence.
 
-If your evidence includes 'prior_skeptic_review', that Skeptic named specific gaps and recommended
-tests last checkpoint. Fill in prior_gaps_response addressing each one directly: tested (cite the test
-number), untestable with the current scenario data (say exactly why, concretely - not just "couldn't
-get to it"), already conclusively resolved (say why no further test would change anything), or not yet
-attempted. Be honest here - claiming something is untestable or resolved when it isn't will be judged
-by the Skeptic against your stated reason, not taken on faith.
+If your evidence includes 'prior_skeptic_review', its gaps have ids like 'C1.G2'. Answer EACH one in
+prior_gaps: tested (cite the test), untestable with the current scenario data (say exactly why),
+already resolved by existing evidence (say why no further test would change anything), or
+not_attempted. Be honest - the Skeptic judges your stated reason, it doesn't take it on faith.
 
 Call submit_checkpoint_hypothesis with your answer."""
 
 
-def validate_hypothesis_response(data) -> list[str]:
-    errors = []
+def _is_test_list(value) -> bool:
+    return isinstance(value, list) and all(isinstance(t, int) and not isinstance(t, bool) for t in value)
+
+
+def _check_text(errors: list[str], where: str, value, key: str, *, required: bool = True) -> None:
+    if not isinstance(value, str):
+        errors.append(f"{where} must be a string")
+    elif required and not value.strip():
+        errors.append(f"{where} must not be empty")
+    elif is_far_too_long(value, key):
+        errors.append(f"{where} is far too long ({len(value.split())} words, limit {WORD_LIMITS[key]})")
+
+
+def validate_hypothesis_response(data, *, known_observation_ids=(), open_gap_ids=()) -> list[str]:
+    """known_observation_ids: ids a 'continues' may point at (every earlier
+    checkpoint's observations). open_gap_ids: the prior Skeptic review's gap ids,
+    each of which prior_gaps must answer exactly once."""
     if not isinstance(data, dict):
         return [f"expected an object, got {type(data).__name__}"]
-    for key in ("observed_behavior", "anomalies", "untested_areas", "prior_gaps_response"):
+    errors = []
+    for key in HYPOTHESIS_TOOL["input_schema"]["required"]:
         if key not in data:
             errors.append(f"missing required field '{key}'")
-    anomalies = data.get("anomalies")
-    if not isinstance(anomalies, list) or not all(isinstance(a, str) for a in anomalies):
-        errors.append("'anomalies' must be a list of strings (may be empty)")
-    areas = data.get("untested_areas")
-    if not isinstance(areas, list) or not areas or not all(isinstance(a, str) for a in areas):
-        errors.append("'untested_areas' must be a non-empty list of strings")
-    prior_gaps = data.get("prior_gaps_response")
-    if not isinstance(prior_gaps, list) or not all(isinstance(g, str) for g in prior_gaps):
-        errors.append("'prior_gaps_response' must be a list of strings (may be empty)")
+    if errors:
+        return errors
+
+    _check_text(errors, "'summary'", data["summary"], "summary")
+
+    behaviors = data["behaviors"]
+    if not isinstance(behaviors, list):
+        errors.append("'behaviors' must be a list")
+    else:
+        if len(behaviors) > 2 * MAX_BEHAVIORS:
+            errors.append(f"'behaviors' has {len(behaviors)} entries, limit {MAX_BEHAVIORS}")
+        for i, b in enumerate(behaviors):
+            if not isinstance(b, dict):
+                errors.append(f"behaviors[{i}] must be an object")
+                continue
+            _check_text(errors, f"behaviors[{i}].claim", b.get("claim"), "behavior.claim")
+            if not _is_test_list(b.get("tests")):
+                errors.append(f"behaviors[{i}].tests must be a list of test numbers")
+
+    observations = data["observations"]
+    if not isinstance(observations, list):
+        errors.append("'observations' must be a list (may be empty)")
+    else:
+        for i, o in enumerate(observations):
+            if not isinstance(o, dict):
+                errors.append(f"observations[{i}] must be an object")
+                continue
+            errors.extend(_observation_errors(i, o, known_observation_ids))
+
+    untested = data["untested"]
+    if not isinstance(untested, list):
+        errors.append("'untested' must be a list")
+    else:
+        if len(untested) > 2 * MAX_UNTESTED:
+            errors.append(f"'untested' has {len(untested)} entries, limit {MAX_UNTESTED}")
+        for i, u in enumerate(untested):
+            if not isinstance(u, dict):
+                errors.append(f"untested[{i}] must be an object")
+                continue
+            _check_text(errors, f"untested[{i}].area", u.get("area"), "untested.area")
+
+    prior_gaps = data["prior_gaps"]
+    if not isinstance(prior_gaps, list):
+        errors.append("'prior_gaps' must be a list (empty on the first checkpoint)")
+    else:
+        errors.extend(_prior_gaps_errors(prior_gaps, open_gap_ids))
     return errors
+
+
+def _observation_errors(i: int, o: dict, known_observation_ids) -> list[str]:
+    errors = []
+    where = f"observations[{i}]"
+    kind = o.get("kind")
+    if kind not in OBSERVATION_KINDS:
+        errors.append(f"{where}.kind must be one of {', '.join(OBSERVATION_KINDS)}")
+    continues = o.get("continues")
+    if not isinstance(continues, str):
+        errors.append(f"{where}.continues must be a string (empty if new)")
+    elif continues and continues not in known_observation_ids:
+        known = ", ".join(known_observation_ids) or "none yet"
+        errors.append(f"{where}.continues is '{continues}', which isn't an earlier observation id (known: {known})")
+    _check_text(errors, f"{where}.claim", o.get("claim"), "observation.claim")
+    if not _is_test_list(o.get("tests")) or not o.get("tests"):
+        errors.append(f"{where}.tests must be a non-empty list of test numbers")
+    reproduced = o.get("reproduced")
+    if reproduced not in REPRODUCED:
+        errors.append(f"{where}.reproduced must be one of {', '.join(REPRODUCED)}")
+    _check_text(errors, f"{where}.violates", o.get("violates"), "observation.violates", required=False)
+    if kind == "bug":
+        if isinstance(o.get("violates"), str) and not o["violates"].strip():
+            errors.append(f"{where} is a bug, so 'violates' must say which known fact it contradicts")
+        if reproduced in REPRODUCED and reproduced != "consistent":
+            errors.append(f"{where} is a bug, but reproduced is '{reproduced}': a bug must reproduce consistently "
+                          "(call it an anomaly or a finding instead)")
+    for field in ("mechanism", "rival", "why"):
+        _check_text(errors, f"{where}.{field}", o.get(field), f"observation.{field}")
+    if not isinstance(o.get("rival_ruled_out"), bool):
+        errors.append(f"{where}.rival_ruled_out must be a boolean")
+    if o.get("severity") not in SEVERITIES:
+        errors.append(f"{where}.severity must be one of {', '.join(SEVERITIES)}")
+    return errors
+
+
+def _prior_gaps_errors(prior_gaps: list, open_gap_ids) -> list[str]:
+    errors = []
+    answered = []
+    for i, g in enumerate(prior_gaps):
+        where = f"prior_gaps[{i}]"
+        if not isinstance(g, dict):
+            errors.append(f"{where} must be an object")
+            continue
+        gap_id = g.get("gap_id")
+        if gap_id not in open_gap_ids:
+            known = ", ".join(open_gap_ids) or "none, this is the first checkpoint"
+            errors.append(f"{where}.gap_id is '{gap_id}', which isn't a gap from the prior review (gaps: {known})")
+        answered.append(gap_id)
+        status = g.get("status")
+        if status not in PRIOR_GAP_STATUSES:
+            errors.append(f"{where}.status must be one of {', '.join(PRIOR_GAP_STATUSES)}")
+        if not _is_test_list(g.get("tests")):
+            errors.append(f"{where}.tests must be a list of test numbers")
+        elif status == "tested" and not g["tests"]:
+            errors.append(f"{where} says tested, so 'tests' must cite the test numbers")
+        _check_text(errors, f"{where}.reason", g.get("reason"), "prior_gap.reason", required=status != "tested")
+    missing = [gap_id for gap_id in open_gap_ids if gap_id not in answered]
+    if missing:
+        errors.append(f"'prior_gaps' doesn't answer {', '.join(missing)}: answer every gap from the prior review")
+    duplicated = sorted({gap_id for gap_id in answered if answered.count(gap_id) > 1})
+    if duplicated:
+        errors.append(f"'prior_gaps' answers {', '.join(duplicated)} more than once")
+    return errors
+
+
+def stamp_observation_ids(checkpoint_num: int, hypothesis: dict) -> None:
+    """Gives each observation its id, 'C<checkpoint>.O<n>'. The engine assigns
+    ids, not the model, so they are unique and stable across the run."""
+    for n, observation in enumerate(hypothesis["observations"], start=1):
+        observation["id"] = f"C{checkpoint_num}.O{n}"
+
+
+def stamp_gap_ids(checkpoint_num: int, skeptic_review: dict) -> None:
+    """Gives each of the Skeptic's gaps its id, 'C<checkpoint>.G<n>', so the next
+    checkpoint's hypothesis can answer it by id. A plain-string gap becomes
+    {'id', 'gap'}."""
+    stamped = []
+    for n, gap in enumerate(skeptic_review["gaps"], start=1):
+        gap = dict(gap) if isinstance(gap, dict) else {"gap": gap}
+        gap["id"] = f"C{checkpoint_num}.G{n}"
+        stamped.append(gap)
+    skeptic_review["gaps"] = stamped
 
 
 SKEPTIC_TOOL = {
@@ -124,7 +387,7 @@ SKEPTIC_TOOL = {
             "coverage_breadth": {
                 "type": "object",
                 "description": (
-                    "Look at gaps/untested_areas as a SET, not one at a time: roughly how many genuinely "
+                    "Look at gaps/untested as a SET, not one at a time: roughly how many genuinely "
                     "distinct, documented behaviors or paths - not just parameter variations within a path "
                     "that's already been tested - have zero test coverage so far? Testing a handful of "
                     "easy, narrow checks and concluding the system is fine is not the same as testing "
@@ -150,7 +413,7 @@ SKEPTIC_TOOL = {
             "anomaly_checks": {
                 "type": "array",
                 "description": (
-                    "One entry per anomaly claimed in the hypothesis - empty list if none were claimed. "
+                    "One entry per observation in the hypothesis (whatever its kind), in the same order - empty list if there are none. Set anomaly_ref to the observation's id. "
                     "For each: does the cited evidence actually DISCRIMINATE the claimed mechanism from "
                     "its own stated rival explanation - i.e. would the evidence have come out differently "
                     "if the rival were true instead - or would the exact same observations show up under "
@@ -178,7 +441,7 @@ SKEPTIC_TOOL = {
                     "properties": {
                         "anomaly_ref": {
                             "type": "string",
-                            "description": "Which claimed anomaly this is about - quote enough of it to identify uniquely.",
+                            "description": "The id of the observation this is about, for example 'C1.O2'.",
                         },
                         "discriminates_from_rival": {
                             "type": "boolean",
@@ -212,7 +475,7 @@ SKEPTIC_TOOL = {
                 "description": (
                     "Only meaningful if 'your_own_prior_review' is present in the evidence you were given "
                     "(your own critique from the previous checkpoint). Check explicitly, using the Driver's "
-                    "'prior_gaps_response' (its own stated status for each gap you named): were the "
+                    "'prior_gaps' (its own stated status for each gap you named): were the "
                     "gaps/recommended_next_tests you named last time actually acted on with new tests, "
                     "and for anything the Driver instead marked as untestable-with-current-data or "
                     "already-resolved, is that stated reason actually credible - or is it hand-wavy, "
@@ -268,7 +531,7 @@ below) a previously-raised objection that was never addressed. If the strongest 
 
 But do not confuse "a few narrow untested corners" with "most of the documented interface has never
 been exercised" - these look similar in isolation but are not the same thing, and only the second is
-material on its own. Look at gaps/untested_areas as a SET: if they name genuinely distinct documented
+material on its own. Look at gaps/untested as a SET: if they name genuinely distinct documented
 behaviors or paths - not just parameter variations within a path that's already been tested - and that
 set covers a large fraction of what the interface actually offers, a "no anomaly found, everything
 looks clean" conclusion is not adequately supported, no matter how solid the small tested slice is. For
@@ -282,7 +545,7 @@ stand in for "the interface has actually been tested."
 If the evidence you're given includes 'your_own_prior_review' (your own critique from the checkpoint
 before this one), check continuity: did the new hypothesis actually respond to what you flagged last
 time, or does it just repeat the same kind of evidence in a different direction while ignoring your
-critique? The Driver's 'prior_gaps_response' gives its own stated status for each gap you named - don't
+critique? The Driver's 'prior_gaps' gives its own stated status for each gap you named - don't
 just take it at face value. If it claims something is untestable with the current scenario data or
 already conclusively resolved, judge whether that specific stated reason actually holds up (e.g. "no
 known account has two cards" is a real, checkable reason; "didn't get to it" or a vague gesture is not).
@@ -292,10 +555,10 @@ tested further. An incredible claim, or silence on a gap you named, is itself a 
 
 Give a verdict: "weak" only for one of the material reasons above, or "strong_enough" if none apply.
 Identify at least 2 concrete gaps, fill in coverage_breadth honestly, and give at least 2 concrete
-recommended_next_tests specific enough to run directly. For EACH anomaly claimed, add one entry to
+recommended_next_tests specific enough to run directly. For EACH observation in the hypothesis, add one entry to
 anomaly_checks with your own independent alternative explanation and whether that claim's own competing
 explanation is genuine or a strawman - you propose what's worth investigating further, the Driver
-decides what to actually test. If no anomalies were claimed, leave anomaly_checks empty. Remember this
+decides what to actually test. If there are no observations, leave anomaly_checks empty. Remember this
 implementation may genuinely have no bugs - don't manufacture doubt just to have something to say, but
 don't rubber-stamp a thin absence-of-anomalies claim either, and don't rubber-stamp a thin slice of the
 interface as if it were the whole thing.
@@ -337,8 +600,8 @@ def validate_skeptic_response(data, *, expected_anomaly_count=None) -> list[str]
                     errors.append(f"anomaly_checks[{i}].{field} must be a boolean")
         if expected_anomaly_count is not None and len(anomaly_checks) != expected_anomaly_count:
             errors.append(
-                f"'anomaly_checks' must have exactly one entry per claimed anomaly "
-                f"({expected_anomaly_count} claimed, got {len(anomaly_checks)})"
+                f"'anomaly_checks' must have exactly one entry per observation "
+                f"({expected_anomaly_count} observations, got {len(anomaly_checks)})"
             )
 
     next_tests = data.get("recommended_next_tests")
