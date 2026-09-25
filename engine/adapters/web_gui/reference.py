@@ -2,7 +2,7 @@
 the map the Driver is briefed on and the action space it may pick from.
 
 This is the seam between the two halves of Stage 6. The deterministic crawler
-(experiments/web-recon) does the read-only recon and writes the ontology; here that
+(.experiments/web-recon) does the read-only recon and writes the ontology; here that
 ontology becomes the *carried reference* - exactly as clash_royale carries an earlier
 recon pass's eleven fingerprinted screens. The Driver never invents a control or a
 coordinate: it may only name a (state, control) pair the recon already found and cleared

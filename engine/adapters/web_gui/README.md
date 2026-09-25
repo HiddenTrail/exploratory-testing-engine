@@ -6,10 +6,10 @@ casting loop over **web-recon's perception**. The browser transposition of the
 comparison, this drives a web app by named `(state, control)` actions and reads states by
 web-recon's *signature* (URL route + control skeleton + landmark headings).
 
-This is the Stage 6 promotion of `experiments/web-recon` into the engine. The two halves
+This is the Stage 6 promotion of `.experiments/web-recon` into the engine. The two halves
 divide cleanly:
 
-- **The deterministic crawler** (`experiments/web-recon`) does the read-only recon and
+- **The deterministic crawler** (`.experiments/web-recon`) does the read-only recon and
   writes an `ontology.json` — the map, discovered not declared, with a read-only safety
   gate deciding which controls are non-committing.
 - **This adapter** takes that ontology as its **carried reference** (the analog of
@@ -22,12 +22,12 @@ divide cleanly:
 
 ```bash
 # 1. Recon the app (read-only) to produce the carried reference.
-cd experiments/web-recon
+cd .experiments/web-recon
 python crawl.py http://localhost:5173 --out out/ontology.json
 
 # 2. Point the adapter at that ontology and run the casting loop.
 cd ../..
-export WEB_GUI_ONTOLOGY="$PWD/experiments/web-recon/out/ontology.json"
+export WEB_GUI_ONTOLOGY="$PWD/.experiments/web-recon/out/ontology.json"
 export WEB_GUI_URL="http://localhost:5173"   # optional; defaults to the ontology's target.url
 export WEB_GUI_HEADED=1                        # optional; headless by default
 python -m engine.cli --adapter web_gui

@@ -22,7 +22,7 @@ Screens are still output, and are now also a prior
 --------------------------------------------------
 No screen name in this package is hand-authored. Every frame is identified by
 comparison, anything unrecognised becomes a new screen, and the run can contradict
-anything it was given - the same discipline `experiments/game-ontology/` holds
+anything it was given - the same discipline `.experiments/game-ontology/` holds
 itself to, and for the same reason: a list of this game's screens written down by
 hand would let the run grade its own homework.
 
@@ -62,13 +62,13 @@ from pathlib import Path
 from engine.adapters.clash_royale import reference
 from engine.adapters.clash_royale.actions import BY_NAME, RECOVERY, Unsafe, preflight
 
-# The harness and the readers live in experiments/, which the engine README calls
+# The harness and the readers live in .experiments/, which the engine README calls
 # an untouched historical archive. Importing across that line rather than porting
 # 1,600 lines of Win32 window handling is a debt, taken knowingly: the controller
 # is the part of this that has been hardened against a real client - a silently
 # frozen window, a Chrome tab with the same title, a resize between sessions - and
 # a fresh copy would be a fresh copy of none of that.
-_EXPERIMENTS = Path(__file__).resolve().parents[3] / "experiments"
+_EXPERIMENTS = Path(__file__).resolve().parents[3] / ".experiments"
 for _path in (_EXPERIMENTS / "game-ontology", _EXPERIMENTS / "android-bot",
               _EXPERIMENTS / "game-screen-probe"):
     if str(_path) not in sys.path:

@@ -15,7 +15,7 @@ runs real tests against a live system under test (SUT) and forms one claim about
 how it behaves. Then a separate Skeptic tries to knock that claim down.
 `engine/` is the product: the checkpoint loop, one adapter per SUT, the pipeline
 that drafts new adapters, and the ontology layer that prioritizes test ideas.
-`clash-royale-kit/` packages the game-client exploration. `experiments/` is
+`clash-royale-kit/` packages the game-client exploration. `.experiments/` is
 mostly an archive of the prototypes that `engine/` grew out of.
 
 ## Backlog and workflow
@@ -96,22 +96,22 @@ and wiki pages.
   only the timing is open. Don't tie them closer together. Keep what passes
   between them a clean data format that could become an API later.
 
-## `experiments/`: an archive, with two live exceptions
+## `.experiments/`: an archive, with two live exceptions
 
-Treat `experiments/*` as history. Don't refactor it and don't copy fixes back
-into it. **The exceptions are `experiments/game-ontology/` and
-`experiments/android-bot/`.** `engine/adapters/clash_royale/session.py` imports
+Treat `.experiments/*` as history. Don't refactor it and don't copy fixes back
+into it. **The exceptions are `.experiments/game-ontology/` and
+`.experiments/android-bot/`.** `engine/adapters/clash_royale/session.py` imports
 them at run time, so renaming or moving something in them can break the engine
 without CI noticing. Their tests only run on Windows and CI doesn't run them, so
 run them yourself (see below) before you merge a change to them.
 
-New prototypes go in their own `experiments/<name>/` folder with a README and a
+New prototypes go in their own `.experiments/<name>/` folder with a README and a
 `requirements.txt`. When code moves into `engine/`, port it and harden it. Never
-import it from `experiments/`.
+import it from `.experiments/`.
 
 ## Safety: the game harness drives a real account
 
-`experiments/android-bot/`, `experiments/game-ontology/`,
+`.experiments/android-bot/`, `.experiments/game-ontology/`,
 `engine/adapters/clash_royale/` and `clash-royale-kit/` send real taps and drags
 to a real game client on someone's real account. Two things have already gone
 wrong: input landed in the wrong window (someone's editor), and the game got
@@ -133,7 +133,7 @@ closed with no way to reopen it.
 pip install -r engine/requirements.txt
 python -m pytest engine/tests            # runs in CI
 python -m pytest clash-royale-kit        # runs in CI
-python -m pytest experiments/game-ontology experiments/android-bot   # Windows only, run by hand
+python -m pytest .experiments/game-ontology .experiments/android-bot   # Windows only, run by hand
 ```
 
 - **Tests never call a real LLM** and never need an API key. Stub the client.
@@ -148,8 +148,8 @@ python -m pytest experiments/game-ontology experiments/android-bot   # Windows o
 
 When a task needs a website scraped, crawled or mapped, use **Spoor**
 (`ht-spoor`). It's a separate project, checked out next to this repo in
-`../ht-spoor`. Only use this repo's own crawlers (`experiments/web-scraper-poc/`
-on the `scraper` branch, and `experiments/web-recon/`) when the user asks for
+`../ht-spoor`. Only use this repo's own crawlers (`.experiments/web-scraper-poc/`
+on the `scraper` branch, and `.experiments/web-recon/`) when the user asks for
 them by name.
 
 - Spoor has its own virtualenv in `../ht-spoor/.venv`. Run its CLI from there
@@ -218,7 +218,7 @@ every commit.
 ## Standing practices
 
 - **Heuristics catalog:** whenever you come up with or spot a new testing
-  heuristic, add it to `experiments/oracle-agent-poc/heuristics/catalog.json`
+  heuristic, add it to `.experiments/oracle-agent-poc/heuristics/catalog.json`
   using the existing template. Mark it `status: "cataloged"` until something
   actually uses it.
 - **Keep the docs true.** If your change makes the README, an area README or

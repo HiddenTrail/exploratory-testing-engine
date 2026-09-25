@@ -98,7 +98,7 @@ What happens, in order:
    screen-match threshold is derived from that sample, and the screen the client is sitting on
    is identified. Nothing is tapped. Any of these can refuse the run.
 2. **The model check.** One token, to prove the vetting call the pass depends on can be made.
-3. **The pass.** `experiments\android-bot\run_recon.py`, run as a child process, exploring for
+3. **The pass.** `.experiments\android-bot\run_recon.py`, run as a child process, exploring for
    the time you asked for and writing `ontology.json`, `report.md`, `session-log.log` and a
    few dozen PNGs. Console output names the action about to be sent and the cleared candidates
    already queued behind it, so a person watching a live account sees what is coming, not just
@@ -170,7 +170,7 @@ them and cannot switch any of them off.
 
 | rule | held by |
 |---|---|
-| **money is untouchable** - gems, gold, shop, chests | 6 coordinate boxes in `experiments\game-ontology\target.py` **and** the model vetting call |
+| **money is untouchable** - gems, gold, shop, chests | 6 coordinate boxes in `.experiments\game-ontology\target.py` **and** the model vetting call |
 | **the Battle button stays blocked** - it is a live ladder match | a coordinate box, verified in preflight before any frame is scored |
 | **no battle is fought** | `battle.py` refuses without `--allow-battle`, and this kit never passes it - there is a test asserting the flag is never even constructed |
 | **nothing opens the launcher** | `Target.exe` is empty on purpose, and the restart path refuses before it acts |
@@ -261,7 +261,7 @@ nothing can reopen.
 | `test_*.py` | 112 tests, cross-platform, no game and no credentials |
 
 It leans on three things already in this repo rather than copying them: the harness in
-`experiments\game-ontology`, the target in `experiments\android-bot`, and the safety layers in
+`.experiments\game-ontology`, the target in `.experiments\android-bot`, and the safety layers in
 `engine\adapters\clash_royale`. Read
-[`experiments\android-bot\README.md`](../experiments/android-bot/README.md) if you are going to
+[`.experiments\android-bot\README.md`](../.experiments/android-bot/README.md) if you are going to
 change any of it - it carries the reasoning behind the rules this kit only enforces.

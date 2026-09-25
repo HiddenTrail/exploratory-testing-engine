@@ -9,7 +9,7 @@ Extracts a committable screen reference from a completed recon pass. Run this af
 
 ```bash
 python -m engine.adapters.clash_royale.extract_reference \
-    "experiments/android-bot/out/Clash Royale-YYYYMMDD-HHMMSS"
+    ".experiments/android-bot/out/Clash Royale-YYYYMMDD-HHMMSS"
 ```
 
 **Why this exists:** `out/` is gitignored, so extracted data goes into `known_screens.json` (committed) instead, preventing silent failures on different checkouts.
@@ -22,13 +22,13 @@ Generates an interactive HTML navigation map from either a **recon pass** or **w
 **From a fresh recon pass:**
 ```bash
 python -m engine.adapters.clash_royale.generate_nav_map_html \
-    "experiments/android-bot/out/Clash Royale-YYYYMMDD-HHMMSS"
+    ".experiments/android-bot/out/Clash Royale-YYYYMMDD-HHMMSS"
 ```
 
 **From the existing wiki (anytime, no recon pass needed):**
 ```bash
 python -m engine.adapters.clash_royale.generate_nav_map_html \
-    "experiments/android-bot/wiki"
+    ".experiments/android-bot/wiki"
 ```
 
 **What it shows:**

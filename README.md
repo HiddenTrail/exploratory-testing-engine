@@ -152,7 +152,7 @@ engine/
     cli.py        # python -m engine.bootstrap.cli - chains all 4 phases end to end
   ontology/       # prioritization layer stack (heuristics/domain/context/ranked oracle) - see above
   tests/          # deterministic regression + parity tests (no LLM calls, runs in CI)
-experiments/      # mostly earlier prototypes this package was hardened from, kept as a historical
+.experiments/     # mostly earlier prototypes this package was hardened from, kept as a historical
                   #   archive. Two are NOT archive: they are worked on, and the clash_royale adapter
                   #   imports them at run time (see session.py's own note on that debt), so a rename
                   #   in either can break the engine with nothing in CI to catch it:
@@ -249,7 +249,7 @@ The game harness carries its own suites, which CI does **not** run - they are
 Windows-only (Win32 window handles, GDI capture) while CI is Linux:
 
 ```
-python -m pytest experiments/game-ontology experiments/android-bot
+python -m pytest .experiments/game-ontology .experiments/android-bot
 ```
 
 Those are also LLM-free and deterministic; every real-window call is

@@ -62,7 +62,7 @@ class Action:
     reversible: str
 
 
-# Read off `experiments/android-bot/out/now.png`, a 393x700 capture of the main
+# Read off `.experiments/android-bot/out/now.png`, a 393x700 capture of the main
 # screen taken 2026-09-04, by locating each icon's centre and dividing. Then checked
 # against a live 787x1400 window with `preview`, which found one of the five landing
 # on the wrong thing - see `open_profile`. Four of five survived the check, which is
@@ -205,7 +205,7 @@ def preflight(target) -> str:
             f"REFUSING to run: target {target.name!r} has an empty coordinate denylist, so "
             f"nothing is forbidden and every safety check below would report 'allowed'. "
             f"This is what a mis-squashed game name looks like - see DENYLISTS in "
-            f"experiments/game-ontology/target.py."
+            f".experiments/game-ontology/target.py."
         )
 
     unguarded = [what for what, at in GUARD_PROBES if target.forbids(*at) is None]

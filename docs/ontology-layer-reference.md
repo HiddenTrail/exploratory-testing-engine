@@ -19,7 +19,7 @@ head before ever seeing a spec. These entries describe *kinds* of things
 worth checking, not facts about `token_purchase` or any other particular
 SUT.
 
-This is distinct from `experiments/oracle-agent-poc/heuristics/catalog.json`,
+This is distinct from `.experiments/oracle-agent-poc/heuristics/catalog.json`,
 a larger HTSM-seeded reference catalog (31 entries, SFDIPOT/Quality
 Criteria/General Test Techniques/FEW-HICCUPPS) — layer 1 is the small,
 *active* subset actually wired into scoring, not the full reference list.

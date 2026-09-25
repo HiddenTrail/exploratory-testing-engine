@@ -11,8 +11,8 @@ Arguments given: `$ARGUMENTS`
 
 1. Parse `<source-dir>` (required, repo-relative, the folder holding raw
    material) and `--dest <dir>` (optional; default to a `wiki/` sibling of
-   `<source-dir>`'s parent, e.g. `experiments/live-sut-poc/out` →
-   `experiments/live-sut-poc/wiki`). If `<source-dir>` doesn't exist, say so
+   `<source-dir>`'s parent, e.g. `.experiments/live-sut-poc/out` →
+   `.experiments/live-sut-poc/wiki`). If `<source-dir>` doesn't exist, say so
    and stop — don't guess a different path.
 2. Ensure the destination workspace exists:
    - `<dest>/summaries/`, `<dest>/entities/`, `<dest>/concepts/`, `<dest>/log/`

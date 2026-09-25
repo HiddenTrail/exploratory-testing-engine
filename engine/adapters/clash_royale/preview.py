@@ -27,7 +27,7 @@ FORBIDDEN = (255, 0, 255)
 ALLOWED = (255, 255, 0)
 PROBE = (0, 165, 255)
 
-OUT = Path(__file__).resolve().parents[3] / "experiments" / "android-bot" / "out"
+OUT = Path(__file__).resolve().parents[3] / ".experiments" / "android-bot" / "out"
 
 
 def _outline_fn():
@@ -35,7 +35,7 @@ def _outline_fn():
 
     Imported on call rather than at module load for the same reason as the rest of
     the harness: it reaches Win32 through `controller`. It is importable at all
-    because `session` put experiments/android-bot on the path when this module
+    because `session` put .experiments/android-bot on the path when this module
     imported it. Reused rather than reimplemented because a second copy of the same
     arithmetic is a second chance to get the off-by-one on the right and bottom
     edges wrong, and this preview's whole job is to be trustworthy about where an

@@ -1,5 +1,5 @@
 """SUTAdapter for the token-purchase mock: a credit-purchase API backed by a
-mock payment processor. Ported from experiments/token-purchase-poc/run_live.py
+mock payment processor. Ported from .experiments/token-purchase-poc/run_live.py
 and report.py - the genuinely per-SUT parts (test-proposal schema, casting
 prompt, execute_test, onboarding data, report rendering for one test entry
 and the onboarding section).
@@ -72,7 +72,7 @@ KNOWN_ACCOUNTS = [
 
 HAPPY_DAY_REQUEST = {**KNOWN_ACCOUNTS[0], "credit_count": 10}
 
-# A one-time snapshot from the Oracle Agent PoC (experiments/oracle-agent-poc),
+# A one-time snapshot from the Oracle Agent PoC (.experiments/oracle-agent-poc),
 # a heuristic pass over this SUT's spec.md - not regenerated per run. Merged
 # into onboarding_extra so the Driver sees it as ordinary evidence, same as
 # known_accounts.
