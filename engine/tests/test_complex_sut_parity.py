@@ -7,6 +7,7 @@ _compute_correctness silently asserting "correct" when the SUT's responses
 are missing the limit field entirely - a PR review on this very adapter
 caught it."""
 
+import copy
 import importlib.util
 import sys
 from pathlib import Path
@@ -14,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from engine.adapters.complex_sut import adapter as complex_sut_adapter
+from engine.tools import PRIOR_FEEDBACK_GUIDE
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ORIGINAL_DIR = REPO_ROOT / ".experiments" / "complex-sut-poc"
@@ -32,12 +34,20 @@ def original():
 
 
 def test_casting_tool_schema_matches(original):
-    assert complex_sut_adapter.CASTING_TOOL == original.CASTING_TOOL
+    # Deliberate divergence (issue #96): the round's reasoning is limited to a few
+    # words, so its description differs. Setting that one description back should
+    # make the schemas identical again.
+    engine_schema = copy.deepcopy(complex_sut_adapter.CASTING_TOOL)
+    engine_schema["input_schema"]["properties"]["reasoning"] = original.CASTING_TOOL["input_schema"]["properties"]["reasoning"]
+    assert engine_schema == original.CASTING_TOOL
 
 
-def test_casting_system_prompt_matches(original):
-    for budget, is_first in ((10, True), (6, False)):
-        assert complex_sut_adapter.casting_system_prompt(budget, is_first) == original.casting_system_prompt(budget, is_first)
+def test_first_round_casting_prompt_matches(original):
+    # Only the first round still matches: later rounds describe the structured
+    # feedback of issue #41 through the shared PRIOR_FEEDBACK_GUIDE (issue #96).
+    assert complex_sut_adapter.casting_system_prompt(10, True) == original.casting_system_prompt(10, True)
+    assert PRIOR_FEEDBACK_GUIDE in complex_sut_adapter.casting_system_prompt(6, False)
+    assert "anomaly_critique" not in complex_sut_adapter.casting_system_prompt(6, False)
 
 
 def test_api_schema_and_happy_day_request_match(original):

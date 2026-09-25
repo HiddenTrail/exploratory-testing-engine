@@ -28,6 +28,7 @@ So this run looks and navigates only; nothing it can name mutates the app.
 
 from engine import outcome
 from engine.adapter import SUTAdapter
+from engine.tools import CASTING_REASONING_DESCRIPTION, PRIOR_FEEDBACK_GUIDE, casting_envelope_errors
 from engine.adapters.web_gui import reference as ref_mod
 from engine.adapters.web_gui import session as live_session
 from engine.adapters.web_gui.reference import PREDICTIONS
@@ -192,8 +193,7 @@ CASTING_TOOL = {
         "properties": {
             "give_up": {"type": "boolean",
                         "description": "Set true only if you have no more good ideas worth proposing this round."},
-            "reasoning": {"type": "string",
-                          "description": "Your reasoning for this round's batch, per the system prompt."},
+            "reasoning": {"type": "string", "description": CASTING_REASONING_DESCRIPTION},
             "candidate_tests": {
                 "type": "array",
                 "description": "Each test is EITHER tied to a hypothesis (linked_hypothesis = the "
@@ -234,10 +234,8 @@ normally does and what goes wrong in that category (a control that silently does
 you cannot get back from, two controls to one place, a tab whose content depends on state you have
 not set). Use the map to decide what is worth checking first. State this reasoning explicitly."""
     else:
-        context = """You now have real transitions, and prior_checkpoint_feedback holds the previous
-checkpoint's hypothesis plus Skeptic's critique. If a claimed anomaly was found weak, prioritise
-actions that could confirm OR refute that SPECIFIC claim - and remember that repeating an action is
-a real experiment: the same control landing somewhere different on a second visit, or a state
+        context = f"""You now have real transitions. {PRIOR_FEEDBACK_GUIDE}
+Remember that repeating an action is a real experiment: the same control landing somewhere different on a second visit, or a state
 registered as new twice, are both findings. Briefly state what this app has shown you so far."""
 
     return f"""You are exploring a live web application to build a falsifiable model of its
@@ -266,20 +264,9 @@ Call submit_casting_round with your answer."""
 
 
 def validate_casting_response(data) -> list[str]:
-    errors = []
-    if not isinstance(data, dict):
-        return [f"expected an object, got {type(data).__name__}"]
-    for key in ("give_up", "reasoning", "candidate_tests"):
-        if key not in data:
-            errors.append(f"missing required field '{key}'")
-    if not isinstance(data.get("give_up"), bool):
-        errors.append("'give_up' must be a boolean")
-
-    tests = data.get("candidate_tests")
-    if not isinstance(tests, list):
-        errors.append("'candidate_tests' must be a list")
-    elif not data.get("give_up") and not tests:
-        errors.append("'candidate_tests' must be non-empty unless give_up is true")
+    errors, tests = casting_envelope_errors(data)
+    if not isinstance(tests, list) or not tests:
+        return errors
     else:
         pairs = live_session.valid_pairs()   # empty before the session is ready -> shape-only
         for i, test in enumerate(tests or []):

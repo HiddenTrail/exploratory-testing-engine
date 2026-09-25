@@ -845,3 +845,59 @@ def final_observations(hypothesis: dict, skeptic_review: dict) -> list[dict]:
             "skeptic_note": check.get("note", ""),
         })
     return concluded
+
+
+# --- The casting round (issue #96) ---------------------------------------
+# Casting schemas are per adapter, but three things are the same for all of them
+# and live here so they can't drift apart: what the Driver is told about the
+# previous checkpoint's feedback, the length of the round's reasoning, and the
+# checks on the answer's envelope (give_up, reasoning, candidate_tests).
+
+CASTING_REASONING_WORDS = 60
+CASTING_REASONING_DESCRIPTION = (
+    f"What this round tests and why, at most {CASTING_REASONING_WORDS} words. Name the observation "
+    "and gap ids it targets."
+)
+
+PRIOR_FEEDBACK_GUIDE = """prior_checkpoint_feedback holds the previous checkpoint's hypothesis and the
+Skeptic's cold review of it, both structured. The hypothesis has observations (each a finding, an anomaly
+or a bug, with an id like 'C1.O2'). The review has observation_checks (whether each observation's evidence
+discriminates it from its rival), gaps (each with an id like 'C1.G3', a next_test and blocks_verdict) and a
+verdict_reason. Plan this round from that: first the next_test of every gap with blocks_verdict=true, then
+tests that could confirm OR refute an observation whose check says it doesn't discriminate. Turn those into
+literal tests, not unrelated new exploration. The next hypothesis has to answer every gap by id, so a test
+aimed at a gap is worth more than one that isn't."""
+
+
+def casting_envelope_errors(data) -> tuple[list[str], object]:
+    """The checks every adapter's casting validator starts with. give_up may be
+    left out when the answer has tests: that already says the Driver didn't give
+    up, and a missing give_up was the most common casting retry after #41 (4 of
+    12 calls). Returns the errors and the candidate_tests value for the adapter's
+    own per-test checks."""
+    if not isinstance(data, dict):
+        return [f"expected an object, got {type(data).__name__}"], None
+    errors = []
+    tests = data.get("candidate_tests")
+    if "candidate_tests" not in data:
+        errors.append("missing required field 'candidate_tests'")
+    elif not isinstance(tests, list):
+        errors.append("'candidate_tests' must be a list")
+
+    give_up = data.get("give_up")
+    if "give_up" not in data:
+        if not tests:
+            errors.append("missing required field 'give_up' (it can only be left out when there are tests)")
+    elif not isinstance(give_up, bool):
+        errors.append("'give_up' must be a boolean")
+    if isinstance(tests, list) and not tests and give_up is not True:
+        errors.append("'candidate_tests' must be non-empty unless give_up is true")
+
+    reasoning = data.get("reasoning")
+    if "reasoning" not in data:
+        errors.append("missing required field 'reasoning'")
+    elif not isinstance(reasoning, str):
+        errors.append("'reasoning' must be a string")
+    elif len(reasoning.split()) > 2 * CASTING_REASONING_WORDS:
+        errors.append(f"'reasoning' is far too long ({len(reasoning.split())} words, limit {CASTING_REASONING_WORDS})")
+    return errors, tests
