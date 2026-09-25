@@ -41,6 +41,11 @@ mostly an archive of the prototypes that `engine/` grew out of.
    leftover debug code, dead branches, naming that doesn't match, and clumsy
    logic. Green tests don't replace reading the diff, and reading the diff
    doesn't replace tests. Do both.
+6. **Don't merge your own PRs.** Open the PR, wait for CI, then stop and tell
+   the user what's in it: what changed, how you checked it, and anything you're
+   unsure about. A person merges it, or tells you to. People review PRs, and a
+   merge they didn't see coming is the kind of surprise this rule prevents.
+   "Merge it" for one PR is not permission to merge the next one.
 
 ### Commit messages
 
