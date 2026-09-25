@@ -144,6 +144,23 @@ python -m pytest .experiments/game-ontology .experiments/android-bot   # Windows
   real SUT, a real browser, the real game client), try it live when you can and
   say what you ran. If you couldn't, say that too.
 
+### Benchmark runs (real LLM calls, they cost money)
+
+When a change needs a before/after comparison, keep the runs short. Slightly
+less reliable numbers are better than using up the quota and not testing at all.
+
+```
+python -m engine.cli --adapter <sut> --out-dir runs/<name>/<sut>_<n> \
+  --max-checkpoints 2 --first-round-budget 6 --default-budget 4
+```
+
+- Do 3 runs each on `complex_sut` and `token_purchase`. Start each mock SUT
+  on port 8000 first (see the README), one at a time.
+- Run one first and check its cost from `usage_summary` in `output.json`
+  before starting the rest. A short run should cost well under $1.
+- Only compare runs made with the same settings and the same model.
+- Say what you measured and what it cost, in the PR or the issue.
+
 ## Scraping and mapping websites: use Spoor
 
 When a task needs a website scraped, crawled or mapped, use **Spoor**
