@@ -110,10 +110,9 @@ def _stub_a_finished_loop(monkeypatch):
             "checkpoint": 1,
             "hypothesis": {"summary": "b", "behaviors": [], "observations": [], "untested": [],
                            "prior_gaps": []},
-            "skeptic_review": {"verdict": "strong_enough", "gaps": [],
-                               "coverage_breadth": {"material": False, "note": ""},
-                               "anomaly_checks": [], "recommended_next_tests": [],
-                               "prior_critique_addressed": "n/a"},
+            "skeptic_review": {"verdict": "strong_enough", "verdict_reason": "r", "observation_checks": [],
+                               "coverage": {"material": False, "untouched": [], "note": ""},
+                               "gaps": [], "prior_gaps_check": []},
         }], "skeptic_satisfied"),
     )
 

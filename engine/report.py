@@ -135,9 +135,11 @@ def _render_checkpoint_conclusion(checkpoint_entry) -> str:
     )
     untested = "".join(f"<li>{inline_markdown(u['area'])}</li>" for u in hypothesis.get("untested", []))
     gaps = "".join(
-        f"<li><span class=\"num\">{esc(g['id'])}</span> {inline_markdown(g['gap'])}</li>" for g in skeptic.get("gaps", [])
+        f"<li><span class=\"num\">{esc(g['id'])}</span> {inline_markdown(g['gap'])} "
+        f"{badge('blocks verdict', 'bad') if g['blocks_verdict'] else ''}"
+        f"<div class=\"prose\">Next test: {inline_markdown(g['next_test'])}</div></li>"
+        for g in skeptic.get("gaps", [])
     )
-    next_tests = "".join(f"<li>{inline_markdown(t)}</li>" for t in skeptic.get("recommended_next_tests", []))
 
     prior_gaps_html = ""
     prior_gaps = hypothesis.get("prior_gaps", [])
@@ -152,18 +154,24 @@ def _render_checkpoint_conclusion(checkpoint_entry) -> str:
         <ul>{prior_gaps_items}</ul>
         """
 
-    prior_critique_html = ""
-    prior_critique = skeptic.get("prior_critique_addressed")
-    if prior_critique and prior_critique.strip().lower() != "n/a":
-        prior_critique_html = f"""
-        <p><strong>Was the Skeptic's own prior critique addressed?</strong></p>
-        <div class="prose">{render_prose(prior_critique)}</div>
+    prior_gaps_check_html = ""
+    prior_gaps_check = skeptic.get("prior_gaps_check", [])
+    if prior_gaps_check:
+        prior_check_items = "".join(
+            f"<li><span class=\"num\">{esc(c['gap_id'])}</span> "
+            f"{bool_badge(c['accepted'], 'answer accepted', 'answer not accepted')} {inline_markdown(c['note'])}</li>"
+            for c in prior_gaps_check
+        )
+        prior_gaps_check_html = f"""
+        <p><strong>Did the Driver answer the Skeptic's prior gaps?</strong></p>
+        <ul>{prior_check_items}</ul>
         """
 
     if observations:
         observation_items = "".join(
             f"<li><span class=\"num\">{esc(o['id'])}</span> {esc(o['kind'])} ({esc(o['severity'])}) "
-            f"{inline_markdown(o['claim'])} {_tests_label(o['tests'])}</li>"
+            f"{inline_markdown(o['claim'])} {_tests_label(o['tests'])}"
+            f"{_lowered_label(o)}</li>"
             for o in observations
         )
         observations_html = f"""
@@ -173,24 +181,25 @@ def _render_checkpoint_conclusion(checkpoint_entry) -> str:
     else:
         observations_html = '<p class="prose-muted">Nothing looked wrong this checkpoint.</p>'
 
-    coverage_breadth = skeptic.get("coverage_breadth", {})
+    coverage = skeptic.get("coverage", {})
+    untouched = "".join(f"<li>{inline_markdown(a)}</li>" for a in coverage.get("untouched", []))
 
-    anomaly_checks = skeptic.get("anomaly_checks", [])
-    if anomaly_checks:
+    checks = skeptic.get("observation_checks", [])
+    if checks:
         check_items = "".join(f"""
         <li>
-          <strong>{inline_markdown(check.get('anomaly_ref', ''))}</strong>
-          {bool_badge(check.get('discriminates_from_rival'), 'discriminates', "doesn't discriminate")}
-          {bool_badge(check.get('rival_is_genuine'), 'genuine rival', 'strawman rival')}
-          <div class="prose">{render_prose(check.get('note'))}</div>
+          <span class="num">{esc(check['observation_id'])}</span>
+          {bool_badge(check['discriminates_from_rival'], 'discriminates', "doesn't discriminate")}
+          {bool_badge(check['rival_is_genuine'], 'genuine rival', 'strawman rival')}
+          <div class="prose">{render_prose(check['note'])}</div>
         </li>
-        """ for check in anomaly_checks)
-        anomaly_checks_html = f"""
-        <p><strong>Anomaly checks ({len(anomaly_checks)})</strong></p>
+        """ for check in checks)
+        checks_html = f"""
+        <p><strong>Observation checks ({len(checks)})</strong></p>
         <ul>{check_items}</ul>
         """
     else:
-        anomaly_checks_html = '<p class="prose-muted">No observations this checkpoint, so nothing to check.</p>'
+        checks_html = '<p class="prose-muted">No observations this checkpoint, so nothing to check.</p>'
 
     return f"""
     <div class="exhibit">
@@ -203,16 +212,22 @@ def _render_checkpoint_conclusion(checkpoint_entry) -> str:
       <ul>{untested}</ul>
       {prior_gaps_html}
       <h4>Skeptic review {verdict_badge(skeptic.get('verdict'))}</h4>
-      <p><strong>Gaps identified</strong></p>
+      <div class="prose">{inline_markdown(skeptic.get('verdict_reason'))}</div>
+      {checks_html}
+      <p><strong>Coverage</strong> {bool_badge(coverage.get('material'), 'material', 'not material')}</p>
+      <div class="prose">{render_prose(coverage.get('note'))}</div>
+      <ul>{untouched}</ul>
+      <p><strong>Gaps and the tests that would close them</strong></p>
       <ul>{gaps}</ul>
-      <p><strong>Coverage breadth</strong> {bool_badge(coverage_breadth.get('material'), 'material', 'not material')}</p>
-      <div class="prose">{render_prose(coverage_breadth.get('note'))}</div>
-      {anomaly_checks_html}
-      <p><strong>Recommended next tests</strong></p>
-      <ul>{next_tests}</ul>
-      {prior_critique_html}
+      {prior_gaps_check_html}
     </div>
     """
+
+
+def _lowered_label(observation) -> str:
+    if "driver_kind" not in observation:
+        return ""
+    return f' <span class="prose-muted">(the Driver said {esc(observation["driver_kind"])}, the Skeptic lowered it)</span>'
 
 
 def _render_casting_section(casting_log, checkpoints, render_test_entry) -> str:

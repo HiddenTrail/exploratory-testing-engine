@@ -48,8 +48,7 @@ def _fake_hypothesis(client, adapter, run_config, happy_day_example, casting_log
 
 def _skeptic_review(verdict):
     return {
-        "verdict": verdict, "gaps": ["g1", "g2"], "coverage_breadth": {"material": False, "note": "c"},
-        "anomaly_checks": [], "recommended_next_tests": ["t1", "t2"], "prior_critique_addressed": "n/a",
+        "verdict": verdict, "verdict_reason": "r", "observation_checks": [], "coverage": {"material": verdict == "weak", "untouched": [], "note": "c"}, "gaps": [{"gap": "g", "next_test": "t", "blocks_verdict": False, "about": []}], "prior_gaps_check": [],
     }
 
 

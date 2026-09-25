@@ -26,7 +26,7 @@ might not be one, or there might be several nobody anticipated.
    cited tests actually support the claim as described?
    `yes / partial / no`
 
-4. **Skeptic's critique is substantive, not decorative** - read `anomaly_checks`
+4. **Skeptic's critique is substantive, not decorative** - read `observation_checks`
    and `gaps` in the final checkpoint's `skeptic_review`. Does it propose a real
    alternative explanation and a concrete way to distinguish it from the Driver's
    claim (not just "more testing needed" in the abstract)?
@@ -39,7 +39,7 @@ might not be one, or there might be several nobody anticipated.
    `yes / no`
 
 6. **No anomaly is also a valid outcome** - if `anomaly_found` is `false`, is the
-   final `observed_behavior` an honest, well-supported characterization (not
+   final `summary` and `behaviors` an honest, well-supported characterization (not
    thin coverage dressed up as confidence), and does Skeptic's `gaps` list
    genuinely-untested areas rather than padding?
    `yes / partial / no / n-a`

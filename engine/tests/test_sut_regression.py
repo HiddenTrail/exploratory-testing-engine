@@ -1,7 +1,7 @@
 """Deterministic regression checks against the ported token_purchase mock SUT -
 no Anthropic calls, no live server. These guard against the port silently
 altering validation order; they are not a claim that the underlying gaps are
-fixed (they aren't - see engine/tools.py's note on anomaly_checks'
+fixed (they aren't - see engine/tools.py's note on observation_checks'
 discriminates_from_rival and the token_purchase README for the two known, accepted findings)."""
 
 from fastapi.testclient import TestClient

@@ -15,7 +15,7 @@ one voice, not a different perspective, so splitting them would just be
 procedural fragmentation at ~50% more LLM cost per round for no real gain.
 
 Deliberately leaner than the bug-hunting SKEPTIC_TOOL (engine/tools.py),
-which grew its fields (anomaly_checks, coverage_breadth, prior_critique_addressed,
+which grew its fields (observation_checks, coverage, prior_gaps_check,
 ...) incrementally in direct response to specific observed failures in that
 domain. This reviewer starts simple; harden it later if a real problem shows
 up here too, not speculatively now.

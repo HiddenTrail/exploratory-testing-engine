@@ -50,7 +50,7 @@ Score sections 1-7 only if `anomaly_found` is `true`. If `anomaly_found` is
    `different alternative: yes/no` · `fair strawman call: yes/no`
 
 8. **Behavior-checkpoint quality (only if `anomaly_found` is `false`)** - read
-   `behavior_checkpoints`. Does `observed_behavior` accurately reflect what was
+   `behavior_checkpoints`. Does `summary` and `behaviors` accurately reflect what was
    actually tested? Did the behavior-Skeptic's `gaps` include the concurrency
    dimension specifically (i.e. did it notice that everything tested so far was
    sequential, if that's true)? If more than one checkpoint ran, did the later
