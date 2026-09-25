@@ -24,9 +24,12 @@ mostly an archive of the prototypes that `engine/` grew out of.
    Check `gh issue list` before you start. Open an issue for new work, and for
    anything you notice but aren't fixing right now. A TODO comment nobody reads
    is not a backlog.
-2. **Branch from an up-to-date `master`.** Never commit straight to `master`.
-   Name branches in short kebab-case after what they do (`game-harness-guards`,
-   `context-file-probing`).
+2. **Every issue gets its own branch.** Before you change anything for an
+   issue, create a branch for it from an up-to-date `master`. Start the name
+   with the issue number, then a few words in kebab-case, for example
+   `39-oracle-claims-from-domain`. Keep one issue per branch. If you find
+   something else along the way, open a new issue for it and don't fold it into
+   the current branch. Never commit straight to `master`.
 3. **Commit and push only when the user asks.** Opening a PR makes the work
    public, so check first.
 4. **Every change reaches `master` through a PR**, and CI
@@ -140,6 +143,39 @@ python -m pytest experiments/game-ontology experiments/android-bot   # Windows o
 - Tests only prove what they check. If your change affects live behaviour (a
   real SUT, a real browser, the real game client), try it live when you can and
   say what you ran. If you couldn't, say that too.
+
+## Scraping and mapping websites: use Spoor
+
+When a task needs a website scraped, crawled or mapped, use **Spoor**
+(`ht-spoor`). It's a separate project, checked out next to this repo in
+`../ht-spoor`. Only use this repo's own crawlers (`experiments/web-scraper-poc/`
+on the `scraper` branch, and `experiments/web-recon/`) when the user asks for
+them by name.
+
+- Spoor has its own virtualenv in `../ht-spoor/.venv`. Run its CLI from there
+  as a separate process, and don't install it into this repo's environment.
+  To set it up on a new machine:
+  ```
+  py -3.13 -m venv ../ht-spoor/.venv
+  ../ht-spoor/.venv/Scripts/python -m pip install -e "../ht-spoor[serve]"
+  ../ht-spoor/.venv/Scripts/python -m playwright install chromium
+  ```
+- Map a site: `../ht-spoor/.venv/Scripts/spoor explore <url> --wiki <dir>`.
+  Always cap the run (`--max-depth`, `--max-states`, `--max-seconds`).
+  `spoor run config.yaml -o out.json` extracts data with a config. The
+  [Spoor README](../ht-spoor/README.md) has the rest.
+- **Local test targets** live in Spoor's repo, not here. They are Juice Shop
+  (port 3000), Sauce Demo (3001) and PrestaShop (8080). Start them with
+  `docker compose -f ../ht-spoor/fixtures/docker-compose.yml up -d`.
+- Only use `--sandbox` against those local targets or another throwaway system
+  you control. Without it, Spoor skips destructive actions like buy, delete
+  and log out. Keep it that way.
+- Spoor writes a `.spoor-cache/` in the folder you run it from. That cache holds
+  raw captures with secrets left in, so it is gitignored. Never commit it.
+- If Spoor can't do something a task needs, don't patch around it here. Tell
+  the user, and open an issue in Spoor's repo if they agree. Spoor has its own
+  rules (see its `CLAUDE.md`); the main one is that it never adds code for
+  one specific site.
 
 ## Dependencies, config and secrets
 

@@ -45,6 +45,11 @@ venv/
 # engine/ run output
 runs/
 
+# Spoor's local cache, written wherever `spoor` runs. It holds raw captures
+# (full HAR, storage state) with secrets not redacted, so it must never be
+# committed.
+.spoor-cache/
+
 # Playwright MCP's own snapshot/trace output (recreated on every run)
 .playwright-mcp/
 
