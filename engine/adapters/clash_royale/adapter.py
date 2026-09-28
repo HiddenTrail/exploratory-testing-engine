@@ -32,7 +32,7 @@ actually checkable on the first visit, and it is a real claim: predicting that a
 navigation tab opens something new, and finding the screen unchanged, is exactly
 the anomaly this is looking for.
 
-Note what the carried reference does to `known_screen`. Eleven screens of this
+Note what the carried reference does to `known_screen`. The screens of this
 client were measured by an earlier recon pass, so a screen can be *known* on its
 first sighting this run - which makes `known_screen` a claim about the game's
 navigation rather than a claim about the run's own memory, and makes `new_screen`
@@ -201,8 +201,8 @@ def outcome_for(result: dict) -> outcome.Outcome:
     the game, sourced entirely from this project's own safety layer.
 
     `matched_prior` is `was_measured_before`: whether the screen the tap landed on
-    was one of the eleven an earlier recon pass fingerprinted. A run where that is
-    never true has a carried reference contributing nothing, including the four
+    was one of those an earlier recon pass fingerprinted. A run where that is
+    never true has a carried reference contributing nothing, including the
     abort screens the shop tripwire depends on recognising - which is worth a line
     in the report rather than silence.
     """
@@ -332,7 +332,7 @@ def describe_result_for_log(result: dict) -> str:
     if detail.get("first_sight_this_run") and detail.get("was_measured_before"):
         # Called out because it is the console's only sign that the carried map is
         # being reached at all: a run whose log never says this has matched none of
-        # the eleven measured screens, and that is worth seeing while it happens
+        # the measured screens, and that is worth seeing while it happens
         # rather than working out afterwards from which names are absent.
         line += " [first sight this run of a previously measured screen]"
     if "recovered_to" in detail:

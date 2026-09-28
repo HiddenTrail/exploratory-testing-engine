@@ -26,7 +26,7 @@ anything it was given - the same discipline `.experiments/game-ontology/` holds
 itself to, and for the same reason: a list of this game's screens written down by
 hand would let the run grade its own homework.
 
-What it *is* given is `reference.py`: eleven screens an earlier recon pass measured
+What it *is* given is `reference.py`: the screens an earlier recon pass measured
 against this same client, carried as dated fingerprints with provenance. That is a
 measurement, not a declaration, and the four things that keep it one are argued in
 `reference.py`'s docstring. The reason it is worth having is in the next section.
@@ -62,9 +62,9 @@ from pathlib import Path
 from engine.adapters.clash_royale import reference
 from engine.adapters.clash_royale.actions import BY_NAME, RECOVERY, Unsafe, preflight
 
-# The harness and the readers live in .experiments/, which the engine README calls
-# an untouched historical archive. Importing across that line rather than porting
-# 1,600 lines of Win32 window handling is a debt, taken knowingly: the controller
+# The harness and the readers live in .experiments/, which is mostly an archive,
+# though the engine README lists these folders as maintained exceptions (see #48).
+# Importing across that line rather than porting about 1,800 lines of Win32 window handling is a debt, taken knowingly: the controller
 # is the part of this that has been hardened against a real client - a silently
 # frozen window, a Chrome tab with the same title, a resize between sessions - and
 # a fresh copy would be a fresh copy of none of that.
@@ -264,8 +264,8 @@ class Session:
             )
 
         # Somewhere neither this run nor the carried pass has been. Named for what
-        # that means rather than by position: `unknown-1` says the eleven measured
-        # screens did not match, which is a more useful thing for a log to say than
+        # that means rather than by position: `unknown-1` says none of the measured
+        # screens matched, which is a more useful thing for a log to say than
         # `screen-12`. Registered as its own candidate so a second visit recognises
         # it, but never merged into the carried screen it came closest to - letting
         # a near-match absorb frames is how a stored fingerprint drifts into
