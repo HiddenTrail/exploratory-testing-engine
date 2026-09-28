@@ -560,3 +560,21 @@ def test_the_model_s_answer_is_not_changed_in_place():
     original = {"items": '[{"tags": ["a"]}]'}
     unstring_json_fields(original, _LIST_TOOL["input_schema"])
     assert original == {"items": '[{"tags": ["a"]}]'}
+
+
+def test_a_rejected_answer_is_logged_raw_with_its_stop_reason(capsys):
+    # Issue #95: the validator's errors alone can't tell whether the model put a
+    # field somewhere else or stopped early. The raw answer can.
+    client = _FakeClient([
+        _FakeMessage([_FakeToolUse("id1", {"summary": "s", "behaviors": []})], stop_reason="tool_use"),
+        _FakeMessage([_FakeToolUse("id2", {"ok": True})]),
+    ])
+
+    call_tool_with_retry(
+        client, model="m", system="s", tools=[{"name": "t"}], tool_name="t", user_message="u",
+        validate_fn=lambda d: [] if d.get("ok") else ["missing required field 'observations'"], max_tokens=10,
+    )
+
+    out = capsys.readouterr().out
+    assert 'attempt 1 raw answer (stop_reason=tool_use, ' in out
+    assert '{"summary": "s", "behaviors": []}' in out

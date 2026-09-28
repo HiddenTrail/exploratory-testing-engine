@@ -149,6 +149,10 @@ def _cacheable_content(cached_segments: list[str], user_message: str) -> list[di
     return content
 
 
+# How much of a rejected answer the run log shows.
+_RAW_ANSWER_LOG_CHARS = 1500
+
+
 def unstring_json_fields(value, schema, path: str = "") -> tuple[object, list[str]]:
     """The model sometimes sends a list or object field as JSON *text*
     ('"observations": "[{...}]"'), which the validator rejects and which cost a
@@ -320,6 +324,12 @@ def call_tool_with_retry(
         # whole attempt budget buys three identical failures. The actionable correction
         # is not "be correct", it is "be shorter", so say which one this is.
         truncated = message.stop_reason == "max_tokens"
+        # The validator's complaint alone can't tell "the model put the field somewhere
+        # else" from "the model stopped early" (issue #95). The raw answer can, so it
+        # goes into the run log, cut short to keep the log readable.
+        raw = json.dumps(tool_use.input, ensure_ascii=False)
+        print(f"  attempt {attempt} raw answer (stop_reason={message.stop_reason}, {len(raw)} chars): "
+              f"{raw[:_RAW_ANSWER_LOG_CHARS]}{' ...' if len(raw) > _RAW_ANSWER_LOG_CHARS else ''}")
         last_errors = ([f"reply was cut off at max_tokens={max_tokens}: " + "; ".join(errors)]
                        if truncated else errors)
         if truncated:

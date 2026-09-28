@@ -97,8 +97,10 @@ HYPOTHESIS_TOOL = {
                         "continues": {
                             "type": "string",
                             "description": (
-                                "The id of an earlier observation this one refines or repeats, for example "
-                                "'C1.O2'. Empty if it's new."
+                                "The id of an observation from 'earlier_observations' that this one refines "
+                                "or repeats, for example 'C1.O2'. Empty if it's new, and always empty on the "
+                                "first checkpoint. Never an observation in this same answer: those get their "
+                                "ids only after you submit."
                             ),
                         },
                         "claim": {"type": "string", "description": _limit("observation.claim")},
@@ -194,6 +196,9 @@ Pick the most cautious kind the evidence supports. A claim seen once can't be a 
 
 Your evidence may include 'earlier_observations': what earlier checkpoints found, with ids like 'C1.O2'.
 If a new observation refines or repeats one of them, put that id in 'continues' instead of starting over.
+'continues' only ever takes an id from 'earlier_observations', so it is always empty on the first
+checkpoint. The observations in this answer don't have ids yet. Fill in every field of the answer,
+including observations, untested and prior_gaps, even when some are empty lists.
 
 One rival explanation is always available and is the easiest to skip past: THE INPUT WAS NEVER ACCEPTED.
 Before claiming that something did nothing, or did the wrong thing, ask whether it was processed at all -
