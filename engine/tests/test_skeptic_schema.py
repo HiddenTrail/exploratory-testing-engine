@@ -97,7 +97,8 @@ def test_the_skeptic_can_lower_a_kind_and_the_driver_s_is_kept():
         {"observation_id": "C1.O2", "kind": "anomaly"},
     ]}
     reconcile_kinds(hypothesis, review)
-    assert hypothesis["observations"][0] == {"id": "C1.O1", "kind": "anomaly", "driver_kind": "bug"}
+    assert hypothesis["observations"][0] == {"id": "C1.O1", "kind": "anomaly", "driver_kind": "bug",
+                                            "lowered_because": "the Skeptic judged it more cautiously"}
     assert hypothesis["observations"][1] == {"id": "C1.O2", "kind": "anomaly"}
 
 

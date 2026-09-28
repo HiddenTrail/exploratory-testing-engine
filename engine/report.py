@@ -131,7 +131,9 @@ def _check_badge(check) -> str:
 def _lowered_label(observation) -> str:
     if "driver_kind" not in observation:
         return ""
-    return f' <span class="prose-muted">(the Driver said {esc(observation["driver_kind"])}, the Skeptic lowered it)</span>'
+    reason = observation.get("lowered_because", "")
+    return (f' <span class="prose-muted">(the Driver said {esc(observation["driver_kind"])}, '
+            f'lowered because {esc(reason)})</span>')
 
 
 def _observation_line(observation, check) -> str:

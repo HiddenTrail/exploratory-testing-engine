@@ -25,6 +25,7 @@ from engine.tools import (
     HYPOTHESIS_TOOL,
     SKEPTIC_SYSTEM_PROMPT,
     SKEPTIC_TOOL,
+    lower_unsupported_bugs,
     reconcile_kinds,
     stamp_gap_ids,
     stamp_observation_ids,
@@ -329,6 +330,7 @@ def run_checkpoint_loop(
             earlier_observations=list(earlier_observations),
         )
         # Ids go on before the Skeptic sees the hypothesis, so its review can name them.
+        lower_unsupported_bugs(hypothesis)
         stamp_observation_ids(checkpoint_num, hypothesis)
         earlier_observations.extend(hypothesis["observations"])
         print(f"  summary: {hypothesis['summary']}")
@@ -344,7 +346,7 @@ def run_checkpoint_loop(
         print(f"  skeptic verdict: {skeptic_review['verdict']} - {skeptic_review['verdict_reason']}")
         for o in hypothesis["observations"]:
             if "driver_kind" in o:
-                print(f"  {o['id']} lowered from {o['driver_kind']} to {o['kind']} by the Skeptic")
+                print(f"  {o['id']} lowered from {o['driver_kind']} to {o['kind']}: {o['lowered_because']}")
 
         checkpoints.append({
             "checkpoint": checkpoint_num,

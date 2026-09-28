@@ -304,12 +304,8 @@ def _observation_errors(i: int, o: dict, known_observation_ids) -> list[str]:
     if reproduced not in REPRODUCED:
         errors.append(f"{where}.reproduced must be one of {', '.join(REPRODUCED)}")
     _check_text(errors, f"{where}.violates", o.get("violates"), "observation.violates", required=False)
-    if kind == "bug":
-        if isinstance(o.get("violates"), str) and not o["violates"].strip():
-            errors.append(f"{where} is a bug, so 'violates' must say which known fact it contradicts")
-        if reproduced in REPRODUCED and reproduced != "consistent":
-            errors.append(f"{where} is a bug, but reproduced is '{reproduced}': a bug must reproduce consistently "
-                          "(call it an anomaly or a finding instead)")
+    # A bug without a violated fact, or not reproduced consistently, isn't rejected
+    # here: lower_unsupported_bugs turns it into an anomaly without a retry.
     for field in ("mechanism", "rival", "why"):
         _check_text(errors, f"{where}.{field}", o.get(field), f"observation.{field}")
     if not isinstance(o.get("rival_ruled_out"), bool):
@@ -347,6 +343,25 @@ def _prior_gaps_errors(prior_gaps: list, open_gap_ids) -> list[str]:
     if duplicated:
         errors.append(f"'prior_gaps' answers {', '.join(duplicated)} more than once")
     return errors
+
+
+def lower_unsupported_bugs(hypothesis: dict) -> None:
+    """A bug has to name the known fact it violates and reproduce consistently.
+    One that doesn't is, by those same rules, an anomaly, so the engine lowers it
+    instead of rejecting the whole answer and paying for a retry (issue #99). The
+    Driver's kind is kept as 'driver_kind' and the reason as 'lowered_because'."""
+    for observation in hypothesis["observations"]:
+        if observation["kind"] != "bug":
+            continue
+        reasons = []
+        if not observation["violates"].strip():
+            reasons.append("it names no violated fact")
+        if observation["reproduced"] != "consistent":
+            reasons.append(f"it reproduced '{observation['reproduced']}', not consistently")
+        if reasons:
+            observation["driver_kind"] = "bug"
+            observation["kind"] = "anomaly"
+            observation["lowered_because"] = " and ".join(reasons)
 
 
 def stamp_observation_ids(checkpoint_num: int, hypothesis: dict) -> None:
@@ -722,8 +737,9 @@ def reconcile_kinds(hypothesis: dict, skeptic_review: dict) -> None:
     for observation in hypothesis["observations"]:
         skeptic_kind = skeptic_kinds.get(observation["id"])
         if skeptic_kind and _KIND_CAUTION[skeptic_kind] < _KIND_CAUTION[observation["kind"]]:
-            observation["driver_kind"] = observation["kind"]
+            observation.setdefault("driver_kind", observation["kind"])
             observation["kind"] = skeptic_kind
+            observation["lowered_because"] = "the Skeptic judged it more cautiously"
 
 
 BUG_REPORT_WORD_LIMITS = {
