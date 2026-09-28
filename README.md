@@ -264,7 +264,7 @@ python -m pytest engine/tests
 Runs on every push to `master`, every PR into `master`, and on demand, via
 [`.github/workflows/engine-tests.yml`](.github/workflows/engine-tests.yml) -
 no Anthropic API key needed, since no test makes a real LLM call. That workflow
-also compile-checks `engine/` and runs `clash-royale-kit`'s tests, which are cross-platform on purpose:
+also compile-checks `engine/`, runs web-recon's tests (the web_gui adapter loads it), and runs `clash-royale-kit`'s tests, which are cross-platform on purpose:
 the kit drives a Windows client, but its decisions live in modules that import
 no Win32, and the ones that do keep those imports function-local so a stub can
 be put under the name. What that buys is having the assertions that matter -

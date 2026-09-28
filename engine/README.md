@@ -178,7 +178,7 @@ python -m pytest engine/tests
 Runs on every push to `master`, every PR into `master`, and on demand, via
 `.github/workflows/engine-tests.yml` - no Anthropic API key needed, since no
 test makes a real LLM call. The same workflow compile-checks `engine/` and
-runs the `clash-royale-kit` tests.
+runs the `clash-royale-kit` and `.experiments/web-recon` tests.
 
 Most tests (`test_sut_regression.py`, `test_client_retry.py`, the
 `*_parity.py` files) run in-process against the mock SUT via FastAPI's

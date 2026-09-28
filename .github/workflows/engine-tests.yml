@@ -37,3 +37,15 @@ jobs:
       # is scored, and that --allow-battle is never constructed.
       - name: Run Clash Royale kit test suite
         run: python -m pytest clash-royale-kit -v
+
+      # web-recon is loaded by the web_gui adapter at run time, so a break in it
+      # breaks the engine. Its suite ran nowhere, and a one-line bug that dropped
+      # every LLM-nominated control went unnoticed for two weeks (#83). The tests
+      # fake the browser page, so only the Playwright package is needed, not the
+      # browsers.
+      - name: Install web-recon test dependencies
+        run: pip install -r .experiments/web-recon/requirements.txt
+
+      - name: Run web-recon test suite
+        working-directory: .experiments/web-recon
+        run: python -m pytest tests -v
