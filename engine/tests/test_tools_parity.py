@@ -77,16 +77,21 @@ def test_casting_tool_schema_matches(original):
     # docs/ontology-todo.md's former "known gap: claim matching is
     # exact-string only". Stripping it back out should make the schemas
     # identical again, proving that's the only change.
+    # A second one (issue #96): the round's reasoning is limited to a few words, so
+    # its description is set back too.
     engine_schema = copy.deepcopy(token_purchase_adapter.CASTING_TOOL)
+    engine_schema["input_schema"]["properties"]["reasoning"] = original.CASTING_TOOL["input_schema"]["properties"]["reasoning"]
     items = engine_schema["input_schema"]["properties"]["candidate_tests"]["items"]
     del items["properties"]["oracle_claim_id"]
     items["required"].remove("oracle_claim_id")
     assert engine_schema == original.CASTING_TOOL
 
 
-def test_casting_system_prompt_matches(original):
-    for budget, is_first in ((12, True), (8, False)):
-        assert token_purchase_adapter.casting_system_prompt(budget, is_first) == original.casting_system_prompt(budget, is_first)
+def test_first_round_casting_prompt_matches(original):
+    # Only the first round still matches: later rounds describe the structured
+    # feedback of issue #41 through the shared PRIOR_FEEDBACK_GUIDE (issue #96).
+    assert token_purchase_adapter.casting_system_prompt(12, True) == original.casting_system_prompt(12, True)
+    assert engine_tools.PRIOR_FEEDBACK_GUIDE in token_purchase_adapter.casting_system_prompt(8, False)
 
 
 def test_known_accounts_and_schema_doc_match(original):
