@@ -12,11 +12,14 @@ from schema import Evidence, Ontology, State  # noqa: E402
 
 
 class _FakeLocator:
-    def __init__(self, count, href=""):
-        self._count, self._href = count, href
+    def __init__(self, count, href="", enabled=True):
+        self._count, self._href, self._enabled = count, href, enabled
 
     def count(self):
         return self._count
+
+    def is_enabled(self):
+        return self._enabled
 
     def get_attribute(self, name, timeout=None):
         return self._href
@@ -28,8 +31,8 @@ class _FakePage:
         self._table = table
 
     def get_by_role(self, role, name, exact=False):
-        count, href = self._table.get((role, name), (0, ""))
-        return _FakeLocator(count, href)
+        count, href, *enabled = self._table.get((role, name), (0, ""))
+        return _FakeLocator(count, href, *enabled)
 
 
 def _crawler(page, proposer=None):
@@ -97,6 +100,7 @@ def test_resolve_candidate_requires_a_unique_match():
         ("button", "Menu"): (1, ""),
         ("button", "Two"): (2, ""),   # ambiguous -> dropped
         ("link", "Home"): (1, "/home"),
+        ("button", "Save"): (1, "", False),  # disabled -> dropped
     })
     c = _crawler(page)
     assert c._resolve_candidate({"role": "button", "name": "Menu"})["locator"] == 'role=button[name="Menu"]'
@@ -105,6 +109,7 @@ def test_resolve_candidate_requires_a_unique_match():
     assert c._resolve_candidate({"role": "slider", "name": "Menu"}) is None     # not locatable
     assert c._resolve_candidate({"role": "button", "name": 'a"b'}) is None      # quote in name
     assert c._resolve_candidate({"role": "link", "name": "Home"})["href"] == "/home"
+    assert c._resolve_candidate({"role": "button", "name": "Save"}) is None     # disabled
 
 
 def test_llm_candidates_are_resolved_gated_and_marked():

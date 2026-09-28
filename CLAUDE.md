@@ -155,6 +155,7 @@ closed with no way to reopen it.
 pip install -r engine/requirements.txt
 python -m pytest engine/tests            # runs in CI
 python -m pytest clash-royale-kit        # runs in CI
+(cd .experiments/web-recon && python -m pytest tests)   # runs in CI
 python -m pytest .experiments/game-ontology .experiments/android-bot   # Windows only, run by hand
 ```
 
