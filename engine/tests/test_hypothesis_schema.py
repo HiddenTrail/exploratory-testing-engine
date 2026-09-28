@@ -6,6 +6,7 @@ import copy
 
 from engine.tools import (
     HYPOTHESIS_TOOL,
+    lower_unsupported_bugs,
     stamp_gap_ids,
     stamp_observation_ids,
     validate_hypothesis_response,
@@ -53,15 +54,21 @@ def test_every_top_level_field_is_required():
         assert f"missing required field '{key}'" in validate_hypothesis_response(data)
 
 
-def test_a_bug_must_say_which_fact_it_violates():
-    errors = validate_hypothesis_response(_with_observation(violates=""))
-    assert any("'violates' must say which known fact" in e for e in errors)
+def test_an_unsupported_bug_is_accepted_and_then_lowered_to_an_anomaly():
+    # Issue #99: rejecting it cost a whole retry, and by the rules it is an anomaly.
+    for changes, reason in (({"violates": ""}, "it names no violated fact"),
+                            ({"reproduced": "once"}, "it reproduced 'once', not consistently")):
+        data = _with_observation(**changes)
+        assert validate_hypothesis_response(data) == []
+        lower_unsupported_bugs(data)
+        observation = data["observations"][0]
+        assert (observation["kind"], observation["driver_kind"], observation["lowered_because"]) == ("anomaly", "bug", reason)
 
 
-def test_a_bug_must_reproduce_consistently():
-    for reproduced in ("once", "inconsistent"):
-        errors = validate_hypothesis_response(_with_observation(reproduced=reproduced))
-        assert any("must reproduce consistently" in e for e in errors), reproduced
+def test_a_supported_bug_stays_a_bug():
+    data = _hypothesis()
+    lower_unsupported_bugs(data)
+    assert data["observations"][0]["kind"] == "bug" and "driver_kind" not in data["observations"][0]
 
 
 def test_an_anomaly_or_finding_needs_no_violated_fact():

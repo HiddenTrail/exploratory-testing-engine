@@ -13,7 +13,7 @@ _ENTRY = {
         "summary": "SUMMARY-TEXT",
         "behaviors": [{"claim": "BEHAVIOR-TEXT", "tests": [2]}],
         "observations": [{
-            "id": "C2.O1", "kind": "anomaly", "driver_kind": "bug", "severity": "high", "claim": "CLAIM-TEXT",
+            "id": "C2.O1", "kind": "anomaly", "driver_kind": "bug", "lowered_because": "LOWERED-REASON", "severity": "high", "claim": "CLAIM-TEXT",
             "tests": [1, 4], "violates": "VIOLATES-TEXT", "reproduced": "consistent",
             "mechanism": "MECHANISM-TEXT", "rival": "RIVAL-TEXT", "rival_ruled_out": False, "why": "WHY-TEXT",
         }],
@@ -43,7 +43,7 @@ def _render():
 def test_the_conclusion_is_visible():
     _, visible = _render()
     for text in ("SUMMARY-TEXT", "VERDICT-REASON", "C2.O1", "CLAIM-TEXT", "doesn't discriminate",
-                 "the Skeptic lowered it", "C2.G1", "GAP-TEXT", "NEXT-TEST", "blocks verdict"):
+                 "lowered because LOWERED-REASON", "C2.G1", "GAP-TEXT", "NEXT-TEST", "blocks verdict"):
         assert text in visible, text
     assert "Prior gaps: 1 tested, 1 not attempted. The Skeptic accepted 1 of 2 answers." in visible
 
