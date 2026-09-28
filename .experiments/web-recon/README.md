@@ -43,9 +43,6 @@ tight budget), and a no-op gesture is never mis-reported as a "dead control".
 
 ### The model as a proposer (`crawl --llm`, off by default)
 
-> **Currently broken:** `crawl.py` drops every nominated control before it's resolved,
-> because a line went missing in an autofix. See issue #83.
-
 The optional half of a **driver/skeptic** loop, and it keeps the creed — *the model
 proposes, the deterministic core disposes*. With `--llm`, each newly-discovered state's
 DOM controls are supplemented by controls the **model nominates** (an icon-only button, a
