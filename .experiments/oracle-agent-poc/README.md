@@ -75,10 +75,10 @@ regenerated) is now committed at
 [`engine/adapters/token_purchase/oracle_library.json`](../../engine/adapters/token_purchase/oracle_library.json)
 and merged into the real `token_purchase` adapter's `onboarding_extra` -
 see [`adapter.py`](../../engine/adapters/token_purchase/adapter.py). The adapter
-now also passes a ranked top-15 slice built by `engine/ontology/oracle_creator.py`
-(`oracle_ranked`), and the full library stays in `onboarding_extra` for the report
-exhibit. The Driver sees it as ordinary evidence alongside the schema and known
-accounts, and it renders as its own "Oracle library" exhibit in the HTML
+now passes only a ranked top-15 slice built from it by `engine/ontology/oracle_creator.py`
+(`oracle_ranked`); since #105 the full library is no longer sent to the Driver or shown
+in the report. Before that, the Driver saw it as ordinary evidence alongside the schema and known
+accounts, and it rendered as its own "Oracle library" exhibit in the HTML
 report. A real live run confirmed the effect isn't just cosmetic: given
 the library, the Driver's first-round reasoning explicitly cited the
 `expired_card` vs. `expiry_mismatch` distinction the library's `function`
