@@ -63,12 +63,12 @@ they were keyed by claim text under the old, non-functional scheme.
    `complex_sut` run that took the visible report from about 2,000 words per
    checkpoint to about 200. Still open: the casting round's long reasoning
    (#64, #70).
-3. **Prioritization ablation** (#42, still open from before Phase 0 started) — hasn't
-   been run: unranked vs. ranked claim order at a fixed test budget, to
-   measure whether ranking actually improves what gets found. Cheap to run,
-   reuses the existing paired-trial methodology from
-   `.experiments/token-purchase-oracle-value/` and
-   `.experiments/ecoestate-notes-oracle-value/`.
+3. **Prioritization ablation** (#42, first check done 2026-09-29). Two short token_purchase runs
+   with the ranked oracle and two without (`TOKEN_PURCHASE_ORACLE=off`): with it, both runs raised
+   both known behaviours and one anomaly came out corroborated; without it, one run raised one and
+   the other none. The oracle version cost a little more ($0.23 to $0.31 against $0.18 to $0.20),
+   because its list is part of the evidence. Two runs per arm is a signal, not proof: repeat with
+   more runs, or on a second SUT, before relying on the size of the effect.
 
 ## Not yet in scope
 

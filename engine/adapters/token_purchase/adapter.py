@@ -6,6 +6,8 @@ and the onboarding section).
 """
 
 
+import os
+
 from engine import outcome
 from engine.adapter import SUTAdapter
 from engine.tools import CASTING_REASONING_DESCRIPTION, PRIOR_FEEDBACK_GUIDE, casting_envelope_errors
@@ -78,6 +80,11 @@ HAPPY_DAY_REQUEST = {**KNOWN_ACCOUNTS[0], "credit_count": 10}
 # because it was mostly the same information and doubled the evidence.
 ORACLE_RANKED_TOP_N = 15
 ORACLE_RANKED = build_ranked_ideas("token_purchase")["ranked_ideas"][:ORACLE_RANKED_TOP_N]
+
+# TOKEN_PURCHASE_ORACLE=off leaves the oracle out of the Driver's evidence
+# entirely, for measuring what the oracle is worth (issue #42): the same run with
+# and without it. Any other value, or unset, keeps it.
+ORACLE_ENABLED = os.environ.get("TOKEN_PURCHASE_ORACLE", "").strip().lower() != "off"
 
 
 def execute_test(test: dict, test_number: int) -> dict:
@@ -406,7 +413,7 @@ ADAPTER = SUTAdapter(
     base_url=BASE_URL,
     test_endpoint_path=TEST_ENDPOINT_PATH,
     api_schema_doc=API_SCHEMA_DOC,
-    onboarding_extra={"known_accounts": KNOWN_ACCOUNTS, "oracle_ranked": ORACLE_RANKED},
+    onboarding_extra={"known_accounts": KNOWN_ACCOUNTS, **({"oracle_ranked": ORACLE_RANKED} if ORACLE_ENABLED else {})},
     happy_day_request=HAPPY_DAY_REQUEST,
     casting_tool_schema=CASTING_TOOL,
     casting_system_prompt=casting_system_prompt,
