@@ -5,8 +5,6 @@ prompt, execute_test, onboarding data, report rendering for one test entry
 and the onboarding section).
 """
 
-import json
-from pathlib import Path
 
 from engine import outcome
 from engine.adapter import SUTAdapter
@@ -73,16 +71,11 @@ KNOWN_ACCOUNTS = [
 
 HAPPY_DAY_REQUEST = {**KNOWN_ACCOUNTS[0], "credit_count": 10}
 
-# A one-time snapshot from the Oracle Agent PoC (.experiments/oracle-agent-poc),
-# a heuristic pass over this SUT's spec.md - not regenerated per run. Merged
-# into onboarding_extra so the Driver sees it as ordinary evidence, same as
-# known_accounts.
-ORACLE_LIBRARY = json.loads((Path(__file__).parent / "oracle_library.json").read_text(encoding="utf-8"))
-
-# Layer 4 of the ontology stack (engine/ontology): the same domain claims above,
-# plus generic heuristic probes, re-scored and ranked using yesterday's context
-# (test results, jira). Top slice only - this is what the Driver actually sees;
-# ORACLE_LIBRARY stays available above for the report's full-library exhibit.
+# Layer 4 of the ontology stack (engine/ontology): domain claims plus generic
+# heuristic probes, re-scored and ranked using what context says (test results,
+# jira). Top slice only, and this is all the Driver gets of the oracle: the full,
+# unranked library the ranking is built from is no longer sent alongside it,
+# because it was mostly the same information and doubled the evidence.
 ORACLE_RANKED_TOP_N = 15
 ORACLE_RANKED = build_ranked_ideas("token_purchase")["ranked_ideas"][:ORACLE_RANKED_TOP_N]
 
@@ -361,40 +354,6 @@ def render_test_entry(entry) -> str:
     """
 
 
-def _render_oracle_library(oracle_library: dict | None) -> str:
-    if not oracle_library:
-        return ""
-
-    modeled_html = ""
-    for key, entry in oracle_library.get("modeled", {}).items():
-        vectors_html = "".join(
-            f"""<li><strong>{esc(v['claim'])}</strong><div class="prose-muted">{inline_markdown(v['rationale'])}</div></li>"""
-            for v in entry.get("vectors", [])
-        )
-        modeled_html += f"""
-        <div class="oracle-heuristic">
-          <h4>{esc(key)} {bool_badge(entry.get('applies'), 'applies', 'does not apply')}</h4>
-          <p class="prose-muted">{inline_markdown(entry.get('reasoning', ''))}</p>
-          <ul class="vector-list">{vectors_html}</ul>
-        </div>
-        """
-
-    not_modeled = oracle_library.get("not_modeled", {})
-    not_modeled_html = "".join(f"<li>{esc(dim)}</li>" for dim in not_modeled)
-
-    return f"""
-    <div class="exhibit">
-      <h3>Oracle library (full, unranked)</h3>
-      <p class="prose-muted">A one-time heuristic pass over this SUT's spec, produced by the
-        Oracle Agent PoC - not testing, just context handed to the Driver alongside the schema
-        and known accounts.</p>
-      {modeled_html}
-      <p class="eyebrow">Not modeled in this pass</p>
-      <ul class="prose-muted">{not_modeled_html}</ul>
-    </div>
-    """
-
-
 def _render_oracle_ranked(ranked_ideas: list[dict]) -> str:
     if not ranked_ideas:
         return ""
@@ -403,14 +362,15 @@ def _render_oracle_ranked(ranked_ideas: list[dict]) -> str:
             {esc(idea['claim'])}<div class="prose-muted">{inline_markdown(idea['rationale'])}</div></li>"""
         for idea in ranked_ideas
     )
+    # Folded: it's background the Driver was given, not a result, and it runs to
+    # thousands of words, so it shouldn't push the checkpoints down the page.
     return f"""
-    <div class="exhibit">
-      <h3>Prioritized oracle (top {len(ranked_ideas)})</h3>
+    <details class="fold exhibit">
+      <summary>Prioritized oracle given to the Driver (top {len(ranked_ideas)})</summary>
       <p class="prose-muted">Layer 4 of the ontology stack (engine/ontology) - domain claims and
-        generic heuristic probes, re-ranked by what context/test-history says about each one.
-        Test these first.</p>
+        generic heuristic probes, re-ranked by what context/test-history says about each one.</p>
       <ul class="vector-list">{rows}</ul>
-    </div>
+    </details>
     """
 
 
@@ -437,7 +397,6 @@ def render_onboarding_section(api_schema, onboarding_extra, happy_day_example) -
       {render_json_block(happy_response.get('body', {}))}
     </div>
     {_render_oracle_ranked(onboarding_extra.get('oracle_ranked'))}
-    {_render_oracle_library(onboarding_extra.get('oracle_library'))}
     """
 
 
@@ -447,7 +406,7 @@ ADAPTER = SUTAdapter(
     base_url=BASE_URL,
     test_endpoint_path=TEST_ENDPOINT_PATH,
     api_schema_doc=API_SCHEMA_DOC,
-    onboarding_extra={"known_accounts": KNOWN_ACCOUNTS, "oracle_library": ORACLE_LIBRARY, "oracle_ranked": ORACLE_RANKED},
+    onboarding_extra={"known_accounts": KNOWN_ACCOUNTS, "oracle_ranked": ORACLE_RANKED},
     happy_day_request=HAPPY_DAY_REQUEST,
     casting_tool_schema=CASTING_TOOL,
     casting_system_prompt=casting_system_prompt,
