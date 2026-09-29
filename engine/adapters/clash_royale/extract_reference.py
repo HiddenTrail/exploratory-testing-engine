@@ -45,7 +45,7 @@ OUT_PATH = HERE / "known_screens.json"
 GRID_COLS, GRID_ROWS = 32, 18
 
 # What each screen in the carried pass is, and whether a meta-game-only run may be
-# on it. Written out by hand after reading all eleven names and purposes, because
+# on it. Written out by hand after reading every name and purpose, because
 # this is a safety classification and a keyword match on a screen title is not one.
 #
 #   "ok"    - an ordinary meta-game screen. Named, explored, recovered from normally.
