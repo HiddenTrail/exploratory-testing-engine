@@ -63,12 +63,13 @@ they were keyed by claim text under the old, non-functional scheme.
    `complex_sut` run that took the visible report from about 2,000 words per
    checkpoint to about 200. Still open: the casting round's long reasoning
    (#64, #70).
-3. **Prioritization ablation** (#42, first check done 2026-09-29). Two short token_purchase runs
-   with the ranked oracle and two without (`TOKEN_PURCHASE_ORACLE=off`): with it, both runs raised
-   both known behaviours and one anomaly came out corroborated; without it, one run raised one and
-   the other none. The oracle version cost a little more ($0.23 to $0.31 against $0.18 to $0.20),
-   because its list is part of the evidence. Two runs per arm is a signal, not proof: repeat with
-   more runs, or on a second SUT, before relying on the size of the effect.
+3. **Prioritization ablation** (#42, #111, done 2026-09-29). With rules set before running, on
+   token_purchase (`TOKEN_PURCHASE_ORACLE=off` for the runs without it): with 3 checkpoints, the
+   Driver found both known behaviours in every run with or without the ranked oracle. With 1
+   checkpoint, it found both in 3 of 3 runs with the oracle and 0 of 3 without. So the oracle
+   makes the Driver find what it lists **faster**, not find more: it saves checkpoints (about
+   $0.12 to $0.16 each) for about $0.03 to $0.08 per run. Not tested: whether it helps find
+   things it doesn't list, or on a second SUT.
 
 ## Not yet in scope
 
