@@ -181,8 +181,14 @@ less reliable numbers are better than using up the quota and not testing at all.
 
 ```
 python -m engine.cli --adapter <sut> --out-dir runs/<name>/<sut>_<n> \
-  --max-checkpoints 2 --first-round-budget 6 --default-budget 4
+  --max-checkpoints 3 --first-round-budget 10 --default-budget 6
 ```
+
+A run costs about $0.50 at these settings. Checkpoints are the expensive part
+(each is three model calls, about $0.12 to $0.16), and tests are cheap (about
+half a cent each), so raise test budgets before adding checkpoints. A run the
+Skeptic is satisfied with stops early. Runs made before 2026-09-29 used 2
+checkpoints and 6/4 tests, so don't compare against them.
 
 - Do 2 runs each on `complex_sut` and `token_purchase`, and a third only if the
   result is close. Start each mock SUT on port 8000 first (see the README), one
@@ -191,7 +197,7 @@ python -m engine.cli --adapter <sut> --out-dir runs/<name>/<sut>_<n> \
   pays for a full new answer. Fix known retry causes before benchmarking, and
   count the retries in the run log (`attempt N produced malformed output`).
 - Run one first and check its cost from `usage_summary` in `output.json`
-  before starting the rest. A short run should cost well under $1.
+  before starting the rest. A run should cost well under $1.
 - Only compare runs made with the same settings and the same model.
 - Say what you measured and what it cost, in the PR or the issue.
 
