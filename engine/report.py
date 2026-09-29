@@ -116,6 +116,28 @@ def render_json_block(data) -> str:
     return f'<pre class="payload">{esc(json.dumps(data, ensure_ascii=False))}</pre>'
 
 
+def render_oracle_ranked(ranked_ideas: list[dict] | None) -> str:
+    """The ranked oracle an adapter gave its Driver (engine/ontology), folded, since
+    it is background rather than a result. Shared by every adapter that has one."""
+    if not ranked_ideas:
+        return ""
+    rows = "".join(
+        f"""<li><strong>#{idea['rank']} [{esc(idea['id'])}] ({idea['tier']}, score {idea['score']:.1f}, {idea['status']})</strong>
+            {esc(idea['claim'])}<div class="prose-muted">{inline_markdown(idea['rationale'])}</div></li>"""
+        for idea in ranked_ideas
+    )
+    # Folded: it's background the Driver was given, not a result, and it runs to
+    # thousands of words, so it shouldn't push the checkpoints down the page.
+    return f"""
+    <details class="fold exhibit">
+      <summary>Prioritized oracle given to the Driver (top {len(ranked_ideas)})</summary>
+      <p class="prose-muted">Layer 4 of the ontology stack (engine/ontology) - domain claims and
+        generic heuristic probes, re-ranked by what context/test-history says about each one.</p>
+      <ul class="vector-list">{rows}</ul>
+    </details>
+    """
+
+
 def _tests_label(tests) -> str:
     if not tests:
         return ""

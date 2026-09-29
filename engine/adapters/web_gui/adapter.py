@@ -26,13 +26,16 @@ pair from an enumerated map, and a pair outside it is refused before anything is
 So this run looks and navigates only; nothing it can name mutates the app.
 """
 
+import os
+
 from engine import outcome
 from engine.adapter import SUTAdapter
 from engine.tools import CASTING_REASONING_DESCRIPTION, PRIOR_FEEDBACK_GUIDE, casting_envelope_errors
 from engine.adapters.web_gui import reference as ref_mod
 from engine.adapters.web_gui import session as live_session
 from engine.adapters.web_gui.reference import PREDICTIONS
-from engine.report import badge, bool_badge, esc, inline_markdown, render_json_block
+from engine.ontology.oracle_creator import build_ranked_ideas
+from engine.report import badge, bool_badge, esc, inline_markdown, render_json_block, render_oracle_ranked
 
 
 API_SCHEMA_DOC = """A web application, explored through a browser and observed by web-recon's
@@ -185,6 +188,14 @@ def describe_result_for_log(result: dict) -> str:
     return line
 
 
+# The oracle (issue #114). web_gui has no product-specific claims yet, so
+# build_ranked_ideas gives the generic heuristics from engine/ontology/heuristics.json,
+# ranked. #111 showed a ranked oracle makes the Driver find what it lists sooner.
+# WEB_GUI_ORACLE=off leaves it out, for comparing runs with and without it.
+ORACLE_RANKED = build_ranked_ideas("web_gui")["ranked_ideas"]
+ORACLE_ENABLED = os.environ.get("WEB_GUI_ORACLE", "").strip().lower() != "off"
+
+
 CASTING_TOOL = {
     "name": "submit_casting_round",
     "description": "Propose a batch of (state, control) actions against the live web app.",
@@ -202,6 +213,14 @@ CASTING_TOOL = {
                     "type": "object",
                     "properties": {
                         "linked_hypothesis": {"type": "string"},
+                        "oracle_claim_id": {
+                            "type": "string",
+                            "description": (
+                                "If this test targets one of the ideas in 'oracle_ranked' in your evidence, "
+                                "copy its id exactly as shown there (e.g. 'heuristic:boundary_edges'). "
+                                "Otherwise an empty string. Never put a gap or observation id here."
+                            ),
+                        },
                         "state_id": {"type": "string",
                                      "description": "The state to act on - a state id from carried_map (e.g. 'st01')."},
                         "control_key": {"type": "string",
@@ -215,7 +234,7 @@ CASTING_TOOL = {
                                               "description": "What you predict happens and why, in words, including "
                                                              "whether you expect to get back."},
                     },
-                    "required": ["linked_hypothesis", "state_id", "control_key",
+                    "required": ["linked_hypothesis", "oracle_claim_id", "state_id", "control_key",
                                  "predicted_screen", "predicted_outcome"],
                 },
             },
@@ -273,7 +292,8 @@ def validate_casting_response(data) -> list[str]:
             if not isinstance(test, dict):
                 errors.append(f"candidate_tests[{i}] must be an object")
                 continue
-            for key in ("linked_hypothesis", "state_id", "control_key", "predicted_screen", "predicted_outcome"):
+            for key in ("linked_hypothesis", "oracle_claim_id", "state_id", "control_key",
+                        "predicted_screen", "predicted_outcome"):
                 if key not in test:
                     errors.append(f"candidate_tests[{i}] missing '{key}'")
                 elif not isinstance(test[key], str):
@@ -379,6 +399,7 @@ def render_onboarding_section(api_schema, onboarding_extra, happy_day_example) -
     </div>
     {map_html}
     {baseline_html}
+    {render_oracle_ranked(extra.get('oracle_ranked'))}
     <div class="exhibit">
       <h3>Happy-day example</h3>
       <p class="eyebrow">Request</p>
@@ -396,7 +417,7 @@ ADAPTER = SUTAdapter(
     # Mutable on purpose and filled by check_ready: the carried map and where the run
     # actually started are statements about the reference as loaded and the SUT as found,
     # not constants to write down here.
-    onboarding_extra={"safety_note": SAFETY_NOTE},
+    onboarding_extra={"safety_note": SAFETY_NOTE, **({"oracle_ranked": ORACLE_RANKED} if ORACLE_ENABLED else {})},
     casting_tool_schema=CASTING_TOOL,
     casting_system_prompt=casting_system_prompt,
     validate_casting_response=validate_casting_response,
