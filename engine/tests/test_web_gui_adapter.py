@@ -209,3 +209,61 @@ def test_validate_enforces_the_carried_map_when_a_session_is_live(monkeypatch):
     bad = adp.validate_casting_response({"give_up": False, "reasoning": "r",
                                          "candidate_tests": [_good_test(control_key="button:Ghost")]})
     assert any("not a (state, control) pair" in e for e in bad)
+
+
+class _SessionPage:
+    def __init__(self):
+        self.visited = []
+
+    def on(self, event, handler):
+        pass
+
+    def goto(self, url, wait_until=None):
+        self.visited.append(url)
+
+    def wait_for_load_state(self, *a, **kw):
+        pass
+
+    def wait_for_timeout(self, ms):
+        pass
+
+
+class _SessionContext:
+    def __init__(self):
+        self.page = _SessionPage()
+        self.closed = False
+
+    def new_page(self):
+        return self.page
+
+    def close(self):
+        self.closed = True
+
+
+class _SessionBrowser:
+    def __init__(self):
+        self.contexts = []
+
+    def new_context(self, viewport=None):
+        self.contexts.append(_SessionContext())
+        return self.contexts[-1]
+
+
+def test_every_restart_starts_from_a_fresh_browser_session():
+    # Issue #117: on a reused page, cookies carried over, so after Juice Shop's
+    # welcome banner was dismissed every restart landed on a different screen.
+    session = object.__new__(live_session.Session)
+    session.base_url = "http://127.0.0.1:3000"
+    session._browser = _SessionBrowser()
+    session._context = None
+    session._open_fresh_page()
+    first = session._browser.contexts[0]
+
+    session._reboot()
+    session._reboot()
+
+    contexts = session._browser.contexts
+    assert len(contexts) == 3, "a new context for the start, and one per restart"
+    assert first.closed and contexts[1].closed and not contexts[2].closed
+    assert session.page is contexts[2].page
+    assert contexts[2].page.visited == ["http://127.0.0.1:3000"]

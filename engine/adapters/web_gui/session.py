@@ -74,14 +74,14 @@ class Session:
         self.base_url = base_url
         self._pw = sync_playwright().start()
         self._browser = self._pw.chromium.launch(headless=not headed, slow_mo=300 if headed else 0)
-        self.page = self._browser.new_page(viewport={"width": 1280, "height": 900})
-        self.col = Collector().attach(self.page)
+        self._context = None
+        self._open_fresh_page()
         self.seen_signatures: set[str] = set()   # signatures first sighted this run
         self.entry_signature = ""
         atexit.register(self.close)
 
     def close(self) -> None:
-        for shut in (getattr(self, "_browser", None), getattr(self, "_pw", None)):
+        for shut in (getattr(self, "_context", None), getattr(self, "_browser", None), getattr(self, "_pw", None)):
             try:
                 (shut.close if hasattr(shut, "close") else shut.stop)()
             except Exception:
@@ -89,7 +89,25 @@ class Session:
 
     # ---- primitives ------------------------------------------------------------------
 
+    def _open_fresh_page(self) -> None:
+        """A new browser context, so no cookies, storage or cache carry over from the
+        previous one. Juice Shop, for one, remembers a dismissed welcome banner or cookie
+        message in a cookie, and on a reused page every later restart then lands on a
+        different start screen (issue #117). The Collector is re-attached, because it
+        listens on one page."""
+        old = self._context
+        self._context = self._browser.new_context(viewport={"width": 1280, "height": 900})
+        self.page = self._context.new_page()
+        self.col = Collector().attach(self.page)
+        if old is not None:
+            try:
+                old.close()
+            except Exception:
+                pass
+
     def _reboot(self) -> None:
+        """Back to the start as a first-time visitor: a fresh session, then the base URL."""
+        self._open_fresh_page()
         self.page.goto(self.base_url, wait_until="domcontentloaded")
         _settle(self.page)
 
