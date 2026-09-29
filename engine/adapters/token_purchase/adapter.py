@@ -13,7 +13,7 @@ from engine.adapter import SUTAdapter
 from engine.tools import CASTING_REASONING_DESCRIPTION, PRIOR_FEEDBACK_GUIDE, casting_envelope_errors
 from engine.http import call_sut_once, http_accepted
 from engine.ontology.oracle_creator import build_ranked_ideas
-from engine.report import badge, bool_badge, esc, inline_markdown, render_json_block
+from engine.report import badge, bool_badge, esc, inline_markdown, render_json_block, render_oracle_ranked
 from engine.util import unwrap_accidental_json_body
 
 BASE_URL = "http://127.0.0.1:8000"
@@ -361,26 +361,6 @@ def render_test_entry(entry) -> str:
     """
 
 
-def _render_oracle_ranked(ranked_ideas: list[dict]) -> str:
-    if not ranked_ideas:
-        return ""
-    rows = "".join(
-        f"""<li><strong>#{idea['rank']} [{esc(idea['id'])}] ({idea['tier']}, score {idea['score']:.1f}, {idea['status']})</strong>
-            {esc(idea['claim'])}<div class="prose-muted">{inline_markdown(idea['rationale'])}</div></li>"""
-        for idea in ranked_ideas
-    )
-    # Folded: it's background the Driver was given, not a result, and it runs to
-    # thousands of words, so it shouldn't push the checkpoints down the page.
-    return f"""
-    <details class="fold exhibit">
-      <summary>Prioritized oracle given to the Driver (top {len(ranked_ideas)})</summary>
-      <p class="prose-muted">Layer 4 of the ontology stack (engine/ontology) - domain claims and
-        generic heuristic probes, re-ranked by what context/test-history says about each one.</p>
-      <ul class="vector-list">{rows}</ul>
-    </details>
-    """
-
-
 def render_onboarding_section(api_schema, onboarding_extra, happy_day_example) -> str:
     known_accounts = onboarding_extra.get("known_accounts", [])
     happy_request = (happy_day_example or {}).get("request", {})
@@ -403,7 +383,7 @@ def render_onboarding_section(api_schema, onboarding_extra, happy_day_example) -
       <p class="eyebrow">Response</p>
       {render_json_block(happy_response.get('body', {}))}
     </div>
-    {_render_oracle_ranked(onboarding_extra.get('oracle_ranked'))}
+    {render_oracle_ranked(onboarding_extra.get('oracle_ranked'))}
     """
 
 

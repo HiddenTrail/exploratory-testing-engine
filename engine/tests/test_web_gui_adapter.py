@@ -178,7 +178,7 @@ def test_outcome_not_actuated_is_unknown_and_unaccepted():
 # ---- casting validation --------------------------------------------------------------
 
 def _good_test(**kw):
-    base = {"linked_hypothesis": "", "state_id": "st01", "control_key": "button:A",
+    base = {"linked_hypothesis": "", "oracle_claim_id": "", "state_id": "st01", "control_key": "button:A",
             "predicted_screen": "known_screen", "predicted_outcome": "goes to page 2"}
     base.update(kw)
     return base
@@ -267,3 +267,23 @@ def test_every_restart_starts_from_a_fresh_browser_session():
     assert first.closed and contexts[1].closed and not contexts[2].closed
     assert session.page is contexts[2].page
     assert contexts[2].page.visited == ["http://127.0.0.1:3000"]
+
+
+def test_the_generic_oracle_is_in_the_evidence_and_can_be_switched_off(monkeypatch):
+    # Issue #114: web_gui has no product claims yet, so its oracle is the generic
+    # heuristics, ranked. WEB_GUI_ORACLE=off leaves it out, for comparing runs.
+    import importlib
+
+    import engine.adapters.web_gui.adapter as web_adapter
+
+    monkeypatch.delenv("WEB_GUI_ORACLE", raising=False)
+    on = importlib.reload(web_adapter)
+    ids = [idea["id"] for idea in on.ADAPTER.onboarding_extra["oracle_ranked"]]
+    assert ids and all(i.startswith("heuristic:") for i in ids)
+    assert "oracle_claim_id" in on.CASTING_TOOL["input_schema"]["properties"]["candidate_tests"]["items"]["required"]
+
+    monkeypatch.setenv("WEB_GUI_ORACLE", "off")
+    off = importlib.reload(web_adapter)
+    assert "oracle_ranked" not in off.ADAPTER.onboarding_extra
+    monkeypatch.delenv("WEB_GUI_ORACLE")
+    importlib.reload(web_adapter)
