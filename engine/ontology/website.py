@@ -60,11 +60,12 @@ def _layer(title: str, count_label: str, body: str) -> str:
 
 def _render_heuristics(heuristics: list[dict]) -> str:
     rows = "".join(
-        f"<tr><td>{esc(h['id'])}</td><td>{esc(h['category'])}</td><td>{esc(h['description'])}</td><td>{h['base_weight']}</td></tr>"
+        f"<tr><td>{esc(h['id'])}</td><td>{esc(h['kind'])}</td><td>{esc(h['description'])}</td>"
+        f"<td>{esc(', '.join(h['tags']))}</td><td>{h['base_weight']}</td></tr>"
         for h in heuristics
     )
     return f"""<table>
-<thead><tr><th>Id</th><th>Category</th><th>Description</th><th>Base weight</th></tr></thead>
+<thead><tr><th>Id</th><th>Kind</th><th>Description</th><th>Tags</th><th>Base weight</th></tr></thead>
 <tbody>{rows}</tbody></table>"""
 
 

@@ -1,0 +1,132 @@
+{
+  "source": "Ten usability heuristics for user interface design by Jakob Nielsen. Descriptions are ours.",
+  "heuristics": [
+    {
+      "id": "visibility_of_status",
+      "name": "Visibility of system status",
+      "kind": "oracle",
+      "description": "The product should always show what's going on: loading, saved, failed.",
+      "apply": "After each action, check the page shows whether it's working, done or failed.",
+      "tags": [
+        "gui",
+        "usability",
+        "notification"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "match_real_world",
+      "name": "Match with the real world",
+      "kind": "oracle",
+      "description": "Words and ordering should be the user's, not the system's internal terms.",
+      "apply": "Read labels and messages for jargon, internal codes or ordering a user wouldn't expect.",
+      "tags": [
+        "gui",
+        "usability"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "user_control",
+      "name": "User control and freedom",
+      "kind": "oracle",
+      "description": "Users need a clear way out: cancel, close, undo, back.",
+      "apply": "In every dialog, form and multi-step flow, look for a way to leave without harm.",
+      "tags": [
+        "gui",
+        "usability",
+        "dialog",
+        "navigation"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "consistency_standards",
+      "name": "Consistency and standards",
+      "kind": "oracle",
+      "description": "The same thing should look and work the same everywhere, and follow platform conventions.",
+      "apply": "Compare how similar controls, words and actions behave on different pages.",
+      "tags": [
+        "gui",
+        "usability",
+        "consistency"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "error_prevention",
+      "name": "Error prevention",
+      "kind": "oracle",
+      "description": "Good design stops mistakes before they happen, for example by disabling invalid choices or confirming risky ones.",
+      "apply": "Try to make a mistake the design could have prevented, like submitting an obviously wrong value.",
+      "tags": [
+        "gui",
+        "usability",
+        "form"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "recognition_over_recall",
+      "name": "Recognition rather than recall",
+      "kind": "oracle",
+      "description": "Users shouldn't have to remember information from one screen to use on another.",
+      "apply": "Look for steps that need something the user saw earlier but can no longer see.",
+      "tags": [
+        "gui",
+        "usability"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "flexibility_efficiency",
+      "name": "Flexibility and efficiency",
+      "kind": "oracle",
+      "description": "Frequent users should have shortcuts, while new users can still find their way.",
+      "apply": "Check for shortcuts (keyboard, search, defaults) in frequent tasks.",
+      "tags": [
+        "gui",
+        "usability"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "minimalist_design",
+      "name": "Minimalist design",
+      "kind": "oracle",
+      "description": "Every extra piece of information competes with the relevant ones.",
+      "apply": "Look for pages where clutter hides the main action or information.",
+      "tags": [
+        "gui",
+        "usability"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "error_recovery",
+      "name": "Help users recover from errors",
+      "kind": "oracle",
+      "description": "Error messages should be plain, point at the problem and suggest a fix.",
+      "apply": "Cause input errors and check the message says what's wrong and how to fix it, next to the field.",
+      "tags": [
+        "gui",
+        "usability",
+        "error-handling",
+        "form"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "help_documentation",
+      "name": "Help and documentation",
+      "kind": "oracle",
+      "description": "Help should be easy to find, focused on the task and short.",
+      "apply": "Look for help where users are likely to need it, and check it matches what the product does.",
+      "tags": [
+        "gui",
+        "usability"
+      ],
+      "base_weight": 1
+    }
+  ]
+}

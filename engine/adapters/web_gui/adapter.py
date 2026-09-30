@@ -194,10 +194,16 @@ def describe_result_for_log(result: dict) -> str:
 
 
 # The oracle (issue #114). web_gui has no product-specific claims yet, so
-# build_ranked_ideas gives the generic heuristics from engine/ontology/heuristics.json,
-# ranked. #111 showed a ranked oracle makes the Driver find what it lists sooner.
-# WEB_GUI_ORACLE=off leaves it out, for comparing runs with and without it.
-ORACLE_RANKED = build_ranked_ideas("web_gui")["ranked_ideas"]
+# build_ranked_ideas gives heuristics from the library (engine/ontology/heuristics/,
+# issue #128): the ones that fit a GUI, with the ones matching WEB_GUI_FEATURES
+# (comma-separated library tags, e.g. "login,search,list-paging") ranked first,
+# capped so the prompt stays small. #111 showed a ranked oracle makes the Driver
+# find what it lists sooner. WEB_GUI_ORACLE=off leaves it out, for comparing runs.
+ORACLE_HEURISTICS_TOP_N = 15
+ORACLE_FEATURES = tuple(f.strip() for f in os.environ.get("WEB_GUI_FEATURES", "").split(",") if f.strip())
+ORACLE_RANKED = build_ranked_ideas(
+    "web_gui", surfaces=("gui",), features=ORACLE_FEATURES, heuristic_limit=ORACLE_HEURISTICS_TOP_N,
+)["ranked_ideas"]
 ORACLE_ENABLED = os.environ.get("WEB_GUI_ORACLE", "").strip().lower() != "off"
 
 

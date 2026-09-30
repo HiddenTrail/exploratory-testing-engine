@@ -12,8 +12,8 @@ The 4 layers exist as flat JSON files, wired together by
 `engine/ontology/oracle_creator.py`, rendered by `engine/ontology/website.py`,
 and the Driver has been live-run once against them end to end:
 
-1. `heuristics.json` — generic, domain-agnostic heuristic vocabulary (Goldilocks,
-   boundary edges, monetary precision, sensitive-data exposure, etc.)
+1. `heuristics/` — the heuristic library: every generic heuristic, one file per
+   source, tagged by surface, feature and quality (#128)
 2. `domain_<sut>.json` — per-SUT business/domain facts (schema, known accounts,
    business rules), extracted out of the adapter
 3. `context_<sut>.json` — test results / jira entries / risk assessments
@@ -35,8 +35,8 @@ oracle's claim text, even when it's clearly testing the same thing.
 
 Fixed by giving every domain claim a stable, deterministic id
 (`load_domain_claims` in `engine/ontology/oracle_creator.py`, e.g.
-`claim:data:03`; generic heuristics reuse their existing `heuristics.json`
-id as `heuristic:<id>`) and threading a new `oracle_claim_id` field through
+`claim:data:03`; generic heuristics reuse their library id as
+`heuristic:<id>`) and threading a new `oracle_claim_id` field through
 the casting tool schema: the Driver still writes `linked_hypothesis` as its
 own free-text theory (unchanged, still used by the report/Skeptic), but when
 a test is meant to test one of the ranked ideas shown in its evidence, it now

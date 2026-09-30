@@ -30,6 +30,7 @@ cd ../..
 export WEB_GUI_ONTOLOGY="$PWD/.experiments/web-recon/out/ontology.json"
 export WEB_GUI_URL="http://localhost:5173"   # optional; defaults to the ontology's target.url
 export WEB_GUI_HEADED=1                        # optional; headless by default
+export WEB_GUI_FEATURES="login,search,list-paging"  # optional; heuristic library tags to rank first
 python -m engine.cli --adapter web_gui
 ```
 

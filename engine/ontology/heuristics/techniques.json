@@ -1,0 +1,117 @@
+{
+  "source": "Classic test design techniques (common testing knowledge: ISTQB, Kaner, Myers). Descriptions are ours.",
+  "heuristics": [
+    {
+      "id": "equivalence_classes",
+      "name": "Equivalence classes",
+      "kind": "technique",
+      "description": "Inputs that should be handled the same way form a class; one value per class is enough to start.",
+      "apply": "Split each input into valid and invalid groups, and test one typical value from each group.",
+      "tags": [
+        "data-type",
+        "input-field"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "pairwise",
+      "name": "Pairwise combinations",
+      "kind": "technique",
+      "description": "Most bugs from combining settings need only two of them to interact, so covering every pair is efficient.",
+      "apply": "List options that can be combined, then pick tests so each pair of values appears together at least once.",
+      "tags": [
+        "compatibility",
+        "input-field",
+        "form"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "decision_table",
+      "name": "Decision table",
+      "kind": "technique",
+      "description": "Rules with several conditions are easy to get wrong for some combination of those conditions.",
+      "apply": "Write each business rule as conditions and outcomes, and test every combination of the conditions.",
+      "tags": [
+        "functionality",
+        "form"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "error_guessing",
+      "name": "Error guessing",
+      "kind": "technique",
+      "description": "Experience says where developers often slip: off-by-one, empty cases, time zones, rounding.",
+      "apply": "List the mistakes you'd expect in this kind of feature and write one test for each.",
+      "tags": [
+        "functionality",
+        "error-handling"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "error_messages",
+      "name": "Error messages",
+      "kind": "oracle",
+      "description": "An error message should say what went wrong and what to do, without technical noise or leaked internals.",
+      "apply": "Cause each error you can and read the message: is it clear, correct, and free of stack traces or internal details?",
+      "tags": [
+        "error-handling",
+        "usability",
+        "security"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "round_trip",
+      "name": "Round trip",
+      "kind": "technique",
+      "description": "Data that goes out and comes back (save and load, export and import) should come back the same.",
+      "apply": "Save or export something, load or import it again, and compare with the original field by field.",
+      "tags": [
+        "data-integrity",
+        "consistency"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "tours",
+      "name": "Touring",
+      "kind": "technique",
+      "description": "Following a theme through the product (money, landmarks, the longest path) finds areas nobody planned tests for.",
+      "apply": "Pick a theme, like everything to do with money or every screen reachable from the menu, and visit all of it.",
+      "tags": [
+        "functionality",
+        "navigation"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "permissions_matrix",
+      "name": "Permissions matrix",
+      "kind": "technique",
+      "description": "Each kind of user should see and do only what their role allows.",
+      "apply": "List roles and actions, then try each action as each role, including as a visitor who isn't logged in.",
+      "tags": [
+        "security",
+        "account",
+        "login"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "oracle_by_comparison",
+      "name": "Oracle by comparison",
+      "kind": "oracle",
+      "description": "Two ways of getting the same answer (the page and the API, two screens) should agree.",
+      "apply": "Get the same number or list two ways and compare them.",
+      "tags": [
+        "consistency",
+        "api",
+        "gui"
+      ],
+      "base_weight": 2
+    }
+  ]
+}

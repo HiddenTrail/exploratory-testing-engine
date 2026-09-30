@@ -1,0 +1,175 @@
+{
+  "source": "Web Content Accessibility Guidelines (WCAG) 2.2, grouped into checks a tester can run. Descriptions are ours.",
+  "heuristics": [
+    {
+      "id": "text_alternatives",
+      "name": "Text alternatives",
+      "kind": "oracle",
+      "description": "Images, icons and icon-only buttons need a text name for screen reader users.",
+      "apply": "Check that every image and icon button has a meaningful accessible name, not a file name or nothing.",
+      "tags": [
+        "gui",
+        "accessibility"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "keyboard_only",
+      "name": "Keyboard only",
+      "kind": "technique",
+      "description": "Everything must work without a mouse, with no place where keyboard focus gets stuck.",
+      "apply": "Do each main task using only Tab, Shift+Tab, Enter, Space, the arrow keys and Escape.",
+      "tags": [
+        "gui",
+        "accessibility"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "visible_focus",
+      "name": "Visible focus",
+      "kind": "oracle",
+      "description": "The keyboard focus should always be visible, and move in a sensible order.",
+      "apply": "Tab through each page and check you can always see where the focus is and that its order makes sense.",
+      "tags": [
+        "gui",
+        "accessibility"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "colour_contrast",
+      "name": "Colour contrast",
+      "kind": "oracle",
+      "description": "Text needs enough contrast with its background to be readable.",
+      "apply": "Check text and important icons against their background, especially greyed-out, placeholder and small text.",
+      "tags": [
+        "gui",
+        "accessibility"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "not_colour_alone",
+      "name": "Not colour alone",
+      "kind": "oracle",
+      "description": "Meaning shouldn't be carried by colour only, such as a red border for an error.",
+      "apply": "Look for states shown only by colour, and check there's also text or an icon.",
+      "tags": [
+        "gui",
+        "accessibility",
+        "form"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "form_labels",
+      "name": "Form labels",
+      "kind": "oracle",
+      "description": "Every input needs a label that stays visible and is tied to the field, not just placeholder text.",
+      "apply": "Check each field has a visible label and that its accessible name matches it.",
+      "tags": [
+        "gui",
+        "accessibility",
+        "form",
+        "input-field"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "error_identification",
+      "name": "Error identification",
+      "kind": "oracle",
+      "description": "Input errors must be described in text, next to the field, and announced to assistive technology.",
+      "apply": "Cause an input error and check the message is in text, tied to the field and not only a colour change.",
+      "tags": [
+        "gui",
+        "accessibility",
+        "form",
+        "error-handling"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "zoom_reflow",
+      "name": "Zoom and reflow",
+      "kind": "technique",
+      "description": "Pages must stay usable at 200% zoom and on a narrow screen, without horizontal scrolling.",
+      "apply": "Zoom to 200% and narrow the window to phone width, then do a main task.",
+      "tags": [
+        "gui",
+        "accessibility",
+        "compatibility"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "page_structure",
+      "name": "Page structure",
+      "kind": "oracle",
+      "description": "Headings, landmarks and a page title let assistive technology users find their way.",
+      "apply": "Check each page has a meaningful title, one main heading and headings that describe its sections.",
+      "tags": [
+        "gui",
+        "accessibility",
+        "navigation"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "dialog_focus",
+      "name": "Dialog focus",
+      "kind": "oracle",
+      "description": "When a dialog opens, focus should move into it, stay in it and return when it closes.",
+      "apply": "Open each dialog with the keyboard, tab around inside it, close it with Escape and check where the focus lands.",
+      "tags": [
+        "gui",
+        "accessibility",
+        "dialog"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "timing_adjustable",
+      "name": "Adjustable timing",
+      "kind": "oracle",
+      "description": "Time limits and moving content should be avoidable, pausable or long enough.",
+      "apply": "Look for timeouts, auto-advancing content and messages that vanish before they can be read.",
+      "tags": [
+        "gui",
+        "accessibility",
+        "time",
+        "notification",
+        "session"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "status_messages",
+      "name": "Status messages",
+      "kind": "oracle",
+      "description": "Messages that appear without a page change (saved, added to cart) should be announced to screen readers.",
+      "apply": "Trigger a status message and check it's in a live region or otherwise exposed to assistive technology.",
+      "tags": [
+        "gui",
+        "accessibility",
+        "notification"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "language_of_page",
+      "name": "Language of the page",
+      "kind": "oracle",
+      "description": "The page should declare its language, and switch it when the user changes language.",
+      "apply": "Check the page's lang attribute, then change the language and check it again.",
+      "tags": [
+        "gui",
+        "accessibility",
+        "localization",
+        "i18n"
+      ],
+      "base_weight": 1
+    }
+  ]
+}

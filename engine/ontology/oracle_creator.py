@@ -1,12 +1,16 @@
 """Layer 4: Oracle-creation job.
 
 Reads the three upstream layers -
-  1. heuristics.json         - generic, domain-agnostic heuristic vocabulary
+  1. heuristics/             - the heuristic library: every generic heuristic,
+                               tagged by surface, feature and quality (issue #128)
   2. adapters/<sut>/oracle_library.json - per-SUT domain-grounded claims
   3. context_<sut>.json      - test results / jira / risk assessments
 - and produces one ranked list of test ideas: domain-grounded claims first
 (scored up/down by what context says about them), generic heuristic probes
-after (always available as a lower-priority fallback set).
+after (always available as a lower-priority fallback set). The library is far
+bigger than any prompt should carry, so only the heuristics that fit the SUT's
+surface are kept, those matching its features rank higher, and the caller can
+cap how many it takes.
 
 This is intentionally flat-file and dependency-free (no DB, no service) -
 Phase 0 is about proving the ranking loop works, not about infrastructure.
@@ -23,6 +27,7 @@ from typing import Any
 
 ONTOLOGY_DIR = Path(__file__).parent
 ADAPTERS_DIR = ONTOLOGY_DIR.parent / "adapters"
+HEURISTICS_DIR = ONTOLOGY_DIR / "heuristics"
 
 # Score deltas applied to a grounded claim's base score depending on what
 # context (yesterday's results + jira) says about it.
@@ -31,11 +36,54 @@ CONFIRMED_STALE_PENALTY = -2.0
 REFUTED_BONUS = 4.0
 JIRA_MATCH_BONUS = 3.0
 GROUNDED_BASE_SCORE = 5.0
+# A heuristic tagged with one of the SUT's features. Base weights are 1 to 3, so
+# even with this a heuristic stays below every grounded claim.
+FEATURE_MATCH_BONUS = 1.0
+# A heuristic written for the SUT's surface (tagged "gui" for a GUI SUT) beats an
+# equally weighted one that fits any surface. Without it a GUI run's top slice was
+# all field-level checks, and ones like overlay_blocking never made the cut.
+SURFACE_MATCH_BONUS = 0.5
+
+
+def load_vocabulary() -> dict[str, Any]:
+    return json.loads((HEURISTICS_DIR / "vocabulary.json").read_text(encoding="utf-8"))
 
 
 def load_heuristics() -> list[dict[str, Any]]:
-    data = json.loads((ONTOLOGY_DIR / "heuristics.json").read_text(encoding="utf-8"))
-    return data["heuristics"]
+    """Every heuristic in the library, in file order, each with the source of the
+    file it came from. One file per source (HTSM, Hendrickson, WCAG, ...)."""
+    heuristics = []
+    for path in sorted(HEURISTICS_DIR.glob("*.json")):
+        if path.name == "vocabulary.json":
+            continue
+        data = json.loads(path.read_text(encoding="utf-8"))
+        heuristics.extend({**h, "source": data["source"]} for h in data["heuristics"])
+    return heuristics
+
+
+def select_heuristics(heuristics: list[dict[str, Any]], surfaces=None, features=(),
+                      limit: int | None = None) -> list[tuple[dict[str, Any], float]]:
+    """The heuristics that fit a SUT, best first, as (heuristic, score) pairs.
+
+    surfaces: e.g. ("gui",). A heuristic with no surface tag fits every surface;
+    None keeps them all; one tagged with a given surface gets SURFACE_MATCH_BONUS.
+    features: e.g. ("login", "search"); a heuristic tagged with one of them gets
+    FEATURE_MATCH_BONUS. Ties keep the library's order."""
+    surface_tags = set(load_vocabulary()["tags"]["surface"])
+    features = set(features)
+    fitting = []
+    for h in heuristics:
+        own_surfaces = surface_tags & set(h["tags"])
+        if surfaces is not None and own_surfaces and not own_surfaces & set(surfaces):
+            continue
+        score = float(h["base_weight"])
+        if surfaces is not None and own_surfaces & set(surfaces):
+            score += SURFACE_MATCH_BONUS
+        if features & set(h["tags"]):
+            score += FEATURE_MATCH_BONUS
+        fitting.append((h, score))
+    fitting.sort(key=lambda pair: pair[1], reverse=True)
+    return fitting[:limit] if limit is not None else fitting
 
 
 def load_domain_claims(sut: str) -> list[dict[str, Any]]:
@@ -106,8 +154,10 @@ def score_grounded_claim(claim: dict[str, Any], context: dict[str, Any]) -> tupl
     return score, status
 
 
-def build_ranked_ideas(sut: str) -> dict[str, Any]:
-    heuristics = load_heuristics()
+def build_ranked_ideas(sut: str, surfaces=None, features=(), heuristic_limit: int | None = None) -> dict[str, Any]:
+    """surfaces, features and heuristic_limit pick the heuristics (see
+    select_heuristics). Domain claims are never filtered."""
+    heuristics = select_heuristics(load_heuristics(), surfaces, features, heuristic_limit)
     domain_claims = load_domain_claims(sut)
     context = load_context(sut)
 
@@ -126,15 +176,15 @@ def build_ranked_ideas(sut: str) -> dict[str, Any]:
             "source": "domain_oracle",
         })
 
-    for heuristic in heuristics:
+    for heuristic, score in heuristics:
         ideas.append({
             "id": f"heuristic:{heuristic['id']}",
             "tier": "generic",
-            "score": float(heuristic["base_weight"]),
+            "score": score,
             "status": "n/a",
-            "category": heuristic["category"],
+            "category": heuristic["kind"],
             "claim": heuristic["description"],
-            "rationale": f"Generic heuristic: {heuristic['id']}",
+            "rationale": f"Heuristic: {heuristic['name']}. Try: {heuristic['apply']}",
             "source": "heuristic_library",
         })
 
