@@ -12,7 +12,7 @@ import json
 
 from anthropic import Anthropic
 
-from engine import diagnostics
+from engine import coverage, diagnostics
 from engine.adapter import SUTAdapter
 from engine.client import call_tool_with_retry
 from engine.config import RunConfig
@@ -178,9 +178,11 @@ def get_checkpoint_hypothesis(
 
 def get_skeptic_review(
     client: Anthropic, run_config: RunConfig, hypothesis: dict, prior_skeptic_review: dict | None = None,
-    usage_sink: list[dict] | None = None,
+    usage_sink: list[dict] | None = None, test_coverage: dict | None = None,
 ) -> dict:
     evidence = {key: hypothesis[key] for key in ("summary", "behaviors", "observations", "untested", "prior_gaps")}
+    if test_coverage is not None:
+        evidence["test_coverage"] = test_coverage
     if prior_skeptic_review is not None:
         evidence["your_own_prior_review"] = prior_skeptic_review
     open_gap_ids = tuple(gap["id"] for gap in prior_skeptic_review["gaps"]) if prior_skeptic_review else ()
@@ -258,6 +260,8 @@ def run_checkpoint_loop(
     history_segments: list[str] = []
     # Every observation so far, in order: what a later 'continues' may point at.
     earlier_observations: list[dict] = []
+    # Every test that ran, as the Driver cast it: what engine/coverage.py summarises.
+    tests_run: list[dict] = []
 
     for checkpoint_num in range(1, run_config.max_checkpoints + 1):
         is_first_checkpoint = checkpoint_num == 1
@@ -305,6 +309,7 @@ def run_checkpoint_loop(
                 if result.get("skipped"):
                     print(f"    actual: {result_detail} - not run")
                 else:
+                    tests_run.append(test)
                     print(f"    actual: {result_detail} - prediction {'matched' if result.get('prediction_matched') else 'MISSED'}")
 
         new_entries = _redact(adapter, casting_log[entries_before:])
@@ -339,8 +344,11 @@ def run_checkpoint_loop(
         if hypothesis["prior_gaps"]:
             print(f"  prior gaps answered: {len(hypothesis['prior_gaps'])}")
 
+        test_coverage = coverage.summarize(adapter.casting_tool_schema, tests_run)
         print("Asking Skeptic for a cold review...")
-        skeptic_review = get_skeptic_review(client, run_config, hypothesis, prior_skeptic_review, usage_sink=usage_sink)
+        skeptic_review = get_skeptic_review(
+            client, run_config, hypothesis, prior_skeptic_review, usage_sink=usage_sink, test_coverage=test_coverage,
+        )
         stamp_gap_ids(checkpoint_num, skeptic_review)
         reconcile_kinds(hypothesis, skeptic_review)
         print(f"  skeptic verdict: {skeptic_review['verdict']} - {skeptic_review['verdict_reason']}")
@@ -352,6 +360,7 @@ def run_checkpoint_loop(
             "checkpoint": checkpoint_num,
             "hypothesis": hypothesis,
             "skeptic_review": skeptic_review,
+            "test_coverage": test_coverage,
             "diagnostics": diagnostics.as_dicts(findings),
         })
 

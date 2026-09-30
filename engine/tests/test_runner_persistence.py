@@ -55,7 +55,7 @@ def _skeptic_review(verdict):
 def test_output_json_written_incrementally_and_survives_a_mid_run_crash(monkeypatch, tmp_path):
     checkpoint_count = {"n": 0}
 
-    def flaky_skeptic(client, run_config, hypothesis, prior_skeptic_review=None, usage_sink=None):
+    def flaky_skeptic(client, run_config, hypothesis, prior_skeptic_review=None, usage_sink=None, test_coverage=None):
         checkpoint_count["n"] += 1
         if checkpoint_count["n"] == 2:
             raise ValueError("simulated unexpected failure mid-run")

@@ -141,6 +141,8 @@ engine/
   diagnostics.py # domain-free detectors over those envelopes - facts about the RUN rather than the SUT:
                 #   a state whose actions are all inert, a batch that didn't start from one place, a
                 #   baseline reset that stopped working, a prior that matched nothing
+  coverage.py   # what the tests have sent so far, per input field, worked out from the casting schema
+                #   and given to the Skeptic so it doesn't guess coverage from the Driver's prose
   report.py     # generic HTML rendering (prose, badges, CSS, page/checkpoint structure)
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output
   cli.py        # python -m engine.cli --adapter <name>

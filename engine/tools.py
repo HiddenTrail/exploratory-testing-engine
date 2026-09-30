@@ -478,7 +478,8 @@ SKEPTIC_TOOL = {
                 "description": (
                     "Look at the untested areas and your gaps as a SET: how many distinct, documented "
                     "behaviors or paths - not parameter variations within a path already tested - have no "
-                    "test at all?"
+                    "test at all? 'test_coverage' in your evidence is the engine's record of what the tests "
+                    "actually sent. Go by it, not by the hypothesis's wording."
                 ),
                 "properties": {
                     "material": {
@@ -490,7 +491,10 @@ SKEPTIC_TOOL = {
                     },
                     "untouched": {
                         "type": "array",
-                        "description": "The distinct behaviors or paths with no test yet.",
+                        "description": (
+                            "The distinct behaviors or paths with no test yet. Never list something "
+                            "'test_coverage' shows was sent."
+                        ),
                         "items": {"type": "string", "description": _limit("coverage.area")},
                     },
                     "note": {"type": "string", "description": f"Why that is or isn't material. {_limit('coverage.note')}"},
@@ -552,8 +556,10 @@ SKEPTIC_TOOL = {
 
 SKEPTIC_SYSTEM_PROMPT = """You are cold-reviewing a checkpoint hypothesis. You have NOT seen the raw test
 data, only the hypothesis: its summary, the behavior it confirmed, its observations (each a finding, an
-anomaly or a bug, with an id) and what's still untested. Your job is to poke holes, not confirm. Keep
-every field short: each one has a word limit.
+anomaly or a bug, with an id) and what's still untested. You also get 'test_coverage', which the engine
+works out from the test log: for each input field, the values the tests sent so far, and for a field with
+fixed choices, the ones never tried. It lists inputs, not results. Your job is to poke holes, not confirm.
+Keep every field short: each one has a word limit.
 
 Beyond "is there enough evidence," check whether it is the RIGHT KIND of evidence. A claim can cite
 several real, correctly-observed data points and still be unsupported, if those same data points would
