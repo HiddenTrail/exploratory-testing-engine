@@ -80,6 +80,10 @@ class Outcome:
     # means the adapter cannot observe the SUT's state.
     state_before: str = ""
     state_after: str = ""
+    # The state this test was cast to start from, when that is the test's own choice
+    # (web_gui replays to a named state). `""` means every test in a batch is meant to
+    # start from the same baseline, which is what batch_not_independent then checks.
+    start_intended: str = ""
 
     # Whether the adapter tried to return the SUT to its baseline after this test,
     # and whether that worked. `reset_ok is None` means it was not attempted.

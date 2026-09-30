@@ -144,13 +144,31 @@ def batch_not_independent(rows: list[dict]) -> list[Finding]:
     comparing results that are not comparable, and it has no way to know - so this
     says so rather than leaving it to be inferred from a prose recovery note.
     """
+    findings = []
+    # A test that names its own start (start_intended) is checked against that, not
+    # against its neighbours: a web_gui batch starts from several states on purpose
+    # (issue #120). Only a test that didn't begin where it was cast breaks the promise.
+    aimed = [r for r in rows if r.get("start_intended") and r.get("state_before")]
+    missed = [r for r in aimed if r["state_before"] != r["start_intended"]]
+    if missed:
+        findings.append(Finding(
+            code="batch_not_independent",
+            severity="warn",
+            headline=f"{len(missed)} test(s) didn't start from the state they were cast to start from",
+            detail=(
+                "Each of these tests named the state it should start from, and was replayed "
+                "there, but the page it found wasn't that state. What they observed can't be "
+                "attributed to the state they were cast against."
+            ),
+            tests=_numbers(missed),
+        ))
+
     by_checkpoint: dict[int, list[dict]] = {}
     for row in rows:
-        if not row.get("state_before"):
+        if not row.get("state_before") or row.get("start_intended"):
             continue
         by_checkpoint.setdefault(row.get("checkpoint"), []).append(row)
 
-    findings = []
     for checkpoint, group in sorted(by_checkpoint.items(), key=lambda kv: (kv[0] is None, kv[0])):
         starts = {r["state_before"] for r in group}
         if len(starts) < 2:

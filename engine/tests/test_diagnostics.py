@@ -464,7 +464,9 @@ def test_the_http_replay_uses_envelopes_the_adapter_itself_wrote():
         rederived = complex_sut._outcome_for(
             entry["request"], entry["responses"], entry["accepted_count"]
         )
-        assert outcome.read(entry) == rederived.as_dict(), entry["test_number"]
+        # An envelope recorded before a field was added reads as that field's default.
+        stored = {**outcome.Outcome().as_dict(), **outcome.read(entry)}
+        assert stored == rederived.as_dict(), entry["test_number"]
 
 
 def test_a_healthy_http_run_produces_no_warnings():
@@ -499,3 +501,18 @@ def test_a_run_of_server_errors_is_reported_as_a_refusal_not_as_a_finding_about_
     finding = _by_code(diagnostics.diagnose(log), "inputs_rejected")
     assert finding.severity == "warn"
     assert finding.tests == (1, 2, 3, 4)
+
+
+
+def test_a_test_that_names_its_own_start_is_checked_against_that_not_its_neighbours():
+    # Issue #120: a web_gui batch starts from several states on purpose.
+    def row(n, before, intended):
+        return {"test_number": n, "checkpoint": 1, "state_before": before, "start_intended": intended}
+
+    on_target = [row(1, "A", "A"), row(2, "B", "B"), row(3, "C", "C")]
+    assert diagnostics.batch_not_independent(on_target) == []
+
+    one_missed = on_target + [row(4, "X", "D")]
+    findings = diagnostics.batch_not_independent(one_missed)
+    assert [f.tests for f in findings] == [(4,)]
+    assert "didn't start from the state they were cast" in findings[0].headline

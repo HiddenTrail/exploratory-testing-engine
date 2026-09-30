@@ -213,6 +213,9 @@ class Session:
             "action": f"{state_id} :: {control_key}",
             "reached_target_state": reached,
             "screen_before": before_sig,
+            # The stored fingerprint of the state this test was cast against, so the
+            # engine can tell "started where it meant to" from "landed elsewhere".
+            "intended_before": self.reference._by_id.get(state_id, {}).get("signature", ""),
             "screen_after": after_sig,
             "screen_was": screen_was,
             "same_appearance": (screen_was == "same_screen" and not moved),

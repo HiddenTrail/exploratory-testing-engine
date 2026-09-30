@@ -100,7 +100,8 @@ def outcome_for(result: dict) -> outcome.Outcome:
 
     if result.get("verdict") != "sent":
         return outcome.Outcome(action_id=action, effect=outcome.UNKNOWN, accepted=False,
-                               state_before=before, state_after=before)
+                               state_before=before, state_after=before,
+                               start_intended=result.get("intended_before", ""))
 
     screen_was = result.get("screen_was")
     if screen_was == "same_screen":
@@ -117,6 +118,7 @@ def outcome_for(result: dict) -> outcome.Outcome:
         accepted=None,
         state_before=before,
         state_after=after,
+        start_intended=result.get("intended_before", ""),
         reset_attempted=recovered,
         reset_ok=result.get("recovered_ok") if recovered else None,
         latency=result.get("settle"),
