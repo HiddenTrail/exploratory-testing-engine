@@ -48,6 +48,29 @@ _ONTOLOGY_ENV = "WEB_GUI_ONTOLOGY"
 _URL_ENV = "WEB_GUI_URL"
 _HEADED_ENV = "WEB_GUI_HEADED"
 
+# What is on top of a control's centre (issue #130). "clear": the control itself.
+# "own": a part of the same control, like a styled radio's circle over its hidden
+# input, or its label. "covered": something else, like a cookie notice over the
+# paginator, described by its role and name. Playwright's click waits for the
+# control to be the thing on top, so before this a covered control cost the full
+# 4 s + 3 s of timeouts, and then the forced click landed on the cover, not the
+# control: on Juice Shop, "Next page" never paged.
+_COVER_JS = r"""
+(sel) => {
+  const el = document.querySelector(sel);
+  if (!el) return {state: "clear"};
+  el.scrollIntoView({block: "center", inline: "center"});
+  const r = el.getBoundingClientRect();
+  if (!r.width && !r.height) return {state: "clear"};
+  const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+  if (!hit || el.contains(hit) || hit.contains(el)) return {state: "clear"};
+  if ([...(el.labels || [])].some((label) => label.contains(hit))) return {state: "own"};
+  const box = hit.closest("[role=dialog], [role=alertdialog], [aria-modal=true], [aria-label]") || hit;
+  const name = (box.getAttribute("aria-label") || "").slice(0, 40);
+  return {state: "covered", by: (box.getAttribute("role") || box.tagName.toLowerCase()) + (name ? ` '${name}'` : "")};
+}
+"""
+
 # Fraction of a downscaled frame that must move for a same-signature action to count as
 # VARIANT rather than a candidate dead control - the same threshold web-recon's crawler
 # uses, so a pixel-only map pan/zoom the signature cannot see is not mistaken for "dead".
@@ -78,6 +101,7 @@ class Session:
         self._context = None
         self._open_fresh_page()
         self.seen_signatures: set[str] = set()   # signatures first sighted this run
+        self.last_covered_by = ""                  # what was on top of the last control clicked
         self.entry_signature = ""
         atexit.register(self.close)
 
@@ -125,8 +149,34 @@ class Session:
         everything else is *clicked*. Clicking a search box instead of filling it merely
         focuses it and looks like a dead control - the false reading this exists to avoid."""
         role, name, css = step.get("role", ""), step.get("name", ""), step.get("locator", "")
+        self.last_covered_by = ""
         if role in TEXT_ROLES:
             return self._fill(role, name, css)
+        # Something on top of the control. A part of the control itself (a styled
+        # radio's circle): a forced click lands on it, which presses the control. Anything
+        # else gets up to a second to go away (a dismissed notice fades out); if it's
+        # still there, a forced click would land on IT, not the control, so the click
+        # event goes to the control directly and the result says what was in the way,
+        # since a user would have had to move it first. Either way, no waiting out the
+        # ladder's 4 s + 3 s of timeouts. The live selector, not the saved one, which
+        # can be stale (#123) and would point this at the wrong element.
+        target = self._live_locator(role, name) or css
+        cover = self._cover(target)
+        for _ in range(5):
+            if cover.get("state") != "covered":
+                break
+            self.page.wait_for_timeout(200)
+            cover = self._cover(target)
+        try:
+            if cover.get("state") == "own":
+                self.page.click(target, timeout=2000, force=True)
+                return True
+            if cover.get("state") == "covered":
+                self.page.dispatch_event(target, "click", timeout=2000)
+                self.last_covered_by = cover.get("by", "")
+                return True
+        except Exception:
+            pass
         # Click ladder: a unique (role, name) locator first, then the exact selector, then a
         # forced click - the compact form of web-recon's ladder.
         if role in _ROLE_LOCATABLE and name:
@@ -157,6 +207,14 @@ class Session:
             except Exception:
                 continue
         return False
+
+    def _cover(self, css: str) -> dict:
+        if not css:
+            return {"state": "clear"}
+        try:
+            return self.page.evaluate(_COVER_JS, css) or {"state": "clear"}
+        except Exception:
+            return {"state": "clear"}
 
     def _live_locator(self, role: str, name: str) -> str:
         """The current selector of the one control on the page with this role and name, as
@@ -257,6 +315,8 @@ class Session:
             "click": click,
             "verdict": "sent" if sent else "not_actuated",
         }
+        if sent and self.last_covered_by:
+            result["covered_by"] = self.last_covered_by
         self.seen_signatures.add(after_sig)
         if screen_was == "new_screen":
             recovered = self.recover()

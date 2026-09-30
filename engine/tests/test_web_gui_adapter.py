@@ -147,6 +147,65 @@ def test_actuate_clicks_where_the_control_is_now_not_where_it_was_saved():
     assert sess.page.calls == [("click_css", "#now")]
 
 
+class _CoveredPage(_FakePage):
+    """What's on top of the control, in the order the checks will see it (issue #130)."""
+
+    def __init__(self, *covers):
+        super().__init__()
+        self.covers = list(covers)
+
+    def evaluate(self, js, arg=None):
+        if arg is None:   # the live element lookup: nothing found, so the saved selector is used
+            return []
+        return self.covers.pop(0) if len(self.covers) > 1 else self.covers[0]
+
+    def wait_for_timeout(self, ms):
+        self.calls.append(("wait", ms))
+
+    def click(self, css, timeout=None, force=False):
+        self.calls.append(("force_click" if force else "click_css", css))
+
+    def dispatch_event(self, css, event, timeout=None):
+        self.calls.append(("dispatch", css, event))
+
+
+def _covered_session(*covers):
+    sess = live_session.Session.__new__(live_session.Session)
+    sess.page = _CoveredPage(*covers)
+    return sess
+
+
+def test_a_control_under_another_element_gets_the_click_event_and_says_what_covered_it():
+    # A forced click lands on whatever is on top: on Juice Shop the cookie notice, so
+    # "Next page" never paged.
+    sess = _covered_session({"state": "covered", "by": "dialog 'cookieconsent'"})
+    assert sess._actuate({"role": "button", "name": "Next page", "locator": "#next"})
+    assert sess.page.calls[-1] == ("dispatch", "#next", "click")
+    assert sess.last_covered_by == "dialog 'cookieconsent'"
+
+
+def test_a_control_under_its_own_part_gets_a_forced_click_and_no_warning():
+    sess = _covered_session({"state": "own"})
+    assert sess._actuate({"role": "radio", "name": "English", "locator": "#en"})
+    assert sess.page.calls == [("force_click", "#en")]
+    assert sess.last_covered_by == ""
+
+
+def test_a_cover_that_fades_out_gets_a_normal_click():
+    sess = _covered_session({"state": "covered", "by": "dialog 'x'"}, {"state": "clear"})
+    assert sess._actuate({"role": "button", "name": "Next page", "locator": "#next"})
+    assert ("wait", 200) in sess.page.calls
+    assert sess.page.calls[-1][0] == "click_role"
+    assert sess.last_covered_by == ""
+
+
+def test_the_log_line_says_what_was_clicked_through():
+    line = adp.describe_result_for_log({"result": {
+        "verdict": "sent", "screen_was": "same_screen", "click": 1.2, "settle": 0.4,
+        "reached_target_state": True, "covered_by": "dialog 'cookieconsent'"}})
+    assert "clicked through dialog 'cookieconsent'" in line
+
+
 def test_classify_same_known_new_screen():
     ref = ref_mod.Reference(_ontology())      # carried sigs: st01 and st02's signatures
     sess = live_session.Session.__new__(live_session.Session)
