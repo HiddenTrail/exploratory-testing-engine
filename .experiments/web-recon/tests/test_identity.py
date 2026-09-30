@@ -111,3 +111,12 @@ def test_typed_input_content_is_not_part_of_the_state():
     # And a control's *label* still distinguishes genuinely different controls.
     assert signature(empty) != signature({"url": "http://x/", "text": "", "elements": [
         {"role": "button", "name": "Search"}]})
+
+
+def test_a_toast_does_not_mint_a_new_state():
+    # Issue #123: a control inside a live region comes and goes on a timer.
+    page = {"url": "http://x/#/", "headings": [], "elements": [{"role": "button", "name": "Menu"}]}
+    toast = {**page, "elements": page["elements"] + [
+        {"role": "button", "name": "Force page reload", "transient": True}]}
+    assert same_state(page, toast)
+    assert not same_state(page, {**page, "elements": page["elements"] + [{"role": "button", "name": "Force page reload"}]})

@@ -126,6 +126,27 @@ def test_actuate_clicks_a_button_control():
     assert sess.page.calls[-1][0] in ("click_role", "click_css")
 
 
+class _NoRolePage(_FakePage):
+    """Playwright's role lookup finds nothing (it names by the accessibility tree), and
+    the control now sits at a different selector than the saved one."""
+
+    def get_by_role(self, role, name, exact=False):
+        loc = _FakeLoc(self, (role, name))
+        loc.count = lambda: 0
+        return loc
+
+    def evaluate(self, js):
+        return [{"role": "button", "name": "school Help getting started", "locator": "#now"}]
+
+
+def test_actuate_clicks_where_the_control_is_now_not_where_it_was_saved():
+    # Issue #123: a toast shifts the saved positional selector.
+    sess = live_session.Session.__new__(live_session.Session)
+    sess.page = _NoRolePage()
+    assert sess._actuate({"role": "button", "name": "school Help getting started", "locator": "#saved"})
+    assert sess.page.calls == [("click_css", "#now")]
+
+
 def test_classify_same_known_new_screen():
     ref = ref_mod.Reference(_ontology())      # carried sigs: st01 and st02's signatures
     sess = live_session.Session.__new__(live_session.Session)

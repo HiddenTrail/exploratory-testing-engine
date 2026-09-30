@@ -47,12 +47,15 @@ def control_keys(obs) -> list[str]:
 
     `obs` is an Observation-like object or dict with an `elements` list. Disabled
     controls are kept (their presence is structural); the giant generic container and
-    anything not in CONTROL_ROLES is dropped.
+    anything not in CONTROL_ROLES is dropped. So is a control inside a live region
+    (`transient`, see perceive): Juice Shop's "Force page reload" toast shows for about
+    3.5 seconds after load, so counting it made one page two states depending on how
+    long the path to it took (issue #123).
     """
     elements = obs["elements"] if isinstance(obs, dict) else obs.elements
     keys = set()
     for e in elements:
-        if e.get("role") in CONTROL_ROLES:
+        if e.get("role") in CONTROL_ROLES and not e.get("transient"):
             keys.add(f"{e['role']}:{_norm(e.get('name', ''))}")
     return sorted(keys)
 

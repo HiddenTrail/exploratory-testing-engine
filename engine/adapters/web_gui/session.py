@@ -30,6 +30,7 @@ if str(_WEB_RECON) not in sys.path:
     sys.path.insert(0, str(_WEB_RECON))
 
 from identity import appearance, signature       # noqa: E402
+from perceive import _ELEMENTS_JS as ELEMENTS_JS   # noqa: E402
 from perceive import Collector, capture, visual_diff  # noqa: E402
 from safety import SEARCH_PROBE, TEXT_ROLES        # noqa: E402
 
@@ -136,6 +137,18 @@ class Session:
                     return True
             except Exception:
                 pass
+        # Next the control's selector as it stands now, found by web-recon's own role and
+        # name: the saved selector is positional, and on Juice Shop a toast in the same
+        # overlay container shifts it (issue #123). Playwright's role lookup above can
+        # miss it, because it names by the accessibility tree ("Help getting started",
+        # where web-recon's DOM name is "school Help getting started").
+        live = self._live_locator(role, name)
+        if live and live != css:
+            try:
+                self.page.click(live, timeout=3000)
+                return True
+            except Exception:
+                pass
         for attempt in (lambda: self.page.click(css, timeout=3000),
                         lambda: self.page.click(css, timeout=2000, force=True)):
             try:
@@ -144,6 +157,20 @@ class Session:
             except Exception:
                 continue
         return False
+
+    def _live_locator(self, role: str, name: str) -> str:
+        """The current selector of the one control on the page with this role and name, as
+        web-recon's capture names it; empty if there is none or more than one. Reads the
+        element list only, not a full capture, which would drain the console and network
+        log the oracle reads."""
+        if not name:
+            return ""
+        try:
+            found = [e["locator"] for e in self.page.evaluate(ELEMENTS_JS)
+                     if e.get("role") == role and e.get("name") == name]
+        except Exception:
+            return ""
+        return found[0] if len(found) == 1 else ""
 
     def _fill(self, role: str, name: str, css: str, value: str = SEARCH_PROBE) -> bool:
         """Type a benign query into a search/filter box - and deliberately NOT press Enter,
