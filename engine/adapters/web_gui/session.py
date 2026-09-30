@@ -71,6 +71,13 @@ _COVER_JS = r"""
 }
 """
 
+# A capture that doesn't match the state it should be gets this many more tries,
+# this far apart (issue #131). Juice Shop's paginator renders after the product list
+# loads, so a capture taken a moment early was missing two controls and read as a
+# different state. A state that still differs after the retries is reported as it is.
+_RECAPTURE_TRIES = 2
+_RECAPTURE_WAIT_MS = 700
+
 # Fraction of a downscaled frame that must move for a same-signature action to count as
 # VARIANT rather than a candidate dead control - the same threshold web-recon's crawler
 # uses, so a pixel-only map pan/zoom the signature cannot see is not mistaken for "dead".
@@ -260,7 +267,8 @@ class Session:
     def baseline(self) -> str:
         """Reboot to the start and record the entry signature; the run's ground truth."""
         self._reboot()
-        self.entry_signature = signature(capture(self.page, self.col))
+        start = self.reference._by_id.get(self.reference.entry(), {}).get("signature", "")
+        self.entry_signature = signature(self._capture_expecting(start))
         self.seen_signatures.add(self.entry_signature)
         return self.entry_signature
 
@@ -272,7 +280,7 @@ class Session:
         self._reboot()
         replayed = all(self._actuate(step) and (_settle(self.page) or True) for step in plan["path"])
 
-        before = capture(self.page, self.col)
+        before = self._capture_expecting(self.reference._by_id.get(state_id, {}).get("signature", ""))
         before_sig = signature(before)
         before_png = self._shot()
         reached = replayed and self.reference._by_id.get(state_id, {}).get("signature") == before_sig
@@ -326,7 +334,19 @@ class Session:
 
     def recover(self) -> str:
         self._reboot()
-        return signature(capture(self.page, self.col))
+        return signature(self._capture_expecting(self.entry_signature))
+
+    def _capture_expecting(self, expected: str):
+        """A capture of the page, taken again (up to _RECAPTURE_TRIES more times) while
+        it doesn't match `expected`, because a page still loading reads as another
+        state. Returns the last capture either way."""
+        obs = capture(self.page, self.col)
+        for _ in range(_RECAPTURE_TRIES):
+            if not expected or signature(obs) == expected:
+                break
+            self.page.wait_for_timeout(_RECAPTURE_WAIT_MS)
+            obs = capture(self.page, self.col)
+        return obs
 
 
 # ---- module singleton + readiness probe ----------------------------------------------
