@@ -211,6 +211,22 @@ def _prior_gap_detail(gap, skeptic_check) -> str:
             f'{_tests_label(gap["tests"])} {inline_markdown(gap["reason"])}{judged}</li>')
 
 
+def _coverage_table(test_coverage) -> str:
+    """The engine's record of what the tests sent (engine/coverage.py). Runs from
+    before issue #65 don't have one."""
+    if not test_coverage:
+        return ""
+    rows = []
+    for f in test_coverage["fields"]:
+        tried = ", ".join(esc(str(v)) for v in f["values_tried"]) or "none"
+        if f.get("more_values"):
+            tried += f" and {f['more_values']} more"
+        never = ", ".join(esc(str(v)) for v in f.get("never_tried", []))
+        rows.append(f"<tr><td><code>{esc(f['field'])}</code></td><td>{tried}</td><td>{never}</td></tr>")
+    return (f'<p class="prose-muted">What {test_coverage["tests_run"]} test(s) have sent so far, from the log:</p>'
+            '<table><tr><th>Field</th><th>Values tried</th><th>Never tried</th></tr>' + "".join(rows) + "</table>")
+
+
 def _render_checkpoint(checkpoint_num, checkpoint_entry, rounds, render_test_entry) -> str:
     """One checkpoint, conclusion first. What a reader needs is visible: the
     verdict, the Driver's one-sentence summary, the Skeptic's one-sentence
@@ -259,7 +275,8 @@ def _render_checkpoint(checkpoint_num, checkpoint_entry, rounds, render_test_ent
     if untested:
         details.append(f"<p><strong>Untested, according to the Driver</strong></p><ul>{untested}</ul>")
     details.append(f"<p><strong>Coverage</strong> {bool_badge(coverage['material'], 'material', 'not material')}</p>"
-                   f'<div class="prose">{inline_markdown(coverage["note"])}</div><ul>{untouched}</ul>')
+                   f'<div class="prose">{inline_markdown(coverage["note"])}</div><ul>{untouched}</ul>'
+                   f'{_coverage_table(checkpoint_entry.get("test_coverage"))}')
     if prior:
         details.append(f"<p><strong>Prior gaps: the Driver's answers and the Skeptic's judgment</strong></p><ul>{prior}</ul>")
 

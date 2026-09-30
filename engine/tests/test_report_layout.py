@@ -30,6 +30,8 @@ _ENTRY = {
         "prior_gaps_check": [{"gap_id": "C1.G1", "accepted": True, "note": "ACCEPTED-NOTE"},
                              {"gap_id": "C1.G2", "accepted": False, "note": "REJECTED-NOTE"}],
     },
+    "test_coverage": {"tests_run": 4, "fields": [{"field": "COVERED-FIELD", "values_tried": ["TRIED-VALUE"],
+                                                  "never_tried": ["NEVER-VALUE"]}]},
 }
 
 
@@ -51,7 +53,7 @@ def test_the_conclusion_is_visible():
 def test_the_detail_and_the_tests_are_folded():
     html, visible = _render()
     for text in ("BEHAVIOR-TEXT", "MECHANISM-TEXT", "RIVAL-TEXT", "WHY-TEXT", "CHECK-NOTE", "UNTESTED-TEXT",
-                 "COVERAGE-NOTE", "UNTOUCHED-TEXT", "REASON-TEXT", "REJECTED-NOTE", "ROUND-REASONING", "TEST-ENTRY"):
+                 "COVERAGE-NOTE", "UNTOUCHED-TEXT", "COVERED-FIELD", "TRIED-VALUE", "NEVER-VALUE", "REASON-TEXT", "REJECTED-NOTE", "ROUND-REASONING", "TEST-ENTRY"):
         assert text in html, text
         assert text not in visible, text
 

@@ -31,7 +31,10 @@ Against a live SUT, each checkpoint:
    LLM call that never sees the raw test data, only the hypothesis itself. Per
    observation it checks whether the cited evidence actually discriminates the
    claim from its own rival (not just whether evidence exists) and gives its
-   own view of the kind; the engine keeps the more cautious of the two. It
+   own view of the kind; the engine keeps the more cautious of the two. For
+   coverage it also gets `test_coverage`, which the engine works out from the
+   log: the values each input field has been sent, and for an enum or boolean
+   field the values never tried. It
    checks whether the Driver's answers to its prior gaps hold up, and names new
    gaps with the test that would close each. Its verdict must follow from its
    objections: `weak` needs at least one (evidence that doesn't discriminate,
@@ -75,6 +78,7 @@ engine/
   loop.py       # the checkpoint loop itself
   outcome.py    # the typed envelope an adapter puts on each result - the only SUT vocabulary the engine reads
   diagnostics.py # domain-free detectors over those envelopes: facts about the RUN, not the SUT
+  coverage.py   # what the tests have sent so far, per input field, for the Skeptic
   report.py     # generic HTML rendering (prose, badges, CSS, page/checkpoint structure)
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output
   cli.py        # python -m engine.cli --adapter <name>

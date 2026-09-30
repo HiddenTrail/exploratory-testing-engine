@@ -48,7 +48,7 @@ def _capture_segments(monkeypatch, *, max_checkpoints):
         seen["hypothesis"].append(list(history_segments))
         return {"summary": "b", "behaviors": [], "observations": [], "untested": [{"area": "u"}], "prior_gaps": []}
 
-    def fake_skeptic(client, run_config, hypothesis, prior_skeptic_review=None, usage_sink=None):
+    def fake_skeptic(client, run_config, hypothesis, prior_skeptic_review=None, usage_sink=None, test_coverage=None):
         return {
             "verdict": "weak", "verdict_reason": "r", "observation_checks": [], "coverage": {"material": True, "untouched": [], "note": "c"}, "gaps": [{"gap": "g", "next_test": "t", "blocks_verdict": False, "about": []}], "prior_gaps_check": [],
         }
