@@ -65,8 +65,11 @@ WHAT YOU GET BACK, per test:
     before the control was actuated - false means the app drifted and the reading is suspect.
   settle: seconds the page took to go quiet after the action (the app's own timing).
   click: seconds the click itself took. A long click means the harness needed a
-         fallback to press the control (it was covered or not uniquely found),
-         not that the app was slow.
+         fallback to press the control (it was not uniquely found), not that the
+         app was slow.
+  covered_by: present when something else was on top of the control, for example
+         "dialog 'cookieconsent'". The harness sent the click to the control anyway,
+         which a real user couldn't do without moving the cover first.
   verdict: "sent" normally, or "not_actuated" if the control could not be actuated at all.
   recovered_to: the signature the run rebooted to after an action that reached a new state,
     so the next test starts clean; recovered_ok says whether that matched the start state.
@@ -186,6 +189,8 @@ def describe_result_for_log(result: dict) -> str:
     if detail.get("verdict") != "sent":
         return f"NOT ACTUATED - the control could not be clicked"
     line = f"{detail['screen_was']} (click {detail.get('click', '?')}s, settled {detail['settle']}s)"
+    if detail.get("covered_by"):
+        line += f", clicked through {detail['covered_by']} on top of it"
     if not detail.get("reached_target_state"):
         line = "[path drifted before the control] " + line
     if "recovered_to" in detail:
@@ -377,7 +382,7 @@ def render_test_entry(entry) -> str:
         <span class="sep">&middot;</span> prediction {bool_badge(matched, 'matched', 'missed')}
         {recovered_html}
       </div>
-      <div class="test-outcome prose-muted">click took <span class="num">{esc(result.get('click', '?'))}s</span>, settled in <span class="num">{esc(result.get('settle'))}s</span></div>
+      <div class="test-outcome prose-muted">click took <span class="num">{esc(result.get('click', '?'))}s</span>, settled in <span class="num">{esc(result.get('settle'))}s</span>{f", clicked through {esc(result['covered_by'])} on top of it" if result.get('covered_by') else ""}</div>
     </article>
     """
 
