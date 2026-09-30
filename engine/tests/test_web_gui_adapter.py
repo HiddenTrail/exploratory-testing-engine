@@ -367,3 +367,31 @@ def test_the_generic_oracle_is_in_the_evidence_and_can_be_switched_off(monkeypat
     assert "oracle_ranked" not in off.ADAPTER.onboarding_extra
     monkeypatch.delenv("WEB_GUI_ORACLE")
     importlib.reload(web_adapter)
+
+
+class _WaitingPage:
+    def __init__(self):
+        self.calls = []
+
+    def wait_for_timeout(self, ms):
+        self.calls.append(("wait", ms))
+
+
+def test_a_capture_taken_while_the_page_still_loads_is_taken_again(monkeypatch):
+    # Issue #131: Juice Shop's paginator renders after the product list, so a capture
+    # a moment early read as another state.
+    captures = iter(["loading", "loading", "ready"])
+    monkeypatch.setattr(live_session, "capture", lambda page, col: next(captures))
+    monkeypatch.setattr(live_session, "signature", lambda obs: obs)
+    sess = live_session.Session.__new__(live_session.Session)
+    sess.page, sess.col = _WaitingPage(), None
+    assert sess._capture_expecting("ready") == "ready"
+    assert sess.page.calls.count(("wait", live_session._RECAPTURE_WAIT_MS)) == 2
+
+
+def test_a_state_that_stays_different_is_reported_as_it_is(monkeypatch):
+    monkeypatch.setattr(live_session, "capture", lambda page, col: "elsewhere")
+    monkeypatch.setattr(live_session, "signature", lambda obs: obs)
+    sess = live_session.Session.__new__(live_session.Session)
+    sess.page, sess.col = _WaitingPage(), None
+    assert sess._capture_expecting("ready") == "elsewhere"
