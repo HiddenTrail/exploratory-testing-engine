@@ -63,6 +63,14 @@ def _find_click(obs, role: str, name: str, origin: str) -> dict | None:
     return element if safety.plan(element, origin).kind == "click" else None
 
 
+def _spoor_offers(element: dict, actions: list[tuple[str, str]]) -> bool:
+    """Whether Spoor found this live element as an action, matched on role and name the
+    same way as the steps (equal after normalising, or Spoor's name contained in it)."""
+    name = _norm(element.get("name", ""))
+    return any(role == element.get("role") and (spoor == name or (spoor and spoor in name))
+               for role, spoor in actions)
+
+
 def convert(exploration: dict, url: str, observe: Callable[[list[dict]], object | None]) -> tuple[dict, dict]:
     """exploration: Spoor's saved `exploration` block. observe(path) replays a list of
     click steps from a fresh session and returns the captured Observation, or None if
@@ -72,6 +80,14 @@ def convert(exploration: dict, url: str, observe: Callable[[list[dict]], object 
     spoor_states = [s["id"] for s in exploration.get("states", [])]
     if not spoor_states:
         raise SystemExit("the Spoor map has no states")
+    # What Spoor found it could act on, per state. The page behind a modal dialog is inert
+    # in the accessibility tree, so Spoor leaves it out, while web-recon's DOM capture
+    # lists it: offering those controls meant clicks landed on the dialog's backdrop and
+    # only closed the dialog (issue #121).
+    spoor_actions = {s["id"]: [(a["role"], _norm(a["name"])) for a in s.get("actions", [])]
+                     for s in exploration.get("states", [])}
+    spoor_skipped = {(k["from"], k["action"]["role"], _norm(k["action"]["name"]))
+                     for k in exploration.get("skipped", [])}
     outgoing: dict[str, list[dict]] = {}
     for t in exploration.get("transitions", []):
         if t["to"] != t["from"]:
@@ -103,8 +119,9 @@ def convert(exploration: dict, url: str, observe: Callable[[list[dict]], object 
                               "kind": e.get("tag", ""), "locator": e["locator"],
                               "committing": e["locator"] not in safe_locators, "href": e.get("href", "")}
                              for e in obs.elements],
-                "_obs": obs,
+                "_spoor_ids": [],
             }
+        by_signature[sig]["_spoor_ids"].append(spoor_id)
         state_of[spoor_id] = by_signature[sig]["id"]
         for t in outgoing.get(spoor_id, []):
             element = _find_click(obs, t["action"]["role"], t["action"]["name"], origin)
@@ -127,7 +144,20 @@ def convert(exploration: dict, url: str, observe: Callable[[list[dict]], object 
                       "changed": True,
                       "action": {"kind": "click", "element_key": t["element_key"], "target": t["step"]["locator"]}})
 
-    states = [{k: v for k, v in s.items() if k != "_obs"} for s in by_signature.values()]
+    # A control web-recon's gate cleared is still only offered if Spoor found it on that
+    # page (any of the Spoor states merged into it) and didn't skip it there.
+    hidden = 0
+    for state in by_signature.values():
+        ids = state["_spoor_ids"]
+        offered = [a for sid in ids for a in spoor_actions.get(sid, [])
+                   if (sid, a[0], a[1]) not in spoor_skipped]
+        for element in state["elements"]:
+            if not element["committing"] and not _spoor_offers(element, offered):
+                element["committing"] = True
+                hidden += 1
+    report["hidden_controls"] = hidden
+
+    states = [{k: v for k, v in s.items() if k != "_spoor_ids"} for s in by_signature.values()]
     report.update(states=len(states), transitions=len(edges))
     ontology = {"schema": SCHEMA, "target": {"url": url, "origin": origin},
                 "session": {"source": "spoor", "converted_by": "engine.adapters.web_gui.from_spoor", **report},
@@ -180,7 +210,8 @@ def main() -> None:
     Path(args.out).write_text(json.dumps(ontology, indent=2), encoding="utf-8")
     print(f"converted {report['spoor_states']} Spoor states into {report['states']} states and "
           f"{report['transitions']} transitions; {len(report['dropped_unstable'])} dropped as unstable, "
-          f"{report['refused_steps']} steps refused by the safety gate -> {args.out}")
+          f"{report['refused_steps']} steps refused by the safety gate, {report['hidden_controls']} controls "
+          f"left out because Spoor couldn't reach them -> {args.out}")
     if report["refused"]:
         print("  refused:", ", ".join(report["refused"]))
 

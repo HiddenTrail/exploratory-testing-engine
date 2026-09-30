@@ -26,7 +26,9 @@ PAGES = {
 
 def _exploration(extra_transitions=()):
     return {
-        "states": [{"id": "S0"}, {"id": "S1"}, {"id": "S2"}, {"id": "S3"}],
+        "states": [{"id": "S0", "actions": [{"role": "button", "name": n} for n in
+                                            ("Help getting started", "Close Banner", "Delete account")]},
+                   {"id": "S1", "actions": [{"role": "button", "name": "Next"}]}, {"id": "S2"}, {"id": "S3"}],
         "transitions": [
             {"from": "S0", "to": "S1", "action": {"role": "button", "name": "Help getting started"}},
             {"from": "S0", "to": "S2", "action": {"role": "button", "name": "Close Banner"}},
@@ -84,3 +86,27 @@ def test_a_page_that_doesnt_replay_is_dropped():
     ontology, report = convert(_exploration(), URL, observe)
     assert [s["id"] for s in ontology["states"]] == ["st01"]
     assert set(report["dropped_unstable"]) == {"S1", "S2"}
+
+
+def test_a_control_spoor_couldnt_reach_is_left_out():
+    # Issue #121: a modal dialog hides the page behind it from Spoor, but web-recon's DOM
+    # capture still lists those controls. Offering them meant clicking the backdrop.
+    pages = dict(PAGES)
+    pages[()] = Observation(url=URL + "/", title="Shop", headings=["welcome"],
+                            elements=[_button("Close Banner", "#close"), _button("Open Sidenav", "#nav")])
+    exploration = {"states": [{"id": "S0", "actions": [{"role": "button", "name": "Close Banner"}]}],
+                   "transitions": []}
+    ontology, report = convert(exploration, URL, lambda path: pages.get(tuple(s["name"] for s in path)))
+    by_name = {e["name"]: e["committing"] for e in ontology["states"][0]["elements"]}
+    assert by_name == {"Close Banner": False, "Open Sidenav": True}
+    assert report["hidden_controls"] == 1
+
+
+def test_a_control_spoor_skipped_is_left_out():
+    pages = {(): Observation(url=URL + "/", title="Shop", headings=["x"], elements=[_button("Next page", "#n")])}
+    exploration = {"states": [{"id": "S0", "actions": [{"role": "button", "name": "Next page"}]}],
+                   "transitions": [],
+                   "skipped": [{"from": "S0", "action": {"role": "button", "name": "Next page"},
+                                "reason": "blocked by an unresolved layer: div"}]}
+    ontology, _ = convert(exploration, URL, lambda path: pages.get(tuple(s["name"] for s in path)))
+    assert ontology["states"][0]["elements"][0]["committing"] is True
