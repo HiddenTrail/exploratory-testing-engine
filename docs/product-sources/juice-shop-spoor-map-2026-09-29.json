@@ -1,0 +1,423 @@
+{
+  "note": "A trimmed export of Spoor's exploration of OWASP Juice Shop, for the product wiki (issue #116). Spoor's full cache (.spoor-cache/) holds raw captures and is never committed; this keeps only the screens, their controls, the transitions between them, the actions Spoor skipped and why, and per screen the console lines and the REST/API paths requested in the session up to that screen (paths only, no query strings or ids). State ids are shortened to S0..S6; spoor_id is Spoor's own.",
+  "target": "http://127.0.0.1:3000",
+  "captured_at": "2026-09-29T06:50:23.881854+00:00",
+  "tool": "spoor explore (ht-spoor), --sandbox against the local test target",
+  "counts": {
+    "states": 7,
+    "transitions": 12,
+    "skipped": 7
+  },
+  "states": [
+    {
+      "id": "S0",
+      "spoor_id": "69714b12bb4a1ff6ba5577c03717372c26ad71915f361c90b0e2dae4e70c9624",
+      "controls": [
+        "button:learn more about cookies",
+        "button:dismiss cookie message",
+        "link:Open Worldwide Application Security Project (OWASP)",
+        "link:https://owasp-juice.shop",
+        "button:Help getting started",
+        "button:Close Welcome Banner"
+      ],
+      "signals": {
+        "ax_node_count": 114,
+        "console_count": 0,
+        "storage_count": 0,
+        "network_count": 44
+      },
+      "console": [],
+      "api_calls": [
+        "/api/Challenges/",
+        "/api/Quantitys/",
+        "/rest/admin/application-configuration",
+        "/rest/admin/application-version",
+        "/rest/languages",
+        "/rest/products/search"
+      ]
+    },
+    {
+      "id": "S1",
+      "spoor_id": "cef8d7c9a9b6d8f4297b7114f2acd7825d01e50dabda92f716e966de0eb620af",
+      "controls": [
+        "button:learn more about cookies",
+        "button:dismiss cookie message",
+        "button:Open Sidenav",
+        "button:Back to homepage",
+        "button:Show/hide account menu",
+        "button:Language selection menu",
+        "button:Previous page",
+        "button:Next page",
+        "button:×",
+        "textbox:",
+        "combobox:Items per page:",
+        "button:Apple Juice (1000ml)",
+        "button:Apple Pomace",
+        "button:Banana Juice (1000ml)",
+        "button:Best Juice Shop Salesman Artwork",
+        "button:Carrot Juice (1000ml)",
+        "button:DSOMM & Juice Shop User Day Ticket",
+        "button:Eggfruit Juice (500ml)",
+        "button:Fruit Press",
+        "button:Green Smoothie",
+        "button:Juice Shop \"Permafrost\" 2020 Edition",
+        "button:Lemon Juice (500ml)",
+        "button:Melon Bike (Comeback-Product 2018 Edition)"
+      ],
+      "signals": {
+        "ax_node_count": 329,
+        "console_count": 1,
+        "storage_count": 0,
+        "network_count": 46
+      },
+      "console": [
+        "Starting instructions for challenge \"Score Board\""
+      ],
+      "api_calls": [
+        "/api/Challenges/",
+        "/api/Quantitys/",
+        "/rest/admin/application-configuration",
+        "/rest/admin/application-version",
+        "/rest/languages",
+        "/rest/products/search"
+      ]
+    },
+    {
+      "id": "S2",
+      "spoor_id": "c36a4e1b689501a125e73941ef077397aa414fac39f5df307e462b121d2c265a",
+      "controls": [
+        "button:learn more about cookies",
+        "button:dismiss cookie message",
+        "button:Open Sidenav",
+        "button:Back to homepage",
+        "button:Show/hide account menu",
+        "button:Language selection menu",
+        "button:Previous page",
+        "button:Next page",
+        "textbox:",
+        "combobox:Items per page:",
+        "button:Apple Juice (1000ml)",
+        "button:Apple Pomace",
+        "button:Banana Juice (1000ml)",
+        "button:Best Juice Shop Salesman Artwork",
+        "button:Carrot Juice (1000ml)",
+        "button:DSOMM & Juice Shop User Day Ticket",
+        "button:Eggfruit Juice (500ml)",
+        "button:Fruit Press",
+        "button:Green Smoothie",
+        "button:Juice Shop \"Permafrost\" 2020 Edition",
+        "button:Lemon Juice (500ml)",
+        "button:Melon Bike (Comeback-Product 2018 Edition)"
+      ],
+      "signals": {
+        "ax_node_count": 311,
+        "console_count": 0,
+        "storage_count": 0,
+        "network_count": 43
+      },
+      "console": [],
+      "api_calls": [
+        "/api/Challenges/",
+        "/api/Quantitys/",
+        "/rest/admin/application-configuration",
+        "/rest/admin/application-version",
+        "/rest/languages",
+        "/rest/products/search"
+      ]
+    },
+    {
+      "id": "S3",
+      "spoor_id": "7e340bf3e8cad2614f1aa794684e1a7fb1935600e96fd244afa14e86c58ba7ed",
+      "controls": [
+        "button:learn more about cookies",
+        "button:dismiss cookie message",
+        "button:Open Sidenav",
+        "button:Back to homepage",
+        "button:Show/hide account menu",
+        "button:Language selection menu",
+        "button:Previous page",
+        "button:Next page",
+        "menuitem:Go to login page",
+        "button:×",
+        "textbox:",
+        "combobox:Items per page:",
+        "button:Apple Juice (1000ml)",
+        "button:Apple Pomace",
+        "button:Banana Juice (1000ml)",
+        "button:Best Juice Shop Salesman Artwork",
+        "button:Carrot Juice (1000ml)",
+        "button:DSOMM & Juice Shop User Day Ticket",
+        "button:Eggfruit Juice (500ml)",
+        "button:Fruit Press",
+        "button:Green Smoothie",
+        "button:Juice Shop \"Permafrost\" 2020 Edition",
+        "button:Lemon Juice (500ml)",
+        "button:Melon Bike (Comeback-Product 2018 Edition)"
+      ],
+      "signals": {
+        "ax_node_count": 339,
+        "console_count": 1,
+        "storage_count": 0,
+        "network_count": 46
+      },
+      "console": [
+        "Starting instructions for challenge \"Score Board\""
+      ],
+      "api_calls": [
+        "/api/Challenges/",
+        "/api/Quantitys/",
+        "/rest/admin/application-configuration",
+        "/rest/admin/application-version",
+        "/rest/languages",
+        "/rest/products/search"
+      ]
+    },
+    {
+      "id": "S4",
+      "spoor_id": "f99b80c994974883d57dfa178a377bb5c44d36788d0d83fb39da8c664cd58311",
+      "controls": [
+        "button:learn more about cookies",
+        "button:dismiss cookie message",
+        "button:Open Sidenav",
+        "button:Back to homepage",
+        "button:Show/hide account menu",
+        "button:Language selection menu",
+        "button:Previous page",
+        "button:Next page",
+        "button:×",
+        "radio:Azərbaycanca",
+        "radio:Bahasa Indonesia",
+        "radio:Catalan",
+        "radio:Česky",
+        "radio:Dansk",
+        "radio:Deutsch",
+        "radio:Eesti",
+        "radio:English",
+        "radio:Español",
+        "radio:Français",
+        "radio:Gaeilge",
+        "radio:Italiano",
+        "radio:Język Polski",
+        "radio:Latvijas",
+        "radio:Magyar",
+        "radio:Nederlands",
+        "radio:Norsk",
+        "radio:Português",
+        "radio:Português (Brasil)",
+        "radio:Pусский",
+        "radio:Română",
+        "radio:Schwizerdütsch",
+        "radio:Suomalainen",
+        "radio:Svenska",
+        "radio:Türkçe",
+        "radio:Ελληνικά",
+        "radio:български (език)",
+        "radio:український",
+        "radio:ქართული",
+        "radio:עברית",
+        "radio:عربي",
+        "radio:हिंदी",
+        "radio:বাংলা",
+        "radio:සිංහල",
+        "radio:ไทย",
+        "radio:မြန်မာ",
+        "radio:한국어",
+        "radio:中文",
+        "radio:日本語",
+        "radio:繁體中文",
+        "radio:繁體中文",
+        "textbox:",
+        "combobox:Items per page:",
+        "button:Apple Juice (1000ml)",
+        "button:Apple Pomace",
+        "button:Banana Juice (1000ml)",
+        "button:Best Juice Shop Salesman Artwork",
+        "button:Carrot Juice (1000ml)",
+        "button:DSOMM & Juice Shop User Day Ticket",
+        "button:Eggfruit Juice (500ml)",
+        "button:Fruit Press",
+        "button:Green Smoothie",
+        "button:Juice Shop \"Permafrost\" 2020 Edition",
+        "button:Lemon Juice (500ml)",
+        "button:Melon Bike (Comeback-Product 2018 Edition)"
+      ],
+      "signals": {
+        "ax_node_count": 1208,
+        "console_count": 1,
+        "storage_count": 0,
+        "network_count": 89
+      },
+      "console": [
+        "Starting instructions for challenge \"Score Board\""
+      ],
+      "api_calls": [
+        "/api/Challenges/",
+        "/api/Quantitys/",
+        "/rest/admin/application-configuration",
+        "/rest/admin/application-version",
+        "/rest/languages",
+        "/rest/products/search"
+      ]
+    },
+    {
+      "id": "S5",
+      "spoor_id": "fc1c20e2c4e669fe02784e3c5aa9ef407e7cb26a33c55d82fdc801cc22a7b68a",
+      "controls": [
+        "button:learn more about cookies",
+        "button:dismiss cookie message",
+        "button:",
+        "button:Close Dialog",
+        "button:Reviews (1)"
+      ],
+      "signals": {
+        "ax_node_count": 128,
+        "console_count": 1,
+        "storage_count": 0,
+        "network_count": 50
+      },
+      "console": [
+        "Starting instructions for challenge \"Score Board\""
+      ],
+      "api_calls": [
+        "/api/Challenges/",
+        "/api/Quantitys/",
+        "/rest/admin/application-configuration",
+        "/rest/admin/application-version",
+        "/rest/languages",
+        "/rest/products/1/reviews",
+        "/rest/products/search",
+        "/rest/user/whoami"
+      ]
+    },
+    {
+      "id": "S6",
+      "spoor_id": "1a77252c3c715b32e3f349669eb47af3708fa9237f102b175c206c1b295a14ad",
+      "controls": [
+        "button:learn more about cookies",
+        "button:dismiss cookie message",
+        "button:",
+        "button:Close Dialog",
+        "link:sent back to us",
+        "button:Reviews (0)"
+      ],
+      "signals": {
+        "ax_node_count": 134,
+        "console_count": 1,
+        "storage_count": 0,
+        "network_count": 48
+      },
+      "console": [
+        "Starting instructions for challenge \"Score Board\""
+      ],
+      "api_calls": [
+        "/api/Challenges/",
+        "/api/Quantitys/",
+        "/rest/admin/application-configuration",
+        "/rest/admin/application-version",
+        "/rest/languages",
+        "/rest/products/24/reviews",
+        "/rest/products/search",
+        "/rest/user/whoami"
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "from": "S0",
+      "to": "S0",
+      "action": "link:https://owasp-juice.shop"
+    },
+    {
+      "from": "S0",
+      "to": "S0",
+      "action": "button:learn more about cookies"
+    },
+    {
+      "from": "S0",
+      "to": "S0",
+      "action": "button:dismiss cookie message"
+    },
+    {
+      "from": "S0",
+      "to": "S1",
+      "action": "button:Help getting started"
+    },
+    {
+      "from": "S0",
+      "to": "S2",
+      "action": "button:Close Welcome Banner"
+    },
+    {
+      "from": "S1",
+      "to": "S1",
+      "action": "button:learn more about cookies"
+    },
+    {
+      "from": "S1",
+      "to": "S1",
+      "action": "button:dismiss cookie message"
+    },
+    {
+      "from": "S1",
+      "to": "S3",
+      "action": "button:Show/hide account menu"
+    },
+    {
+      "from": "S1",
+      "to": "S4",
+      "action": "button:Language selection menu"
+    },
+    {
+      "from": "S1",
+      "to": "S2",
+      "action": "button:×"
+    },
+    {
+      "from": "S1",
+      "to": "S5",
+      "action": "button:Apple Juice (1000ml)"
+    },
+    {
+      "from": "S1",
+      "to": "S6",
+      "action": "button:Apple Pomace"
+    }
+  ],
+  "skipped": [
+    {
+      "from": "S0",
+      "action": "link:Open Worldwide Application Security Project (OWASP)",
+      "reason": "could not be performed: link 'Open Worldwide Application Security Project (OWASP)' not located after replay (after 3 replay attempts)"
+    },
+    {
+      "from": "S1",
+      "action": "button:Open Sidenav",
+      "reason": "blocked by an unresolved layer: div"
+    },
+    {
+      "from": "S1",
+      "action": "button:Back to homepage",
+      "reason": "blocked by an unresolved layer: div"
+    },
+    {
+      "from": "S1",
+      "action": "button:Previous page",
+      "reason": "blocked by an unresolved layer: div"
+    },
+    {
+      "from": "S1",
+      "action": "button:Next page",
+      "reason": "blocked by an unresolved layer: div"
+    },
+    {
+      "from": "S1",
+      "action": "textbox:",
+      "reason": "blocked by an unresolved layer: div"
+    },
+    {
+      "from": "S1",
+      "action": "combobox:Items per page:",
+      "reason": "blocked by an unresolved layer: div"
+    }
+  ]
+}
