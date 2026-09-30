@@ -43,7 +43,8 @@ def test_feedback_only_keeps_results_tied_to_an_oracle_claim_id():
             {"linked_hypothesis": "an unlinked theory", "prediction_matched": False},  # not tied to any oracle claim
         ],
     }
-    results = feedback.extract_results(output)
+    results, dropped = feedback.extract_results(output, {"claim:data:01"})
+    assert dropped == []
     assert len(results) == 1
     assert results[0]["claim_id"] == "claim:data:01"
     assert results[0]["verified"] is True
@@ -68,9 +69,22 @@ def test_end_to_end_ranking_actually_shifts_once_feedback_is_merged_in():
     output = {"casting_log": [{"oracle_claim_id": target["id"], "prediction_matched": False}]}
     context = feedback.merge_results(
         {"test_results": [], "jira_entries": [], "risk_assessments": []},
-        feedback.extract_results(output),
+        feedback.extract_results(output, feedback.known_ids("token_purchase"))[0],
     )
 
     new_score, new_status = oracle_creator.score_grounded_claim(target, context)
     assert new_status == "refuted"
     assert new_score > baseline_score
+
+
+def test_feedback_drops_ids_that_arent_ranked_ideas():
+    # Issue #107: with the oracle off, the Driver cited ids it made from gap ids.
+    real = oracle_creator.load_domain_claims("token_purchase")[0]["id"]
+    output = {"casting_log": [
+        {"oracle_claim_id": real, "prediction_matched": True},
+        {"oracle_claim_id": "claim:data:C1.G1", "prediction_matched": False},
+        {"oracle_claim_id": "heuristic:boundary_edges", "prediction_matched": True},
+    ]}
+    results, dropped = feedback.extract_results(output, feedback.known_ids("token_purchase"))
+    assert [r["claim_id"] for r in results] == [real, "heuristic:boundary_edges"]
+    assert dropped == ["claim:data:C1.G1"]

@@ -43,7 +43,9 @@ a test is meant to test one of the ranked ideas shown in its evidence, it now
 also cites that idea's id verbatim. `engine/loop.py` persists
 `oracle_claim_id` into `casting_log`; `engine/ontology/feedback.py` only
 carries forward results that have one (a pure edge-case probe or an
-off-list hypothesis has nothing to reprioritize); `oracle_creator.py` matches
+off-list hypothesis has nothing to reprioritize), and drops an id that isn't
+one of the SUT's ranked ideas, since the Driver makes some up from gap ids
+(#107); `oracle_creator.py` matches
 on that id instead of on claim text. Covered by
 `engine/tests/test_ontology_claim_matching.py`, including an end-to-end case
 proving a merged result actually changes a claim's score.
