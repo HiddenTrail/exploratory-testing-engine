@@ -57,6 +57,9 @@ controls, not a distinct URL.
 
 ## Open questions
 
+The [second run](juice-shop-spoor-map-2026-09-30.md) started from S2 and answered
+some of these: it opened every product and reached the login page.
+
 - The side menu, paging and search were never used, because of the layer on S1.
   Exploring from S2 (banner closed, no tutorial) might reach them.
 - "Go to login page" (S3) and the review buttons (S5, S6) were found but not

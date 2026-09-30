@@ -11,11 +11,13 @@ okf_version: "0.2"
 # Summaries
 
 * [Spoor map of Juice Shop, 2026-09-29](summaries/juice-shop-spoor-map-2026-09-29.md) - What Spoor's first exploration of Juice Shop found, 7 screens, 12 transitions and 7 skipped actions.
+* [Spoor map of Juice Shop, 2026-09-30](summaries/juice-shop-spoor-map-2026-09-30.md) - Spoor's second exploration of Juice Shop, from the plain product list, which reached all 12 products and the login page.
 
 # Entities
 
-* [Juice Shop product details dialog](entities/juice-shop-product-details-dialog.md) - (screen) The dialog a product opens, with a reviews section and a close button.
-* [Juice Shop product list](entities/juice-shop-product-list.md) - (screen) The shop's main page, a paged grid of products with a toolbar for the menu, account and language.
+* [Juice Shop login page](entities/juice-shop-login-page.md) - (screen) The login form, reached from the account menu, with email, password, Google login and links to register and reset a password.
+* [Juice Shop product details dialog](entities/juice-shop-product-details-dialog.md) - (screen) The dialog a product opens, with its picture, description, price, a reviews section and a close button.
+* [Juice Shop product list](entities/juice-shop-product-list.md) - (screen) The shop's main page, a paged grid of products with prices, under a toolbar for the menu, search, account and language.
 * [Juice Shop start page](entities/juice-shop-start-page.md) - (screen) The first screen a new visitor sees, a welcome banner and a cookie notice over the shop.
 
 # Concepts

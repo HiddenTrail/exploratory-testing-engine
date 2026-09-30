@@ -111,7 +111,9 @@ above); `sources[].resource` points straight at the real repo-relative path
 The exception is a source that can't be committed as it is. Spoor's map lives
 in the gitignored `.spoor-cache/`, which holds raw captures with secrets. For
 that, commit a trimmed export in `docs/product-sources/` (screens, controls,
-transitions, no captures) and cite the export.
+transitions, no captures) and cite the export. Screenshots of a local test
+target can be copied there too, a few at a time, when a page needs what they
+show.
 
 ## Operations
 

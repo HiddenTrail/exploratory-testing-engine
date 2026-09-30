@@ -194,7 +194,7 @@ docs/
   ontology-todo.md                        # ontology layer status and backlog
   ontology-layer-reference.md             # how the four ontology layers fit together
   examples/bootstrap_demo/                # a real worked example of the bootstrap pipeline's output
-  product-sources/                        # trimmed product sources the wiki cites (a Spoor map)
+  product-sources/                        # trimmed product sources the wiki cites (Spoor maps, screenshots)
 wiki/             # the product wiki: what the products under test are (Juice Shop so far)
 qpf.config.yml    # the wiki's config, read by .wiki-source/scripts/rebuild-index.mjs
 CLAUDE.md         # how coding agents work in this repo: workflow, rules, testing
