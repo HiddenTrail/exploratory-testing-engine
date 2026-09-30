@@ -282,8 +282,8 @@ every commit.
   for `docs/ontology-todo.md` and the other files in `docs/`: if your change
   makes them wrong (roadmap checkmarks included), fix them in the same PR.
 - **The product wiki (`wiki/`)** describes the product being tested, not this
-  engine. Follow [AGENTS.md](AGENTS.md). There is no `wiki/` yet; creating one
-  also needs a `qpf.config.yml` at the root (see `.wiki-source/README.md`).
+  engine. Follow [AGENTS.md](AGENTS.md). Its first product is OWASP Juice Shop,
+  and `rebuild-index.mjs` reads the `qpf.config.yml` at the root.
   `wiki/index.md` is generated, so rebuild it with
   `node .wiki-source/scripts/rebuild-index.mjs --dir .` instead of
   editing it.
