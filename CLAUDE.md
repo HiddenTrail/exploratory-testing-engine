@@ -124,8 +124,6 @@ into it. **The exceptions are the folders other code depends on:**
   them. Moving these out of the archive is issue #48.
 - **Read by tests:** `complex-sut-poc/` and `token-purchase-poc/` (by the two
   parity tests). Replacing that with test fixtures is issue #77.
-- **Still added to:** `oracle-agent-poc/heuristics/catalog.json` (see
-  "Standing practices").
 
 New prototypes go in their own `.experiments/<name>/` folder with a README and a
 `requirements.txt`. When code moves into `engine/`, port it and harden it. Never
@@ -274,10 +272,11 @@ every commit.
 
 ## Standing practices
 
-- **Heuristics catalog:** whenever you come up with or spot a new testing
-  heuristic, add it to `.experiments/oracle-agent-poc/heuristics/catalog.json`
-  using the existing template. Mark it `status: "cataloged"` until something
-  actually uses it.
+- **Heuristic library:** whenever you come up with or spot a new testing
+  heuristic, add it to the library in `engine/ontology/heuristics/`, in the file
+  for its source (or a new file for a new source). Use only kinds and tags from
+  `vocabulary.json`; add a tag there first if none fits. The library tests check
+  every entry.
 - **Keep the docs true.** READMEs are covered by workflow step 6. The same goes
   for `docs/ontology-todo.md` and the other files in `docs/`: if your change
   makes them wrong (roadmap checkmarks included), fix them in the same PR.

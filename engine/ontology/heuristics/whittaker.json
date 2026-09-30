@@ -1,0 +1,166 @@
+{
+  "source": "How to Break Software by James Whittaker: the user-interface attacks on inputs, outputs, stored data and computation. Descriptions are ours.",
+  "heuristics": [
+    {
+      "id": "force_every_error",
+      "name": "Force every error message",
+      "kind": "attack",
+      "description": "Every error message the product can show is a path someone wrote and few tested.",
+      "apply": "Find the product's error messages (from docs, validation hints, the UI) and try to trigger each one.",
+      "tags": [
+        "error-handling"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "force_defaults",
+      "name": "Force the defaults",
+      "kind": "attack",
+      "description": "Leaving fields at their default, or clearing a default, runs code paths users rarely take.",
+      "apply": "Submit forms without touching the defaults, then clear each default and submit again.",
+      "tags": [
+        "input-field",
+        "form"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "explore_character_sets",
+      "name": "Explore character sets",
+      "kind": "attack",
+      "description": "Characters outside plain letters and digits trip up storage, search and display.",
+      "apply": "Enter control characters, symbols and characters from other scripts in every text field.",
+      "tags": [
+        "data-type",
+        "text-field",
+        "i18n"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "overflow_input_limits",
+      "name": "Overflow input limits",
+      "kind": "attack",
+      "description": "Inputs longer than the field's limit may be cut silently, rejected, or break the page.",
+      "apply": "Type or paste past each field's maximum length and compare what's saved with what you entered.",
+      "tags": [
+        "boundary",
+        "text-field"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "interacting_inputs",
+      "name": "Inputs that interact",
+      "kind": "attack",
+      "description": "Two fields that depend on each other (start and end date, quantity and stock) can be set to disagree.",
+      "apply": "Set related fields to contradict each other, such as an end date before a start date.",
+      "tags": [
+        "consistency",
+        "form",
+        "date-time"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "repeat_inputs",
+      "name": "Repeat the same input",
+      "kind": "attack",
+      "description": "Doing the same thing many times can build up state until something overflows or duplicates.",
+      "apply": "Repeat one action many times in a row, like adding the same item or applying the same filter.",
+      "tags": [
+        "state",
+        "reliability"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "force_different_outputs",
+      "name": "Force different outputs",
+      "kind": "attack",
+      "description": "An input usually has one common result; the rarer results are less tested.",
+      "apply": "For one action, find inputs that give each possible outcome, not just the usual one.",
+      "tags": [
+        "functionality"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "invalid_outputs",
+      "name": "Force invalid outputs",
+      "kind": "attack",
+      "description": "Some inputs make the product produce output that shouldn't exist, like a negative total or an impossible date.",
+      "apply": "Look for inputs that would make a shown value impossible, and check the product prevents it.",
+      "tags": [
+        "consistency",
+        "money",
+        "numeric-field"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "output_size_change",
+      "name": "Change output size",
+      "kind": "attack",
+      "description": "Output that grows or shrinks (long names, many results) can break layouts and tables.",
+      "apply": "Make shown content much longer or shorter than usual, and check the page still lays out and updates.",
+      "tags": [
+        "gui",
+        "table",
+        "list-paging"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "screen_refresh",
+      "name": "Force a refresh",
+      "kind": "attack",
+      "description": "Views that should update after a change may show stale data until reloaded.",
+      "apply": "Change something, then check every other view that shows it updates without a manual reload.",
+      "tags": [
+        "consistency",
+        "state",
+        "gui"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "stored_data_limits",
+      "name": "Overflow stored data",
+      "kind": "attack",
+      "description": "Stored collections have limits (items in a cart, rows in a list) that may not be enforced.",
+      "apply": "Add more and more items to a collection until something changes, and note how the product reacts.",
+      "tags": [
+        "boundary",
+        "cart",
+        "list-paging"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "invalid_calculations",
+      "name": "Invalid calculations",
+      "kind": "attack",
+      "description": "Calculations fail on zero, huge values and values that don't fit the formula.",
+      "apply": "Feed calculated fields values that would divide by zero, overflow or make no sense.",
+      "tags": [
+        "numeric-field",
+        "money",
+        "boundary"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "feature_interaction",
+      "name": "Feature interaction",
+      "kind": "attack",
+      "description": "Two features that each work may fail when used together or on the same data.",
+      "apply": "Use two features on the same item one after the other, such as a filter and paging, or a discount and a quantity change.",
+      "tags": [
+        "functionality",
+        "state"
+      ],
+      "base_weight": 2
+    }
+  ]
+}

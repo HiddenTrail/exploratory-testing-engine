@@ -1,0 +1,247 @@
+{
+  "source": "Common checks for web pages and web apps (general testing practice). Descriptions are ours.",
+  "heuristics": [
+    {
+      "id": "broken_links",
+      "name": "Broken links",
+      "kind": "oracle",
+      "description": "Links and buttons that lead nowhere, to an error page or to the wrong place are easy to miss.",
+      "apply": "Follow each link and navigation control and check it lands on the page its label promises.",
+      "tags": [
+        "gui",
+        "link",
+        "navigation"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "deep_link",
+      "name": "Deep link and reload",
+      "kind": "technique",
+      "description": "A page opened directly by URL, or reloaded, may lose state the app kept in memory.",
+      "apply": "Copy a page's URL, open it in a new tab and reload it, then compare with reaching it by clicking.",
+      "tags": [
+        "gui",
+        "navigation",
+        "state",
+        "session"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "back_button",
+      "name": "Back button",
+      "kind": "technique",
+      "description": "The browser's back button can resubmit forms, show stale data or break single-page apps.",
+      "apply": "After each navigation and each form submission, press back and then forward.",
+      "tags": [
+        "gui",
+        "navigation",
+        "state",
+        "form"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "session_expiry",
+      "name": "Session expiry",
+      "kind": "technique",
+      "description": "When a session ends, the next action should ask to log in again without losing the user's work silently.",
+      "apply": "Log in, wait for the session to expire or log out in another tab, then try to act.",
+      "tags": [
+        "session",
+        "login",
+        "state"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "multiple_tabs",
+      "name": "Several tabs",
+      "kind": "technique",
+      "description": "The same app open in two tabs can get out of step, for example after logging out in one.",
+      "apply": "Open the app in two tabs, change something or log out in one, and use the other.",
+      "tags": [
+        "gui",
+        "session",
+        "state",
+        "concurrency"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "search_edges",
+      "name": "Search edges",
+      "kind": "technique",
+      "description": "Search handles empty queries, no results, many results and special characters in different ways.",
+      "apply": "Search for nothing, for something that can't exist, for a very common word and for text with symbols.",
+      "tags": [
+        "search",
+        "boundary",
+        "input-field"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "paging_edges",
+      "name": "Paging edges",
+      "kind": "technique",
+      "description": "The first page, the last page and changing the page size are where paging usually breaks.",
+      "apply": "Go to the first and last page, change the page size on a later page, and check no items repeat or go missing.",
+      "tags": [
+        "list-paging",
+        "boundary",
+        "table"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "sort_and_filter",
+      "name": "Sort and filter",
+      "kind": "technique",
+      "description": "Sorting and filtering together, or with paging, can drop or repeat items.",
+      "apply": "Sort, filter and page through the same list in different orders and compare the items you see.",
+      "tags": [
+        "list-paging",
+        "table",
+        "search",
+        "consistency"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "cart_totals",
+      "name": "Cart totals",
+      "kind": "oracle",
+      "description": "A cart's total should always equal its items times their prices, plus the stated extras.",
+      "apply": "Add, change and remove items, and recompute the total by hand after each step.",
+      "tags": [
+        "cart",
+        "money",
+        "consistency",
+        "payment"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "login_variants",
+      "name": "Login variants",
+      "kind": "technique",
+      "description": "Login has many paths: wrong password, unknown user, empty fields, different letter case, remember me.",
+      "apply": "Try each variant with a test account and check the messages are clear and that remember me behaves as stated.",
+      "tags": [
+        "login",
+        "form",
+        "error-handling"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "registration_rules",
+      "name": "Registration rules",
+      "kind": "technique",
+      "description": "Sign-up forms enforce rules (unique email, password rules, required fields) that may be applied inconsistently.",
+      "apply": "Register with a duplicate email, weak and strong passwords, and each required field missing.",
+      "tags": [
+        "registration",
+        "form",
+        "input-field",
+        "email"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "password_reset_flow",
+      "name": "Password reset flow",
+      "kind": "technique",
+      "description": "A reset flow should work end to end, with clear messages at each step.",
+      "apply": "Request a reset for a test account and follow it through, checking each message and the final login.",
+      "tags": [
+        "password-reset",
+        "login"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "email_formats",
+      "name": "Email formats",
+      "kind": "technique",
+      "description": "Valid email addresses come in more shapes than most validators accept.",
+      "apply": "Try addresses with a plus sign, subdomains, capitals, a long local part and an obviously invalid one.",
+      "tags": [
+        "email",
+        "input-field",
+        "data-type"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "notification_timing",
+      "name": "Notification timing",
+      "kind": "oracle",
+      "description": "Toasts and banners that disappear quickly can hide important information or cover other controls.",
+      "apply": "Trigger each notification and check it can be read in time and doesn't block anything underneath.",
+      "tags": [
+        "gui",
+        "notification",
+        "usability",
+        "time"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "overlay_blocking",
+      "name": "Overlays that block",
+      "kind": "oracle",
+      "description": "Cookie notices, banners and menus can cover controls and make them unusable.",
+      "apply": "With each overlay open, check the controls under it, and check each overlay can be closed.",
+      "tags": [
+        "gui",
+        "dialog",
+        "menu",
+        "usability"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "language_switch",
+      "name": "Language switch",
+      "kind": "technique",
+      "description": "Switching language should translate everything and keep the user's place and data.",
+      "apply": "Change the language mid-task and check labels, messages, formats and entered data.",
+      "tags": [
+        "localization",
+        "i18n",
+        "gui",
+        "state"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "responsive_layout",
+      "name": "Responsive layout",
+      "kind": "technique",
+      "description": "Layouts change at different widths, and controls can overlap or disappear.",
+      "apply": "Resize the window from wide to phone width and check every control stays visible and usable.",
+      "tags": [
+        "gui",
+        "compatibility",
+        "usability"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "console_and_network_errors",
+      "name": "Console and network errors",
+      "kind": "oracle",
+      "description": "Errors in the browser console or failed requests often point at bugs the page hides.",
+      "apply": "Watch the console and network log while using each page, and note errors and failed requests.",
+      "tags": [
+        "gui",
+        "error-handling",
+        "reliability"
+      ],
+      "base_weight": 2
+    }
+  ]
+}

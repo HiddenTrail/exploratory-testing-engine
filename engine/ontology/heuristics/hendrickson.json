@@ -1,0 +1,263 @@
+{
+  "source": "Test Heuristics Cheat Sheet by Elisabeth Hendrickson, James Lyndsay and Dale Emery. Descriptions are ours.",
+  "heuristics": [
+    {
+      "id": "long_input",
+      "name": "Long input",
+      "kind": "attack",
+      "description": "Text far longer than anyone would type can be cut off, overflow the layout or be refused without a message.",
+      "apply": "Paste a very long value (thousands of characters) into each text field and check what's stored and shown.",
+      "tags": [
+        "boundary",
+        "text-field",
+        "input-field"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "special_characters",
+      "name": "Special characters",
+      "kind": "technique",
+      "description": "Quotes, angle brackets, ampersands, slashes and line breaks often break display or storage.",
+      "apply": "Enter text with quotes, <, >, &, / and a line break, then check it comes back exactly as typed.",
+      "tags": [
+        "data-type",
+        "text-field",
+        "input-field"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "leading_trailing_spaces",
+      "name": "Leading and trailing spaces",
+      "kind": "technique",
+      "description": "Spaces around a value can make two equal values look different, or a required field look filled.",
+      "apply": "Enter a value with spaces before and after it, and a value of only spaces, and compare with the plain value.",
+      "tags": [
+        "data-type",
+        "text-field",
+        "input-field"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "wrong_data_type",
+      "name": "Wrong data type",
+      "kind": "technique",
+      "description": "A field that expects one type (a number, a date) may accept or mishandle another.",
+      "apply": "Type letters into number fields, a number into a name field, and text into a date field.",
+      "tags": [
+        "data-type",
+        "input-field",
+        "numeric-field",
+        "date-time"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "number_formats",
+      "name": "Number formats",
+      "kind": "technique",
+      "description": "Numbers can be written many ways: decimals, commas, exponents, leading zeros, plus signs.",
+      "apply": "Try 1.5, 1,5, 1e3, 007, +5 and a very large number in numeric fields.",
+      "tags": [
+        "data-type",
+        "numeric-field",
+        "i18n"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "date_edges",
+      "name": "Date edges",
+      "kind": "technique",
+      "description": "Dates break at month ends, leap days, year changes and time zone switches.",
+      "apply": "Try 29 February in leap and non-leap years, 31 April, 31 December and a date around a daylight saving change.",
+      "tags": [
+        "boundary",
+        "date-time",
+        "time"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "far_dates",
+      "name": "Far past and future dates",
+      "kind": "technique",
+      "description": "Dates far from today can fall outside what the product expects to store or show.",
+      "apply": "Enter dates like year 1900, year 2100 and year 0001, and a date of birth in the future.",
+      "tags": [
+        "boundary",
+        "date-time"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "count_edges",
+      "name": "Zero, one, many",
+      "kind": "technique",
+      "description": "Code often handles none, exactly one and many items differently, and one of the three is wrong.",
+      "apply": "Try each list, cart or selection with no items, one item and many items.",
+      "tags": [
+        "boundary",
+        "list-paging",
+        "cart",
+        "table"
+      ],
+      "base_weight": 3
+    },
+    {
+      "id": "crud",
+      "name": "Create, read, update, delete",
+      "kind": "technique",
+      "description": "Every kind of thing the product stores should survive being created, viewed, changed and removed.",
+      "apply": "For one kind of record, create it, view it, edit it, view it again, delete it, and check it's really gone.",
+      "tags": [
+        "functionality",
+        "data-integrity",
+        "state"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "follow_the_data",
+      "name": "Follow the data",
+      "kind": "technique",
+      "description": "A value entered in one place should arrive unchanged everywhere it's shown or used.",
+      "apply": "Enter a distinctive value, then find every screen, response or export where it should appear.",
+      "tags": [
+        "data-integrity",
+        "consistency"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "interruptions",
+      "name": "Interruptions",
+      "kind": "attack",
+      "description": "Stopping a task halfway (back, reload, closing, losing the connection) can leave data half saved.",
+      "apply": "Start a multi-step task and interrupt it: go back, reload, close the tab or cut the network, then return.",
+      "tags": [
+        "state",
+        "reliability",
+        "session",
+        "form"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "undo_redo",
+      "name": "Undo and go back",
+      "kind": "technique",
+      "description": "Undo, cancel and the browser's back button should return to a consistent earlier state.",
+      "apply": "After each change, cancel or go back and check nothing half-applied remains.",
+      "tags": [
+        "state",
+        "navigation",
+        "gui"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "repeat_quickly",
+      "name": "Repeat quickly",
+      "kind": "attack",
+      "description": "Pressing a control again before the first press finishes can run the action twice.",
+      "apply": "Double-click submit, buy and save buttons, and press them again while the page is still loading.",
+      "tags": [
+        "concurrency",
+        "state",
+        "form",
+        "gui"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "some_none_all",
+      "name": "Some, none, all",
+      "kind": "technique",
+      "description": "Choosing none, some or all of a set of options each exercises different code.",
+      "apply": "In checkbox groups, filters and bulk actions, select nothing, a few and everything.",
+      "tags": [
+        "boundary",
+        "input-field",
+        "search",
+        "table"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "starve",
+      "name": "Starve the product",
+      "kind": "attack",
+      "description": "Missing resources (network, disk, memory, a dependency) should give a clear error, not a hang or silent failure.",
+      "apply": "Slow down or cut the network, or make a dependency unavailable, then use the product.",
+      "tags": [
+        "reliability",
+        "error-handling"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "goldilocks_files",
+      "name": "File size and type",
+      "kind": "technique",
+      "description": "Uploads fail in different ways for empty, huge, wrongly named and wrongly typed files.",
+      "apply": "Upload an empty file, a very large one, one with the wrong extension and one whose content doesn't match its extension.",
+      "tags": [
+        "boundary",
+        "file-upload"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "configuration_variations",
+      "name": "Configuration variations",
+      "kind": "technique",
+      "description": "Settings, preferences and environments change behaviour in ways few people test together.",
+      "apply": "Change each user setting (language, currency, display options) and redo a common task.",
+      "tags": [
+        "compatibility",
+        "localization"
+      ],
+      "base_weight": 1
+    },
+    {
+      "id": "never_and_always",
+      "name": "Never and always",
+      "kind": "oracle",
+      "description": "Some things must never happen (data loss, a wrong charge) and some must always hold (a total equals its parts).",
+      "apply": "Write down the product's nevers and alwayses, then check each test result against them.",
+      "tags": [
+        "consistency",
+        "data-integrity"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "beginning_middle_end",
+      "name": "Beginning, middle, end",
+      "kind": "technique",
+      "description": "Items at the start and end of a list, text or sequence are handled by edge cases in the code.",
+      "apply": "Act on the first, a middle and the last item of each list, page and sequence.",
+      "tags": [
+        "boundary",
+        "list-paging",
+        "table"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "state_transitions",
+      "name": "State transitions",
+      "kind": "technique",
+      "description": "Things with a lifecycle (an order, an account) can be pushed into states or orders of steps the design didn't intend.",
+      "apply": "Draw the states something can be in, then try every transition, including ones that shouldn't be allowed.",
+      "tags": [
+        "state",
+        "sequence"
+      ],
+      "base_weight": 2
+    }
+  ]
+}

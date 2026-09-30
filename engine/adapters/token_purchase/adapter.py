@@ -79,7 +79,9 @@ HAPPY_DAY_REQUEST = {**KNOWN_ACCOUNTS[0], "credit_count": 10}
 # unranked library the ranking is built from is no longer sent alongside it,
 # because it was mostly the same information and doubled the evidence.
 ORACLE_RANKED_TOP_N = 15
-ORACLE_RANKED = build_ranked_ideas("token_purchase")["ranked_ideas"][:ORACLE_RANKED_TOP_N]
+ORACLE_RANKED = build_ranked_ideas(
+    "token_purchase", surfaces=("api",), features=("payment", "money", "numeric-field", "date-time"),
+)["ranked_ideas"][:ORACLE_RANKED_TOP_N]
 
 # TOKEN_PURCHASE_ORACLE=off leaves the oracle out of the Driver's evidence
 # entirely, for measuring what the oracle is worth (issue #42): the same run with

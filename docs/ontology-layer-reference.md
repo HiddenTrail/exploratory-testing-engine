@@ -8,21 +8,26 @@ discussion that led here.
 
 ## Layer 1 — Heuristic library
 
-**File:** [`engine/ontology/heuristics.json`](../engine/ontology/heuristics.json)
+**Folder:** [`engine/ontology/heuristics/`](../engine/ontology/heuristics/) (issue #128)
 
 ### What it is
 
 Layer 1 is the part of the system that knows nothing about any specific
-product. It's a small library of testing heuristics that apply to *any*
+product. It's a library of testing heuristics that apply to *any*
 system — the kind of thing an experienced tester already carries in their
 head before ever seeing a spec. These entries describe *kinds* of things
 worth checking, not facts about `token_purchase` or any other particular
 SUT.
 
-This is distinct from `.experiments/oracle-agent-poc/heuristics/catalog.json`,
-a larger HTSM-seeded reference catalog (31 entries, SFDIPOT/Quality
-Criteria/General Test Techniques/FEW-HICCUPPS) — layer 1 is the small,
-*active* subset actually wired into scoring, not the full reference list.
+It holds every established heuristic we've written up, one file per source:
+the original 10 (`core.json`), HTSM with the FEW HICCUPPS oracles (`htsm.json`,
+which absorbed the old experiments catalog), Hendrickson's cheat sheet,
+Whittaker's attacks, classic techniques, Nielsen's usability heuristics, WCAG
+and common web page checks. `vocabulary.json` fixes the kinds and tags, and
+`engine/tests/test_heuristic_library.py` enforces them. The Oracle doesn't send
+the whole library to the Driver: `select_heuristics` keeps the ones that fit
+the SUT's surface, ranks those matching its features higher, and the adapter
+caps how many it takes.
 
 ### Why it's a separate layer
 
@@ -50,7 +55,7 @@ tiers, and only the first belongs here:
    re-learning across *its own* systems (e.g. "our microservices always
    mishandle timezone conversion at DST boundaries"). Real and valuable,
    but scoped to a company or industry, not to any system on earth. A
-   distinct tier from what's in `heuristics.json` today, not yet
+   distinct tier from what's in the library today, not yet
    represented here.
 3. **Product-specific war stories** — e.g. "the `/purchase` endpoint always
    chokes on negative `credit_count`." Not layer 1 even if it started as
@@ -76,9 +81,15 @@ off-by-one probing once a limit is known — complementary, not duplicate.
 ### Entries
 
 Each entry: `id` (stable slug, referenced elsewhere as `heuristic:<id>`),
-`category`, `description`, `base_weight` (integer, used by
+`name`, `kind` (technique, attack, oracle, quality criterion or product
+model), `description`, `apply` (what a test for it looks like), `tags` (from
+`vocabulary.json`: surface such as `gui` or `api`, feature such as `login` or
+`search`, quality such as `accessibility`), and `base_weight` (1 to 3, used by
 `oracle_creator.py` to seed a generic probe's starting priority before any
-context-layer signal is applied).
+context-layer signal is applied). The file gives each entry its `source`.
+
+The original 10, in `core.json` (their ids are kept so old runs and context
+still match):
 
 | id | category | base_weight | description |
 |---|---|---|---|
@@ -93,17 +104,17 @@ context-layer signal is applied).
 | `sensitive_data_exposure` | security | 3 | Check that sensitive fields (secrets, PANs, tokens) are never echoed back in responses or logs. |
 | `self_consistency` | consistency | 2 | Compare two responses that should logically agree (e.g. same query, different path) for contradictions. |
 
-10 entries, 5 categories (boundary, data_type, state, security,
-consistency). `base_weight` ranges 1–3; `sensitive_data_exposure`,
+`base_weight` ranges 1 to 3; `sensitive_data_exposure`,
 `monetary_precision`, and `zero_and_negative` are the highest-weighted (3),
 `alphabet_soup` and `ordering_race` the lowest (1) — reflecting the actual
 risk/attention a bug in that category deserves before any SUT-specific
 context adjusts it.
 
-Not yet cross-referenced to the larger `catalog.json` reference list — the
-31-entry HTSM catalog and this 10-entry active set currently evolve
-independently; promoting a `catalog.json` entry into this file (or vice
-versa) is manual, not automated.
+A heuristic that isn't tagged with a surface fits every surface. When
+scoring, one tagged with the SUT's own surface gets `SURFACE_MATCH_BONUS`
+(0.5) and one tagged with one of its features gets `FEATURE_MATCH_BONUS` (1),
+so the best a heuristic can score is 4.5, below every grounded claim (5 or
+more).
 
 ## Layer 2 — Domain/spec layer
 

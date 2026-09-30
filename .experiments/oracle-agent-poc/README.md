@@ -1,6 +1,6 @@
 # Oracle Agent PoC
 
-> **Archive, with one exception.** A finished experiment, kept for history, except `heuristics/catalog.json`, which is still added to (see CLAUDE.md, "Standing practices").
+> **Archive.** A finished experiment, kept for history. `heuristics/catalog.json` is frozen: its entries moved into the engine's heuristic library, `engine/ontology/heuristics/htsm.json` (issue #128), and new heuristics go there.
 
 A first, deliberately narrow slice of the "Oracle layer" described in
 [`docs/exploratory-testing-engine-concept.md`](../../docs/exploratory-testing-engine-concept.md)
