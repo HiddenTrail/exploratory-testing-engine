@@ -33,6 +33,21 @@ export WEB_GUI_HEADED=1                        # optional; headless by default
 python -m engine.cli --adapter web_gui
 ```
 
+**Or map the app with Spoor instead** (the default crawler, see CLAUDE.md). It gets past
+overlays like cookie banners, which web-recon can't. The converter replays Spoor's paths
+live and writes the same `ontology.json` shape, with no LLM call:
+
+```bash
+../ht-spoor/.venv/Scripts/spoor explore http://127.0.0.1:3000 --max-depth 2 --max-seconds 300
+python -m engine.adapters.web_gui.from_spoor     --map .spoor-cache/maps/127.0.0.1_3000.json --url http://127.0.0.1:3000     --out .experiments/web-recon/out/juice-shop-from-spoor.json
+export WEB_GUI_ONTOLOGY="$PWD/.experiments/web-recon/out/juice-shop-from-spoor.json"
+```
+
+It keeps a control only if web-recon's safety gate would let the read-only crawl act on it
+(judged on the live element), follows a Spoor step only if that control passes as a plain
+click, and drops any page that doesn't replay to the same fingerprint twice. It prints how
+many steps the gate refused, and names them.
+
 `check_sut_ready` loads the reference, launches the browser once, and confirms the SUT is
 up and on the mapped entry state before any API call is spent — warning loudly (not
 failing) if the app has drifted from the carried map since the recon.
@@ -54,5 +69,6 @@ canvas pan/zoom from being mistaken for dead), a control you cannot get back fro
 | module | what it is |
 |---|---|
 | `reference.py` | loads a web-recon `ontology.json` as the carried reference: the reachable states, the safe `(state, control)` action space, the navigation path to each state, and the Driver briefing. Pure — unit-tested against a fixture ontology with no browser. |
-| `session.py` | the only browser-touching module: a Playwright browser launched once, reusing web-recon's `capture`/`signature`/`appearance`/`visual_diff`. Reaches a state by replaying its path, actuates one control, classifies the transition, reboots to recover. |
+| `session.py` | the only browser-touching module: a Playwright browser launched once, reusing web-recon's `capture`/`signature`/`appearance`/`visual_diff`. Reaches a state by replaying its path, actuates one control, classifies the transition. Every restart starts from a fresh browser session (no cookies or storage). |
+| `from_spoor.py` | turns a Spoor exploration map into this `ontology.json`, by replaying Spoor's paths live and capturing each page the way web-recon does. Safety fails closed (see "Running it"). |
 | `adapter.py` | the `SUTAdapter`: casting tool schema/prompt/validation (a pair outside the carried map is refused before actuation), `execute_test`, the typed `outcome_for` envelope, and report rendering. |

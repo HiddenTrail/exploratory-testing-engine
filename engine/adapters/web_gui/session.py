@@ -192,10 +192,15 @@ class Session:
         before_png = self._shot()
         reached = replayed and self.reference._by_id.get(state_id, {}).get("signature") == before_sig
 
+        # The click and the settle are timed separately: the click ladder's fallbacks can
+        # take seconds on their own, and counting them as the page's settle time made our
+        # retries look like a slow app (issue #122).
         t0 = time.time()
         sent = reached and self._actuate(plan["target"])
+        t1 = time.time()
         _settle(self.page)
-        settle = round(time.time() - t0, 2)
+        click = round(t1 - t0, 2)
+        settle = round(time.time() - t1, 2)
 
         after = capture(self.page, self.col)
         after_sig = signature(after)
@@ -213,12 +218,16 @@ class Session:
             "action": f"{state_id} :: {control_key}",
             "reached_target_state": reached,
             "screen_before": before_sig,
+            # The stored fingerprint of the state this test was cast against, so the
+            # engine can tell "started where it meant to" from "landed elsewhere".
+            "intended_before": self.reference._by_id.get(state_id, {}).get("signature", ""),
             "screen_after": after_sig,
             "screen_was": screen_was,
             "same_appearance": (screen_was == "same_screen" and not moved),
             "was_measured_before": self.reference.is_known(after_sig),
             "first_sight_this_run": first_sight,
             "settle": settle,
+            "click": click,
             "verdict": "sent" if sent else "not_actuated",
         }
         self.seen_signatures.add(after_sig)

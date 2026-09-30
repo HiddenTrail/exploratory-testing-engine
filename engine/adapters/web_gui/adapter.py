@@ -63,7 +63,10 @@ WHAT YOU GET BACK, per test:
   first_sight_this_run: true the first time this run reaches that state.
   reached_target_state: whether replaying the path actually arrived at the state you named
     before the control was actuated - false means the app drifted and the reading is suspect.
-  settle: seconds the page took to go quiet after the action.
+  settle: seconds the page took to go quiet after the action (the app's own timing).
+  click: seconds the click itself took. A long click means the harness needed a
+         fallback to press the control (it was covered or not uniquely found),
+         not that the app was slow.
   verdict: "sent" normally, or "not_actuated" if the control could not be actuated at all.
   recovered_to: the signature the run rebooted to after an action that reached a new state,
     so the next test starts clean; recovered_ok says whether that matched the start state.
@@ -100,7 +103,8 @@ def outcome_for(result: dict) -> outcome.Outcome:
 
     if result.get("verdict") != "sent":
         return outcome.Outcome(action_id=action, effect=outcome.UNKNOWN, accepted=False,
-                               state_before=before, state_after=before)
+                               state_before=before, state_after=before,
+                               start_intended=result.get("intended_before", ""))
 
     screen_was = result.get("screen_was")
     if screen_was == "same_screen":
@@ -117,6 +121,7 @@ def outcome_for(result: dict) -> outcome.Outcome:
         accepted=None,
         state_before=before,
         state_after=after,
+        start_intended=result.get("intended_before", ""),
         reset_attempted=recovered,
         reset_ok=result.get("recovered_ok") if recovered else None,
         latency=result.get("settle"),
@@ -180,7 +185,7 @@ def describe_result_for_log(result: dict) -> str:
     detail = result["result"]
     if detail.get("verdict") != "sent":
         return f"NOT ACTUATED - the control could not be clicked"
-    line = f"{detail['screen_was']} (settled {detail['settle']}s)"
+    line = f"{detail['screen_was']} (click {detail.get('click', '?')}s, settled {detail['settle']}s)"
     if not detail.get("reached_target_state"):
         line = "[path drifted before the control] " + line
     if "recovered_to" in detail:
@@ -366,7 +371,7 @@ def render_test_entry(entry) -> str:
         <span class="sep">&middot;</span> prediction {bool_badge(matched, 'matched', 'missed')}
         {recovered_html}
       </div>
-      <div class="test-outcome prose-muted">settled in <span class="num">{esc(result.get('settle'))}s</span></div>
+      <div class="test-outcome prose-muted">click took <span class="num">{esc(result.get('click', '?'))}s</span>, settled in <span class="num">{esc(result.get('settle'))}s</span></div>
     </article>
     """
 
