@@ -85,6 +85,9 @@ _ELEMENTS_JS = r"""
       locator: s,
       href: el.getAttribute('href') || '',
       disabled: !!el.disabled,
+      // Inside a live region: a toast or status announcement that shows for a few
+      // seconds and goes. Identity leaves these out (see identity.control_keys).
+      transient: !!el.closest('[aria-live]:not([aria-live=off]), [role=alert], [role=status]'),
     });
   }
   return out;
