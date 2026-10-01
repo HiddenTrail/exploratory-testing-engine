@@ -171,6 +171,9 @@ def _signal_diff(before, after, requests: list[dict], storage_before: dict, stor
     weak: dict = {}
 
     def put(key, trusted_items, weak_items):
+        # The same request or message repeated is one signal (PrestaShop requested
+        # the same broken SVG twice on one load).
+        trusted_items, weak_items = list(dict.fromkeys(trusted_items)), list(dict.fromkeys(weak_items))
         if trusted_items:
             signals[key] = trusted_items[:_MAX_SIGNAL_ITEMS]
             if len(trusted_items) > _MAX_SIGNAL_ITEMS:

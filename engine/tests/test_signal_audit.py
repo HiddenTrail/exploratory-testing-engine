@@ -35,3 +35,10 @@ def test_noise_that_differs_between_sessions_is_reported():
 def test_pairs_are_spread_across_states():
     pairs = pick_pairs(ref_mod.Reference(_ontology()), 2)
     assert {state for state, _ in pairs} == {"st01", "st02"}
+
+
+def test_a_signal_a_run_moved_to_weak_is_demoted_not_flaky():
+    runs = [_run({"failed_requests": ["GET http://modules/x.svg -> net::ERR"]}),
+            _run({}, weak={"failed_requests": ["GET http://modules/x.svg -> net::ERR"]})]
+    report = analyse(runs, {}, "http://x")
+    assert report["flaky_trusted"] == [] and report["demoted_to_weak_sometimes"] == 1
