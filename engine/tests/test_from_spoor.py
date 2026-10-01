@@ -110,3 +110,17 @@ def test_a_control_spoor_skipped_is_left_out():
                                 "reason": "blocked by an unresolved layer: div"}]}
     ontology, _ = convert(exploration, URL, lambda path: pages.get(tuple(s["name"] for s in path)))
     assert ontology["states"][0]["elements"][0]["committing"] is True
+
+
+def test_map_errors_accepts_the_format_and_names_what_changed():
+    # Issue #144: the contract with Spoor's saved map. A renamed field is a clear
+    # message, not a KeyError deep in the converter.
+    from engine.adapters.web_gui.from_spoor import map_errors
+
+    good = {"states": [{"id": "s1", "actions": [{"role": "button", "name": "Go"}]}],
+            "transitions": [{"from": "s1", "to": "s2", "action": {"role": "button", "name": "Go"}}],
+            "skipped": [{"from": "s1", "action": {"role": "link", "name": "Out"}, "reason": "r"}]}
+    assert map_errors(good) == []
+    renamed = {**good, "transitions": [{"source": "s1", "to": "s2", "action": {"role": "button", "name": "Go"}}]}
+    assert map_errors(renamed) == ["transitions[0] isn't {from, to, action: {role, name}}"]
+    assert "exploration.skipped is missing or not a list" in map_errors({"states": [], "transitions": []})
