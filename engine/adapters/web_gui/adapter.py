@@ -77,8 +77,8 @@ WHAT YOU GET BACK, per test:
          request started after the action, on the product's own origin, nothing of it
          happened while the page sat idle, and the page had rested. Treat them as facts.
   signals_weak: the same kinds of signal that failed a trust check (third-party, also
-         seen with no action, or read from an unsettled page). A hint for a next test,
-         never evidence for a claim on its own.
+         seen with no action, read from an unsettled page, or the action wasn't sent).
+         A hint for a next test, never evidence for a claim on its own.
   covered_by: present when something else was on top of the control, for example
          "dialog 'cookieconsent'". The harness sent the click to the control anyway,
          which a real user couldn't do without moving the cover first.
@@ -355,6 +355,27 @@ def _screen_badge(screen_was) -> str:
     return badge("no change", "neutral")
 
 
+def _signals_html(result) -> str:
+    """Both tiers of the signal diff (issue #143): the trusted ones as facts, the weak
+    ones marked as hints, so a reader of the report sees the same distinction the
+    Driver is told about."""
+    signals = result.get("signals") or {}
+    if not signals:
+        return ""
+    def rows(tier):
+        return "".join(f"<li><code>{esc(key)}</code>: {esc(', '.join(map(str, value)))}</li>"
+                       for key, value in tier.items() if isinstance(value, list))
+    settled = signals.get("settled_before", True) and signals.get("settled_after", True)
+    flag = "" if settled else f" {badge('read from an unsettled page', 'warn')}"
+    trusted, weak = rows(signals), rows(result.get("signals_weak") or {})
+    if not (trusted or weak or flag):
+        return ""
+    trusted_html = f"<p><strong>Signals (trusted)</strong>{flag}</p><ul>{trusted}</ul>" if (trusted or flag) else ""
+    weak_html = (f'<p><strong>Weak signals</strong> <span class="prose-muted">hints only, not evidence</span></p>'
+                 f"<ul>{weak}</ul>") if weak else ""
+    return f'<details class="fold"><summary>Signals</summary>{trusted_html}{weak_html}</details>'
+
+
 def render_test_entry(entry) -> str:
     if not entry:
         return ""
@@ -403,6 +424,7 @@ def render_test_entry(entry) -> str:
         {recovered_html}
       </div>
       <div class="test-outcome prose-muted">click took <span class="num">{esc(result.get('click', '?'))}s</span>, settled in <span class="num">{esc(result.get('settle'))}s</span>{f", clicked through {esc(result['covered_by'])} on top of it" if result.get('covered_by') else ""}</div>
+      {_signals_html(result)}
     </article>
     """
 
