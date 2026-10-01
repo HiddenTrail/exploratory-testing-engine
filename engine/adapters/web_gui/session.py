@@ -164,7 +164,7 @@ def _signal_diff(before, after, requests: list[dict], storage_before: dict, stor
 
     failed = [r for r in requests if r.get("status") is not None and (r["status"] == 0 or r["status"] >= 400)]
     def line(r):
-        return f"{r['method']} {r['url']} -> {r['status'] or r.get('failure') or 'no response'}"
+        return f"{_request_key(r)} -> {r['status'] or r.get('failure') or 'no response'}"
     own = lambda r: r["url"].startswith(origin) and _request_key(r) not in noise.get("requests", ())
     put("failed_requests", [line(r) for r in failed if own(r)], [line(r) for r in failed if not own(r)])
 

@@ -420,7 +420,7 @@ def test_only_signals_that_pass_every_trust_check_count_as_facts():
     requests = [_req("GET", "http://x/api/a", 200),                               # fine: not a signal
                 _req("POST", "http://x/api/b", 500),                              # trusted
                 _req("GET", "http://ads.example/pixel", 0, failure="net::ERR"),   # third-party: weak
-                _req("GET", "http://x/api/poll?t=99", 503),                       # seen idle: weak
+                _req("GET", "http://x/api/poll?t=99#secret", 503),                # seen idle: weak
                 _req("GET", "http://x/api/slow", None)]                           # still pending: ignored
     noise = {"requests": {"GET http://x/api/poll"}, "console": {"poll # failed"}, "storage": {"local:clock"}}
     signals, weak = live_session._signal_diff(
@@ -435,7 +435,7 @@ def test_only_signals_that_pass_every_trust_check_count_as_facts():
     }
     assert weak == {
         "console_errors": ["poll 17 failed"],
-        "failed_requests": ["GET http://ads.example/pixel -> net::ERR", "GET http://x/api/poll?t=99 -> 503"],
+        "failed_requests": ["GET http://ads.example/pixel -> net::ERR", "GET http://x/api/poll -> 503"],
         "storage_changed": ["local:clock"],
     }
 
