@@ -33,6 +33,23 @@ def test_a_bad_product_page_is_reported(tmp_path):
     assert product.product_errors("nothing", wiki_dir=tmp_path) == ["no Product Overview page with product: nothing"]
 
 
+def test_build_oracle_rejects_a_bad_product_page(tmp_path):
+    (tmp_path / "overview.md").write_text("---\ntype: Product Overview\nproduct: demo\nsurfaces: [gui]\n---\n",
+                                          encoding="utf-8")
+    (tmp_path / "demo-home.md").write_text(
+        "---\ntype: Entity\nproduct: demo\nfeatures: [teleport]\n"
+        "sources:\n  - id: doc\n    resource: docs/x.md\n"
+        "facts:\n  - id: F1\n    kind: rumour\n    text: x\n    source: doc\n---\n", encoding="utf-8")
+
+    try:
+        seeder.build_oracle("demo", wiki_dir=tmp_path)
+    except ValueError as error:
+        assert "teleport" in str(error)
+        assert "rumour" in str(error)
+    else:
+        raise AssertionError("invalid product layer was accepted")
+
+
 def test_every_seed_names_only_heuristics_the_library_has():
     ids = {h["id"] for h in oracle_creator.load_heuristics()}
     for seed in seeder.load_seeds():

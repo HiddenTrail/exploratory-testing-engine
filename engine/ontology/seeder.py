@@ -53,6 +53,9 @@ def _owner(seeds: list[dict], heuristic: dict) -> dict | None:
 def build_oracle(product: str, wiki_dir: Path = product_layer.WIKI_DIR) -> dict[str, Any]:
     """{"product", "seeds", "expectations": [...]}, every expectation with an id, its
     seed, tier, entity, claim, how to check it, its sources and a score."""
+    errors = product_layer.product_errors(product, wiki_dir)
+    if errors:
+        raise ValueError("invalid product layer:\n" + "\n".join(errors))
     prod = product_layer.load_product(product, wiki_dir)
     if prod is None:
         raise ValueError(f"the wiki has no Product Overview for '{product}'")
