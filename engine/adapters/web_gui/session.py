@@ -36,6 +36,7 @@ from identity import appearance, control_keys, signature   # noqa: E402
 from perceive import _ELEMENTS_JS as ELEMENTS_JS   # noqa: E402
 from perceive import Collector, capture, visual_diff  # noqa: E402
 from safety import SEARCH_PROBE, TEXT_ROLES        # noqa: E402
+from safety import safe_actions                    # noqa: E402
 
 from engine.adapters.web_gui import reference as ref_mod  # noqa: E402
 
@@ -274,6 +275,29 @@ def _signal_diff(before, after, requests: list[dict], storage_before: dict, stor
             if cut:
                 weak[f"{key}_more"] = cut
     return signals, weak
+
+
+def discovery_id(sig: str) -> str:
+    """A short, stable id for a screen the carried map doesn't have, from its signature."""
+    import hashlib
+    return "d" + hashlib.blake2s(sig.encode("utf-8"), digest_size=4).hexdigest()
+
+
+def discovery(obs, sig: str, path: list[dict], from_state: str, via: str, origin: str) -> dict:
+    """A screen an action reached that the carried map doesn't have (issue #157), in the
+    shape of a map state, so it can be added to a map later (#158): its controls are
+    already through web-recon's safety gate (committing unless the read-only crawl may act
+    on them), and `path` is every step from the start, the carried path plus the action."""
+    safe = {e["locator"] for e in safe_actions(obs.elements, origin)}
+    return {
+        "id": discovery_id(sig), "signature": sig, "url": obs.url, "title": obs.title,
+        "from_state": from_state, "via": via, "path": path,
+        "elements": [{"key": f"{e['role']}:{e['name']}", "role": e["role"], "name": e["name"],
+                      "kind": e.get("tag", ""), "locator": e["locator"],
+                      "committing": e["locator"] not in safe, "href": e.get("href", "")}
+                     for e in obs.elements],
+        "controls_offered": len(safe),
+    }
 
 
 class Session:
@@ -621,6 +645,13 @@ class Session:
                                                sent=sent)
         if weak:
             result["signals_weak"] = weak
+        # A screen the carried map doesn't have, however many times this run has seen it,
+        # so later runs can count how often it's reached (#157). Recorded before the
+        # recovery reboot, from the capture taken on it.
+        if sent and after_sig not in self.reference.known_signatures:
+            origin = "{0.scheme}://{0.netloc}".format(urlsplit(self.base_url))
+            result["discovered"] = discovery(after, after_sig, plan["path"] + [plan["target"]], state_id,
+                                             control_key, origin)
         self.seen_signatures.add(after_sig)
         if screen_was == "new_screen":
             recovered = self.recover()

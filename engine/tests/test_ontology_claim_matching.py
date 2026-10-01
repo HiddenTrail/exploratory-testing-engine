@@ -88,3 +88,19 @@ def test_feedback_drops_ids_that_arent_ranked_ideas():
     results, dropped = feedback.extract_results(output, feedback.known_ids("token_purchase"))
     assert [r["claim_id"] for r in results] == [real, "heuristic:boundary_edges"]
     assert dropped == ["claim:data:C1.G1"]
+
+
+def test_feedback_records_discovered_screens_and_counts_reaches_across_runs():
+    # Issue #157: screens beyond the map go into the context, 'seen once' until reached again.
+    record = {"id": "d1", "signature": "/new|button:x|", "url": "http://x/new", "title": "New",
+              "from_state": "st01", "via": "button:A", "path": [{"name": "A"}],
+              "elements": [{"key": "button:x", "committing": False}], "controls_offered": 1}
+    output = {"casting_log": [{"test_number": 4, "result": {"discovered": record}}, {"test_number": 5, "result": {}}]}
+    found = feedback.extract_discoveries(output)
+    assert [(d["id"], d["test_number"]) for d in found] == [("d1", 4)]
+    context = feedback.merge_discoveries({}, found, run="run-1")
+    assert context["discoveries"][0]["status"] == "seen once"
+    context = feedback.merge_discoveries(context, found, run="run-2")
+    d = context["discoveries"][0]
+    assert (d["times_reached"], d["runs"], d["status"], d["first_seen"], d["last_seen"]) == (
+        2, ["run-1", "run-2"], "reproduced", "run-1", "run-2")

@@ -602,8 +602,8 @@ def test_after_learning_a_baseline_the_state_is_reached_afresh(monkeypatch):
     monkeypatch.setattr(sess, "_shot", lambda: None)
     monkeypatch.setattr(sess, "_idle_noise", lambda: {})
     monkeypatch.setattr(sess, "recover", lambda: "")
-    page2 = _Obs(elements=[{"role": "button", "name": "Back"}])
-    page2.url = "http://app.example/p2"
+    page2 = _Obs(elements=[{"role": "button", "name": "Back", "locator": "#back"}])
+    page2.url, page2.title = "http://app.example/p2", "Page 2"
     monkeypatch.setattr(sess, "_capture_expecting", lambda expected: page2)
     monkeypatch.setattr(live_session, "capture", lambda page, col: page2)
     first = sess.act("st02", "button:Back")
@@ -681,3 +681,59 @@ def test_the_map_records_which_session_it_was_made_with():
     assert ref_mod.Reference(data).session_name == ""
     data["session"] = {"session_name": "logged-in"}
     assert ref_mod.Reference(data).session_name == "logged-in"
+
+
+# ---- screens beyond the map (issue #157) -------------------------------------------------
+
+def test_a_discovered_screen_is_a_map_state_with_its_controls_through_the_safety_gate():
+    # Shaped like perceive's capture, which the safety gate reads (type, href, disabled).
+    obs = _Obs(elements=[{"role": "button", "name": "Show orders", "tag": "button", "type": "", "href": "",
+                          "disabled": False, "locator": "#orders"},
+                         {"role": "button", "name": "Delete account", "tag": "button", "type": "", "href": "",
+                          "disabled": False, "locator": "#delete"}])
+    obs.title = "Orders"
+    path = [{"role": "button", "name": "Account", "locator": "#account"}]
+    found = live_session.discovery(obs, "/|menuitem:orders|", path, "st02", "button:Account", "http://x")
+    assert found["id"] == live_session.discovery_id("/|menuitem:orders|") and found["id"].startswith("d")
+    committing = {e["key"]: e["committing"] for e in found["elements"]}
+    assert committing == {"button:Show orders": False, "button:Delete account": True}
+    assert found["controls_offered"] == 1 and found["path"] == path and found["from_state"] == "st02"
+
+
+def _acting_session(monkeypatch, after):
+    ref = ref_mod.Reference(_ontology())
+    sess = live_session.Session.__new__(live_session.Session)
+    sess.reference, sess.base_url, sess._noise = ref, "http://app.example/", {"st01": {}}
+    sess.seen_signatures, sess.entry_signature, sess.last_covered_by, sess.last_rest = set(), "", "", True
+    sess.page, sess.col, sess._requests = None, None, {}
+    for name, fn in (("_reboot", lambda: None), ("_actuate", lambda step: True), ("_rest", lambda: True),
+                     ("_storage", lambda: {}), ("_shot", lambda: None), ("recover", lambda: "")):
+        monkeypatch.setattr(sess, name, fn)
+    start = _Obs(elements=[{"role": "button", "name": "A", "locator": "#a"},
+                           {"role": "button", "name": "Dead", "locator": "#dead"}])
+    start.url = "http://app.example/"
+    ref._by_id["st01"]["signature"] = live_session.signature(start)   # names are lowercased in a signature
+    monkeypatch.setattr(sess, "_capture_expecting", lambda expected: start)
+    monkeypatch.setattr(live_session, "capture", lambda page, col: after)
+    return sess
+
+
+def test_reaching_a_screen_the_map_lacks_records_it_and_a_mapped_one_does_not(monkeypatch):
+    unmapped = _Obs(elements=[{"role": "button", "name": "Brand new", "locator": "#new"}])
+    unmapped.url, unmapped.title = "http://app.example/new", "New"
+    result = _acting_session(monkeypatch, unmapped).act("st01", "button:A")
+    assert result["discovered"]["url"] == "http://app.example/new"
+    assert result["discovered"]["path"][-1]["locator"] == "#a"        # the action is the last step
+    mapped = _Obs(elements=[{"role": "button", "name": "Back", "locator": "#back"}])
+    mapped.url = "http://app.example/p2"
+    sess = _acting_session(monkeypatch, mapped)
+    sess.reference.known_signatures.add(live_session.signature(mapped))
+    assert "discovered" not in sess.act("st01", "button:A")
+
+
+def test_the_driver_sees_only_a_discoverys_id_and_how_many_controls_it_offers():
+    log = [{"round_reasoning": "r", "result": {"screen_was": "new_screen", "discovered": {
+        "id": "d1234abcd", "controls_offered": 3, "elements": [{"key": "button:x"}], "path": [{"name": "A"}]}}}]
+    redacted = adp.redact_history_for_model(log)
+    assert redacted[0]["result"]["discovered"] == {"id": "d1234abcd", "controls_offered": 3}
+    assert "elements" in log[0]["result"]["discovered"]           # output.json keeps the full record
