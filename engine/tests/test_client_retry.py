@@ -103,6 +103,24 @@ def test_retry_succeeds_after_one_validation_failure():
     assert result == {"ok": True}
 
 
+def test_a_retry_answers_every_tool_call_in_a_split_reply():
+    # Issue #134: a garbled answer came back as several tool calls; the retry answered
+    # only the first, and the API rejected the request, ending the run.
+    responses = [
+        _FakeMessage([_FakeToolUse("id1", {"bad": True}), _FakeToolUse("id2", {"claim": "x"})]),
+        _FakeMessage([_FakeToolUse("id3", {"ok": True})]),
+    ]
+    client = _FakeClient(responses)
+    result = call_tool_with_retry(
+        client, model="m", system="s", tools=[], tool_name="t", user_message="u",
+        validate_fn=lambda data: [] if data.get("ok") else ["missing 'ok'"], max_tokens=10, max_attempts=3,
+    )
+    assert result == {"ok": True}
+    retry_results = client.messages.last_kwargs["messages"][-1]["content"]
+    assert [r["tool_use_id"] for r in retry_results] == ["id1", "id2"]
+    assert all(r["type"] == "tool_result" and r["is_error"] for r in retry_results)
+
+
 def test_raises_after_max_attempts_exhausted():
     responses = [_FakeMessage([_FakeToolUse(f"id{i}", {"bad": True})]) for i in range(5)]
     client = _FakeClient(responses)

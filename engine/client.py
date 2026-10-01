@@ -346,6 +346,10 @@ def call_tool_with_retry(
             if truncated else
             "Invalid: " + "; ".join(errors) +
             ". Fix and call the tool again with a corrected, complete answer.")
+        # Every tool call in the reply needs its own result, or the API refuses the
+        # retry outright. A garbled answer can come back split into several calls, and
+        # answering only the first crashed a paid run mid-way (issue #134).
+        extra_calls = [b for b in message.content if b.type == "tool_use" and b.id != tool_use.id]
         messages.append({
             "role": "user",
             "content": [{
@@ -353,7 +357,12 @@ def call_tool_with_retry(
                 "tool_use_id": tool_use.id,
                 "content": correction,
                 "is_error": True,
-            }],
+            }] + [{
+                "type": "tool_result",
+                "tool_use_id": extra.id,
+                "content": f"Ignored: answer with exactly one call to {tool_name}.",
+                "is_error": True,
+            } for extra in extra_calls],
         })
 
     raise RuntimeError(f"Gave up after {max_attempts} attempts, last errors: {last_errors}")
