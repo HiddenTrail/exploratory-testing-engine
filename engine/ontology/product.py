@@ -65,7 +65,8 @@ def load_product(product: str, wiki_dir: Path = WIKI_DIR) -> dict[str, Any] | No
             "page": path.relative_to(REPO).as_posix() if path.is_relative_to(REPO) else str(path),
             "features": list(meta.get("features", [])),
             "facts": [{
-                "id": f"{product}.{slug}.{fact.get('id')}",
+                "local_id": (local_id := fact.get("id")),
+                "id": f"{product}.{slug}.{local_id}" if local_id else None,
                 "kind": fact.get("kind"),
                 "text": fact.get("text", ""),
                 "source": sources.get(fact.get("source"), ""),
@@ -90,6 +91,9 @@ def product_errors(product: str, wiki_dir: Path = WIKI_DIR) -> list[str]:
         where = entity["page"]
         errors += [f"{where}: feature '{f}' isn't in the vocabulary" for f in entity["features"] if f not in features]
         for fact in entity["facts"]:
+            if not fact["local_id"]:
+                errors.append(f"{where}: fact has no id")
+                continue
             if fact["kind"] not in kinds:
                 errors.append(f"{where}: {fact['id']} has kind '{fact['kind']}', not one of {sorted(kinds)}")
             if not str(fact["text"]).strip():

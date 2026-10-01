@@ -33,6 +33,18 @@ def test_a_bad_product_page_is_reported(tmp_path):
     assert product.product_errors("nothing", wiki_dir=tmp_path) == ["no Product Overview page with product: nothing"]
 
 
+def test_a_fact_without_an_id_is_reported(tmp_path):
+    (tmp_path / "overview.md").write_text("---\ntype: Product Overview\nproduct: demo\n---\n",
+                                          encoding="utf-8")
+    (tmp_path / "demo-home.md").write_text(
+        "---\ntype: Entity\nproduct: demo\nfacts:\n  - kind: shown\n    text: x\n---\n",
+        encoding="utf-8")
+
+    loaded = product.load_product("demo", wiki_dir=tmp_path)
+    assert loaded["entities"][0]["facts"][0]["id"] is None
+    assert product.product_errors("demo", wiki_dir=tmp_path) == ["demo-home.md: fact has no id"]
+
+
 def test_build_oracle_rejects_a_bad_product_page(tmp_path):
     (tmp_path / "overview.md").write_text("---\ntype: Product Overview\nproduct: demo\nsurfaces: [gui]\n---\n",
                                           encoding="utf-8")
