@@ -79,20 +79,24 @@ def map_errors(exploration) -> list[str]:
     if not isinstance(exploration, dict):
         return ["the exploration block isn't an object"]
     errors = []
+    lists = {}
     for key in ("states", "transitions", "skipped"):
-        if not isinstance(exploration.get(key), list):
+        value = exploration.get(key)
+        if not isinstance(value, list):
             errors.append(f"exploration.{key} is missing or not a list")
+        else:
+            lists[key] = value
     action = lambda a: isinstance(a, dict) and isinstance(a.get("role"), str) and isinstance(a.get("name"), str)
-    for i, s in enumerate(exploration.get("states") or []):
+    for i, s in enumerate(lists.get("states", [])):
         if not isinstance(s, dict) or not isinstance(s.get("id"), str):
             errors.append(f"states[{i}] has no string id")
         elif not isinstance(s.get("actions", []), list) or not all(action(a) for a in s.get("actions", [])):
             errors.append(f"states[{i}].actions aren't all {{role, name}}")
-    for i, t in enumerate(exploration.get("transitions") or []):
+    for i, t in enumerate(lists.get("transitions", [])):
         if not (isinstance(t, dict) and isinstance(t.get("from"), str) and isinstance(t.get("to"), str)
                 and action(t.get("action"))):
             errors.append(f"transitions[{i}] isn't {{from, to, action: {{role, name}}}}")
-    for i, k in enumerate(exploration.get("skipped") or []):
+    for i, k in enumerate(lists.get("skipped", [])):
         if not (isinstance(k, dict) and isinstance(k.get("from"), str) and action(k.get("action"))):
             errors.append(f"skipped[{i}] isn't {{from, action: {{role, name}}}}")
     return errors
