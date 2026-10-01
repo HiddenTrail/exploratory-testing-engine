@@ -11,7 +11,11 @@ features: [dialog, money]
 facts:
   - id: F1
     kind: shown
-    text: The Apple Juice (1000ml) dialog says "The all-time classic." and shows 1.99¤.
+    text: The Apple Juice (1000ml) dialog shows 1.99¤.
+    source: screens
+  - id: F4
+    kind: claimed
+    text: The Apple Juice (1000ml) dialog describes it as "The all-time classic."
     source: screens
   - id: F2
     kind: shown

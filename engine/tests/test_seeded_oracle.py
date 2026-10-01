@@ -53,6 +53,11 @@ def test_a_shown_fact_becomes_a_self_consistency_expectation_citing_its_source()
     assert e["sources"][1].endswith("S7.png")
 
 
+def test_a_claim_the_product_makes_is_checked_by_the_claims_seed():
+    e = next(e for e in JUICE_SHOP if e["id"] == "oracle:claims_oracle:juice-shop.product-list.F9")
+    assert e["tier"] == "fact" and "Only 1 left" in e["claim"]
+
+
 def test_a_heuristic_goes_on_the_screens_that_share_its_feature_and_under_the_seed_naming_it():
     placed = [e for e in JUICE_SHOP if e["id"].endswith(":monetary_precision")]
     assert {e["entity"] for e in placed} == {"product-list", "product-details-dialog"}   # the two with money

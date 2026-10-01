@@ -27,7 +27,7 @@ facts:
     source: screens
   - id: F5
     kind: shown
-    text: Best Juice Shop Salesman Artwork costs 5000¤ and carries an "Only 1 left" badge.
+    text: Best Juice Shop Salesman Artwork costs 5000¤.
     source: screens
   - id: F6
     kind: shown
@@ -41,6 +41,14 @@ facts:
     kind: shown
     text: The language menu offers about 40 languages.
     source: spoor-map-2
+  - id: F9
+    kind: claimed
+    text: Best Juice Shop Salesman Artwork carries an "Only 1 left" badge.
+    source: screens
+  - id: F10
+    kind: claimed
+    text: The cookie notice says the site "uses fruit cookies to ensure you get the juiciest tracking experience".
+    source: screens
 sources:
   - id: spoor-map
     resource: docs/product-sources/juice-shop-spoor-map-2026-09-29.json

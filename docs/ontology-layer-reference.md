@@ -310,7 +310,8 @@ FEW HICCUPPS (`seeds/fewhiccupps.json`). Those 11 entries used to be in the
 heuristic library and moved here with their ids. Each seed says what it draws on:
 
 - `fact_kinds`: each product fact of these kinds becomes an expectation. Product
-  (self-consistency) takes `shown` facts, Claims takes `documented`, Purpose
+  (self-consistency) takes `shown` facts, Claims takes `claimed` (anything the
+  product claims: specs, its own pages, marketing, emails to customers), Purpose
   takes `rule`, and Statutes and standards takes `standard`.
 - `heuristic_ids`, `heuristic_tags`, `heuristic_kinds`: the library heuristics
   it applies. A heuristic goes under one seed only, and a seed that names it by id

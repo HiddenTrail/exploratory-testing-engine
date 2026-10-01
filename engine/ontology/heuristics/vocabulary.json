@@ -60,7 +60,7 @@
     ]
   },
   "fact_kinds": {
-    "documented": "stated in a spec, a ticket or other documentation",
+    "claimed": "anything the product claims, wherever it says it: a spec or help text, the product's own pages and messages, marketing, emails to customers, promises",
     "shown": "seen in the product itself: a value, a label, a screen",
     "rule": "a business rule the product is meant to follow",
     "standard": "a law, regulation or standard the product must meet"

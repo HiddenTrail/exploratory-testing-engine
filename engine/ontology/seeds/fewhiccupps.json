@@ -5,16 +5,16 @@
     {
       "id": "claims_oracle",
       "name": "Claims",
-      "question": "What EXPLICIT, documented claims does the spec make that can be mechanically checked against any real response? (e.g. 'decline_reason must be one of these N documented values', 'credits_purchased must be 0 if declined').",
+      "question": "Does the product do what it claims? A claim is anything said about the product, by it or for it: specs and help text, the product's own pages and messages, marketing and website promotion, emails to customers, promises. Each one can be checked against what the product actually does.",
       "draws_on": {
         "fact_kinds": [
-          "documented"
+          "claimed"
         ],
         "heuristic_ids": [
           "claims_testing"
         ]
       },
-      "fact_template": "As the sources say: {fact}",
+      "fact_template": "The product claims this, so it should hold: {fact}",
       "heuristic_template": "On {entity}: {description}"
     },
     {

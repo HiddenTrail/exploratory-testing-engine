@@ -129,9 +129,11 @@ extra frontmatter fields:
   decide which heuristics the oracle applies to it.
 - **`facts`** (Entity pages): short checkable statements, each with an `id`
   unique on the page (`F1`), a `kind` from the vocabulary's `fact_kinds`
-  (`documented`, `shown`, `rule`, `standard`), its `text`, and the `source`: one
+  (`claimed`, `shown`, `rule`, `standard`), its `text`, and the `source`: one
   of the page's `sources[].id`. A fact's global id is
-  `<product>.<page>.<id>`, e.g. `juice-shop.product-list.F2`.
+  `<product>.<page>.<id>`, e.g. `juice-shop.product-list.F2`. A `claimed`
+  fact is anything the product claims, wherever it says it: a spec or help text,
+  its own pages and messages, marketing, emails to customers, promises.
 
 ```yaml
 product: juice-shop
