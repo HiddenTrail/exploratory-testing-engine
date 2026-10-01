@@ -401,7 +401,7 @@ def test_a_state_that_stays_different_is_reported_as_it_is(monkeypatch):
 
 class _Obs:
     def __init__(self, elements=(), console=(), network=()):
-        self.url, self.headings = "http://x/#/", []
+        self.url, self.headings, self.text = "http://x/#/", [], ""
         self.elements, self.console, self.network = list(elements), list(console), list(network)
 
 
@@ -500,3 +500,85 @@ def test_the_log_line_names_errors_failures_and_an_unsettled_read():
         "signals_weak": {"failed_requests": ["GET http://ads/p -> 0"]}}})
     assert "2 console error(s)" in line and "1 failed request(s)" in line
     assert "storage changed" in line and "UNSETTLED" in line and "1 weak signal(s)" in line
+
+
+# ---- review fixes on #146: Copilot's comments and the 3-site signal audit -------------
+
+def test_nothing_is_trusted_when_the_action_was_not_sent():
+    # Copilot on #146: a drifted path or a failed click still produced trusted facts.
+    before = _Obs(elements=[{"role": "button", "name": "Close"}])
+    after = _Obs(elements=[], console=[{"type": "error", "text": "boom"}])
+    signals, weak = live_session._signal_diff(before, after, [], {}, {"cookie:c": 1}, True, True, {}, ORIGIN,
+                                              sent=False)
+    assert signals == {"settled_before": True, "settled_after": True}
+    assert weak == {"console_errors": ["boom"], "storage_added": ["cookie:c"], "controls_removed": ["button:close"]}
+
+
+def test_controls_that_change_on_their_own_are_noise():
+    # PrestaShop's home page carousel: its slide links come and go with no action.
+    before = _Obs(elements=[{"role": "link", "name": "Slide 1"}, {"role": "button", "name": "Close"}])
+    after = _Obs(elements=[{"role": "link", "name": "Slide 2"}])
+    signals, weak = live_session._signal_diff(
+        before, after, [], {}, {}, True, True, {"controls": {"link:slide 1", "link:slide 2"}}, ORIGIN)
+    assert signals == {"settled_before": True, "settled_after": True, "controls_removed": ["button:close"]}
+    assert weak == {"controls_added": ["link:slide 2"], "controls_removed": ["link:slide 1"]}
+
+
+def test_a_malformed_url_in_the_product_is_its_own_request_not_a_third_party():
+    # PrestaShop requests http://modules/... on every load: a broken relative URL.
+    own = live_session._own_request
+    assert own({"url": "http://modules/blockreassurance/parcel.svg"}, "http://127.0.0.1:8080")
+    assert own({"url": "http://127.0.0.1:8080/api/x"}, "http://127.0.0.1:8080")
+    assert not own({"url": "https://www.google-analytics.com/collect"}, "http://127.0.0.1:8080")
+    assert not own({"url": "http://localhost:9999/x"}, "http://127.0.0.1:8080")
+
+
+class _IdlePage:
+    """A page whose controls follow `frames`, one per look, like a carousel."""
+
+    def __init__(self, frames):
+        self.frames = list(frames)
+
+    def evaluate(self, js, arg=None):
+        if js is live_session.ELEMENTS_JS:
+            return self.frames.pop(0) if len(self.frames) > 1 else self.frames[0]
+        return {}
+
+    def wait_for_timeout(self, ms):
+        pass
+
+
+class _Drained:
+    def drain(self):
+        return [], []
+
+
+def test_the_idle_watch_learns_controls_that_come_and_go():
+    sess = live_session.Session.__new__(live_session.Session)
+    sess.page = _IdlePage([[{"role": "link", "name": "Slide 1"}], [{"role": "link", "name": "Slide 1"}],
+                           [{"role": "link", "name": "Slide 2"}]])
+    sess.col, sess._requests, sess._context = _Drained(), {}, None
+    noise = sess._idle_noise()
+    assert noise["controls"] == {"link:slide 1", "link:slide 2"}
+
+
+def test_a_baseline_is_learned_only_for_a_state_the_replay_really_reached(monkeypatch):
+    # Copilot on #146: a drifted first replay attached another page's noise to the state.
+    ref = ref_mod.Reference(_ontology())
+    sess = live_session.Session.__new__(live_session.Session)
+    sess.reference, sess.base_url, sess._noise = ref, "http://app.example/", {}
+    sess.seen_signatures, sess.entry_signature, sess.last_covered_by, sess.last_rest = set(), "", "", True
+    sess.page, sess.col, sess._requests = None, None, {}
+    monkeypatch.setattr(sess, "_reboot", lambda: None)
+    monkeypatch.setattr(sess, "_actuate", lambda step: True)
+    monkeypatch.setattr(sess, "_rest", lambda: True)
+    monkeypatch.setattr(sess, "_storage", lambda: {})
+    monkeypatch.setattr(sess, "_shot", lambda: None)
+    monkeypatch.setattr(sess, "recover", lambda: "")
+    watched = []
+    monkeypatch.setattr(sess, "_idle_noise", lambda: watched.append(1) or {})
+    elsewhere = _Obs(elements=[{"role": "button", "name": "Somewhere else"}])
+    monkeypatch.setattr(sess, "_capture_expecting", lambda expected: elsewhere)
+    monkeypatch.setattr(live_session, "capture", lambda page, col: elsewhere)
+    sess.act("st02", "button:Back")
+    assert watched == [] and "st02" not in sess._noise
