@@ -30,6 +30,7 @@ cd ../..
 export WEB_GUI_ONTOLOGY="$PWD/.experiments/web-recon/out/ontology.json"
 export WEB_GUI_URL="http://localhost:5173"   # optional; defaults to the ontology's target.url
 export WEB_GUI_HEADED=1                        # optional; headless by default
+export WEB_GUI_SESSION=.sessions/juice-shop/logged-in.json  # optional; every test starts from this saved session (#154)
 export WEB_GUI_PRODUCT=juice-shop             # optional; use that product's seeded oracle, built from the wiki
 export WEB_GUI_FEATURES="login,search,list-paging"  # optional, without a product: heuristic library tags to rank first
 python -m engine.cli --adapter web_gui
@@ -44,6 +45,20 @@ live and writes the same `ontology.json` shape, with no LLM call:
 python -m engine.adapters.web_gui.from_spoor     --map .spoor-cache/maps/127.0.0.1_3000.json --url http://127.0.0.1:3000     --out .experiments/web-recon/out/juice-shop-from-spoor.json
 export WEB_GUI_ONTOLOGY="$PWD/.experiments/web-recon/out/juice-shop-from-spoor.json"
 ```
+
+**Behind a login (#154):** map and convert with the same saved session, then run with it.
+Each test still starts in a fresh browser context, loaded from the session file. A run whose
+session doesn't match the one the map was made with warns before it starts:
+
+```bash
+cd runs/spoor-juice-logged-in   # its own .spoor-cache, so the logged-out map isn't overwritten
+../../../ht-spoor/.venv/Scripts/spoor explore http://127.0.0.1:3000 --session "$PWD/../../.sessions/juice-shop/logged-in.json" --max-depth 2
+cd ../.. && python -m engine.adapters.web_gui.from_spoor --map runs/spoor-juice-logged-in/.spoor-cache/maps/127.0.0.1_3000.json     --url http://127.0.0.1:3000 --session .sessions/juice-shop/logged-in.json --out .experiments/web-recon/out/juice-shop-logged-in.json
+export WEB_GUI_ONTOLOGY="$PWD/.experiments/web-recon/out/juice-shop-logged-in.json" WEB_GUI_SESSION=.sessions/juice-shop/logged-in.json
+```
+
+Session files hold live auth cookies: keep them in the gitignored `.sessions/`. Only a
+session's name ever reaches the Driver or a report.
 
 It keeps a control only if web-recon's safety gate would let the read-only crawl act on it
 (judged on the live element), follows a Spoor step only if that control passes as a plain

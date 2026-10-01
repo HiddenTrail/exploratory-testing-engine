@@ -103,6 +103,7 @@ def main():
     ap.add_argument("--repeats", type=int, default=2)
     ap.add_argument("--max-pairs", type=int, default=15)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--session", default=None, help="a saved session file every test starts from (#154)")
     args = ap.parse_args()
 
     ref = ref_mod.Reference(json.loads(Path(args.ontology).read_text(encoding="utf-8")))
@@ -110,7 +111,8 @@ def main():
     runs, noise, errors = [], defaultdict(list), []
     t_start = time.time()
     for s in range(args.sessions):
-        sess = live_session.Session(ref, args.url, False)
+        sess = live_session.Session(ref, args.url, False,
+                                    live_session.load_session_file(args.session) if args.session else None)
         try:
             sess.baseline()
             for state_id, control in pairs:

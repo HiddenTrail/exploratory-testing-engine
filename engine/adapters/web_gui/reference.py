@@ -34,6 +34,9 @@ class Reference:
     def __init__(self, data: dict):
         self.schema = data.get("schema", "")
         self.base_url = (data.get("target") or {}).get("url", "")
+        # Which saved session the map was made with ("" for none), so a run can warn when it
+        # starts from a different one (issue #154).
+        self.session_name = (data.get("session") or {}).get("session_name", "")
         self.states = data.get("states", [])
         self.transitions = data.get("transitions", [])
         self._by_id = {s["id"]: s for s in self.states}
