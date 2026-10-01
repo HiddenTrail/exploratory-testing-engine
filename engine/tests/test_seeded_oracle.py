@@ -42,7 +42,8 @@ def test_a_fact_without_an_id_is_reported(tmp_path):
 
     loaded = product.load_product("demo", wiki_dir=tmp_path)
     assert loaded["entities"][0]["facts"][0]["id"] is None
-    assert product.product_errors("demo", wiki_dir=tmp_path) == [f"{tmp_path}/demo-home.md: fact has no id"]
+    # Built with the path type, so it matches on Windows (backslashes) as well as Linux.
+    assert product.product_errors("demo", wiki_dir=tmp_path) == [f"{tmp_path / 'demo-home.md'}: fact has no id"]
 
 
 def test_build_oracle_rejects_a_bad_product_page(tmp_path):

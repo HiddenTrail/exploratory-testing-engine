@@ -116,9 +116,13 @@ _STORAGE_JS = r"""
 _MAX_SIGNAL_ITEMS = 5
 
 
-# How long a state is watched idle, once per state per run, to learn what changes on
-# its own (polling, timers, analytics). See _signal_diff.
-_NOISE_IDLE_MS = 1000
+# A state is watched idle once per run, to learn what changes on its own (polling,
+# timers, analytics, a carousel): _NOISE_SAMPLES looks, _NOISE_SAMPLE_MS apart. The
+# signal audit on #146 found PrestaShop's home page carousel, which turns about every
+# 5 s, reported as an action's trusted effect, so the watch covers about 6 s. See
+# _signal_diff.
+_NOISE_SAMPLES = 3
+_NOISE_SAMPLE_MS = 2000
 
 
 def _request_key(r: dict) -> str:
@@ -131,8 +135,29 @@ def _console_key(text: str) -> str:
     return re.sub(r"\d+", "#", text or "")[:200]
 
 
+def _own_request(r: dict, origin: str) -> bool:
+    """Whether a request is the product's own business: to its origin, or to a host
+    with no dot that isn't localhost. The second is a malformed URL in the product's
+    page, not a third party: PrestaShop requests http://modules/... on every load
+    (a broken relative URL) and the first version of this rule called that third-party
+    (#146 audit)."""
+    request, product = urlsplit(r["url"]), urlsplit(origin)
+    # An exact origin match: a prefix check let https://example.com.evil/ pass for
+    # https://example.com, and :80801 for :8080 (Copilot on #152).
+    default_ports = {"http": 80, "https": 443}
+    try:
+        if ((request.scheme, request.hostname, request.port or default_ports.get(request.scheme))
+                == (product.scheme, product.hostname, product.port or default_ports.get(product.scheme))):
+            return True
+    except ValueError:   # a port urlsplit can't read isn't the product's origin
+        return False
+    host = request.hostname or ""
+    return bool(host) and "." not in host and ":" not in host and host != "localhost"
+
+
 def _signal_diff(before, after, requests: list[dict], storage_before: dict, storage_after: dict,
-                 settled_before: bool, settled_after: bool, noise: dict, origin: str) -> tuple[dict, dict]:
+                 settled_before: bool, settled_after: bool, noise: dict, origin: str,
+                 sent: bool = True) -> tuple[dict, dict]:
     """What an action did beyond the screen it landed on (issue #143), split by how far
     it can be trusted. Returns (signals, weak).
 
@@ -144,19 +169,27 @@ def _signal_diff(before, after, requests: list[dict], storage_before: dict, stor
     - console errors, requests and storage keys that also changed while the state sat
       idle (`noise`, see Session._idle_noise) are the page's own background, not the
       action's effect
-    - nothing read from a page that hadn't rested is trusted
+    - nothing read from a page that hadn't rested is trusted, and nothing at all when
+      the action wasn't sent (the path drifted or the click failed): whatever changed
+      then isn't the action's effect
+    - controls that also came and went while the state sat idle (a carousel) are noise
     Screenshots are never a signal: pixels move with animations, cursors and fonts.
     The settled flags are always in `signals`; everything else only if it changed."""
     signals = {"settled_before": settled_before, "settled_after": settled_after}
     weak: dict = {}
 
     def put(key, trusted_items, weak_items):
+        # The same request or message repeated is one signal (PrestaShop requested
+        # the same broken SVG twice on one load).
+        trusted_items, weak_items = list(dict.fromkeys(trusted_items)), list(dict.fromkeys(weak_items))
         if trusted_items:
             signals[key] = trusted_items[:_MAX_SIGNAL_ITEMS]
             if len(trusted_items) > _MAX_SIGNAL_ITEMS:
                 signals[f"{key}_more"] = len(trusted_items) - _MAX_SIGNAL_ITEMS
         if weak_items:
             weak[key] = weak_items[:_MAX_SIGNAL_ITEMS]
+            if len(weak_items) > _MAX_SIGNAL_ITEMS:
+                weak[f"{key}_more"] = len(weak_items) - _MAX_SIGNAL_ITEMS
 
     errors = [c["text"] for c in after.console if c.get("type") in ("error", "pageerror")]
     put("console_errors", [e for e in errors if _console_key(e) not in noise.get("console", ())],
@@ -165,7 +198,7 @@ def _signal_diff(before, after, requests: list[dict], storage_before: dict, stor
     failed = [r for r in requests if r.get("status") is not None and (r["status"] == 0 or r["status"] >= 400)]
     def line(r):
         return f"{_request_key(r)} -> {r['status'] or r.get('failure') or 'no response'}"
-    own = lambda r: r["url"].startswith(origin) and _request_key(r) not in noise.get("requests", ())
+    own = lambda r: _own_request(r, origin) and _request_key(r) not in noise.get("requests", ())
     put("failed_requests", [line(r) for r in failed if own(r)], [line(r) for r in failed if not own(r)])
 
     noisy_storage = set(noise.get("storage", ()))
@@ -175,15 +208,19 @@ def _signal_diff(before, after, requests: list[dict], storage_before: dict, stor
                                                  if storage_before[k] != storage_after[k]))):
         put(key, [k for k in keys if k not in noisy_storage], [k for k in keys if k in noisy_storage])
 
+    noisy_controls = set(noise.get("controls", ()))
     controls_before, controls_after = set(control_keys(before)), set(control_keys(after))
-    put("controls_added", sorted(controls_after - controls_before), [])
-    put("controls_removed", sorted(controls_before - controls_after), [])
+    for key, keys in (("controls_added", sorted(controls_after - controls_before)),
+                      ("controls_removed", sorted(controls_before - controls_after))):
+        put(key, [k for k in keys if k not in noisy_controls], [k for k in keys if k in noisy_controls])
 
-    if not (settled_before and settled_after):
-        for key in [k for k in signals if not k.startswith("settled_")]:
-            value = signals.pop(key)
-            if not key.endswith("_more"):
-                weak[key] = (value + weak.get(key, []))[:_MAX_SIGNAL_ITEMS]
+    if not (sent and settled_before and settled_after):
+        for key in [k for k in signals if not k.startswith("settled_") and not k.endswith("_more")]:
+            items = signals.pop(key) + weak.get(key, [])
+            cut = signals.pop(f"{key}_more", 0) + weak.pop(f"{key}_more", 0) + max(len(items) - _MAX_SIGNAL_ITEMS, 0)
+            weak[key] = items[:_MAX_SIGNAL_ITEMS]
+            if cut:
+                weak[f"{key}_more"] = cut
     return signals, weak
 
 
@@ -256,20 +293,32 @@ class Session:
     def _requests_since(self, t: float) -> list[dict]:
         return [r for r in self._requests.values() if r["t"] >= t]
 
+    def _controls_now(self) -> set:
+        try:
+            return set(control_keys({"elements": self.page.evaluate(ELEMENTS_JS)}))
+        except Exception:
+            return set()
+
     def _idle_noise(self) -> dict:
-        """What changes on this page with no action at all, over _NOISE_IDLE_MS: the
-        requests started, console errors and storage keys changed. An action's diff
-        leaves those out of its trusted signals (see _signal_diff)."""
+        """What changes on this page with no action at all, over _NOISE_SAMPLES looks
+        _NOISE_SAMPLE_MS apart: the requests started, console errors, storage keys and
+        controls that changed. An action's diff leaves those out of its trusted signals
+        (see _signal_diff). Reads the element list, not a full capture, so the console
+        log is drained only on purpose."""
         self.col.drain()
-        storage0, t = self._storage(), time.time()
-        self.page.wait_for_timeout(_NOISE_IDLE_MS)
-        self._rest()
+        storage0, controls0, t = self._storage(), self._controls_now(), time.time()
+        storage_changed, controls_changed = set(), set()
+        for _ in range(_NOISE_SAMPLES):
+            self.page.wait_for_timeout(_NOISE_SAMPLE_MS)
+            storage, controls = self._storage(), self._controls_now()
+            storage_changed |= {k for k in set(storage0) | set(storage) if storage0.get(k) != storage.get(k)}
+            controls_changed |= controls ^ controls0
         console, _ = self.col.drain()
-        storage1 = self._storage()
         return {
             "requests": {_request_key(r) for r in self._requests_since(t)},
             "console": {_console_key(c["text"]) for c in console if c.get("type") in ("error", "pageerror")},
-            "storage": {k for k in set(storage0) | set(storage1) if storage0.get(k) != storage1.get(k)},
+            "storage": storage_changed,
+            "controls": controls_changed,
         }
 
     def _rest(self) -> bool:
@@ -437,22 +486,27 @@ class Session:
         of the operation when the action lands somewhere new, so the next test starts clean."""
         plan = self.reference.plan_for(state_id, control_key)
         self._reboot()
-        replayed = True
-        for step in plan["path"]:
-            replayed = self._actuate(step)
-            self.last_rest = self._rest()
-            if not replayed:
-                break
-        settled_before = self.last_rest
-        # Learn this state's background once per run (about a second), before reading it.
-        if state_id not in self._noise:
+        replayed = self._replay(plan["path"])
+        expected = self.reference._by_id.get(state_id, {}).get("signature", "")
+        before = self._capture_expecting(expected)
+        reached = replayed and expected == signature(before)
+        # Learn this state's background once per run, but only once the replay is
+        # verified to have reached it: a drifted first replay would otherwise attach
+        # another page's noise to this state for the rest of the run. The watch moves
+        # the page on, so it rests and is read again afterwards.
+        if reached and state_id not in self._noise:
             self._noise[state_id] = self._idle_noise()
-
-        before = self._capture_expecting(self.reference._by_id.get(state_id, {}).get("signature", ""))
+            # The watch moves the page on: PrestaShop's slider turns about 5 s after each
+            # load, so a read after the watch no longer matched the state (#146 audit
+            # rerun). Reach the state afresh instead, as every later act does.
+            self._reboot()
+            replayed = self._replay(plan["path"])
+            before = self._capture_expecting(expected)
+            reached = replayed and expected == signature(before)
+        settled_before = self.last_rest
         storage_before = self._storage()
         before_sig = signature(before)
         before_png = self._shot()
-        reached = replayed and self.reference._by_id.get(state_id, {}).get("signature") == before_sig
 
         # The click and the settle are timed separately: the click ladder's fallbacks can
         # take seconds on their own, and counting them as the page's settle time made our
@@ -496,7 +550,8 @@ class Session:
             result["covered_by"] = self.last_covered_by
         origin = "{0.scheme}://{0.netloc}".format(urlsplit(self.base_url))
         result["signals"], weak = _signal_diff(before, after, self._requests_since(t0), storage_before, self._storage(),
-                                               settled_before, settled_after, self._noise[state_id], origin)
+                                               settled_before, settled_after, self._noise.get(state_id, {}), origin,
+                                               sent=sent)
         if weak:
             result["signals_weak"] = weak
         self.seen_signatures.add(after_sig)
@@ -505,6 +560,16 @@ class Session:
             result["recovered_to"] = recovered
             result["recovered_ok"] = recovered == self.entry_signature
         return result
+
+    def _replay(self, path: list[dict]) -> bool:
+        """Actuate a carried path step by step, resting after each; stops at the first
+        step that fails."""
+        for step in path:
+            ok = self._actuate(step)
+            self.last_rest = self._rest()
+            if not ok:
+                return False
+        return True
 
     def recover(self) -> str:
         self._reboot()
