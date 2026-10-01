@@ -58,7 +58,7 @@ def load_product(product: str, wiki_dir: Path = WIKI_DIR) -> dict[str, Any] | No
         if meta.get("type") != "Entity" or meta.get("product") != product:
             continue
         slug = _page_slug(path, product)
-        sources = {s["id"]: s["resource"] for s in meta.get("sources", []) if "id" in s}
+        sources = {s["id"]: s.get("resource", "") for s in meta.get("sources", []) if "id" in s}
         entities.append({
             "slug": slug,
             "title": meta.get("title", slug),
