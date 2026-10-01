@@ -16,10 +16,13 @@ and the Driver has been live-run once against them end to end:
    source, tagged by surface, feature and quality (#128)
 2. `domain_<sut>.json` — per-SUT business/domain facts (schema, known accounts,
    business rules), extracted out of the adapter
-3. `context_<sut>.json` — test results / jira entries / risk assessments
+3. `context_<sut>.json` — test results / jira entries / risk assessments (for a
+   product with a wiki, `context_<product>.json`)
 4. `oracle_creator.py` — scores and ranks domain claims + heuristic probes using
    what layer 3 says about each claim (untested / confirmed / refuted / jira-matched),
-   generic probes always fill in behind grounded claims
+   generic probes always fill in behind grounded claims. For a product with a wiki,
+   the oracle is instead built by the seeder from layers 1 and 2 through the FEW
+   HICCUPPS seeds (#138, see `docs/ontology-layer-reference.md`)
 
 `token_purchase`'s adapter now surfaces the top-15 ranked ideas (`ORACLE_RANKED`)
 in its onboarding evidence, and `engine/ontology/feedback.py` writes a completed

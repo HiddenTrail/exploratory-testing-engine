@@ -29,8 +29,11 @@ def test_ids_are_unique_across_every_source_file():
 def test_the_original_ids_are_kept_so_old_runs_and_context_still_match():
     ids = {h["id"] for h in LIBRARY}
     assert {"goldilocks", "boundary_edges", "zero_and_negative", "alphabet_soup", "monetary_precision",
-            "empty_and_null", "duplicate_replay", "ordering_race", "sensitive_data_exposure",
-            "self_consistency"} <= ids
+            "empty_and_null", "duplicate_replay", "ordering_race", "sensitive_data_exposure"} <= ids
+    # self_consistency is an oracle principle, so it moved to the seeds with its id (issue #138).
+    from engine.ontology.seeder import load_seeds
+    assert "self_consistency" in {s["id"] for s in load_seeds()}
+    assert "self_consistency" not in ids
 
 
 def test_no_long_dashes_in_the_text():

@@ -7,7 +7,11 @@
       "kind": "technique",
       "description": "Test too small, just right, and too big values for any bounded field.",
       "apply": "For each field with a size or range, send one value well under it, one inside it and one well over it.",
-      "tags": ["boundary", "input-field", "numeric-field"],
+      "tags": [
+        "boundary",
+        "input-field",
+        "numeric-field"
+      ],
       "base_weight": 2
     },
     {
@@ -16,7 +20,11 @@
       "kind": "technique",
       "description": "Test values exactly at, one below, and one above a documented limit.",
       "apply": "Find a stated limit, then send the limit itself and its two nearest neighbours.",
-      "tags": ["boundary", "input-field", "numeric-field"],
+      "tags": [
+        "boundary",
+        "input-field",
+        "numeric-field"
+      ],
       "base_weight": 2
     },
     {
@@ -25,7 +33,11 @@
       "kind": "technique",
       "description": "Test zero and negative values for any field assumed to be a positive quantity.",
       "apply": "Send 0, -1 and a large negative number where a count, amount or size is expected.",
-      "tags": ["boundary", "numeric-field", "money"],
+      "tags": [
+        "boundary",
+        "numeric-field",
+        "money"
+      ],
       "base_weight": 3
     },
     {
@@ -34,7 +46,11 @@
       "kind": "technique",
       "description": "Feed unicode, emoji, whitespace-only, and mixed-script strings into text fields.",
       "apply": "Enter accented letters, a right-to-left script, emoji and only spaces, then check what is stored and shown.",
-      "tags": ["data-type", "text-field", "i18n"],
+      "tags": [
+        "data-type",
+        "text-field",
+        "i18n"
+      ],
       "base_weight": 1
     },
     {
@@ -43,7 +59,12 @@
       "kind": "oracle",
       "description": "Check that monetary values never show float rounding artifacts and use consistent decimal precision.",
       "apply": "Look at every shown or returned price and total for values like 0.30000000000000004 or mixed decimal places.",
-      "tags": ["data-type", "money", "payment", "consistency"],
+      "tags": [
+        "data-type",
+        "money",
+        "payment",
+        "consistency"
+      ],
       "base_weight": 3
     },
     {
@@ -52,7 +73,12 @@
       "kind": "technique",
       "description": "Submit empty string, null, and missing-field variants for every required field.",
       "apply": "Leave each required field empty, send it as null, and leave it out, one field at a time.",
-      "tags": ["data-type", "input-field", "form", "error-handling"],
+      "tags": [
+        "data-type",
+        "input-field",
+        "form",
+        "error-handling"
+      ],
       "base_weight": 2
     },
     {
@@ -61,7 +87,12 @@
       "kind": "attack",
       "description": "Repeat an identical request/transaction and check for idempotency or unintended duplication.",
       "apply": "Send the same order, payment or create action twice in a row and count what was created or charged.",
-      "tags": ["state", "data-integrity", "payment", "form"],
+      "tags": [
+        "state",
+        "data-integrity",
+        "payment",
+        "form"
+      ],
       "base_weight": 2
     },
     {
@@ -70,7 +101,11 @@
       "kind": "attack",
       "description": "Fire near-simultaneous or out-of-order requests against the same resource/account.",
       "apply": "Send two changes to the same thing at the same moment, or in the reverse of the usual order.",
-      "tags": ["concurrency", "state", "data-integrity"],
+      "tags": [
+        "concurrency",
+        "state",
+        "data-integrity"
+      ],
       "base_weight": 1
     },
     {
@@ -79,17 +114,13 @@
       "kind": "oracle",
       "description": "Check that sensitive fields (secrets, PANs, tokens) are never echoed back in responses or logs.",
       "apply": "After handling a secret, card number or token, look for it in responses, pages, errors and logs.",
-      "tags": ["security", "privacy", "payment", "login"],
+      "tags": [
+        "security",
+        "privacy",
+        "payment",
+        "login"
+      ],
       "base_weight": 3
-    },
-    {
-      "id": "self_consistency",
-      "name": "Self-consistency",
-      "kind": "oracle",
-      "description": "Compare two responses that should logically agree (e.g. same query, different path) for contradictions.",
-      "apply": "Get the same fact two ways, such as a total and its line items, and check they agree.",
-      "tags": ["consistency"],
-      "base_weight": 2
     }
   ]
 }

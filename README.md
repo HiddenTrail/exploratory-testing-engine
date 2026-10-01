@@ -126,7 +126,12 @@ Full status and backlog: [`docs/ontology-todo.md`](docs/ontology-todo.md).
 python -m engine.ontology.oracle_creator --sut token_purchase   # layer 4: rank
 python -m engine.ontology.website --sut token_purchase          # view all 4 layers
 python -m engine.ontology.feedback --sut token_purchase --run <output.json>  # close the loop
+python -m engine.ontology.seeder --product juice-shop           # a product's oracle, built from its wiki
 ```
+
+For a product with a wiki (Juice Shop so far), the oracle isn't written by hand:
+the seeder runs the heuristic library and the product's facts from the wiki
+through the FEW HICCUPPS oracle seeds (#138).
 
 ## Layout
 
@@ -167,7 +172,7 @@ engine/
     report.py     # renders a DiscoveredSchema as HTML for --discover-only
     jira_mock.py  # stubbed ticket store for context-enriched bootstrap - see above; real JIRA is a TODO
     cli.py        # python -m engine.bootstrap.cli - chains all 4 phases end to end
-  ontology/       # prioritization layer stack (heuristics/domain/context/ranked oracle) - see above
+  ontology/       # prioritization layer stack (heuristics/domain/context/ranked oracle, and the seeder) - see above
   tests/          # deterministic regression + parity tests (no LLM calls, runs in CI)
 .experiments/     # mostly earlier prototypes this package was hardened from, kept as an archive.
                   #   Not all of it is archive. The engine loads four of these at run time, so a

@@ -20,8 +20,8 @@ worth checking, not facts about `token_purchase` or any other particular
 SUT.
 
 It holds every established heuristic we've written up, one file per source:
-the original 10 (`core.json`), HTSM with the FEW HICCUPPS oracles (`htsm.json`,
-which absorbed the old experiments catalog), Hendrickson's cheat sheet,
+the original 10 (`core.json`, less `self_consistency`), HTSM (`htsm.json`, which
+absorbed the old experiments catalog; its FEW HICCUPPS oracles moved to the seeds, below), Hendrickson's cheat sheet,
 Whittaker's attacks, classic techniques, Nielsen's usability heuristics, WCAG
 and common web page checks. `vocabulary.json` fixes the kinds and tags, and
 `engine/tests/test_heuristic_library.py` enforces them. The Oracle doesn't send
@@ -88,8 +88,8 @@ model), `description`, `apply` (what a test for it looks like), `tags` (from
 `oracle_creator.py` to seed a generic probe's starting priority before any
 context-layer signal is applied). The file gives each entry its `source`.
 
-The original 10, in `core.json` (their ids are kept so old runs and context
-still match):
+The original 10 (their ids are kept so old runs and context still match). Nine
+are in `core.json`; `self_consistency` is now an oracle seed (see below):
 
 | id | category | base_weight | description |
 |---|---|---|---|
@@ -293,6 +293,43 @@ default shape, but nothing in `score_grounded_claim` reads it yet — it's
 placeholder structure, not a working input. This is also where the
 "organizational/business-risk" question from the layer 2 discussion would
 most likely land, once there's an actual scoring rule for it.
+
+## The oracle seeder (issue #138)
+
+**Files:** [`engine/ontology/seeds/`](../engine/ontology/seeds/),
+[`engine/ontology/seeder.py`](../engine/ontology/seeder.py),
+[`engine/ontology/product.py`](../engine/ontology/product.py)
+
+For a product with a wiki, the oracle is built, not written by hand. The seeder
+runs layer 1 (the heuristic library) and layer 2 (the product's facts and
+features, read from the wiki's frontmatter, see AGENTS.md) through a set of
+oracle seeds, and what comes out is that product's oracle.
+
+A seed is an oracle principle: a way to recognise a problem. The first set is
+FEW HICCUPPS (`seeds/fewhiccupps.json`). Those 11 entries used to be in the
+heuristic library and moved here with their ids. Each seed says what it draws on:
+
+- `fact_kinds`: each product fact of these kinds becomes an expectation. Product
+  (self-consistency) takes `shown` facts, Claims takes `documented`, Purpose
+  takes `rule`, and Statutes and standards takes `standard`.
+- `heuristic_ids`, `heuristic_tags`, `heuristic_kinds`: the library heuristics
+  it applies. A heuristic goes under one seed only, and a seed that names it by id
+  gets it before one that only matches its tags. A heuristic with feature tags
+  goes on every screen sharing a feature, and one without goes on the product as
+  a whole.
+- `standing`: one expectation for the whole product (History, Explainability).
+
+Each expectation has a stable id (`oracle:<seed>:<fact id>` or
+`oracle:<seed>:<screen>:<heuristic>`), its seed, the screen, the claim, how to
+check it and its sources. `oracle_creator.build_product_ideas` scores them with
+the product's context (`context_<product>.json`, keyed by product), and with a
+cap it picks by taking turns across seeds, so every seed is represented. Facts
+outrank heuristics, so a plain top 15 would be all self-consistency checks.
+
+It's deterministic, with no model calls. Run
+`python -m engine.ontology.seeder --product juice-shop` to see it, and set
+`WEB_GUI_PRODUCT=juice-shop` for a web_gui run to use it. token_purchase stays on
+the older path below until it has a wiki. More seed sets are #139.
 
 ## Layer 4 — Oracle (ranking/scoring)
 

@@ -115,6 +115,37 @@ transitions, no captures) and cite the export. Screenshots of a local test
 target can be copied there too, a few at a time, when a page needs what they
 show.
 
+## The product layer: what the oracle reads
+
+The engine builds each product's oracle from this wiki (issue #138, see
+`engine/ontology/product.py` and `seeder.py`), so a product's pages carry three
+extra frontmatter fields:
+
+- **`product`** (the Product Overview and every Entity page about it): the
+  product's slug, e.g. `juice-shop`. The overview also gets **`surfaces`**,
+  e.g. `[gui]`.
+- **`features`** (Entity pages): what the thing has, as tags from
+  `engine/ontology/heuristics/vocabulary.json`, e.g. `[login, form]`. These
+  decide which heuristics the oracle applies to it.
+- **`facts`** (Entity pages): short checkable statements, each with an `id`
+  unique on the page (`F1`), a `kind` from the vocabulary's `fact_kinds`
+  (`documented`, `shown`, `rule`, `standard`), its `text`, and the `source`: one
+  of the page's `sources[].id`. A fact's global id is
+  `<product>.<page>.<id>`, e.g. `juice-shop.product-list.F2`.
+
+```yaml
+product: juice-shop
+features: [list-paging, money]
+facts:
+  - id: F2
+    kind: shown
+    text: Apple Juice (1000ml) costs 1.99¤ in the list.
+    source: screens
+```
+
+A fact is held to the same rule as the rest of the page: it says only what its
+source says. `engine/tests/test_seeded_oracle.py` checks the fields.
+
 ## Operations
 
 1. **Ingest** — read one in-scope raw source **faithfully** (no invented

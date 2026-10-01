@@ -16,13 +16,14 @@ import json
 from datetime import date
 from pathlib import Path
 
-from engine.ontology.oracle_creator import ONTOLOGY_DIR, build_ranked_ideas, load_context
+from engine.ontology.oracle_creator import ONTOLOGY_DIR, build_product_ideas, build_ranked_ideas, load_context
 
 
-def known_ids(sut: str) -> set[str]:
+def known_ids(sut: str, product: str | None = None) -> set[str]:
     """The ids a test can really cite: the SUT's ranked ideas (domain claims and
-    generic heuristics)."""
-    return {idea["id"] for idea in build_ranked_ideas(sut)["ranked_ideas"]}
+    generic heuristics), or a product's whole seeded oracle."""
+    ideas = build_product_ideas(product) if product else build_ranked_ideas(sut)
+    return {idea["id"] for idea in ideas["ranked_ideas"]}
 
 
 def extract_results(output: dict, known: set[str]) -> tuple[list[dict], list[str]]:
@@ -60,15 +61,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Feed a Driver run's results back into layer 3 (context).")
     parser.add_argument("--sut", required=True)
     parser.add_argument("--run", required=True, help="Path to the run's output.json")
+    parser.add_argument("--product", default=None,
+                        help="for a product with a wiki (e.g. juice-shop): its context file is keyed by product")
     args = parser.parse_args()
 
     output = json.loads(Path(args.run).read_text(encoding="utf-8"))
-    new_results, dropped = extract_results(output, known_ids(args.sut))
+    new_results, dropped = extract_results(output, known_ids(args.sut, args.product))
 
-    context = load_context(args.sut)
+    key = args.product or args.sut
+    context = load_context(key)
     context = merge_results(context, new_results)
 
-    context_path = ONTOLOGY_DIR / f"context_{args.sut}.json"
+    context_path = ONTOLOGY_DIR / f"context_{key}.json"
     context_path.write_text(json.dumps(context, indent=2), encoding="utf-8")
     print(f"Merged {len(new_results)} test result(s) into {context_path} (total now {len(context['test_results'])})")
     if dropped:

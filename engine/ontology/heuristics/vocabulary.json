@@ -1,5 +1,5 @@
 {
-  "about": "The fixed vocabulary for the heuristic library (issue #128). Every heuristic's kind and tags must come from here; engine/tests/test_heuristic_library.py checks it. A heuristic with no surface tag applies to every surface.",
+  "about": "The fixed vocabulary for the heuristic library (issue #128). Every heuristic's kind and tags, and every product page's features and fact kinds, must come from here; engine/tests/test_heuristic_library.py checks it. A heuristic with no surface tag applies to every surface.",
   "kinds": {
     "technique": "a way to design tests",
     "attack": "a specific way to try to make the product fail",
@@ -8,16 +8,61 @@
     "product_model": "a part of the product to look at"
   },
   "tags": {
-    "surface": ["api", "gui"],
+    "surface": [
+      "api",
+      "gui"
+    ],
     "feature": [
-      "input-field", "text-field", "numeric-field", "date-time", "form", "login", "registration",
-      "password-reset", "session", "account", "search", "list-paging", "navigation", "menu", "dialog",
-      "notification", "link", "table", "file-upload", "cart", "payment", "money", "email", "localization"
+      "input-field",
+      "text-field",
+      "numeric-field",
+      "date-time",
+      "form",
+      "login",
+      "registration",
+      "password-reset",
+      "session",
+      "account",
+      "search",
+      "list-paging",
+      "navigation",
+      "menu",
+      "dialog",
+      "notification",
+      "link",
+      "table",
+      "file-upload",
+      "cart",
+      "payment",
+      "money",
+      "email",
+      "localization"
     ],
     "quality": [
-      "functionality", "boundary", "data-type", "state", "sequence", "consistency", "concurrency",
-      "error-handling", "reliability", "usability", "accessibility", "performance", "security",
-      "privacy", "compatibility", "data-integrity", "i18n", "time"
+      "functionality",
+      "boundary",
+      "data-type",
+      "state",
+      "sequence",
+      "consistency",
+      "concurrency",
+      "error-handling",
+      "reliability",
+      "usability",
+      "accessibility",
+      "performance",
+      "security",
+      "privacy",
+      "compatibility",
+      "data-integrity",
+      "i18n",
+      "time"
     ]
+  },
+  "fact_kinds": {
+    "documented": "stated in a spec, a ticket or other documentation",
+    "shown": "seen in the product itself: a value, a label, a screen",
+    "rule": "a business rule the product is meant to follow",
+    "standard": "a law, regulation or standard the product must meet"
   }
 }

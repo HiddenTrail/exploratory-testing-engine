@@ -5,7 +5,22 @@ title: "Juice Shop login page"
 description: The login form, reached from the account menu, with email, password, Google login and links to register and reset a password.
 tags: [juice-shop, screen]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: "2026-09-30T10:40:00Z" }
+generated: { by: claude-code/claude-opus-5-5, at: "2026-10-01T04:59:40Z" }
+product: juice-shop
+features: [login, form, input-field, email, password-reset, registration]
+facts:
+  - id: F1
+    kind: shown
+    text: The login form has Email and Password fields, both marked required.
+    source: screens
+  - id: F2
+    kind: shown
+    text: "\"Log in\" is greyed out while the fields are empty."
+    source: screens
+  - id: F3
+    kind: shown
+    text: The form offers "Remember me", "Log in with Google", "Forgot your password?" and "Not yet a customer?".
+    source: spoor-map-2
 sources:
   - id: spoor-map-2
     resource: docs/product-sources/juice-shop-spoor-map-2026-09-30.json

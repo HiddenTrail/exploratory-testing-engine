@@ -96,7 +96,7 @@ engine/
     web_gui/                # fourth adapter - a live web app in a browser. Its action space is a
                             #   web-recon ontology.json. See its README
   bootstrap/                # generate a draft adapter from a live SUT - see below
-  ontology/                 # prioritization layer stack (heuristics/domain/context/ranked oracle) - see root README
+  ontology/                 # prioritization layer stack (heuristics/domain/context/ranked oracle, and the seeder that builds a product's oracle from its wiki) - see root README
   tests/                    # deterministic regression + parity tests (no LLM calls)
 ```
 
