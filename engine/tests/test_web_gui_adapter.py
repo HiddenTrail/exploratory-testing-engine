@@ -405,24 +405,52 @@ class _Obs:
         self.elements, self.console, self.network = list(elements), list(console), list(network)
 
 
-def test_the_signal_diff_lists_only_what_the_action_changed():
+ORIGIN = "http://x"
+
+
+def _req(method, url, status, **kw):
+    return {"t": 0, "method": method, "url": url, "status": status, **kw}
+
+
+def test_only_signals_that_pass_every_trust_check_count_as_facts():
     before = _Obs(elements=[{"role": "button", "name": "Close"}])
     after = _Obs(elements=[{"role": "button", "name": "Menu"}],
-                 console=[{"type": "error", "text": "TypeError: x is undefined"}, {"type": "log", "text": "hi"}],
-                 network=[{"method": "GET", "url": "/api/a", "status": 200},
-                          {"method": "POST", "url": "/api/b", "status": 500},
-                          {"method": "GET", "url": "/api/c", "status": 0, "failure": "net::ERR_FAILED"}])
-    signals = live_session._signal_diff(before, after, {"local:a": 1, "local:b": 2}, {"local:b": 3, "cookie:c": 4},
-                                        True, False)
+                 console=[{"type": "error", "text": "TypeError: x is undefined"},
+                          {"type": "error", "text": "poll 17 failed"}, {"type": "log", "text": "hi"}])
+    requests = [_req("GET", "http://x/api/a", 200),                               # fine: not a signal
+                _req("POST", "http://x/api/b", 500),                              # trusted
+                _req("GET", "http://ads.example/pixel", 0, failure="net::ERR"),   # third-party: weak
+                _req("GET", "http://x/api/poll?t=99", 503),                       # seen idle: weak
+                _req("GET", "http://x/api/slow", None)]                           # still pending: ignored
+    noise = {"requests": {"GET http://x/api/poll"}, "console": {"poll # failed"}, "storage": {"local:clock"}}
+    signals, weak = live_session._signal_diff(
+        before, after, requests, {"local:clock": 1, "local:b": 2}, {"local:clock": 2, "local:b": 3, "cookie:c": 4},
+        True, True, noise, ORIGIN)
     assert signals == {
-        "settled_before": True, "settled_after": False,
-        "console_errors": ["TypeError: x is undefined"], "console_error_count": 1,
-        "failed_requests": ["POST /api/b -> 500", "GET /api/c -> net::ERR_FAILED"], "failed_request_count": 2,
-        "storage_added": ["cookie:c"], "storage_removed": ["local:a"], "storage_changed": ["local:b"],
+        "settled_before": True, "settled_after": True,
+        "console_errors": ["TypeError: x is undefined"],
+        "failed_requests": ["POST http://x/api/b -> 500"],
+        "storage_added": ["cookie:c"], "storage_changed": ["local:b"],
         "controls_added": ["button:menu"], "controls_removed": ["button:close"],
     }
-    quiet = live_session._signal_diff(before, _Obs(elements=before.elements), {}, {}, True, True)
-    assert quiet == {"settled_before": True, "settled_after": True}
+    assert weak == {
+        "console_errors": ["poll 17 failed"],
+        "failed_requests": ["GET http://ads.example/pixel -> net::ERR", "GET http://x/api/poll?t=99 -> 503"],
+        "storage_changed": ["local:clock"],
+    }
+
+
+def test_nothing_read_from_an_unsettled_page_is_trusted():
+    before, after = _Obs(), _Obs(console=[{"type": "error", "text": "boom"}])
+    signals, weak = live_session._signal_diff(before, after, [], {}, {}, True, False, {}, ORIGIN)
+    assert signals == {"settled_before": True, "settled_after": False}
+    assert weak == {"console_errors": ["boom"]}
+
+
+def test_a_quiet_action_has_only_the_settled_flags():
+    obs = _Obs(elements=[{"role": "button", "name": "Close"}])
+    assert live_session._signal_diff(obs, obs, [], {}, {}, True, True, {}, ORIGIN) == (
+        {"settled_before": True, "settled_after": True}, {})
 
 
 class _MutatingPage:
@@ -467,7 +495,8 @@ def test_a_request_in_flight_keeps_the_page_busy(monkeypatch):
 def test_the_log_line_names_errors_failures_and_an_unsettled_read():
     line = adp.describe_result_for_log({"result": {
         "verdict": "sent", "screen_was": "same_screen", "click": 0.1, "settle": 0.4, "reached_target_state": True,
-        "signals": {"settled_before": True, "settled_after": False, "console_error_count": 2,
-                    "failed_request_count": 1, "storage_added": ["cookie:x"]}}})
+        "signals": {"settled_before": True, "settled_after": False, "console_errors": ["a", "b"],
+                    "failed_requests": ["GET /x -> 500"], "storage_added": ["cookie:x"]},
+        "signals_weak": {"failed_requests": ["GET http://ads/p -> 0"]}}})
     assert "2 console error(s)" in line and "1 failed request(s)" in line
-    assert "storage changed" in line and "UNSETTLED" in line
+    assert "storage changed" in line and "UNSETTLED" in line and "1 weak signal(s)" in line

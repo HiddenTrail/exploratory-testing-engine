@@ -73,8 +73,12 @@ WHAT YOU GET BACK, per test:
          when it was read, so the reading is suspect), console_errors, failed_requests
          (status 0 means no response at all), storage_added / storage_removed /
          storage_changed (local:, session: and cookie: keys; values are never shown),
-         controls_added / controls_removed. A new console error or a failed request
-         after an action is a fact, not a guess.
+         controls_added / controls_removed. These passed every trust check: the
+         request started after the action, on the product's own origin, nothing of it
+         happened while the page sat idle, and the page had rested. Treat them as facts.
+  signals_weak: the same kinds of signal that failed a trust check (third-party, also
+         seen with no action, or read from an unsettled page). A hint for a next test,
+         never evidence for a claim on its own.
   covered_by: present when something else was on top of the control, for example
          "dialog 'cookieconsent'". The harness sent the click to the control anyway,
          which a real user couldn't do without moving the cover first.
@@ -200,10 +204,11 @@ def describe_result_for_log(result: dict) -> str:
     if detail.get("covered_by"):
         line += f", clicked through {detail['covered_by']} on top of it"
     signals = detail.get("signals") or {}
-    noted = [f"{signals['console_error_count']} console error(s)" if signals.get("console_error_count") else "",
-             f"{signals['failed_request_count']} failed request(s)" if signals.get("failed_request_count") else "",
+    noted = [f"{len(signals['console_errors'])} console error(s)" if signals.get("console_errors") else "",
+             f"{len(signals['failed_requests'])} failed request(s)" if signals.get("failed_requests") else "",
              "storage changed" if any(k in signals for k in ("storage_added", "storage_removed", "storage_changed")) else "",
-             "UNSETTLED" if signals and not (signals.get("settled_before", True) and signals.get("settled_after", True)) else ""]
+             "UNSETTLED" if signals and not (signals.get("settled_before", True) and signals.get("settled_after", True)) else "",
+             f"{sum(len(v) for v in detail['signals_weak'].values())} weak signal(s)" if detail.get("signals_weak") else ""]
     if any(noted):
         line += ", " + ", ".join(n for n in noted if n)
     if not detail.get("reached_target_state"):

@@ -18,8 +18,10 @@ from __future__ import annotations
 
 import atexit
 import os
+import re
 import sys
 import time
+from urllib.parse import urlsplit
 from pathlib import Path
 
 # web-recon is the source of truth for perception, identity and the safety gate; reuse it
@@ -114,36 +116,75 @@ _STORAGE_JS = r"""
 _MAX_SIGNAL_ITEMS = 5
 
 
-def _signal_diff(before, after, storage_before: dict, storage_after: dict,
-                 settled_before: bool, settled_after: bool) -> dict:
-    """What an action did, beyond the screen it landed on (issue #143): the console
-    errors and failed requests it caused (the Collector is drained by the capture
-    before the action, so `after` holds only what came since), storage and cookie keys
-    it added, removed or changed, controls that appeared or went, and whether the page
-    had rested before and after. Only what changed is included, to keep the prompt
-    small; the settled flags are always there."""
+# How long a state is watched idle, once per state per run, to learn what changes on
+# its own (polling, timers, analytics). See _signal_diff.
+_NOISE_IDLE_MS = 1000
+
+
+def _request_key(r: dict) -> str:
+    """A request without its query or fragment, so a poll with a changing timestamp
+    matches itself."""
+    return f"{r['method']} {urlsplit(r['url'])._replace(query='', fragment='').geturl()}"
+
+
+def _console_key(text: str) -> str:
+    return re.sub(r"\d+", "#", text or "")[:200]
+
+
+def _signal_diff(before, after, requests: list[dict], storage_before: dict, storage_after: dict,
+                 settled_before: bool, settled_after: bool, noise: dict, origin: str) -> tuple[dict, dict]:
+    """What an action did beyond the screen it landed on (issue #143), split by how far
+    it can be trusted. Returns (signals, weak).
+
+    A signal is only trusted, so usable as a fact, if it passes every check; anything
+    else goes to `weak` as a hint. Background traffic, timers and third-party calls make
+    a raw before/after diff look like evidence when it isn't:
+    - requests count only if they started after the action (`requests` is already
+      filtered to those), and are trusted only on the product's own origin
+    - console errors, requests and storage keys that also changed while the state sat
+      idle (`noise`, see Session._idle_noise) are the page's own background, not the
+      action's effect
+    - nothing read from a page that hadn't rested is trusted
+    Screenshots are never a signal: pixels move with animations, cursors and fonts.
+    The settled flags are always in `signals`; everything else only if it changed."""
     signals = {"settled_before": settled_before, "settled_after": settled_after}
+    weak: dict = {}
+
+    def put(key, trusted_items, weak_items):
+        if trusted_items:
+            signals[key] = trusted_items[:_MAX_SIGNAL_ITEMS]
+            if len(trusted_items) > _MAX_SIGNAL_ITEMS:
+                signals[f"{key}_more"] = len(trusted_items) - _MAX_SIGNAL_ITEMS
+        if weak_items:
+            weak[key] = weak_items[:_MAX_SIGNAL_ITEMS]
+
     errors = [c["text"] for c in after.console if c.get("type") in ("error", "pageerror")]
-    if errors:
-        signals["console_errors"] = errors[:_MAX_SIGNAL_ITEMS]
-        signals["console_error_count"] = len(errors)
-    failed = [f"{n['method']} {n['url']} -> {n['status'] or n.get('failure', 'failed')}"
-              for n in after.network if not n.get("status") or n["status"] >= 400]
-    if failed:
-        signals["failed_requests"] = failed[:_MAX_SIGNAL_ITEMS]
-        signals["failed_request_count"] = len(failed)
-    added = sorted(set(storage_after) - set(storage_before))
-    removed = sorted(set(storage_before) - set(storage_after))
-    changed = sorted(k for k in set(storage_before) & set(storage_after) if storage_before[k] != storage_after[k])
-    for key, keys in (("storage_added", added), ("storage_removed", removed), ("storage_changed", changed)):
-        if keys:
-            signals[key] = keys[:_MAX_SIGNAL_ITEMS]
+    put("console_errors", [e for e in errors if _console_key(e) not in noise.get("console", ())],
+        [e for e in errors if _console_key(e) in noise.get("console", ())])
+
+    failed = [r for r in requests if r.get("status") is not None and (r["status"] == 0 or r["status"] >= 400)]
+    def line(r):
+        return f"{r['method']} {r['url']} -> {r['status'] or r.get('failure') or 'no response'}"
+    own = lambda r: r["url"].startswith(origin) and _request_key(r) not in noise.get("requests", ())
+    put("failed_requests", [line(r) for r in failed if own(r)], [line(r) for r in failed if not own(r)])
+
+    noisy_storage = set(noise.get("storage", ()))
+    for key, keys in (("storage_added", sorted(set(storage_after) - set(storage_before))),
+                      ("storage_removed", sorted(set(storage_before) - set(storage_after))),
+                      ("storage_changed", sorted(k for k in set(storage_before) & set(storage_after)
+                                                 if storage_before[k] != storage_after[k]))):
+        put(key, [k for k in keys if k not in noisy_storage], [k for k in keys if k in noisy_storage])
+
     controls_before, controls_after = set(control_keys(before)), set(control_keys(after))
-    if controls_after - controls_before:
-        signals["controls_added"] = sorted(controls_after - controls_before)[:_MAX_SIGNAL_ITEMS]
-    if controls_before - controls_after:
-        signals["controls_removed"] = sorted(controls_before - controls_after)[:_MAX_SIGNAL_ITEMS]
-    return signals
+    put("controls_added", sorted(controls_after - controls_before), [])
+    put("controls_removed", sorted(controls_before - controls_after), [])
+
+    if not (settled_before and settled_after):
+        for key in [k for k in signals if not k.startswith("settled_")]:
+            value = signals.pop(key)
+            if not key.endswith("_more"):
+                weak[key] = (value + weak.get(key, []))[:_MAX_SIGNAL_ITEMS]
+    return signals, weak
 
 
 class Session:
@@ -157,6 +198,7 @@ class Session:
         self._open_fresh_page()
         self.seen_signatures: set[str] = set()   # signatures first sighted this run
         self.last_covered_by = ""                  # what was on top of the last control clicked
+        self._noise: dict = {}                      # state id -> what changes there on its own
         self.entry_signature = ""
         atexit.register(self.close)
 
@@ -184,9 +226,13 @@ class Session:
         self.page = self._context.new_page()
         self.col = Collector().attach(self.page)
         self._inflight: set = set()
-        self.page.on("request", lambda r: self._inflight.add(id(r)))
+        # Every request with the time it started, so an action is only blamed for the
+        # requests it started (issue #143), not ones already in flight when it ran.
+        self._requests: dict = {}
+        self.page.on("request", self._on_request)
+        self.page.on("response", lambda resp: self._requests.get(id(resp.request), {}).update(status=resp.status))
         self.page.on("requestfinished", lambda r: self._inflight.discard(id(r)))
-        self.page.on("requestfailed", lambda r: self._inflight.discard(id(r)))
+        self.page.on("requestfailed", self._on_request_failed)
         if old is not None:
             try:
                 old.close()
@@ -198,6 +244,33 @@ class Session:
         self._open_fresh_page()
         self.page.goto(self.base_url, wait_until="domcontentloaded")
         self.last_rest = self._rest()
+
+    def _on_request(self, r) -> None:
+        self._inflight.add(id(r))
+        self._requests[id(r)] = {"t": time.time(), "method": r.method, "url": r.url[:300], "status": None}
+
+    def _on_request_failed(self, r) -> None:
+        self._inflight.discard(id(r))
+        self._requests.get(id(r), {}).update(status=0, failure=(r.failure or "")[:120])
+
+    def _requests_since(self, t: float) -> list[dict]:
+        return [r for r in self._requests.values() if r["t"] >= t]
+
+    def _idle_noise(self) -> dict:
+        """What changes on this page with no action at all, over _NOISE_IDLE_MS: the
+        requests started, console errors and storage keys changed. An action's diff
+        leaves those out of its trusted signals (see _signal_diff)."""
+        self.col.drain()
+        storage0, t = self._storage(), time.time()
+        self.page.wait_for_timeout(_NOISE_IDLE_MS)
+        self._rest()
+        console, _ = self.col.drain()
+        storage1 = self._storage()
+        return {
+            "requests": {_request_key(r) for r in self._requests_since(t)},
+            "console": {_console_key(c["text"]) for c in console if c.get("type") in ("error", "pageerror")},
+            "storage": {k for k in set(storage0) | set(storage1) if storage0.get(k) != storage1.get(k)},
+        }
 
     def _rest(self) -> bool:
         """Wait until the page has rested (see _REST_QUIET_MS). True if it did, False if
@@ -371,6 +444,9 @@ class Session:
             if not replayed:
                 break
         settled_before = self.last_rest
+        # Learn this state's background once per run (about a second), before reading it.
+        if state_id not in self._noise:
+            self._noise[state_id] = self._idle_noise()
 
         before = self._capture_expecting(self.reference._by_id.get(state_id, {}).get("signature", ""))
         storage_before = self._storage()
@@ -418,7 +494,11 @@ class Session:
         }
         if sent and self.last_covered_by:
             result["covered_by"] = self.last_covered_by
-        result["signals"] = _signal_diff(before, after, storage_before, self._storage(), settled_before, settled_after)
+        origin = "{0.scheme}://{0.netloc}".format(urlsplit(self.base_url))
+        result["signals"], weak = _signal_diff(before, after, self._requests_since(t0), storage_before, self._storage(),
+                                               settled_before, settled_after, self._noise[state_id], origin)
+        if weak:
+            result["signals_weak"] = weak
         self.seen_signatures.add(after_sig)
         if screen_was == "new_screen":
             recovered = self.recover()
