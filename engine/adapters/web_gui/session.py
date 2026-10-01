@@ -67,9 +67,28 @@ _COVER_JS = r"""
   const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
   if (!hit || el.contains(hit) || hit.contains(el)) return {state: "clear"};
   if ([...(el.labels || [])].some((label) => label.contains(hit))) return {state: "own"};
-  const box = hit.closest("[role=dialog], [role=alertdialog], [aria-modal=true], [aria-label]") || hit;
-  const name = (box.getAttribute("aria-label") || "").slice(0, 40);
-  return {state: "covered", by: (box.getAttribute("role") || box.tagName.toLowerCase()) + (name ? ` '${name}'` : "")};
+  // Described so the Driver can tell covers apart (issue #150: on Juice Shop every
+  // open menu's transparent backdrop came out as a bare "div"): the role, or the tag
+  // with its id and first two classes, plus its accessible name, or for a label,
+  // button or link its short text. A bare wrapper is described by the nearest
+  // ancestor (up to 3 levels) that has an id, a class or a role.
+  const describe = (e) => {
+    const tag = e.tagName.toLowerCase(), role = e.getAttribute("role");
+    // Classes with digits are skipped: frameworks generate them (Angular's ng-tns-c21-12)
+    // and they change from build to build, so they'd make a cover look new each run.
+    const classes = [...e.classList].filter((c) => !/\d/.test(c)).slice(0, 2);
+    const what = role || tag + (e.id ? "#" + e.id : "") + classes.map((c) => "." + c).join("");
+    const named = (e.getAttribute("aria-label") || "").slice(0, 40)
+      || (["label", "button", "a"].includes(tag) ? (e.textContent || "").trim().replace(/\s+/g, " ").slice(0, 30) : "");
+    return what + (named ? ` '${named}'` : "");
+  };
+  let box = hit.closest("[role=dialog], [role=alertdialog], [aria-modal=true], [aria-label]");
+  if (!box) {
+    box = hit;
+    for (let i = 0; i < 3 && box.parentElement && !box.id && !box.classList.length && !box.getAttribute("role"); i++)
+      box = box.parentElement;
+  }
+  return {state: "covered", by: describe(box)};
 }
 """
 

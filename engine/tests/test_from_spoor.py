@@ -124,3 +124,18 @@ def test_map_errors_accepts_the_format_and_names_what_changed():
     renamed = {**good, "transitions": [{"source": "s1", "to": "s2", "action": {"role": "button", "name": "Go"}}]}
     assert map_errors(renamed) == ["transitions[0] isn't {from, to, action: {role, name}}"]
     assert "exploration.skipped is missing or not a list" in map_errors({"states": [], "transitions": []})
+
+
+def test_the_summary_prints_on_a_console_that_cannot_encode_icon_characters():
+    # Issue #150: PrestaShop's "All products " crashed the print on Windows (cp1252).
+    import io
+
+    from engine.adapters.web_gui.from_spoor import print_summary
+
+    raw = io.BytesIO()
+    console = io.TextIOWrapper(raw, encoding="cp1252")
+    report = {"spoor_states": 5, "states": 2, "transitions": 1, "dropped_unstable": [], "refused_steps": 1,
+              "hidden_controls": 0, "refused": ["link:All products "]}
+    print_summary(report, "out.json", console)
+    console.flush()
+    assert "refused: link:All products ?" in raw.getvalue().decode("cp1252")

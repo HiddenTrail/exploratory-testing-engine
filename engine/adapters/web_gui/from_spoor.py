@@ -26,6 +26,7 @@ become self-loops are dropped. Pages that only appear after a filled-in scaffold
 
 import argparse
 import json
+import sys
 from collections import deque
 from pathlib import Path
 from typing import Callable
@@ -242,12 +243,25 @@ def main() -> None:
         sess.close()
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(ontology, indent=2), encoding="utf-8")
+    print_summary(report, args.out)
+
+
+def print_summary(report: dict, out: str, stream=None) -> None:
+    """The one-line summary, plus the refused steps. Characters the console can't
+    encode are replaced: on Windows (cp1252) a control named with an icon font's
+    private-use character, like PrestaShop's "All products ", crashed the
+    print after the map was already written (issue #150)."""
+    stream = stream or sys.stdout
+    try:
+        stream.reconfigure(errors="replace")
+    except (AttributeError, ValueError):
+        pass
     print(f"converted {report['spoor_states']} Spoor states into {report['states']} states and "
           f"{report['transitions']} transitions; {len(report['dropped_unstable'])} dropped as unstable, "
           f"{report['refused_steps']} steps refused by the safety gate, {report['hidden_controls']} controls "
-          f"left out because Spoor couldn't reach them -> {args.out}")
+          f"left out because Spoor couldn't reach them -> {out}", file=stream)
     if report["refused"]:
-        print("  refused:", ", ".join(report["refused"]))
+        print("  refused:", ", ".join(report["refused"]), file=stream)
 
 
 if __name__ == "__main__":
