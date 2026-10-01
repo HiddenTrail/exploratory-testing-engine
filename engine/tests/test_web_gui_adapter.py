@@ -610,3 +610,29 @@ def test_after_learning_a_baseline_the_state_is_reached_afresh(monkeypatch):
     reboots.clear()
     sess.act("st02", "button:Back")
     assert len(reboots) == 1                                              # baseline already known
+
+
+# ---- Copilot on #152 ---------------------------------------------------------------------
+
+def test_the_origin_match_is_exact_not_a_prefix():
+    own = live_session._own_request
+    assert own({"url": "https://example.com/api"}, "https://example.com")
+    assert own({"url": "https://example.com:443/api"}, "https://example.com")       # default port
+    assert not own({"url": "https://example.com.evil/x"}, "https://example.com")
+    assert not own({"url": "http://127.0.0.1:80801/x"}, "http://127.0.0.1:8080")
+    assert not own({"url": "http://[::1]/x"}, "http://127.0.0.1:8080")             # IPv6 isn't single-label
+
+
+def test_a_cut_list_says_how_many_more_in_both_tiers_and_the_report():
+    after = _Obs(console=[{"type": "error", "text": f"e{i}"} for i in range(8)])
+    signals, weak = live_session._signal_diff(_Obs(), after, [], {}, {}, True, False, {}, ORIGIN)
+    assert weak["console_errors"] == ["e0", "e1", "e2", "e3", "e4"] and weak["console_errors_more"] == 3
+    html = adp._signals_html({"signals": signals, "signals_weak": weak})
+    assert "and 3 more" in html
+
+
+def test_a_failed_actions_weak_signals_are_in_the_report():
+    entry = {"request": {"state": "st01", "control": "button:A"}, "result": {
+        "verdict": "not_actuated", "signals": {"settled_before": True, "settled_after": True},
+        "signals_weak": {"console_errors": ["boom"]}}}
+    assert "boom" in adp.render_test_entry(entry)

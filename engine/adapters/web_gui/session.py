@@ -141,10 +141,18 @@ def _own_request(r: dict, origin: str) -> bool:
     page, not a third party: PrestaShop requests http://modules/... on every load
     (a broken relative URL) and the first version of this rule called that third-party
     (#146 audit)."""
-    if r["url"].startswith(origin):
-        return True
-    host = urlsplit(r["url"]).hostname or ""
-    return bool(host) and "." not in host and host != "localhost"
+    request, product = urlsplit(r["url"]), urlsplit(origin)
+    # An exact origin match: a prefix check let https://example.com.evil/ pass for
+    # https://example.com, and :80801 for :8080 (Copilot on #152).
+    default_ports = {"http": 80, "https": 443}
+    try:
+        if ((request.scheme, request.hostname, request.port or default_ports.get(request.scheme))
+                == (product.scheme, product.hostname, product.port or default_ports.get(product.scheme))):
+            return True
+    except ValueError:   # a port urlsplit can't read isn't the product's origin
+        return False
+    host = request.hostname or ""
+    return bool(host) and "." not in host and ":" not in host and host != "localhost"
 
 
 def _signal_diff(before, after, requests: list[dict], storage_before: dict, storage_after: dict,
@@ -180,6 +188,8 @@ def _signal_diff(before, after, requests: list[dict], storage_before: dict, stor
                 signals[f"{key}_more"] = len(trusted_items) - _MAX_SIGNAL_ITEMS
         if weak_items:
             weak[key] = weak_items[:_MAX_SIGNAL_ITEMS]
+            if len(weak_items) > _MAX_SIGNAL_ITEMS:
+                weak[f"{key}_more"] = len(weak_items) - _MAX_SIGNAL_ITEMS
 
     errors = [c["text"] for c in after.console if c.get("type") in ("error", "pageerror")]
     put("console_errors", [e for e in errors if _console_key(e) not in noise.get("console", ())],
@@ -205,10 +215,12 @@ def _signal_diff(before, after, requests: list[dict], storage_before: dict, stor
         put(key, [k for k in keys if k not in noisy_controls], [k for k in keys if k in noisy_controls])
 
     if not (sent and settled_before and settled_after):
-        for key in [k for k in signals if not k.startswith("settled_")]:
-            value = signals.pop(key)
-            if not key.endswith("_more"):
-                weak[key] = (value + weak.get(key, []))[:_MAX_SIGNAL_ITEMS]
+        for key in [k for k in signals if not k.startswith("settled_") and not k.endswith("_more")]:
+            items = signals.pop(key) + weak.get(key, [])
+            cut = signals.pop(f"{key}_more", 0) + weak.pop(f"{key}_more", 0) + max(len(items) - _MAX_SIGNAL_ITEMS, 0)
+            weak[key] = items[:_MAX_SIGNAL_ITEMS]
+            if cut:
+                weak[f"{key}_more"] = cut
     return signals, weak
 
 

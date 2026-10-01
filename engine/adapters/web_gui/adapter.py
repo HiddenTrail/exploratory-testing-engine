@@ -365,8 +365,13 @@ def _signals_html(result) -> str:
     if not signals:
         return ""
     def rows(tier):
-        return "".join(f"<li><code>{esc(key)}</code>: {esc(', '.join(map(str, value)))}</li>"
-                       for key, value in tier.items() if isinstance(value, list))
+        # A list cut at _MAX_SIGNAL_ITEMS carries a <key>_more count; show it, or the
+        # report looks complete when it isn't (Copilot on #152).
+        return "".join(
+            f"<li><code>{esc(key)}</code>: {esc(', '.join(map(str, value)))}"
+            + (f" <span class=\"prose-muted\">and {esc(tier[key + '_more'])} more</span>" if tier.get(key + "_more") else "")
+            + "</li>"
+            for key, value in tier.items() if isinstance(value, list))
     settled = signals.get("settled_before", True) and signals.get("settled_after", True)
     flag = "" if settled else f" {badge('read from an unsettled page', 'warn')}"
     trusted, weak = rows(signals), rows(result.get("signals_weak") or {})
@@ -406,6 +411,7 @@ def render_test_entry(entry) -> str:
           <div class="test-predicted">Predicted: {inline_markdown(entry.get('predicted_outcome'))}
             {_screen_badge(entry.get('predicted_screen'))}</div>
           <div class="test-outcome">{badge('control could not be actuated', 'bad')}</div>
+          {_signals_html(result)}
         </article>
         """
 
