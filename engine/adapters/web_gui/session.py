@@ -479,6 +479,17 @@ class Session:
                 continue
         return False
 
+    def save(self, path) -> dict:
+        """Save this session (cookies and storage) to `path`, so later tests and Spoor can
+        start from the state a run reached, e.g. after a scripted login on a sandbox target
+        (issue #155). Refuses a path git doesn't ignore. Returns what was saved, by name only."""
+        from engine.adapters.web_gui.save_session import refuse_unless_ignored, summary
+
+        path = Path(path)
+        refuse_unless_ignored(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return summary(self._context.storage_state(path=str(path)))
+
     def _cover(self, css: str) -> dict:
         if not css:
             return {"state": "clear"}
