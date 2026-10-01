@@ -67,6 +67,14 @@ WHAT YOU GET BACK, per test:
   click: seconds the click itself took. A long click means the harness needed a
          fallback to press the control (it was not uniquely found), not that the
          app was slow.
+  signals: what the action did beyond the screen it landed on, worked out by the
+         harness from before/after captures (only what changed is listed):
+         settled_before / settled_after (false: the page was still changing or loading
+         when it was read, so the reading is suspect), console_errors, failed_requests
+         (status 0 means no response at all), storage_added / storage_removed /
+         storage_changed (local:, session: and cookie: keys; values are never shown),
+         controls_added / controls_removed. A new console error or a failed request
+         after an action is a fact, not a guess.
   covered_by: present when something else was on top of the control, for example
          "dialog 'cookieconsent'". The harness sent the click to the control anyway,
          which a real user couldn't do without moving the cover first.
@@ -191,6 +199,13 @@ def describe_result_for_log(result: dict) -> str:
     line = f"{detail['screen_was']} (click {detail.get('click', '?')}s, settled {detail['settle']}s)"
     if detail.get("covered_by"):
         line += f", clicked through {detail['covered_by']} on top of it"
+    signals = detail.get("signals") or {}
+    noted = [f"{signals['console_error_count']} console error(s)" if signals.get("console_error_count") else "",
+             f"{signals['failed_request_count']} failed request(s)" if signals.get("failed_request_count") else "",
+             "storage changed" if any(k in signals for k in ("storage_added", "storage_removed", "storage_changed")) else "",
+             "UNSETTLED" if signals and not (signals.get("settled_before", True) and signals.get("settled_after", True)) else ""]
+    if any(noted):
+        line += ", " + ", ".join(n for n in noted if n)
     if not detail.get("reached_target_state"):
         line = "[path drifted before the control] " + line
     if "recovered_to" in detail:

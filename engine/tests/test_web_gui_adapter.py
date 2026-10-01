@@ -395,3 +395,79 @@ def test_a_state_that_stays_different_is_reported_as_it_is(monkeypatch):
     sess = live_session.Session.__new__(live_session.Session)
     sess.page, sess.col = _WaitingPage(), None
     assert sess._capture_expecting("ready") == "elsewhere"
+
+
+# ---- rested reads and the signal diff (issue #143) -------------------------------------
+
+class _Obs:
+    def __init__(self, elements=(), console=(), network=()):
+        self.url, self.headings = "http://x/#/", []
+        self.elements, self.console, self.network = list(elements), list(console), list(network)
+
+
+def test_the_signal_diff_lists_only_what_the_action_changed():
+    before = _Obs(elements=[{"role": "button", "name": "Close"}])
+    after = _Obs(elements=[{"role": "button", "name": "Menu"}],
+                 console=[{"type": "error", "text": "TypeError: x is undefined"}, {"type": "log", "text": "hi"}],
+                 network=[{"method": "GET", "url": "/api/a", "status": 200},
+                          {"method": "POST", "url": "/api/b", "status": 500},
+                          {"method": "GET", "url": "/api/c", "status": 0, "failure": "net::ERR_FAILED"}])
+    signals = live_session._signal_diff(before, after, {"local:a": 1, "local:b": 2}, {"local:b": 3, "cookie:c": 4},
+                                        True, False)
+    assert signals == {
+        "settled_before": True, "settled_after": False,
+        "console_errors": ["TypeError: x is undefined"], "console_error_count": 1,
+        "failed_requests": ["POST /api/b -> 500", "GET /api/c -> net::ERR_FAILED"], "failed_request_count": 2,
+        "storage_added": ["cookie:c"], "storage_removed": ["local:a"], "storage_changed": ["local:b"],
+        "controls_added": ["button:menu"], "controls_removed": ["button:close"],
+    }
+    quiet = live_session._signal_diff(before, _Obs(elements=before.elements), {}, {}, True, True)
+    assert quiet == {"settled_before": True, "settled_after": True}
+
+
+class _MutatingPage:
+    """A page whose DOM mutation count follows `counts`, then stays at the last one."""
+
+    def __init__(self, counts):
+        self.counts = list(counts)
+
+    def evaluate(self, js):
+        return self.counts.pop(0) if len(self.counts) > 1 else self.counts[0]
+
+    def wait_for_timeout(self, ms):
+        pass
+
+
+def _resting_session(page, monkeypatch, max_ms=300):
+    monkeypatch.setattr(live_session, "_REST_QUIET_MS", 50)
+    monkeypatch.setattr(live_session, "_REST_MAX_MS", max_ms)
+    sess = live_session.Session.__new__(live_session.Session)
+    sess.page, sess._inflight = page, set()
+    return sess
+
+
+def test_a_page_that_stops_changing_rests(monkeypatch):
+    assert _resting_session(_MutatingPage([1, 5, 9, 9]), monkeypatch)._rest() is True
+
+
+def test_a_page_that_never_stops_changing_is_flagged_not_waited_on_forever(monkeypatch):
+    import itertools
+    page = _MutatingPage([0])
+    counter = itertools.count()
+    page.evaluate = lambda js: next(counter)
+    assert _resting_session(page, monkeypatch, max_ms=150)._rest() is False
+
+
+def test_a_request_in_flight_keeps_the_page_busy(monkeypatch):
+    sess = _resting_session(_MutatingPage([3]), monkeypatch, max_ms=150)
+    sess._inflight.add(1)
+    assert sess._rest() is False
+
+
+def test_the_log_line_names_errors_failures_and_an_unsettled_read():
+    line = adp.describe_result_for_log({"result": {
+        "verdict": "sent", "screen_was": "same_screen", "click": 0.1, "settle": 0.4, "reached_target_state": True,
+        "signals": {"settled_before": True, "settled_after": False, "console_error_count": 2,
+                    "failed_request_count": 1, "storage_added": ["cookie:x"]}}})
+    assert "2 console error(s)" in line and "1 failed request(s)" in line
+    assert "storage changed" in line and "UNSETTLED" in line

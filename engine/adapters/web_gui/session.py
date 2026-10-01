@@ -29,7 +29,7 @@ _WEB_RECON = Path(__file__).resolve().parents[3] / ".experiments" / "web-recon"
 if str(_WEB_RECON) not in sys.path:
     sys.path.insert(0, str(_WEB_RECON))
 
-from identity import appearance, signature       # noqa: E402
+from identity import appearance, control_keys, signature   # noqa: E402
 from perceive import _ELEMENTS_JS as ELEMENTS_JS   # noqa: E402
 from perceive import Collector, capture, visual_diff  # noqa: E402
 from safety import SEARCH_PROBE, TEXT_ROLES        # noqa: E402
@@ -84,18 +84,66 @@ _RECAPTURE_WAIT_MS = 700
 _VISUAL_CHANGE_THRESHOLD = 0.02
 
 
-def _settle(page, quiet_ms: int = 2000, floor_ms: int = 350) -> None:
-    """Wait for the page to go quiet, then a short floor. networkidle is capped low
-    (quiet_ms): a driven run does many settles (reboot, each path step, after the action),
-    and on a live-traffic app - streaming map tiles, polling - the page never truly idles,
-    so a long cap just burns wall-clock every time (~6s each was the measured cost). A
-    client-side effect (zoom/pan/filter) renders within the floor; the cap only bites when
-    real traffic is in flight, and then briefly."""
-    try:
-        page.wait_for_load_state("networkidle", timeout=quiet_ms)
-    except Exception:
-        pass
-    page.wait_for_timeout(floor_ms)
+# A rested page (issue #143, after Spoor's settling): no DOM change for _REST_QUIET_MS
+# and no request in flight, waited for at most _REST_MAX_MS. A page that doesn't rest in
+# time is read anyway and flagged, rather than hanging the run or being trusted. Our
+# last three harness bugs (#123, #130, #131) were all reads taken before the page had
+# rested. Websockets don't count as requests in flight (Juice Shop keeps one open), and
+# unlike Spoor, an urgent live-region toast isn't waited out: identity already leaves
+# those controls out (#124), and Juice Shop's stays up for about 5 s on every load.
+_REST_QUIET_MS = 400
+_REST_MAX_MS = 8000
+_REST_POLL_MS = 100
+
+# Counts DOM mutations on every document the page loads, for _rest.
+_MUTATION_COUNTER_JS = """
+window.__qesMutations = 0;
+new MutationObserver((records) => { window.__qesMutations += records.length; })
+  .observe(document, {subtree: true, childList: true, attributes: true, characterData: true});
+"""
+
+# Storage keys with a short hash of each value, so a change is visible without any
+# value (which may be a token) reaching the Driver.
+_STORAGE_JS = r"""
+() => {
+  const hash = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h; };
+  const read = (store, prefix) => Object.fromEntries(Object.keys(store).map((k) => [prefix + k, hash(store.getItem(k) || "")]));
+  try { return {...read(localStorage, "local:"), ...read(sessionStorage, "session:")}; } catch (e) { return {}; }
+}
+"""
+_MAX_SIGNAL_ITEMS = 5
+
+
+def _signal_diff(before, after, storage_before: dict, storage_after: dict,
+                 settled_before: bool, settled_after: bool) -> dict:
+    """What an action did, beyond the screen it landed on (issue #143): the console
+    errors and failed requests it caused (the Collector is drained by the capture
+    before the action, so `after` holds only what came since), storage and cookie keys
+    it added, removed or changed, controls that appeared or went, and whether the page
+    had rested before and after. Only what changed is included, to keep the prompt
+    small; the settled flags are always there."""
+    signals = {"settled_before": settled_before, "settled_after": settled_after}
+    errors = [c["text"] for c in after.console if c.get("type") in ("error", "pageerror")]
+    if errors:
+        signals["console_errors"] = errors[:_MAX_SIGNAL_ITEMS]
+        signals["console_error_count"] = len(errors)
+    failed = [f"{n['method']} {n['url']} -> {n['status'] or n.get('failure', 'failed')}"
+              for n in after.network if not n.get("status") or n["status"] >= 400]
+    if failed:
+        signals["failed_requests"] = failed[:_MAX_SIGNAL_ITEMS]
+        signals["failed_request_count"] = len(failed)
+    added = sorted(set(storage_after) - set(storage_before))
+    removed = sorted(set(storage_before) - set(storage_after))
+    changed = sorted(k for k in set(storage_before) & set(storage_after) if storage_before[k] != storage_after[k])
+    for key, keys in (("storage_added", added), ("storage_removed", removed), ("storage_changed", changed)):
+        if keys:
+            signals[key] = keys[:_MAX_SIGNAL_ITEMS]
+    controls_before, controls_after = set(control_keys(before)), set(control_keys(after))
+    if controls_after - controls_before:
+        signals["controls_added"] = sorted(controls_after - controls_before)[:_MAX_SIGNAL_ITEMS]
+    if controls_before - controls_after:
+        signals["controls_removed"] = sorted(controls_before - controls_after)[:_MAX_SIGNAL_ITEMS]
+    return signals
 
 
 class Session:
@@ -129,8 +177,16 @@ class Session:
         listens on one page."""
         old = self._context
         self._context = self._browser.new_context(viewport={"width": 1280, "height": 900})
+        try:
+            self._context.add_init_script(_MUTATION_COUNTER_JS)
+        except Exception:
+            pass
         self.page = self._context.new_page()
         self.col = Collector().attach(self.page)
+        self._inflight: set = set()
+        self.page.on("request", lambda r: self._inflight.add(id(r)))
+        self.page.on("requestfinished", lambda r: self._inflight.discard(id(r)))
+        self.page.on("requestfailed", lambda r: self._inflight.discard(id(r)))
         if old is not None:
             try:
                 old.close()
@@ -141,7 +197,37 @@ class Session:
         """Back to the start as a first-time visitor: a fresh session, then the base URL."""
         self._open_fresh_page()
         self.page.goto(self.base_url, wait_until="domcontentloaded")
-        _settle(self.page)
+        self.last_rest = self._rest()
+
+    def _rest(self) -> bool:
+        """Wait until the page has rested (see _REST_QUIET_MS). True if it did, False if
+        _REST_MAX_MS ran out first; the read that follows is then flagged unsettled."""
+        start = time.time()
+        quiet_since, last = start, None
+        while True:
+            try:
+                mutations = self.page.evaluate("window.__qesMutations ?? -1")
+            except Exception:
+                mutations = -1
+            now = time.time()
+            if mutations != last or getattr(self, "_inflight", None):
+                quiet_since, last = now, mutations
+            elif (now - quiet_since) * 1000 >= _REST_QUIET_MS:
+                return True
+            if (now - start) * 1000 >= _REST_MAX_MS:
+                return False
+            self.page.wait_for_timeout(_REST_POLL_MS)
+
+    def _storage(self) -> dict:
+        try:
+            keys = dict(self.page.evaluate(_STORAGE_JS) or {})
+        except Exception:
+            keys = {}
+        try:
+            keys.update({f"cookie:{c['name']}": hash(c.get("value", "")) for c in self._context.cookies()})
+        except Exception:
+            pass
+        return keys
 
     def _shot(self):
         try:
@@ -278,9 +364,16 @@ class Session:
         of the operation when the action lands somewhere new, so the next test starts clean."""
         plan = self.reference.plan_for(state_id, control_key)
         self._reboot()
-        replayed = all(self._actuate(step) and (_settle(self.page) or True) for step in plan["path"])
+        replayed = True
+        for step in plan["path"]:
+            replayed = self._actuate(step)
+            self.last_rest = self._rest()
+            if not replayed:
+                break
+        settled_before = self.last_rest
 
         before = self._capture_expecting(self.reference._by_id.get(state_id, {}).get("signature", ""))
+        storage_before = self._storage()
         before_sig = signature(before)
         before_png = self._shot()
         reached = replayed and self.reference._by_id.get(state_id, {}).get("signature") == before_sig
@@ -291,7 +384,7 @@ class Session:
         t0 = time.time()
         sent = reached and self._actuate(plan["target"])
         t1 = time.time()
-        _settle(self.page)
+        settled_after = self._rest()
         click = round(t1 - t0, 2)
         settle = round(time.time() - t1, 2)
 
@@ -325,6 +418,7 @@ class Session:
         }
         if sent and self.last_covered_by:
             result["covered_by"] = self.last_covered_by
+        result["signals"] = _signal_diff(before, after, storage_before, self._storage(), settled_before, settled_after)
         self.seen_signatures.add(after_sig)
         if screen_was == "new_screen":
             recovered = self.recover()
