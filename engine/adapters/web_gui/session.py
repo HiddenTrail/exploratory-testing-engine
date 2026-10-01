@@ -78,11 +78,14 @@ _COVER_JS = r"""
     // and they change from build to build, so they'd make a cover look new each run.
     const classes = [...e.classList].filter((c) => !/\d/.test(c)).slice(0, 2);
     const what = role || tag + (e.id ? "#" + e.id : "") + classes.map((c) => "." + c).join("");
-    const named = (e.getAttribute("aria-label") || "").slice(0, 40)
+    // aria-labelledby too: dialogs are often named by their title that way (Copilot on #166).
+    const labelledBy = (e.getAttribute("aria-labelledby") || "").split(/\s+/).filter(Boolean)
+      .map((id) => (document.getElementById(id) || {}).textContent || "").join(" ").trim().replace(/\s+/g, " ");
+    const named = (e.getAttribute("aria-label") || labelledBy).slice(0, 40)
       || (["label", "button", "a"].includes(tag) ? (e.textContent || "").trim().replace(/\s+/g, " ").slice(0, 30) : "");
     return what + (named ? ` '${named}'` : "");
   };
-  let box = hit.closest("[role=dialog], [role=alertdialog], [aria-modal=true], [aria-label]");
+  let box = hit.closest("[role=dialog], [role=alertdialog], [aria-modal=true], [aria-label], [aria-labelledby]");
   if (!box) {
     box = hit;
     for (let i = 0; i < 3 && box.parentElement && !box.id && !box.classList.length && !box.getAttribute("role"); i++)
