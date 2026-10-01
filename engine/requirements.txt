@@ -6,6 +6,8 @@ httpx>=0.27
 # endpoint) requires - it does not exist on 0.x.
 anthropic[bedrock]>=1.0
 python-dotenv>=1.0
+# Reads the product wiki's frontmatter, the product layer of the oracle (engine/ontology/product.py).
+pyyaml>=6.0
 pytest>=8.0
 
 # Optional. Only the near-duplicate screenshot detection in

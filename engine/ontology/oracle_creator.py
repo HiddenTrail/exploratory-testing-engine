@@ -135,17 +135,8 @@ def _jira_mentions(claim: str, jira_entries: list[dict[str, Any]]) -> bool:
 
 def score_grounded_claim(claim: dict[str, Any], context: dict[str, Any]) -> tuple[float, str]:
     """Returns (score, status) for one domain-grounded claim."""
-    score = GROUNDED_BASE_SCORE
-    result = _find_result(claim["id"], context.get("test_results", []))
-    if result is None:
-        score += UNTESTED_BONUS
-        status = "untested"
-    elif result.get("verified") is False:
-        score += REFUTED_BONUS
-        status = "refuted"
-    else:
-        score += CONFIRMED_STALE_PENALTY
-        status = "confirmed"
+    delta, status = _context_delta(claim["id"], context)
+    score = GROUNDED_BASE_SCORE + delta
 
     if _jira_mentions(claim["claim"], context.get("jira_entries", [])):
         score += JIRA_MATCH_BONUS
@@ -154,9 +145,42 @@ def score_grounded_claim(claim: dict[str, Any], context: dict[str, Any]) -> tupl
     return score, status
 
 
+def _context_delta(idea_id: str, context: dict[str, Any]) -> tuple[float, str]:
+    """What context (earlier results) adds to an idea's score, and its status."""
+    result = _find_result(idea_id, context.get("test_results", []))
+    if result is None:
+        return UNTESTED_BONUS, "untested"
+    if result.get("verified") is False:
+        return REFUTED_BONUS, "refuted"
+    return CONFIRMED_STALE_PENALTY, "confirmed"
+
+
+def build_product_ideas(product: str, limit: int | None = None) -> dict[str, Any]:
+    """A product's oracle, built by engine/ontology/seeder.py from the heuristic
+    library and the product's wiki, scored with its context (context_<product>.json)
+    and ranked. With a limit, the pick takes turns across seeds (pick_across_seeds)."""
+    from engine.ontology.seeder import build_oracle, pick_across_seeds  # it imports this module
+
+    context = load_context(product)
+    ideas = []
+    for e in build_oracle(product)["expectations"]:
+        delta, status = _context_delta(e["id"], context)
+        ideas.append({
+            "id": e["id"], "tier": e["tier"], "score": e["score"] + delta, "status": status,
+            "category": e["seed"], "entity": e["entity"], "claim": e["claim"],
+            # The expectation's sources stay in the built oracle; the Driver doesn't need them.
+            "rationale": f"{e['seed_name']}. Check: {e['check']}", "source": "seeded_oracle",
+        })
+    ideas = pick_across_seeds(ideas, limit) if limit is not None else sorted(ideas, key=lambda i: i["score"], reverse=True)
+    for rank, idea in enumerate(ideas, start=1):
+        idea["rank"] = rank
+    return {"sut": product, "generated_at": datetime.now(timezone.utc).isoformat(), "ranked_ideas": ideas}
+
+
 def build_ranked_ideas(sut: str, surfaces=None, features=(), heuristic_limit: int | None = None) -> dict[str, Any]:
     """surfaces, features and heuristic_limit pick the heuristics (see
-    select_heuristics). Domain claims are never filtered."""
+    select_heuristics). Domain claims are never filtered. A product with a wiki
+    gets build_product_ideas instead."""
     heuristics = select_heuristics(load_heuristics(), surfaces, features, heuristic_limit)
     domain_claims = load_domain_claims(sut)
     context = load_context(sut)

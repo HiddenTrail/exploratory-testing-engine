@@ -5,7 +5,50 @@ title: "Juice Shop product list"
 description: The shop's main page, a paged grid of products with prices, under a toolbar for the menu, search, account and language.
 tags: [juice-shop, screen]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: "2026-09-30T10:40:00Z" }
+generated: { by: claude-code/claude-opus-5-5, at: "2026-10-01T04:59:08Z" }
+product: juice-shop
+features: [list-paging, search, menu, localization, money, table, navigation]
+facts:
+  - id: F1
+    kind: shown
+    text: The list's heading is "All Products".
+    source: screens
+  - id: F2
+    kind: shown
+    text: Apple Juice (1000ml) costs 1.99¤ in the list.
+    source: screens
+  - id: F3
+    kind: shown
+    text: Apple Pomace costs 0.89¤ in the list.
+    source: screens
+  - id: F4
+    kind: shown
+    text: Carrot Juice (1000ml) costs 2.99¤ in the list.
+    source: screens
+  - id: F5
+    kind: shown
+    text: Best Juice Shop Salesman Artwork costs 5000¤.
+    source: screens
+  - id: F6
+    kind: shown
+    text: The first page shows 12 products, with Previous page, Next page and an "Items per page" setting.
+    source: spoor-map
+  - id: F7
+    kind: shown
+    text: The account menu offers one item, "Go to login page", which leads to the login page.
+    source: spoor-map-2
+  - id: F8
+    kind: shown
+    text: The language menu offers about 40 languages.
+    source: spoor-map-2
+  - id: F9
+    kind: claimed
+    text: Best Juice Shop Salesman Artwork carries an "Only 1 left" badge.
+    source: screens
+  - id: F10
+    kind: claimed
+    text: The cookie notice says the site "uses fruit cookies to ensure you get the juiciest tracking experience".
+    source: screens
 sources:
   - id: spoor-map
     resource: docs/product-sources/juice-shop-spoor-map-2026-09-29.json

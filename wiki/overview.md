@@ -5,7 +5,9 @@ title: "OWASP Juice Shop: product overview"
 description: OWASP Juice Shop at a glance, a web shop for juice and merchandise run locally as a test target.
 tags: [juice-shop]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: "2026-09-30T10:40:00Z" }
+generated: { by: claude-code/claude-opus-5-5, at: "2026-10-01T04:59:08Z" }
+product: juice-shop
+surfaces: [gui]
 sources:
   - id: spoor-map
     resource: docs/product-sources/juice-shop-spoor-map-2026-09-29.json

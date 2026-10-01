@@ -34,7 +34,7 @@ from engine.tools import CASTING_REASONING_DESCRIPTION, PRIOR_FEEDBACK_GUIDE, ca
 from engine.adapters.web_gui import reference as ref_mod
 from engine.adapters.web_gui import session as live_session
 from engine.adapters.web_gui.reference import PREDICTIONS
-from engine.ontology.oracle_creator import build_ranked_ideas
+from engine.ontology.oracle_creator import build_product_ideas, build_ranked_ideas
 from engine.report import badge, bool_badge, esc, inline_markdown, render_json_block, render_oracle_ranked
 
 
@@ -218,17 +218,19 @@ def describe_result_for_log(result: dict) -> str:
     return line
 
 
-# The oracle (issue #114). web_gui has no product-specific claims yet, so
-# build_ranked_ideas gives heuristics from the library (engine/ontology/heuristics/,
-# issue #128): the ones that fit a GUI, with the ones matching WEB_GUI_FEATURES
-# (comma-separated library tags, e.g. "login,search,list-paging") ranked first,
-# capped so the prompt stays small. #111 showed a ranked oracle makes the Driver
+# The oracle. With WEB_GUI_PRODUCT naming a product in the wiki (e.g. "juice-shop"),
+# it's that product's seeded oracle (issue #138): the heuristic library and the
+# product's facts run through the FEW HICCUPPS seeds, top ORACLE_TOP_N taking turns
+# across seeds. Without one, it's library heuristics only (issue #128): those that
+# fit a GUI, with the ones matching WEB_GUI_FEATURES (comma-separated library tags,
+# e.g. "login,search") ranked first. #111 showed a ranked oracle makes the Driver
 # find what it lists sooner. WEB_GUI_ORACLE=off leaves it out, for comparing runs.
-ORACLE_HEURISTICS_TOP_N = 15
+ORACLE_TOP_N = 15
+ORACLE_PRODUCT = os.environ.get("WEB_GUI_PRODUCT", "").strip()
 ORACLE_FEATURES = tuple(f.strip() for f in os.environ.get("WEB_GUI_FEATURES", "").split(",") if f.strip())
-ORACLE_RANKED = build_ranked_ideas(
-    "web_gui", surfaces=("gui",), features=ORACLE_FEATURES, heuristic_limit=ORACLE_HEURISTICS_TOP_N,
-)["ranked_ideas"]
+ORACLE_RANKED = (build_product_ideas(ORACLE_PRODUCT, limit=ORACLE_TOP_N) if ORACLE_PRODUCT else build_ranked_ideas(
+    "web_gui", surfaces=("gui",), features=ORACLE_FEATURES, heuristic_limit=ORACLE_TOP_N,
+))["ranked_ideas"]
 ORACLE_ENABLED = os.environ.get("WEB_GUI_ORACLE", "").strip().lower() != "off"
 
 

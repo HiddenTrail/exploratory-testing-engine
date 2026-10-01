@@ -1,0 +1,157 @@
+{
+  "source": "The FEW HICCUPPS consistency oracles, by Michael Bolton and James Bach. Descriptions are ours.",
+  "about": "Oracle seeds (issue #138): each one is a way to recognise a problem, and says which heuristics and which kinds of product fact it draws on. engine/ontology/seeder.py runs the heuristic library and a product's facts through them to build that product's oracle.",
+  "seeds": [
+    {
+      "id": "claims_oracle",
+      "name": "Claims",
+      "question": "Does the product do what it claims? A claim is anything said about the product, by it or for it: specs and help text, the product's own pages and messages, marketing and website promotion, emails to customers, promises. Each one can be checked against what the product actually does.",
+      "draws_on": {
+        "fact_kinds": [
+          "claimed"
+        ],
+        "heuristic_ids": [
+          "claims_testing"
+        ]
+      },
+      "fact_template": "The product claims this, so it should hold: {fact}",
+      "heuristic_template": "On {entity}: {description}"
+    },
+    {
+      "id": "self_consistency",
+      "name": "Self-consistency",
+      "question": "Compare two responses that should logically agree (e.g. same query, different path) for contradictions.",
+      "draws_on": {
+        "fact_kinds": [
+          "shown"
+        ],
+        "heuristic_tags": [
+          "consistency"
+        ]
+      },
+      "fact_template": "Holds wherever the product shows it: {fact}",
+      "heuristic_template": "On {entity}: {description}"
+    },
+    {
+      "id": "comparable_products",
+      "name": "Comparable products",
+      "question": "Does this system belong to a recognizable category of real-world systems? If so, what conventions or behaviors do systems in that category typically get right (or wrong) that this system should be checked against, even if never explicitly documented?",
+      "draws_on": {
+        "heuristic_ids": [
+          "cart_totals",
+          "back_button",
+          "deep_link",
+          "broken_links",
+          "search_edges",
+          "paging_edges",
+          "sort_and_filter",
+          "login_variants",
+          "registration_rules",
+          "password_reset_flow",
+          "session_expiry",
+          "language_switch",
+          "email_formats"
+        ]
+      },
+      "heuristic_template": "Like other products of its kind, {entity} handles this: {description}"
+    },
+    {
+      "id": "user_expectations",
+      "name": "Dumb user",
+      "question": "Would a naive user find this confusing or wrong, regardless of whether it's technically spec-compliant? Judge from the perspective of someone with no special knowledge of the system's internals or documentation.",
+      "draws_on": {
+        "heuristic_tags": [
+          "usability"
+        ]
+      },
+      "heuristic_template": "A user of {entity} would expect this: {description}"
+    },
+    {
+      "id": "standards",
+      "name": "Statutes and standards",
+      "question": "Does the product follow the laws, regulations and standards that apply to it, such as accessibility or privacy rules?",
+      "draws_on": {
+        "fact_kinds": [
+          "standard"
+        ],
+        "heuristic_tags": [
+          "accessibility",
+          "privacy"
+        ]
+      },
+      "fact_template": "The product follows this standard: {fact}",
+      "heuristic_template": "On {entity}, standards require this: {description}"
+    },
+    {
+      "id": "world",
+      "name": "World",
+      "question": "Does the product agree with how the real world works: dates, units, addresses, names, arithmetic?",
+      "draws_on": {
+        "heuristic_ids": [
+          "date_edges",
+          "far_dates",
+          "monetary_precision",
+          "number_formats",
+          "email_formats",
+          "zero_and_negative"
+        ]
+      },
+      "heuristic_template": "On {entity}, values agree with the real world: {description}"
+    },
+    {
+      "id": "purpose",
+      "name": "Purpose",
+      "question": "Does the behaviour serve what the product is for, and what the user is trying to do?",
+      "draws_on": {
+        "fact_kinds": [
+          "rule"
+        ],
+        "heuristic_ids": [
+          "scenario_testing",
+          "flow_testing",
+          "crud"
+        ]
+      },
+      "fact_template": "The product does what it's for: {fact}",
+      "heuristic_template": "On {entity}: {description}"
+    },
+    {
+      "id": "familiarity",
+      "name": "Familiarity",
+      "question": "Is this a kind of problem you've seen in other products? Known bug patterns are worth checking for on purpose.",
+      "draws_on": {
+        "heuristic_kinds": [
+          "attack"
+        ]
+      },
+      "heuristic_template": "A problem familiar from other products, looked for on {entity}: {description}"
+    },
+    {
+      "id": "image",
+      "name": "Image",
+      "question": "Does the behaviour fit the image the organisation wants? Rude messages, sloppy text or odd visuals hurt it.",
+      "draws_on": {
+        "heuristic_ids": [
+          "error_messages",
+          "match_real_world",
+          "charisma"
+        ]
+      },
+      "heuristic_template": "On {entity}, nothing hurts the product's image: {description}"
+    },
+    {
+      "id": "history",
+      "name": "Statistical/trend",
+      "question": "Does this deviate from the system's own past behavior, latency drift, error-rate creep, or other trends observable only by comparing against prior runs or history? Needs accumulated data across runs to be meaningful; not useful on a single, first-time pass.",
+      "draws_on": {},
+      "standing": "Behaviour matches what earlier runs recorded; a change from an earlier run is worth a look."
+    },
+    {
+      "id": "explainability",
+      "name": "Explainability",
+      "question": "Can you explain what the product just did? Behaviour nobody can explain is worth reporting even if it isn't clearly wrong.",
+      "draws_on": {},
+      "standing": "Every result can be explained in one sentence; one that can't is worth reporting even if it isn't clearly wrong."
+    }
+  ]
+}

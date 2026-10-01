@@ -5,7 +5,26 @@ title: "Juice Shop product details dialog"
 description: The dialog a product opens, with its picture, description, price, a reviews section and a close button.
 tags: [juice-shop, screen]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: "2026-09-30T10:40:00Z" }
+generated: { by: claude-code/claude-opus-5-5, at: "2026-10-01T04:59:40Z" }
+product: juice-shop
+features: [dialog, money]
+facts:
+  - id: F1
+    kind: shown
+    text: The Apple Juice (1000ml) dialog shows 1.99¤.
+    source: screens
+  - id: F4
+    kind: claimed
+    text: The Apple Juice (1000ml) dialog describes it as "The all-time classic."
+    source: screens
+  - id: F2
+    kind: shown
+    text: Every product dialog has a Close button and a "Reviews (n)" section.
+    source: spoor-map-2
+  - id: F3
+    kind: shown
+    text: Apple Juice (1000ml) has 1 review, Apple Pomace 0, the Salesman Artwork 2 and the DSOMM & Juice Shop User Day Ticket 3.
+    source: spoor-map-2
 sources:
   - id: spoor-map
     resource: docs/product-sources/juice-shop-spoor-map-2026-09-29.json
