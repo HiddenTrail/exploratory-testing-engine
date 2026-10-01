@@ -17,6 +17,7 @@ Driver cannot name anything that mutates.
 from __future__ import annotations
 
 import atexit
+import json
 import os
 import re
 import sys
@@ -49,6 +50,35 @@ _ROLE_LOCATABLE = frozenset({
 _ONTOLOGY_ENV = "WEB_GUI_ONTOLOGY"
 _URL_ENV = "WEB_GUI_URL"
 _HEADED_ENV = "WEB_GUI_HEADED"
+# A saved Playwright session (context.storage_state(): cookies and storage) every test
+# starts from, for example logged in (issue #154). Each test still gets a fresh context,
+# just loaded from this file instead of empty, so results stay attributable. The file
+# holds live auth cookies: keep it in the gitignored .sessions/, and it never reaches a
+# prompt or a report (only its name does).
+_SESSION_ENV = "WEB_GUI_SESSION"
+
+
+def load_session_file(path) -> str:
+    """The path of a valid session file, or SystemExit saying what's wrong with it. A
+    missing or malformed file fails the run loudly, as Spoor's --session does, rather than
+    quietly starting every test logged out."""
+    p = Path(path)
+    if not p.is_file():
+        raise SystemExit(f"{_SESSION_ENV} points at {p}, which does not exist. Save a session first (#155).")
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise SystemExit(f"{_SESSION_ENV} file {p} isn't valid JSON: {e}")
+    if not (isinstance(data, dict) and isinstance(data.get("cookies"), list) and isinstance(data.get("origins"), list)):
+        raise SystemExit(f"{_SESSION_ENV} file {p} isn't a Playwright session (it needs 'cookies' and 'origins' "
+                         "lists, as context.storage_state() writes).")
+    return str(p)
+
+
+def session_name(path) -> str:
+    """What a session is called in the Driver's evidence, the report and the map: the file
+    name without its extension, never its contents."""
+    return Path(path).stem if path else ""
 
 # What is on top of a control's centre (issue #130). "clear": the control itself.
 # "own": a part of the same control, like a styled radio's circle over its hidden
@@ -247,10 +277,11 @@ def _signal_diff(before, after, requests: list[dict], storage_before: dict, stor
 
 
 class Session:
-    def __init__(self, reference: ref_mod.Reference, base_url: str, headed: bool):
+    def __init__(self, reference: ref_mod.Reference, base_url: str, headed: bool, session_file: str | None = None):
         from playwright.sync_api import sync_playwright
         self.reference = reference
         self.base_url = base_url
+        self.session_file = session_file
         self._pw = sync_playwright().start()
         self._browser = self._pw.chromium.launch(headless=not headed, slow_mo=300 if headed else 0)
         self._context = None
@@ -277,7 +308,10 @@ class Session:
         different start screen (issue #117). The Collector is re-attached, because it
         listens on one page."""
         old = self._context
-        self._context = self._browser.new_context(viewport={"width": 1280, "height": 900})
+        options = {"viewport": {"width": 1280, "height": 900}}
+        if getattr(self, "session_file", None):
+            options["storage_state"] = self.session_file
+        self._context = self._browser.new_context(**options)
         try:
             self._context.add_init_script(_MUTATION_COUNTER_JS)
         except Exception:
@@ -641,6 +675,10 @@ def valid_pairs() -> set:
     return _SESSION.reference.pairs() if _SESSION is not None else set()
 
 
+def _described(name: str) -> str:
+    return f"from the saved session '{name}'" if name else "without a saved session"
+
+
 def check_ready(adapter) -> None:
     """Load the carried reference, launch the browser, and confirm the SUT is up and on the
     mapped entry state before anything is spent. Raises SystemExit with an actionable
@@ -665,7 +703,14 @@ def check_ready(adapter) -> None:
                          "Run the recon against a richer app, or check the ontology.")
 
     headed = os.environ.get(_HEADED_ENV, "") not in ("", "0", "false", "False")
-    session = Session(reference, base_url, headed)
+    session_file = load_session_file(os.environ[_SESSION_ENV]) if os.environ.get(_SESSION_ENV) else None
+    # A map made logged out doesn't match a logged-in start page (Juice Shop shows a basket
+    # button, for one), so every test would read as not reaching its state. Say so up front.
+    if session_name(session_file) != reference.session_name:
+        print(f"WARNING: the carried map was made {_described(reference.session_name)}, but this run starts "
+              f"{_described(session_name(session_file))}. Expect tests not to reach their states; make the map "
+              f"with the same session (from_spoor --session).")
+    session = Session(reference, base_url, headed, session_file)
     try:
         entry_sig = session.baseline()
     except Exception as e:
@@ -689,4 +734,10 @@ def check_ready(adapter) -> None:
     # frozen); same pattern as clash_royale's preflight/baseline.
     adapter.onboarding_extra["carried_map"] = reference.driver_briefing()
     adapter.onboarding_extra["baseline"] = baseline_note
+    if session_file:
+        adapter.onboarding_extra["session"] = (
+            f"Every test starts from the saved session '{session_name(session_file)}' (for example logged in), "
+            "in a fresh browser context each time.")
+    else:
+        adapter.onboarding_extra.pop("session", None)
     _SESSION = session

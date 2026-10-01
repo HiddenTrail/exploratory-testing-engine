@@ -197,11 +197,11 @@ def convert(exploration: dict, url: str, observe: Callable[[list[dict]], object 
     return ontology, report
 
 
-def live_observer(url: str, headed: bool = False):
+def live_observer(url: str, headed: bool = False, session_file: str | None = None):
     """observe(path) backed by a real browser: each call starts a fresh session (see
-    Session._reboot), replays the path twice, and returns the capture only if both
-    replays reach the same signature."""
-    sess = live_session.Session(None, url, headed)
+    Session._reboot), from session_file if given, replays the path twice, and returns the
+    capture only if both replays reach the same signature."""
+    sess = live_session.Session(None, url, headed, session_file)
 
     def replay(path):
         sess._reboot()
@@ -227,6 +227,8 @@ def main() -> None:
     ap.add_argument("--url", required=True, help="the explored URL, as Spoor keyed it")
     ap.add_argument("--out", required=True)
     ap.add_argument("--headed", action="store_true")
+    ap.add_argument("--session", default=None,
+                    help="a saved session file to replay with (#154); use the one Spoor mapped with (--session)")
     args = ap.parse_args()
 
     saved = json.loads(Path(args.map).read_text(encoding="utf-8"))
@@ -236,11 +238,14 @@ def main() -> None:
     problems = map_errors(entry["exploration"])
     if problems:
         raise SystemExit("this Spoor map isn't in the format the converter reads (#144):\n  " + "\n  ".join(problems))
-    observe, sess = live_observer(args.url, args.headed)
+    session_file = live_session.load_session_file(args.session) if args.session else None
+    observe, sess = live_observer(args.url, args.headed, session_file)
     try:
         ontology, report = convert(entry["exploration"], args.url, observe)
     finally:
         sess.close()
+    # Recorded so a run started from a different session warns (Session check_ready).
+    ontology["session"]["session_name"] = live_session.session_name(session_file)
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(ontology, indent=2), encoding="utf-8")
     print_summary(report, args.out)

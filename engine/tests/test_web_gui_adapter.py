@@ -324,8 +324,9 @@ class _SessionBrowser:
     def __init__(self):
         self.contexts = []
 
-    def new_context(self, viewport=None):
+    def new_context(self, viewport=None, storage_state=None):
         self.contexts.append(_SessionContext())
+        self.contexts[-1].storage_state = storage_state
         return self.contexts[-1]
 
 
@@ -636,3 +637,47 @@ def test_a_failed_actions_weak_signals_are_in_the_report():
         "verdict": "not_actuated", "signals": {"settled_before": True, "settled_after": True},
         "signals_weak": {"console_errors": ["boom"]}}}
     assert "boom" in adp.render_test_entry(entry)
+
+
+# ---- saved sessions (issue #154) ----------------------------------------------------------
+
+def test_every_fresh_context_is_loaded_from_the_saved_session():
+    session = object.__new__(live_session.Session)
+    session.base_url, session._browser, session._context = "http://127.0.0.1:3000", _SessionBrowser(), None
+    session.session_file = "logged-in.json"
+    session._open_fresh_page()
+    session._reboot()
+    assert [c.storage_state for c in session._browser.contexts] == ["logged-in.json", "logged-in.json"]
+
+
+def test_without_a_session_contexts_start_empty():
+    session = object.__new__(live_session.Session)
+    session.base_url, session._browser, session._context, session.session_file = "http://x", _SessionBrowser(), None, None
+    session._open_fresh_page()
+    assert session._browser.contexts[0].storage_state is None
+
+
+def test_a_missing_or_malformed_session_file_fails_loudly(tmp_path):
+    import json as json_mod
+    import pytest
+    with pytest.raises(SystemExit, match="does not exist"):
+        live_session.load_session_file(tmp_path / "nope.json")
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not json", encoding="utf-8")
+    with pytest.raises(SystemExit, match="isn't valid JSON"):
+        live_session.load_session_file(bad)
+    wrong = tmp_path / "wrong.json"
+    wrong.write_text(json_mod.dumps({"cookies": []}), encoding="utf-8")
+    with pytest.raises(SystemExit, match="isn't a Playwright session"):
+        live_session.load_session_file(wrong)
+    good = tmp_path / "logged-in.json"
+    good.write_text(json_mod.dumps({"cookies": [], "origins": []}), encoding="utf-8")
+    assert live_session.load_session_file(good) == str(good)
+    assert live_session.session_name(good) == "logged-in"
+
+
+def test_the_map_records_which_session_it_was_made_with():
+    data = _ontology()
+    assert ref_mod.Reference(data).session_name == ""
+    data["session"] = {"session_name": "logged-in"}
+    assert ref_mod.Reference(data).session_name == "logged-in"

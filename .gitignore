@@ -74,3 +74,7 @@ wiki-html/
 # artifacts - stated explicitly so this stays ignored if that rule is ever
 # narrowed to the places builds actually write to.
 .experiments/game-ontology/out/
+
+# Saved browser sessions (web_gui WEB_GUI_SESSION, issue #154). They hold live auth
+# cookies: never commit them, and they never go into a prompt or a report.
+.sessions/
