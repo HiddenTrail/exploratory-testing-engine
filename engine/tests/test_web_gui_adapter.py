@@ -402,7 +402,7 @@ def test_a_state_that_stays_different_is_reported_as_it_is(monkeypatch):
 
 class _Obs:
     def __init__(self, elements=(), console=(), network=()):
-        self.url, self.headings, self.text = "http://x/#/", [], ""
+        self.url, self.headings, self.text, self.title = "http://x/#/", [], "", ""
         self.elements, self.console, self.network = list(elements), list(console), list(network)
 
 
@@ -727,13 +727,60 @@ def test_reaching_a_screen_the_map_lacks_records_it_and_a_mapped_one_does_not(mo
     mapped = _Obs(elements=[{"role": "button", "name": "Back", "locator": "#back"}])
     mapped.url = "http://app.example/p2"
     sess = _acting_session(monkeypatch, mapped)
-    sess.reference.known_signatures.add(live_session.signature(mapped))
+    sess.reference.carried_signatures.add(live_session.signature(mapped))   # it's in the carried map
     assert "discovered" not in sess.act("st01", "button:A")
 
 
-def test_the_driver_sees_only_a_discoverys_id_and_how_many_controls_it_offers():
-    log = [{"round_reasoning": "r", "result": {"screen_was": "new_screen", "discovered": {
-        "id": "d1234abcd", "controls_offered": 3, "elements": [{"key": "button:x"}], "path": [{"name": "A"}]}}}]
+def test_the_driver_sees_a_discoverys_controls_the_first_time_and_then_just_its_id():
+    # #158: the controls it may now act on, once; #157: never the full record.
+    record = {"id": "d1234abcd", "controls_offered": 1, "in_run_map": True, "path": [{"name": "A"}],
+              "elements": [{"key": "button:Go", "name": "Go", "committing": False},
+                           {"key": "button:Delete", "name": "Delete", "committing": True}]}
+    log = [{"round_reasoning": "r", "result": {"screen_was": "new_screen", "discovered": dict(record)}},
+           {"round_reasoning": "r", "result": {"screen_was": "known_screen", "discovered": dict(record)}}]
     redacted = adp.redact_history_for_model(log)
-    assert redacted[0]["result"]["discovered"] == {"id": "d1234abcd", "controls_offered": 3}
+    assert redacted[0]["result"]["discovered"] == {"id": "d1234abcd", "controls": ["button:Go"]}
+    assert redacted[1]["result"]["discovered"] == {"id": "d1234abcd"}
     assert "elements" in log[0]["result"]["discovered"]           # output.json keeps the full record
+
+
+# ---- acting on discovered screens (issue #158) -------------------------------------------
+
+def _record(sig="/new|button:go|", steps=2):
+    return {"id": live_session.discovery_id(sig), "signature": sig, "url": "http://app.example/new", "title": "New",
+            "from_state": "st02", "via": "button:Back", "controls_offered": 1,
+            "path": [{"role": "button", "name": f"S{i}", "locator": f"#s{i}"} for i in range(steps)],
+            "elements": [{"key": "button:Go", "role": "button", "name": "Go", "locator": "#go", "committing": False},
+                         {"key": "button:Buy", "role": "button", "name": "Buy", "locator": "#buy", "committing": True}]}
+
+
+def test_a_discovered_screen_joins_the_runs_map_with_its_path_and_cleared_controls():
+    ref = ref_mod.Reference(_ontology())
+    record = _record()
+    sid = ref.add_discovery(record, max_steps=6)
+    assert sid == record["id"]
+    assert (sid, "button:Go") in ref.pairs() and (sid, "button:Buy") not in ref.pairs()   # same gate as the map
+    assert ref.plan_for(sid, "button:Go") == {"path": record["path"],
+                                              "target": {"role": "button", "name": "Go", "locator": "#go"}}
+    assert ref.controls_on(sid) == ["button:Go"] and ref.is_known(record["signature"])
+    assert ref.add_discovery(record, max_steps=6) == sid                                  # adding twice is harmless
+    assert record["signature"] not in ref.carried_signatures                             # still counted as a discovery
+
+
+def test_a_mapped_screen_or_one_too_deep_does_not_join():
+    ref = ref_mod.Reference(_ontology())
+    mapped = _record(sig=ref._by_id["st02"]["signature"])
+    assert ref.add_discovery(mapped, max_steps=6) is None
+    assert ref.add_discovery(_record(sig="/deep|", steps=7), max_steps=6) is None
+
+
+def test_a_test_on_a_discovered_screen_is_valid_once_it_joined(monkeypatch):
+    ref = ref_mod.Reference(_ontology())
+    sid = ref.add_discovery(_record(), max_steps=6)
+    sess = live_session.Session.__new__(live_session.Session)
+    sess.reference = ref
+    monkeypatch.setattr(live_session, "_SESSION", sess)
+    data = {"give_up": False, "reasoning": "go deeper", "candidate_tests": [
+        {"linked_hypothesis": "", "oracle_claim_id": "", "state_id": sid, "control_key": "button:Go",
+         "predicted_screen": "new_screen", "predicted_outcome": "a page past the new screen"}]}
+    assert adp.validate_casting_response(data) == []

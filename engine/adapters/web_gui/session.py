@@ -126,6 +126,10 @@ _COVER_JS = r"""
 }
 """
 
+# A discovered screen joins the run's map (issue #158) only if it's at most this many
+# steps from the start, so a chain of discoveries can't wander off indefinitely.
+_MAX_DISCOVERY_STEPS = 6
+
 # A capture that doesn't match the state it should be gets this many more tries,
 # this far apart (issue #131). Juice Shop's paginator renders after the product list
 # loads, so a capture taken a moment early was missing two controls and read as a
@@ -647,11 +651,14 @@ class Session:
             result["signals_weak"] = weak
         # A screen the carried map doesn't have, however many times this run has seen it,
         # so later runs can count how often it's reached (#157). Recorded before the
-        # recovery reboot, from the capture taken on it.
-        if sent and after_sig not in self.reference.known_signatures:
+        # recovery reboot, from the capture taken on it. It also joins this run's map, so
+        # later tests can act on it (#158).
+        if sent and after_sig not in self.reference.carried_signatures:
             origin = "{0.scheme}://{0.netloc}".format(urlsplit(self.base_url))
             result["discovered"] = discovery(after, after_sig, plan["path"] + [plan["target"]], state_id,
                                              control_key, origin)
+            result["discovered"]["in_run_map"] = bool(self.reference.add_discovery(result["discovered"],
+                                                                                  _MAX_DISCOVERY_STEPS))
         self.seen_signatures.add(after_sig)
         if screen_was == "new_screen":
             recovered = self.recover()
