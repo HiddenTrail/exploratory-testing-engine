@@ -54,17 +54,22 @@ def analyse(runs: list[dict], noise: dict, origin: str) -> dict:
     by_pair = defaultdict(list)
     for run in runs:
         by_pair[(run["state"], run["control"])].append(run)
-    flaky_trusted, flaky_screen, weak_seen, unreached = [], [], Counter(), 0
+    flaky_trusted, flaky_screen, weak_seen, unreached, demoted = [], [], Counter(), 0, 0
     unsettled = sum(1 for r in runs if r["signals"] and not (r["signals"]["settled_before"] and r["signals"]["settled_after"]))
     for (state_id, control), rs in sorted(by_pair.items()):
         reached = [r for r in rs if r["reached_target_state"]]
         unreached += len(rs) - len(reached)
         if not reached:
             continue
-        counts = Counter(i for r in reached for i in items(r["signals"]))
-        for item, n in counts.items():
-            if n < len(reached):
-                flaky_trusted.append(f"{state_id} :: {control} | {item} | in {n} of {len(reached)}")
+        # Flaky means a trusted signal that's simply missing from some runs. One that a
+        # run moved to weak (an unsettled read, say) wasn't contradicted, only demoted.
+        trusted = Counter(i for r in reached for i in items(r["signals"]))
+        seen = Counter(i for r in reached for i in items(r["signals"]) | items(r["signals_weak"]))
+        for item, n in trusted.items():
+            if seen[item] < len(reached):
+                flaky_trusted.append(f"{state_id} :: {control} | {item} | in {seen[item]} of {len(reached)}")
+            elif n < len(reached):
+                demoted += 1
         screens = Counter(r["screen_was"] for r in reached)
         if len(screens) > 1:
             flaky_screen.append(f"{state_id} :: {control} | {dict(screens)}")
@@ -80,7 +85,7 @@ def analyse(runs: list[dict], noise: dict, origin: str) -> dict:
     report.update({
         "unsettled_reads": unsettled, "unreached": unreached,
         "trusted_signal_items": sum(len(items(r["signals"])) for r in runs),
-        "flaky_trusted": flaky_trusted, "flaky_screen": flaky_screen,
+        "flaky_trusted": flaky_trusted, "demoted_to_weak_sometimes": demoted, "flaky_screen": flaky_screen,
         "weak": dict(weak_seen.most_common(15)), "noise_unstable": noise_unstable,
         "noise_example": {s: v[0] for s, v in list(noise.items())[:3]},
         "covered_by": dict(Counter(r["covered_by"] for r in runs if r["covered_by"])),
@@ -132,6 +137,7 @@ def main():
     text = json.dumps(report, indent=2, ensure_ascii=False)
     if args.out:
         # The file also keeps every act's raw result, so a finding can be traced back.
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.out).write_text(json.dumps({**report, "runs": runs}, indent=2, ensure_ascii=False), encoding="utf-8")
     print(text)
 
