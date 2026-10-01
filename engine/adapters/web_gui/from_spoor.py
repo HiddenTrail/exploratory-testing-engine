@@ -207,7 +207,7 @@ def live_observer(url: str, headed: bool = False):
         for step in path:
             if not sess._actuate(step):
                 return None
-            live_session._settle(sess.page)
+            sess._rest()
         return capture(sess.page, sess.col)
 
     def observe(path):

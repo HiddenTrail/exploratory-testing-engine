@@ -18,8 +18,10 @@ from __future__ import annotations
 
 import atexit
 import os
+import re
 import sys
 import time
+from urllib.parse import urlsplit
 from pathlib import Path
 
 # web-recon is the source of truth for perception, identity and the safety gate; reuse it
@@ -29,7 +31,7 @@ _WEB_RECON = Path(__file__).resolve().parents[3] / ".experiments" / "web-recon"
 if str(_WEB_RECON) not in sys.path:
     sys.path.insert(0, str(_WEB_RECON))
 
-from identity import appearance, signature       # noqa: E402
+from identity import appearance, control_keys, signature   # noqa: E402
 from perceive import _ELEMENTS_JS as ELEMENTS_JS   # noqa: E402
 from perceive import Collector, capture, visual_diff  # noqa: E402
 from safety import SEARCH_PROBE, TEXT_ROLES        # noqa: E402
@@ -84,18 +86,105 @@ _RECAPTURE_WAIT_MS = 700
 _VISUAL_CHANGE_THRESHOLD = 0.02
 
 
-def _settle(page, quiet_ms: int = 2000, floor_ms: int = 350) -> None:
-    """Wait for the page to go quiet, then a short floor. networkidle is capped low
-    (quiet_ms): a driven run does many settles (reboot, each path step, after the action),
-    and on a live-traffic app - streaming map tiles, polling - the page never truly idles,
-    so a long cap just burns wall-clock every time (~6s each was the measured cost). A
-    client-side effect (zoom/pan/filter) renders within the floor; the cap only bites when
-    real traffic is in flight, and then briefly."""
-    try:
-        page.wait_for_load_state("networkidle", timeout=quiet_ms)
-    except Exception:
-        pass
-    page.wait_for_timeout(floor_ms)
+# A rested page (issue #143, after Spoor's settling): no DOM change for _REST_QUIET_MS
+# and no request in flight, waited for at most _REST_MAX_MS. A page that doesn't rest in
+# time is read anyway and flagged, rather than hanging the run or being trusted. Our
+# last three harness bugs (#123, #130, #131) were all reads taken before the page had
+# rested. Websockets don't count as requests in flight (Juice Shop keeps one open), and
+# unlike Spoor, an urgent live-region toast isn't waited out: identity already leaves
+# those controls out (#124), and Juice Shop's stays up for about 5 s on every load.
+_REST_QUIET_MS = 400
+_REST_MAX_MS = 8000
+_REST_POLL_MS = 100
+
+# Counts DOM mutations on every document the page loads, for _rest.
+_MUTATION_COUNTER_JS = """
+window.__qesMutations = 0;
+new MutationObserver((records) => { window.__qesMutations += records.length; })
+  .observe(document, {subtree: true, childList: true, attributes: true, characterData: true});
+"""
+
+# Storage keys with a short hash of each value, so a change is visible without any
+# value (which may be a token) reaching the Driver.
+_STORAGE_JS = r"""
+() => {
+  const hash = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h; };
+  const read = (store, prefix) => Object.fromEntries(Object.keys(store).map((k) => [prefix + k, hash(store.getItem(k) || "")]));
+  try { return {...read(localStorage, "local:"), ...read(sessionStorage, "session:")}; } catch (e) { return {}; }
+}
+"""
+_MAX_SIGNAL_ITEMS = 5
+
+
+# How long a state is watched idle, once per state per run, to learn what changes on
+# its own (polling, timers, analytics). See _signal_diff.
+_NOISE_IDLE_MS = 1000
+
+
+def _request_key(r: dict) -> str:
+    """A request without its query or fragment, so a poll with a changing timestamp
+    matches itself."""
+    return f"{r['method']} {urlsplit(r['url'])._replace(query='', fragment='').geturl()}"
+
+
+def _console_key(text: str) -> str:
+    return re.sub(r"\d+", "#", text or "")[:200]
+
+
+def _signal_diff(before, after, requests: list[dict], storage_before: dict, storage_after: dict,
+                 settled_before: bool, settled_after: bool, noise: dict, origin: str) -> tuple[dict, dict]:
+    """What an action did beyond the screen it landed on (issue #143), split by how far
+    it can be trusted. Returns (signals, weak).
+
+    A signal is only trusted, so usable as a fact, if it passes every check; anything
+    else goes to `weak` as a hint. Background traffic, timers and third-party calls make
+    a raw before/after diff look like evidence when it isn't:
+    - requests count only if they started after the action (`requests` is already
+      filtered to those), and are trusted only on the product's own origin
+    - console errors, requests and storage keys that also changed while the state sat
+      idle (`noise`, see Session._idle_noise) are the page's own background, not the
+      action's effect
+    - nothing read from a page that hadn't rested is trusted
+    Screenshots are never a signal: pixels move with animations, cursors and fonts.
+    The settled flags are always in `signals`; everything else only if it changed."""
+    signals = {"settled_before": settled_before, "settled_after": settled_after}
+    weak: dict = {}
+
+    def put(key, trusted_items, weak_items):
+        if trusted_items:
+            signals[key] = trusted_items[:_MAX_SIGNAL_ITEMS]
+            if len(trusted_items) > _MAX_SIGNAL_ITEMS:
+                signals[f"{key}_more"] = len(trusted_items) - _MAX_SIGNAL_ITEMS
+        if weak_items:
+            weak[key] = weak_items[:_MAX_SIGNAL_ITEMS]
+
+    errors = [c["text"] for c in after.console if c.get("type") in ("error", "pageerror")]
+    put("console_errors", [e for e in errors if _console_key(e) not in noise.get("console", ())],
+        [e for e in errors if _console_key(e) in noise.get("console", ())])
+
+    failed = [r for r in requests if r.get("status") is not None and (r["status"] == 0 or r["status"] >= 400)]
+    def line(r):
+        return f"{_request_key(r)} -> {r['status'] or r.get('failure') or 'no response'}"
+    own = lambda r: r["url"].startswith(origin) and _request_key(r) not in noise.get("requests", ())
+    put("failed_requests", [line(r) for r in failed if own(r)], [line(r) for r in failed if not own(r)])
+
+    noisy_storage = set(noise.get("storage", ()))
+    for key, keys in (("storage_added", sorted(set(storage_after) - set(storage_before))),
+                      ("storage_removed", sorted(set(storage_before) - set(storage_after))),
+                      ("storage_changed", sorted(k for k in set(storage_before) & set(storage_after)
+                                                 if storage_before[k] != storage_after[k]))):
+        put(key, [k for k in keys if k not in noisy_storage], [k for k in keys if k in noisy_storage])
+
+    controls_before, controls_after = set(control_keys(before)), set(control_keys(after))
+    put("controls_added", sorted(controls_after - controls_before), [])
+    put("controls_removed", sorted(controls_before - controls_after), [])
+
+    if not (settled_before and settled_after):
+        for key in [k for k in signals if not k.startswith("settled_")]:
+            value = signals.pop(key)
+            if not key.endswith("_more"):
+                weak[key] = (value + weak.get(key, []))[:_MAX_SIGNAL_ITEMS]
+    return signals, weak
 
 
 class Session:
@@ -109,6 +198,7 @@ class Session:
         self._open_fresh_page()
         self.seen_signatures: set[str] = set()   # signatures first sighted this run
         self.last_covered_by = ""                  # what was on top of the last control clicked
+        self._noise: dict = {}                      # state id -> what changes there on its own
         self.entry_signature = ""
         atexit.register(self.close)
 
@@ -129,8 +219,20 @@ class Session:
         listens on one page."""
         old = self._context
         self._context = self._browser.new_context(viewport={"width": 1280, "height": 900})
+        try:
+            self._context.add_init_script(_MUTATION_COUNTER_JS)
+        except Exception:
+            pass
         self.page = self._context.new_page()
         self.col = Collector().attach(self.page)
+        self._inflight: set = set()
+        # Every request with the time it started, so an action is only blamed for the
+        # requests it started (issue #143), not ones already in flight when it ran.
+        self._requests: dict = {}
+        self.page.on("request", self._on_request)
+        self.page.on("response", lambda resp: self._requests.get(id(resp.request), {}).update(status=resp.status))
+        self.page.on("requestfinished", lambda r: self._inflight.discard(id(r)))
+        self.page.on("requestfailed", self._on_request_failed)
         if old is not None:
             try:
                 old.close()
@@ -141,7 +243,64 @@ class Session:
         """Back to the start as a first-time visitor: a fresh session, then the base URL."""
         self._open_fresh_page()
         self.page.goto(self.base_url, wait_until="domcontentloaded")
-        _settle(self.page)
+        self.last_rest = self._rest()
+
+    def _on_request(self, r) -> None:
+        self._inflight.add(id(r))
+        self._requests[id(r)] = {"t": time.time(), "method": r.method, "url": r.url[:300], "status": None}
+
+    def _on_request_failed(self, r) -> None:
+        self._inflight.discard(id(r))
+        self._requests.get(id(r), {}).update(status=0, failure=(r.failure or "")[:120])
+
+    def _requests_since(self, t: float) -> list[dict]:
+        return [r for r in self._requests.values() if r["t"] >= t]
+
+    def _idle_noise(self) -> dict:
+        """What changes on this page with no action at all, over _NOISE_IDLE_MS: the
+        requests started, console errors and storage keys changed. An action's diff
+        leaves those out of its trusted signals (see _signal_diff)."""
+        self.col.drain()
+        storage0, t = self._storage(), time.time()
+        self.page.wait_for_timeout(_NOISE_IDLE_MS)
+        self._rest()
+        console, _ = self.col.drain()
+        storage1 = self._storage()
+        return {
+            "requests": {_request_key(r) for r in self._requests_since(t)},
+            "console": {_console_key(c["text"]) for c in console if c.get("type") in ("error", "pageerror")},
+            "storage": {k for k in set(storage0) | set(storage1) if storage0.get(k) != storage1.get(k)},
+        }
+
+    def _rest(self) -> bool:
+        """Wait until the page has rested (see _REST_QUIET_MS). True if it did, False if
+        _REST_MAX_MS ran out first; the read that follows is then flagged unsettled."""
+        start = time.time()
+        quiet_since, last = start, None
+        while True:
+            try:
+                mutations = self.page.evaluate("window.__qesMutations ?? -1")
+            except Exception:
+                mutations = -1
+            now = time.time()
+            if mutations != last or getattr(self, "_inflight", None):
+                quiet_since, last = now, mutations
+            elif (now - quiet_since) * 1000 >= _REST_QUIET_MS:
+                return True
+            if (now - start) * 1000 >= _REST_MAX_MS:
+                return False
+            self.page.wait_for_timeout(_REST_POLL_MS)
+
+    def _storage(self) -> dict:
+        try:
+            keys = dict(self.page.evaluate(_STORAGE_JS) or {})
+        except Exception:
+            keys = {}
+        try:
+            keys.update({f"cookie:{c['name']}": hash(c.get("value", "")) for c in self._context.cookies()})
+        except Exception:
+            pass
+        return keys
 
     def _shot(self):
         try:
@@ -278,9 +437,19 @@ class Session:
         of the operation when the action lands somewhere new, so the next test starts clean."""
         plan = self.reference.plan_for(state_id, control_key)
         self._reboot()
-        replayed = all(self._actuate(step) and (_settle(self.page) or True) for step in plan["path"])
+        replayed = True
+        for step in plan["path"]:
+            replayed = self._actuate(step)
+            self.last_rest = self._rest()
+            if not replayed:
+                break
+        settled_before = self.last_rest
+        # Learn this state's background once per run (about a second), before reading it.
+        if state_id not in self._noise:
+            self._noise[state_id] = self._idle_noise()
 
         before = self._capture_expecting(self.reference._by_id.get(state_id, {}).get("signature", ""))
+        storage_before = self._storage()
         before_sig = signature(before)
         before_png = self._shot()
         reached = replayed and self.reference._by_id.get(state_id, {}).get("signature") == before_sig
@@ -291,7 +460,7 @@ class Session:
         t0 = time.time()
         sent = reached and self._actuate(plan["target"])
         t1 = time.time()
-        _settle(self.page)
+        settled_after = self._rest()
         click = round(t1 - t0, 2)
         settle = round(time.time() - t1, 2)
 
@@ -325,6 +494,11 @@ class Session:
         }
         if sent and self.last_covered_by:
             result["covered_by"] = self.last_covered_by
+        origin = "{0.scheme}://{0.netloc}".format(urlsplit(self.base_url))
+        result["signals"], weak = _signal_diff(before, after, self._requests_since(t0), storage_before, self._storage(),
+                                               settled_before, settled_after, self._noise[state_id], origin)
+        if weak:
+            result["signals_weak"] = weak
         self.seen_signatures.add(after_sig)
         if screen_was == "new_screen":
             recovered = self.recover()

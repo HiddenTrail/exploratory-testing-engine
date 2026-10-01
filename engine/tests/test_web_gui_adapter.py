@@ -395,3 +395,108 @@ def test_a_state_that_stays_different_is_reported_as_it_is(monkeypatch):
     sess = live_session.Session.__new__(live_session.Session)
     sess.page, sess.col = _WaitingPage(), None
     assert sess._capture_expecting("ready") == "elsewhere"
+
+
+# ---- rested reads and the signal diff (issue #143) -------------------------------------
+
+class _Obs:
+    def __init__(self, elements=(), console=(), network=()):
+        self.url, self.headings = "http://x/#/", []
+        self.elements, self.console, self.network = list(elements), list(console), list(network)
+
+
+ORIGIN = "http://x"
+
+
+def _req(method, url, status, **kw):
+    return {"t": 0, "method": method, "url": url, "status": status, **kw}
+
+
+def test_only_signals_that_pass_every_trust_check_count_as_facts():
+    before = _Obs(elements=[{"role": "button", "name": "Close"}])
+    after = _Obs(elements=[{"role": "button", "name": "Menu"}],
+                 console=[{"type": "error", "text": "TypeError: x is undefined"},
+                          {"type": "error", "text": "poll 17 failed"}, {"type": "log", "text": "hi"}])
+    requests = [_req("GET", "http://x/api/a", 200),                               # fine: not a signal
+                _req("POST", "http://x/api/b", 500),                              # trusted
+                _req("GET", "http://ads.example/pixel", 0, failure="net::ERR"),   # third-party: weak
+                _req("GET", "http://x/api/poll?t=99#secret", 503),                # seen idle: weak
+                _req("GET", "http://x/api/slow", None)]                           # still pending: ignored
+    noise = {"requests": {"GET http://x/api/poll"}, "console": {"poll # failed"}, "storage": {"local:clock"}}
+    signals, weak = live_session._signal_diff(
+        before, after, requests, {"local:clock": 1, "local:b": 2}, {"local:clock": 2, "local:b": 3, "cookie:c": 4},
+        True, True, noise, ORIGIN)
+    assert signals == {
+        "settled_before": True, "settled_after": True,
+        "console_errors": ["TypeError: x is undefined"],
+        "failed_requests": ["POST http://x/api/b -> 500"],
+        "storage_added": ["cookie:c"], "storage_changed": ["local:b"],
+        "controls_added": ["button:menu"], "controls_removed": ["button:close"],
+    }
+    assert weak == {
+        "console_errors": ["poll 17 failed"],
+        "failed_requests": ["GET http://ads.example/pixel -> net::ERR", "GET http://x/api/poll -> 503"],
+        "storage_changed": ["local:clock"],
+    }
+
+
+def test_nothing_read_from_an_unsettled_page_is_trusted():
+    before, after = _Obs(), _Obs(console=[{"type": "error", "text": "boom"}])
+    signals, weak = live_session._signal_diff(before, after, [], {}, {}, True, False, {}, ORIGIN)
+    assert signals == {"settled_before": True, "settled_after": False}
+    assert weak == {"console_errors": ["boom"]}
+
+
+def test_a_quiet_action_has_only_the_settled_flags():
+    obs = _Obs(elements=[{"role": "button", "name": "Close"}])
+    assert live_session._signal_diff(obs, obs, [], {}, {}, True, True, {}, ORIGIN) == (
+        {"settled_before": True, "settled_after": True}, {})
+
+
+class _MutatingPage:
+    """A page whose DOM mutation count follows `counts`, then stays at the last one."""
+
+    def __init__(self, counts):
+        self.counts = list(counts)
+
+    def evaluate(self, js):
+        return self.counts.pop(0) if len(self.counts) > 1 else self.counts[0]
+
+    def wait_for_timeout(self, ms):
+        pass
+
+
+def _resting_session(page, monkeypatch, max_ms=300):
+    monkeypatch.setattr(live_session, "_REST_QUIET_MS", 50)
+    monkeypatch.setattr(live_session, "_REST_MAX_MS", max_ms)
+    sess = live_session.Session.__new__(live_session.Session)
+    sess.page, sess._inflight = page, set()
+    return sess
+
+
+def test_a_page_that_stops_changing_rests(monkeypatch):
+    assert _resting_session(_MutatingPage([1, 5, 9, 9]), monkeypatch)._rest() is True
+
+
+def test_a_page_that_never_stops_changing_is_flagged_not_waited_on_forever(monkeypatch):
+    import itertools
+    page = _MutatingPage([0])
+    counter = itertools.count()
+    page.evaluate = lambda js: next(counter)
+    assert _resting_session(page, monkeypatch, max_ms=150)._rest() is False
+
+
+def test_a_request_in_flight_keeps_the_page_busy(monkeypatch):
+    sess = _resting_session(_MutatingPage([3]), monkeypatch, max_ms=150)
+    sess._inflight.add(1)
+    assert sess._rest() is False
+
+
+def test_the_log_line_names_errors_failures_and_an_unsettled_read():
+    line = adp.describe_result_for_log({"result": {
+        "verdict": "sent", "screen_was": "same_screen", "click": 0.1, "settle": 0.4, "reached_target_state": True,
+        "signals": {"settled_before": True, "settled_after": False, "console_errors": ["a", "b"],
+                    "failed_requests": ["GET /x -> 500"], "storage_added": ["cookie:x"]},
+        "signals_weak": {"failed_requests": ["GET http://ads/p -> 0"]}}})
+    assert "2 console error(s)" in line and "1 failed request(s)" in line
+    assert "storage changed" in line and "UNSETTLED" in line and "1 weak signal(s)" in line
