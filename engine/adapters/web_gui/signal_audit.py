@@ -131,7 +131,8 @@ def main():
               "minutes": round((time.time() - t_start) / 60, 1), **analyse(runs, noise, origin)}
     text = json.dumps(report, indent=2, ensure_ascii=False)
     if args.out:
-        Path(args.out).write_text(text, encoding="utf-8")
+        # The file also keeps every act's raw result, so a finding can be traced back.
+        Path(args.out).write_text(json.dumps({**report, "runs": runs}, indent=2, ensure_ascii=False), encoding="utf-8")
     print(text)
 
 

@@ -471,12 +471,7 @@ class Session:
         of the operation when the action lands somewhere new, so the next test starts clean."""
         plan = self.reference.plan_for(state_id, control_key)
         self._reboot()
-        replayed = True
-        for step in plan["path"]:
-            replayed = self._actuate(step)
-            self.last_rest = self._rest()
-            if not replayed:
-                break
+        replayed = self._replay(plan["path"])
         expected = self.reference._by_id.get(state_id, {}).get("signature", "")
         before = self._capture_expecting(expected)
         reached = replayed and expected == signature(before)
@@ -486,9 +481,13 @@ class Session:
         # the page on, so it rests and is read again afterwards.
         if reached and state_id not in self._noise:
             self._noise[state_id] = self._idle_noise()
-            self.last_rest = self._rest()
+            # The watch moves the page on: PrestaShop's slider turns about 5 s after each
+            # load, so a read after the watch no longer matched the state (#146 audit
+            # rerun). Reach the state afresh instead, as every later act does.
+            self._reboot()
+            replayed = self._replay(plan["path"])
             before = self._capture_expecting(expected)
-            reached = expected == signature(before)
+            reached = replayed and expected == signature(before)
         settled_before = self.last_rest
         storage_before = self._storage()
         before_sig = signature(before)
@@ -546,6 +545,16 @@ class Session:
             result["recovered_to"] = recovered
             result["recovered_ok"] = recovered == self.entry_signature
         return result
+
+    def _replay(self, path: list[dict]) -> bool:
+        """Actuate a carried path step by step, resting after each; stops at the first
+        step that fails."""
+        for step in path:
+            ok = self._actuate(step)
+            self.last_rest = self._rest()
+            if not ok:
+                return False
+        return True
 
     def recover(self) -> str:
         self._reboot()
