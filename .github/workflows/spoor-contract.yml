@@ -1,0 +1,58 @@
+name: spoor contract
+
+# The contract with Spoor's saved map format (#144). On a PR or push it uses the
+# Spoor commit pinned in engine/requirements-spoor.txt, and only runs when
+# something on our side of the contract changes. Once a week it runs against
+# Spoor's latest main instead, to warn before the pin is moved; that run never
+# blocks a PR.
+"on":
+  push:
+    branches: [master]
+    paths:
+      - engine/requirements-spoor.txt
+      - engine/adapters/web_gui/from_spoor.py
+      - engine/tests/test_spoor_contract.py
+      - engine/tests/fixtures/spoor_contract_site/**
+      - .github/workflows/spoor-contract.yml
+  pull_request:
+    branches: [master]
+    paths:
+      - engine/requirements-spoor.txt
+      - engine/adapters/web_gui/from_spoor.py
+      - engine/tests/test_spoor_contract.py
+      - engine/tests/fixtures/spoor_contract_site/**
+      - .github/workflows/spoor-contract.yml
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install the engine and web-recon
+        run: |
+          pip install -r engine/requirements.txt
+          pip install -r .experiments/web-recon/requirements.txt
+
+      - name: Install Spoor (pinned)
+        if: github.event_name != 'schedule'
+        run: pip install -r engine/requirements-spoor.txt
+
+      - name: Install Spoor (latest main)
+        if: github.event_name == 'schedule'
+        run: pip install "ht-spoor @ git+https://github.com/HiddenTrail/ht-spoor@main"
+
+      - name: Install Chromium for Spoor
+        run: python -m playwright install --with-deps chromium
+
+      - name: Check Spoor's saved map against what from_spoor reads
+        env:
+          REQUIRE_SPOOR: "1"
+        run: python -m pytest engine/tests/test_spoor_contract.py -v

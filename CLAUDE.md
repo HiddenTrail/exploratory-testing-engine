@@ -207,9 +207,16 @@ When a task needs a website scraped, crawled or mapped, use **Spoor**
 on the `scraper` branch, and `.experiments/web-recon/`) when the user asks for
 them by name.
 
-- Spoor has its own virtualenv in `../ht-spoor/.venv`. Run its CLI from there
-  as a separate process, and don't install it into this repo's environment.
-  To set it up on a new machine:
+- Spoor is an **optional, pinned dependency** (#144). `engine/requirements-spoor.txt`
+  pins it to a commit, and the `spoor contract` CI job runs that Spoor on a tiny
+  site and checks its saved map against what `from_spoor.py` reads. A weekly run
+  does the same against Spoor's latest main. Use Spoor only through its CLI and
+  its saved map, never by importing its modules. To move the pin, change the
+  commit in `requirements-spoor.txt` in its own PR and let the contract job pass.
+- For running Spoor by hand, it has its own virtualenv in `../ht-spoor/.venv`.
+  Run its CLI from there as a separate process. The contract test can use it
+  locally: `SPOOR_CLI=../ht-spoor/.venv/Scripts/spoor python -m pytest
+  engine/tests/test_spoor_contract.py`. To set it up on a new machine:
   ```
   py -3.13 -m venv ../ht-spoor/.venv
   ../ht-spoor/.venv/Scripts/python -m pip install -e "../ht-spoor[serve]"

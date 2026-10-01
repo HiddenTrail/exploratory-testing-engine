@@ -71,6 +71,37 @@ def _spoor_offers(element: dict, actions: list[tuple[str, str]]) -> bool:
                for role, spoor in actions)
 
 
+def map_errors(exploration) -> list[str]:
+    """What's missing from a Spoor `exploration` block, against the fields this
+    converter reads. It's the contract with Spoor's saved map format (#144): CI runs
+    a real, pinned Spoor and checks its output with this, so a format change in Spoor
+    shows up as a clear failure instead of a KeyError on the next real map."""
+    if not isinstance(exploration, dict):
+        return ["the exploration block isn't an object"]
+    errors = []
+    lists = {}
+    for key in ("states", "transitions", "skipped"):
+        value = exploration.get(key)
+        if not isinstance(value, list):
+            errors.append(f"exploration.{key} is missing or not a list")
+        else:
+            lists[key] = value
+    action = lambda a: isinstance(a, dict) and isinstance(a.get("role"), str) and isinstance(a.get("name"), str)
+    for i, s in enumerate(lists.get("states", [])):
+        if not isinstance(s, dict) or not isinstance(s.get("id"), str):
+            errors.append(f"states[{i}] has no string id")
+        elif not isinstance(s.get("actions", []), list) or not all(action(a) for a in s.get("actions", [])):
+            errors.append(f"states[{i}].actions aren't all {{role, name}}")
+    for i, t in enumerate(lists.get("transitions", [])):
+        if not (isinstance(t, dict) and isinstance(t.get("from"), str) and isinstance(t.get("to"), str)
+                and action(t.get("action"))):
+            errors.append(f"transitions[{i}] isn't {{from, to, action: {{role, name}}}}")
+    for i, k in enumerate(lists.get("skipped", [])):
+        if not (isinstance(k, dict) and isinstance(k.get("from"), str) and action(k.get("action"))):
+            errors.append(f"skipped[{i}] isn't {{from, action: {{role, name}}}}")
+    return errors
+
+
 def convert(exploration: dict, url: str, observe: Callable[[list[dict]], object | None]) -> tuple[dict, dict]:
     """exploration: Spoor's saved `exploration` block. observe(path) replays a list of
     click steps from a fresh session and returns the captured Observation, or None if
@@ -201,6 +232,9 @@ def main() -> None:
     entry = saved.get(args.url) or saved.get(args.url.rstrip("/")) or saved.get(args.url.rstrip("/") + "/")
     if not entry or not entry.get("exploration"):
         raise SystemExit(f"no exploration for {args.url} in {args.map} (keys: {', '.join(saved)})")
+    problems = map_errors(entry["exploration"])
+    if problems:
+        raise SystemExit("this Spoor map isn't in the format the converter reads (#144):\n  " + "\n  ".join(problems))
     observe, sess = live_observer(args.url, args.headed)
     try:
         ontology, report = convert(entry["exploration"], args.url, observe)
