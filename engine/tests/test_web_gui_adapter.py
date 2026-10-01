@@ -582,3 +582,31 @@ def test_a_baseline_is_learned_only_for_a_state_the_replay_really_reached(monkey
     monkeypatch.setattr(live_session, "capture", lambda page, col: elsewhere)
     sess.act("st02", "button:Back")
     assert watched == [] and "st02" not in sess._noise
+
+
+def test_after_learning_a_baseline_the_state_is_reached_afresh(monkeypatch):
+    # #146 audit rerun: PrestaShop's slider turned during the idle watch, so a read
+    # taken after the watch no longer matched the state.
+    ref = ref_mod.Reference(_ontology())
+    ref._by_id["st02"]["signature"] = "/p2|button:back|"   # what the fake page below reads as
+    sess = live_session.Session.__new__(live_session.Session)
+    sess.reference, sess.base_url, sess._noise = ref, "http://app.example/", {}
+    sess.seen_signatures, sess.entry_signature, sess.last_covered_by, sess.last_rest = set(), "", "", True
+    sess.page, sess.col, sess._requests = None, None, {}
+    reboots = []
+    monkeypatch.setattr(sess, "_reboot", lambda: reboots.append(1))
+    monkeypatch.setattr(sess, "_actuate", lambda step: True)
+    monkeypatch.setattr(sess, "_rest", lambda: True)
+    monkeypatch.setattr(sess, "_storage", lambda: {})
+    monkeypatch.setattr(sess, "_shot", lambda: None)
+    monkeypatch.setattr(sess, "_idle_noise", lambda: {})
+    monkeypatch.setattr(sess, "recover", lambda: "")
+    page2 = _Obs(elements=[{"role": "button", "name": "Back"}])
+    page2.url = "http://app.example/p2"
+    monkeypatch.setattr(sess, "_capture_expecting", lambda expected: page2)
+    monkeypatch.setattr(live_session, "capture", lambda page, col: page2)
+    first = sess.act("st02", "button:Back")
+    assert len(reboots) == 2 and first["reached_target_state"] is True   # watched, then reached afresh
+    reboots.clear()
+    sess.act("st02", "button:Back")
+    assert len(reboots) == 1                                              # baseline already known
