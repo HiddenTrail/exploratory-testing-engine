@@ -207,10 +207,15 @@ source types, it's **cadence**: a fact that's true today and might be false
 tomorrow, in contrast to layer 2's sprint/quarter-stable facts and layer
 1's never-changing generic vocabulary.
 
-Implemented today as three arrays: `test_results` (outcomes fed back by
-`engine/ontology/feedback.py` after a Driver run), `jira_entries`
-(ticket-shaped signals), and `risk_assessments` (human-authored risk
-judgments) — but these are examples of the class, not its definition.
+Implemented today as four arrays: `test_results` (outcomes fed back by
+`engine/ontology/feedback.py` after a Driver run), `discoveries` (screens a
+web_gui run reached that its map doesn't have, with the path that reached
+them, their safety-gated controls, and how often and in which runs they were
+reached: "seen once" until reached again, then "reproduced"; #157),
+`jira_entries` (ticket-shaped signals), and `risk_assessments` (human-authored
+risk judgments) — but these are examples of the class, not its definition.
+A discovery stays in the context layer: promoting one into the product wiki
+is a human step.
 Other things that clearly belong to the same class, not yet implemented:
 a feature flag flipping, a deploy/release happening, an incident or
 monitoring alert, a support ticket, an A/B test result, a config change, a

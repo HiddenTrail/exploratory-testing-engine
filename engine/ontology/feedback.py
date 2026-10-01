@@ -49,6 +49,42 @@ def extract_results(output: dict, known: set[str]) -> tuple[list[dict], list[str
     return results, dropped
 
 
+def extract_discoveries(output: dict) -> list[dict]:
+    """The screens a run reached that its map doesn't have (issue #157), one record per
+    test that reached one, from the full results in output.json."""
+    found = []
+    for entry in output.get("casting_log", []):
+        record = (entry.get("result") or {}).get("discovered")
+        if record:
+            found.append({**record, "test_number": entry.get("test_number")})
+    return found
+
+
+def merge_discoveries(context: dict, found: list[dict], run: str) -> dict:
+    """Add a run's discoveries to the context, by screen. Each keeps where it was first
+    reached from (its path), its latest controls, how many times and in how many runs it
+    was reached, and a status: 'seen once' until it's reached again, then 'reproduced'
+    (the bar #148 sets for trusting anything once)."""
+    by_id = {d["id"]: d for d in context.get("discoveries", [])}
+    for record in found:
+        known = by_id.get(record["id"])
+        if known is None:
+            known = by_id[record["id"]] = {
+                "id": record["id"], "signature": record["signature"], "url": record["url"],
+                "title": record["title"], "path": record["path"], "from_state": record["from_state"],
+                "via": record["via"], "first_seen": run, "runs": [], "times_reached": 0,
+            }
+        known["times_reached"] += 1
+        if run not in known["runs"]:
+            known["runs"].append(run)
+        known["last_seen"] = run
+        known["elements"] = record["elements"]
+        known["controls_offered"] = record["controls_offered"]
+        known["status"] = "reproduced" if known["times_reached"] >= 2 else "seen once"
+    context["discoveries"] = list(by_id.values())
+    return context
+
+
 def merge_results(context: dict, new_results: list[dict]) -> dict:
     by_claim_id = {r["claim_id"]: r for r in context.get("test_results", [])}
     for result in new_results:
@@ -71,10 +107,17 @@ def main() -> None:
     key = args.product or args.sut
     context = load_context(key)
     context = merge_results(context, new_results)
+    found = extract_discoveries(output)
+    if found:
+        context = merge_discoveries(context, found, run=output.get("run_id") or Path(args.run).parent.name)
 
     context_path = ONTOLOGY_DIR / f"context_{key}.json"
     context_path.write_text(json.dumps(context, indent=2), encoding="utf-8")
     print(f"Merged {len(new_results)} test result(s) into {context_path} (total now {len(context['test_results'])})")
+    if found:
+        reproduced = sum(1 for d in context["discoveries"] if d["status"] == "reproduced")
+        print(f"Recorded {len(found)} reach(es) of {len({d['id'] for d in found})} screen(s) beyond the map "
+              f"({len(context['discoveries'])} known, {reproduced} reproduced)")
     if dropped:
         print(f"Dropped {len(dropped)} made-up id(s) that aren't ranked ideas for {args.sut}: {', '.join(sorted(set(dropped)))}")
 

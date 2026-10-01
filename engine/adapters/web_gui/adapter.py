@@ -79,6 +79,9 @@ WHAT YOU GET BACK, per test:
   signals_weak: the same kinds of signal that failed a trust check (third-party, also
          seen with no action, read from an unsettled page, or the action wasn't sent).
          A hint for a next test, never evidence for a claim on its own.
+  discovered: present when the action reached a screen the carried map doesn't have: its
+         id (e.g. "d1a2b3c4") and how many controls on it the safety gate would allow.
+         The same id again means the same screen, reached again.
   covered_by: present when something else was on top of the control, for example
          "dialog 'cookieconsent'". The harness sent the click to the control anyway,
          which a real user couldn't do without moving the cover first.
@@ -142,6 +145,20 @@ def outcome_for(result: dict) -> outcome.Outcome:
         latency=result.get("settle"),
         matched_prior=result.get("was_measured_before"),
     )
+
+
+def redact_history_for_model(casting_log: list[dict]) -> list[dict]:
+    """The default redaction, plus a discovered screen cut to its id and how many safe
+    controls it offers: the full record (path, every element) stays in output.json for
+    feedback (#157), but would bloat every later prompt."""
+    from engine.redact import default_redact_history_for_model
+
+    redacted = default_redact_history_for_model(casting_log)
+    for entry in redacted:
+        found = (entry.get("result") or {}).get("discovered")
+        if found:
+            entry["result"]["discovered"] = {"id": found["id"], "controls_offered": found["controls_offered"]}
+    return redacted
 
 
 def execute_test(test: dict, test_number: int) -> dict:
@@ -493,6 +510,7 @@ ADAPTER = SUTAdapter(
     fetch_happy_day_example=fetch_happy_day_example,
     describe_test_for_log=describe_test_for_log,
     describe_result_for_log=describe_result_for_log,
+    redact_history_for_model=redact_history_for_model,
     render_test_entry=render_test_entry,
     render_onboarding_section=render_onboarding_section,
     report_title="Web GUI - live browser exploration",
