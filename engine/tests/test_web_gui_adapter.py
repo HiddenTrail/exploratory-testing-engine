@@ -784,3 +784,55 @@ def test_a_test_on_a_discovered_screen_is_valid_once_it_joined(monkeypatch):
         {"linked_hypothesis": "", "oracle_claim_id": "", "state_id": sid, "control_key": "button:Go",
          "predicted_screen": "new_screen", "predicted_outcome": "a page past the new screen"}]}
     assert adp.validate_casting_response(data) == []
+
+
+def _session_with(tmp_path, cookies=(), storage=()):
+    import json as json_mod
+    path = tmp_path / "logged-in.json"
+    path.write_text(json_mod.dumps({"cookies": list(cookies), "origins": [
+        {"origin": "http://x", "localStorage": list(storage)}]}), encoding="utf-8")
+    return path
+
+
+def _jwt(claims):
+    import base64
+    import json as json_mod
+    body = base64.urlsafe_b64encode(json_mod.dumps(claims).encode()).decode().rstrip("=")
+    return f"eyJhbGciOiJub25lIn0.{body}.sig"
+
+
+def test_an_expired_credential_cookie_stops_the_run_before_it_starts(tmp_path):
+    # The milestone run (#227): the token cookie expired overnight, the page still looked
+    # logged in, and the server's 500 was reported as a bug.
+    import pytest
+    path = _session_with(tmp_path, cookies=[
+        {"name": "token", "value": "abc", "expires": 1000},
+        {"name": "welcomebanner_status", "value": "dismiss", "expires": 1000},   # not a credential
+    ])
+    assert live_session.session_expiry(path, now=2000) == {"expired": ["cookie token"], "soon": []}
+    with pytest.raises(SystemExit, match=r"has expired \(cookie token\)"):
+        live_session.check_session_fresh(path, now=2000)
+
+
+def test_a_jwt_in_storage_is_judged_by_its_exp_claim(tmp_path):
+    path = _session_with(tmp_path, storage=[{"name": "auth", "value": _jwt({"exp": 5000})},
+                                           {"name": "theme", "value": "dark"}])
+    assert live_session.check_session_fresh(path, now=1000) is None
+    assert "expires within 30 minutes (storage auth (its JWT))" in live_session.check_session_fresh(path, now=4000)
+    assert live_session.session_expiry(path, now=6000)["expired"] == ["storage auth (its JWT)"]
+
+
+def test_session_cookies_without_a_date_and_jwts_without_exp_pass(tmp_path):
+    # A browser-session cookie (expires -1) and a JWT with no exp can't be judged by date;
+    # WEB_GUI_SESSION_CHECK is the check for those.
+    path = _session_with(tmp_path, cookies=[{"name": "sessionid", "value": "abc", "expires": -1}],
+                         storage=[{"name": "token", "value": _jwt({"iat": 1})}])
+    assert live_session.session_expiry(path, now=10**10) == {"expired": [], "soon": []}
+
+
+def test_the_expiry_message_names_credentials_never_their_values(tmp_path):
+    import pytest
+    path = _session_with(tmp_path, cookies=[{"name": "sid", "value": "SECRET-VALUE", "expires": 1}])
+    with pytest.raises(SystemExit) as stopped:
+        live_session.check_session_fresh(path, now=2)
+    assert "SECRET-VALUE" not in str(stopped.value) and "cookie sid" in str(stopped.value)

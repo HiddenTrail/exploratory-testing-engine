@@ -57,6 +57,9 @@ _HEADED_ENV = "WEB_GUI_HEADED"
 # holds live auth cookies: keep it in the gitignored .sessions/, and it never reaches a
 # prompt or a report (only its name does).
 _SESSION_ENV = "WEB_GUI_SESSION"
+# A path on the product that answers below 400 only for a session the server still accepts
+# (issue #227), e.g. /profile on Juice Shop. Optional: without it, only expiry dates are checked.
+_SESSION_CHECK_ENV = "WEB_GUI_SESSION_CHECK"
 
 
 def load_session_file(path) -> str:
@@ -74,6 +77,65 @@ def load_session_file(path) -> str:
         raise SystemExit(f"{_SESSION_ENV} file {p} isn't a Playwright session (it needs 'cookies' and 'origins' "
                          "lists, as context.storage_state() writes).")
     return str(p)
+
+
+# Names that look like a login credential, for a cookie or storage entry (issue #227).
+_CREDENTIAL_NAME = re.compile(r"token|session|auth|jwt|sid|login|bearer", re.I)
+# A session that expires sooner than this from the start of a run probably won't last it.
+_SESSION_SOON_S = 30 * 60
+
+
+def _jwt_exp(value: str) -> float | None:
+    """The `exp` claim of a value that is a JWT, or None (not a JWT, or no expiry)."""
+    import base64
+    parts = value.split(".") if isinstance(value, str) else []
+    if len(parts) != 3 or not value.startswith("eyJ"):
+        return None
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4)))
+        return float(payload["exp"]) if isinstance(payload, dict) and "exp" in payload else None
+    except (ValueError, TypeError):
+        return None
+
+
+def session_expiry(path, now: float) -> dict:
+    """The credentials in a session file that have expired, or will within the run's first
+    half hour, by name only (issue #227). A credential is a cookie or storage entry whose
+    name looks like one, or whose value is a JWT. Its expiry is the cookie's date or the
+    JWT's `exp`. Found in the milestone run: the Juice Shop token cookie had expired
+    overnight, the browser dropped it, and the token left in localStorage kept the page
+    looking logged in while the server answered 500, which the engine reported as a bug."""
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    found = []   # (name, expires at)
+    for c in data.get("cookies", []):
+        exp = _jwt_exp(c.get("value", ""))
+        if c.get("expires", -1) > 0 and (_CREDENTIAL_NAME.search(c.get("name", "")) or exp is not None):
+            found.append((f"cookie {c['name']}", float(c["expires"])))
+        if exp is not None:
+            found.append((f"cookie {c['name']} (its JWT)", exp))
+    for origin in data.get("origins", []):
+        for item in origin.get("localStorage", []):
+            exp = _jwt_exp(item.get("value", ""))
+            if exp is not None:
+                found.append((f"storage {item['name']} (its JWT)", exp))
+    return {"expired": sorted(n for n, t in found if t <= now),
+            "soon": sorted(n for n, t in found if now < t <= now + _SESSION_SOON_S)}
+
+
+def check_session_fresh(path, now: float) -> str | None:
+    """SystemExit if a credential in the session has expired, since every test would then
+    run as a half-logged-in user and report the server's refusals as bugs. Returns a
+    warning if one expires soon, else None."""
+    expiry = session_expiry(path, now)
+    if expiry["expired"]:
+        raise SystemExit(
+            f"The saved session {session_name(path)!r} has expired ({', '.join(expiry['expired'])}). The page may "
+            "still look logged in, but the server won't accept it, so tests would report its refusals as bugs. "
+            "Save a fresh session (python -m engine.adapters.web_gui.save_session).")
+    if expiry["soon"]:
+        return (f"WARNING: the saved session {session_name(path)!r} expires within {_SESSION_SOON_S // 60} minutes "
+                f"({', '.join(expiry['soon'])}). Tests after that will run half logged in.")
+    return None
 
 
 def session_name(path) -> str:
@@ -565,6 +627,17 @@ class Session:
             return "known_screen"
         return "new_screen"
 
+    def check_url(self, path: str) -> int | None:
+        """The HTTP status of `path` on the product, opened in a fresh context loaded from
+        the session (issue #227), or None if it didn't answer."""
+        self._open_fresh_page()
+        try:
+            response = self.page.goto(self.base_url.rstrip("/") + "/" + path.lstrip("/"),
+                                      wait_until="domcontentloaded", timeout=15000)
+            return response.status if response else None
+        except Exception:
+            return None
+
     # ---- the one operation the loop drives -------------------------------------------
 
     def baseline(self) -> str:
@@ -753,6 +826,10 @@ def check_ready(adapter) -> None:
 
     headed = os.environ.get(_HEADED_ENV, "") not in ("", "0", "false", "False")
     session_file = load_session_file(os.environ[_SESSION_ENV]) if os.environ.get(_SESSION_ENV) else None
+    if session_file:
+        warning = check_session_fresh(session_file, time.time())
+        if warning:
+            print(warning)
     # A map made logged out doesn't match a logged-in start page (Juice Shop shows a basket
     # button, for one), so every test would read as not reaching its state. Say so up front.
     if session_name(session_file) != reference.session_name:
@@ -760,6 +837,16 @@ def check_ready(adapter) -> None:
               f"{_described(session_name(session_file))}. Expect tests not to reach their states; make the map "
               f"with the same session (from_spoor --session).")
     session = Session(reference, base_url, headed, session_file)
+    check_path = os.environ.get(_SESSION_CHECK_ENV, "")
+    if session_file and check_path:
+        status = session.check_url(check_path)
+        if status is None or status >= 400:
+            session.close()
+            raise SystemExit(
+                f"The saved session {session_name(session_file)!r} failed its server check: {check_path} answered "
+                f"{status or 'nothing'}. The server no longer accepts it, so tests would report its refusals as "
+                "bugs. Save a fresh session, or fix " + _SESSION_CHECK_ENV + ".")
+        print(f"Session {session_name(session_file)!r} accepted by the server ({check_path} answered {status}).")
     try:
         entry_sig = session.baseline()
     except Exception as e:
