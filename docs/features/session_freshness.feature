@@ -72,6 +72,22 @@ Feature: A stale saved session is refused before a run
       | 500         | the browser is closed and the run stops, saying "/profile answered 500"                             |
       | no response | the browser is closed and the run stops, saying "/profile answered nothing"                         |
 
+  Scenario Outline: A WEB_GUI_SESSION_CHECK that isn't a path on the product stops the run
+    # Git Bash rewrote "/profile" into "C:/Program Files/Git/profile", Juice Shop answered
+    # 200 for that made-up path, and the check passed without checking anything (#243).
+    Given WEB_GUI_SESSION_CHECK is "<value>"
+    When web_gui's check_ready runs
+    Then the run stops with SystemExit saying it "isn't a path on the product, like /profile"
+    And the message says "MSYS_NO_PATHCONV=1" stops Git Bash rewriting the path
+    And no browser is launched
+
+    Examples:
+      | value                        |
+      | C:/Program Files/Git/profile |
+      | profile                      |
+      | http://other.test/profile    |
+      | //other.test/profile         |
+
   Scenario: The server check only runs with a session
     Given WEB_GUI_SESSION is unset
     And WEB_GUI_SESSION_CHECK is "/profile"

@@ -122,6 +122,18 @@ def session_expiry(path, now: float) -> dict:
             "soon": sorted(n for n, t in found if now < t <= now + _SESSION_SOON_S)}
 
 
+def session_check_path() -> str:
+    """WEB_GUI_SESSION_CHECK, or "" if unset. SystemExit if it isn't a path on the product
+    (issue #243): Git Bash turns "/profile" into "C:/Program Files/Git/profile", Juice Shop
+    answered 200 for that made-up path, and the check passed without checking anything."""
+    value = os.environ.get(_SESSION_CHECK_ENV, "")
+    if value and (not value.startswith("/") or value.startswith("//") or ":" in value.split("?")[0]):
+        raise SystemExit(
+            f"{_SESSION_CHECK_ENV}={value!r} isn't a path on the product, like /profile. In Git Bash, "
+            f"MSYS_NO_PATHCONV=1 stops it rewriting the path.")
+    return value
+
+
 def check_session_fresh(path, now: float) -> str | None:
     """SystemExit if a credential in the session has expired, since every test would then
     run as a half-logged-in user and report the server's refusals as bugs. Returns a
@@ -834,7 +846,7 @@ def replay_blocker() -> str | None:
         check_session_fresh(session.session_file, time.time())
     except SystemExit as e:
         return str(e)
-    check_path = os.environ.get(_SESSION_CHECK_ENV, "")
+    check_path = session_check_path()
     if check_path:
         status = session.check_url(check_path)
         if status is None or status >= 400:
@@ -878,8 +890,8 @@ def check_ready(adapter) -> None:
         print(f"WARNING: the carried map was made {_described(reference.session_name)}, but this run starts "
               f"{_described(session_name(session_file))}. Expect tests not to reach their states; make the map "
               f"with the same session (from_spoor --session).")
+    check_path = session_check_path()   # before the browser starts, so a bad value costs nothing
     session = Session(reference, base_url, headed, session_file)
-    check_path = os.environ.get(_SESSION_CHECK_ENV, "")
     if session_file and check_path:
         status = session.check_url(check_path)
         if status is None or status >= 400:
