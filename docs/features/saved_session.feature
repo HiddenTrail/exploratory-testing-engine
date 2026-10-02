@@ -10,8 +10,12 @@
 # report or the map. A map made logged out doesn't match a logged-in start page (Juice
 # Shop shows a basket button), so a session/map mismatch is warned about up front.
 #
+# Playwright can't restore sessionStorage from the file, so web_gui puts it back with an
+# init script that runs before the app's own scripts (issue #228).
+#
 # Code: engine/adapters/web_gui/session.py (load_session_file, session_name,
-# Session._open_fresh_page, check_ready), engine/adapters/web_gui/reference.py
+# session_storage_script, Session._open_fresh_page, check_ready),
+# engine/adapters/web_gui/reference.py
 
 Feature: web_gui tests start from a saved login session
   As a tester of features behind a login
@@ -43,6 +47,15 @@ Feature: web_gui tests start from a saved login session
     When each test reboots the browser before replaying its path
     Then each test gets a new browser context created with that file as its "storage_state"
     And no cookies or storage carry over from the previous test's context
+
+  Scenario: A saved session's sessionStorage is put back in every fresh context
+    # Without it, Juice Shop opened the basket with "TypeError: Cannot read properties
+    # of null (reading 'Products')" in every test.
+    Given the session file has the sessionStorage entry "bid" for "http://127.0.0.1:3000"
+    When a test reboots the browser
+    Then the new context gets an init script that sets "bid" on pages of "http://127.0.0.1:3000"
+    And the script only fills an empty sessionStorage, so it never overwrites what the app wrote
+    And a session file without sessionStorage adds no script
 
   Scenario: Only the session's name reaches the Driver and the report
     Given WEB_GUI_SESSION points at ".sessions/juice-shop/logged-in.json"

@@ -114,7 +114,7 @@ def session_expiry(path, now: float) -> dict:
         if exp is not None:
             found.append((f"cookie {c['name']} (its JWT)", exp))
     for origin in data.get("origins", []):
-        for item in origin.get("localStorage", []):
+        for item in origin.get("localStorage", []) + origin.get("sessionStorage", []):
             exp = _jwt_exp(item.get("value", ""))
             if exp is not None:
                 found.append((f"storage {item['name']} (its JWT)", exp))
@@ -136,6 +136,24 @@ def check_session_fresh(path, now: float) -> str | None:
         return (f"WARNING: the saved session {session_name(path)!r} expires within {_SESSION_SOON_S // 60} minutes "
                 f"({', '.join(expiry['soon'])}). Tests after that will run half logged in.")
     return None
+
+
+def session_storage_script(path) -> str | None:
+    """An init script that puts a saved session's sessionStorage back (issue #228), or
+    None if it saved none. Playwright's storage_state can't restore sessionStorage, so
+    this runs before the app's own scripts on every page. It only fills an empty
+    sessionStorage, so a new tab starts where the saved one was, and whatever the app
+    writes after that isn't overwritten on the next navigation. Values go in as a JSON
+    literal, so none can break out of the script."""
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    by_origin = {o["origin"]: [[e["name"], e["value"]] for e in o.get("sessionStorage", [])]
+                 for o in data.get("origins", []) if o.get("sessionStorage")}
+    if not by_origin:
+        return None
+    return ("(() => { const saved = " + json.dumps(by_origin) + "[location.origin];"
+            " if (!saved) return;"
+            " try { if (sessionStorage.length) return;"
+            " for (const [k, v] of saved) sessionStorage.setItem(k, v); } catch (e) {} })();")
 
 
 def session_name(path) -> str:
@@ -372,6 +390,7 @@ class Session:
         self.reference = reference
         self.base_url = base_url
         self.session_file = session_file
+        self._session_storage_js = session_storage_script(session_file) if session_file else None
         self._pw = sync_playwright().start()
         self._browser = self._pw.chromium.launch(headless=not headed, slow_mo=300 if headed else 0)
         self._context = None
@@ -406,6 +425,8 @@ class Session:
             self._context.add_init_script(_MUTATION_COUNTER_JS)
         except Exception:
             pass
+        if getattr(self, "_session_storage_js", None):
+            self._context.add_init_script(self._session_storage_js)
         self.page = self._context.new_page()
         self.col = Collector().attach(self.page)
         self._inflight: set = set()
@@ -573,12 +594,12 @@ class Session:
         """Save this session (cookies and storage) to `path`, so later tests and Spoor can
         start from the state a run reached, e.g. after a scripted login on a sandbox target
         (issue #155). Refuses a path git doesn't ignore. Returns what was saved, by name only."""
-        from engine.adapters.web_gui.save_session import refuse_unless_ignored, summary
+        from engine.adapters.web_gui.save_session import refuse_unless_ignored, save_state
 
         path = Path(path)
         refuse_unless_ignored(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        return summary(self._context.storage_state(path=str(path)))
+        return save_state(self._context, path)
 
     def _cover(self, css: str) -> dict:
         if not css:

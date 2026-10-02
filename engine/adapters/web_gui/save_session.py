@@ -1,7 +1,9 @@
 """Save a browser session to start web_gui tests and Spoor from (issue #155).
 
-A session file is Playwright's context.storage_state(): cookies plus local and session
-storage. web_gui loads it into every test's fresh context (WEB_GUI_SESSION, #154), and Spoor
+A session file is Playwright's context.storage_state() (cookies and localStorage), plus each
+origin's sessionStorage under "sessionStorage", which Playwright leaves out (issue #228).
+Playwright and Spoor ignore that key, so the file still works with both. web_gui loads it
+into every test's fresh context (WEB_GUI_SESSION, #154), and Spoor
 maps from it (spoor explore --session). The Driver can't type credentials, and that stays,
 so a session comes from a person, or from a scripted login on a sandbox target:
 
@@ -24,6 +26,7 @@ ignore (the default, .sessions/, is), and it prints only the names of what it sa
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -95,7 +98,37 @@ def summary(state: dict) -> dict:
     return {
         "cookies": sorted({c["name"] for c in state.get("cookies", [])}),
         "storage": sorted({e["name"] for o in state.get("origins", []) for e in o.get("localStorage", [])}),
+        "session_storage": sorted({e["name"] for o in state.get("origins", []) for e in o.get("sessionStorage", [])}),
     }
+
+
+_SESSION_STORAGE_JS = "() => [location.origin, Object.entries(sessionStorage)]"
+
+
+def save_state(context, out: Path) -> dict:
+    """Write the context's session to `out`: Playwright's storage_state, plus the
+    sessionStorage of every page open in it, per origin (issue #228). Playwright leaves
+    sessionStorage out because it belongs to one tab, but apps keep login-related state
+    there: Juice Shop keeps the basket id in it, so a saved session without it opened
+    the basket with "TypeError: Cannot read properties of null (reading 'Products')"
+    in every test. Returns the summary."""
+    state = context.storage_state()
+    by_origin: dict[str, dict] = {}
+    for page in context.pages:
+        try:
+            origin, entries = page.evaluate(_SESSION_STORAGE_JS)
+        except Exception:   # a closed page, or one on about:blank
+            continue
+        if origin and origin != "null" and entries:
+            by_origin.setdefault(origin, {}).update(dict(entries))
+    for origin, items in by_origin.items():
+        entry = next((o for o in state["origins"] if o["origin"] == origin), None)
+        if entry is None:
+            entry = {"origin": origin, "localStorage": []}
+            state["origins"].append(entry)
+        entry["sessionStorage"] = [{"name": k, "value": v} for k, v in items.items()]
+    out.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    return summary(state)
 
 
 def capture_session(url: str, out: Path, until: tuple[str, str] | None = None, headed: bool = True,
@@ -135,9 +168,9 @@ def capture_session(url: str, out: Path, until: tuple[str, str] | None = None, h
                                  + ". Nothing was saved.")
             page.wait_for_timeout(500)
         out.parent.mkdir(parents=True, exist_ok=True)
-        state = context.storage_state(path=str(out))
+        saved = save_state(context, out)
         browser.close()
-    return summary(state)
+    return saved
 
 
 def main() -> None:
@@ -154,7 +187,8 @@ def main() -> None:
     out = session_path(args.product, args.name)
     saved = capture_session(args.url, out, parse_until(args.until), headed=not args.headless, timeout_s=args.timeout)
     print(f"Saved session '{args.name}' to {out.relative_to(REPO)}: cookies {', '.join(saved['cookies']) or 'none'}; "
-          f"storage {', '.join(saved['storage']) or 'none'}. Values are never printed.")
+          f"storage {', '.join(saved['storage']) or 'none'}; session storage "
+          f"{', '.join(saved['session_storage']) or 'none'}. Values are never printed.")
     print(f"Use it: WEB_GUI_SESSION={out.relative_to(REPO).as_posix()}, or spoor explore <url> --session {out}")
 
 

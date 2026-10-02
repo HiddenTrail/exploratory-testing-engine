@@ -1,5 +1,11 @@
 # Saving a session: a person logs in, the engine keeps the cookies and storage.
 #
+# Playwright's storage_state keeps cookies and localStorage but not sessionStorage,
+# which belongs to one tab. Juice Shop keeps its basket id there, so a session saved
+# without it opened the basket with a TypeError in every test (issue #228). So the file
+# also holds each open page's sessionStorage, per origin, under "sessionStorage".
+# Playwright and Spoor ignore that key, so the file still works with both.
+#
 # web_gui loads a saved session into every test (WEB_GUI_SESSION, #154) and Spoor maps
 # from one (spoor explore --session). save_session makes that file (issue #155). It
 # opens a visible browser at a URL, a person logs in (or puts the app in any state
@@ -9,8 +15,8 @@
 # it saved, never a value. A run can also save the session it reached with
 # Session.save, under the same rule.
 #
-# Code: engine/adapters/web_gui/save_session.py, engine/adapters/web_gui/session.py
-# (Session.save). Tests: engine/tests/test_save_session.py
+# Code: engine/adapters/web_gui/save_session.py (save_state, summary),
+# engine/adapters/web_gui/session.py (Session.save). Tests: engine/tests/test_save_session.py
 
 Feature: A session is saved by logging in by hand, or when a condition holds
   As a tester of features behind a login
@@ -76,9 +82,15 @@ Feature: A session is saved by logging in by hand, or when a condition holds
     And nothing is written
     # save_session checks this before it starts a browser.
 
+  Scenario: sessionStorage is saved beside Playwright's state, per origin
+    Given the page open at "http://127.0.0.1:3000" has the sessionStorage entry "bid"
+    When save_session or Session.save writes the session
+    Then the origin "http://127.0.0.1:3000" in the file has "sessionStorage" with the entry "bid"
+    And pages on about:blank, or that have closed, are skipped
+
   Scenario: What was saved is reported by name only
-    Given the saved state has a cookie "token" and a localStorage entry "token", both with the value "SECRET"
+    Given the saved state has a cookie "token", a localStorage entry "token" and a sessionStorage entry "bid", all with the value "SECRET"
     When the session is saved
-    Then the summary is cookies "token" and storage "token"
+    Then the summary is cookies "token", storage "token" and session_storage "bid"
     And the printed line ends with "Values are never printed."
     And "SECRET" appears nowhere in the summary
