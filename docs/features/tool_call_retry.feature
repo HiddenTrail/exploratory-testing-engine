@@ -62,6 +62,16 @@ Feature: Every model call is a forced tool call, checked and retried with feedba
     And the log shows "turned JSON text back into structure at: items"
     # Text that doesn't parse, or parses to the wrong type, is left for the validator.
 
+  Scenario: JSON text with raw line breaks inside its strings is fixed too, and text that won't parse says why
+    # Strict JSON rejects a raw line break inside a string value. A web_gui casting round
+    # sent its candidate_tests as text that wasn't fixed, and paid two retries (#244).
+    Given the tool schema says "items" is an array
+    When the model sends "items" as JSON text with a raw line break inside one of its strings
+    Then the validator gets "items" as a real list
+    When the model sends "items" as JSON text that doesn't parse
+    Then the log shows "couldn't turn JSON text back into structure at items:" and the parser's error
+    And the validator still gets the text, and reports it
+
   Scenario Outline: The engine gives up after the attempt budget is spent
     Given every reply <failure>
     When the engine calls the model with the default 3 attempts

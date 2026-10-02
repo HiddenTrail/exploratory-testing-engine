@@ -164,9 +164,13 @@ def unstring_json_fields(value, schema, path: str = "") -> tuple[object, list[st
     fixed = []
     expected = schema.get("type") if isinstance(schema, dict) else None
     if expected in ("array", "object") and isinstance(value, str):
+        # strict=False lets raw line breaks and tabs inside the string values through,
+        # which strict JSON rejects. A web_gui casting round in the milestone rerun sent
+        # its candidate_tests as text that this didn't fix, and paid two retries (#244).
         try:
-            parsed = json.loads(value)
-        except ValueError:
+            parsed = json.loads(value, strict=False)
+        except ValueError as e:
+            print(f"  couldn't turn JSON text back into structure at {path or '(the whole answer)'}: {e}")
             return value, fixed
         if isinstance(parsed, list if expected == "array" else dict):
             value = parsed

@@ -574,6 +574,18 @@ def test_text_that_doesnt_parse_or_has_the_wrong_type_is_left_for_the_validator(
         assert value == {"items": raw} and fixed == [], raw
 
 
+def test_json_text_with_raw_line_breaks_in_its_strings_is_fixed(capsys):
+    # #244: strict JSON rejects a raw line break inside a string value, so a list sent
+    # as text like this cost two retries instead of being fixed.
+    value, fixed = unstring_json_fields({"items": '[{"tags": ["line one\nline two"]}]'}, _LIST_TOOL["input_schema"])
+    assert value == {"items": [{"tags": ["line one\nline two"]}]} and fixed == ["items"]
+
+
+def test_json_text_that_doesnt_parse_says_why(capsys):
+    unstring_json_fields({"items": '[{"tags": ["a"]'}, _LIST_TOOL["input_schema"])
+    assert "couldn't turn JSON text back into structure at items:" in capsys.readouterr().out
+
+
 def test_the_model_s_answer_is_not_changed_in_place():
     original = {"items": '[{"tags": ["a"]}]'}
     unstring_json_fields(original, _LIST_TOOL["input_schema"])
