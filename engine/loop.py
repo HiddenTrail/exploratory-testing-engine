@@ -301,6 +301,8 @@ def run_checkpoint_loop(
                     "round_reasoning": casting["reasoning"],
                     "linked_hypothesis": linked,
                     "oracle_claim_id": test.get("oracle_claim_id", ""),
+                    # The test exactly as cast, so engine/verify.py can run it again (#177).
+                    "cast_test": test,
                     **result,
                 })
                 result_detail = adapter.describe_result_for_log(result) if adapter.describe_result_for_log else str(result.get("response", {}).get("body", {}))

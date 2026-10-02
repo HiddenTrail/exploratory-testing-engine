@@ -19,7 +19,10 @@ def default_redact_history_for_model(casting_log: list[dict]) -> list[dict]:
     evidence, and into every cached history segment for the rest of the run. What
     the model gets instead is the diagnostics computed FROM the envelopes, which is
     the part it cannot work out for itself.
+
+    The test as cast goes for the same reason: it repeats the entry's request, and is
+    kept only so engine/verify.py can replay it.
     """
-    dropped = ("round_reasoning", OUTCOME_KEY)
+    dropped = ("round_reasoning", OUTCOME_KEY, "cast_test")
     redacted = [{k: v for k, v in entry.items() if k not in dropped} for entry in casting_log]
     return json.loads(json.dumps(redacted))

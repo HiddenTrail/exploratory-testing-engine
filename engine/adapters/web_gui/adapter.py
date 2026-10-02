@@ -217,6 +217,56 @@ def execute_test(test: dict, test_number: int) -> dict:
     }, outcome_for(result))
 
 
+def _screen_differences(first: str, second: str) -> list[str]:
+    """How the screen a replay landed on differs from the original's, from the two
+    signatures (route|controls|landmarks): the route, or else what came and went."""
+    if first == second:
+        return []
+    (route1, *rest1), (route2, *rest2) = first.split("|"), second.split("|")
+    if route1 != route2:
+        return [f"it landed on {route2 or '?'}, not {route1 or '?'} as before"]
+    found = []
+    for part, a, b in zip(("controls", "landmarks"), rest1 + ["", ""], rest2 + ["", ""]):
+        gone, new = sorted(set(filter(None, a.split(";"))) - set(b.split(";"))), sorted(
+            set(filter(None, b.split(";"))) - set(a.split(";")))
+        if gone:
+            found.append(f"{route2} no longer shows the {part} {', '.join(gone[:3])}" + (" and more" if len(gone) > 3 else ""))
+        if new:
+            found.append(f"{route2} now shows the {part} {', '.join(new[:3])}" + (" and more" if len(new) > 3 else ""))
+    return found or [f"{route2} looked different"]
+
+
+def compare_replay(original: dict, replayed: dict) -> dict:
+    """Whether a test run again before its bug is reported came out the same (issue #177):
+    it reached the same screen, and its trusted signals are the same. Weak signals are
+    hints and are left out, as they are everywhere else. A replay that didn't reach its
+    starting state, didn't send the action, or read a page that never rested can't say
+    either way, so it answers None and the bug isn't reported as reproduced."""
+    before, after = original.get("result") or {}, replayed.get("result") or {}
+    if replayed.get("skipped") or not after:
+        return {"same": None, "detail": replayed.get("skip_reason") or "the replay didn't run"}
+    for name, r in (("the original", before), ("the replay", after)):
+        # An original that never acted, or read an unrested page, has nothing to reproduce.
+        ran = {"original_ran": False} if name == "the original" else {}
+        if not r.get("reached_target_state") or r.get("verdict") != "sent":
+            return {"same": None, "detail": f"{name} didn't reach its state and send the action", **ran}
+        signals = r.get("signals") or {}
+        if not (signals.get("settled_before") and signals.get("settled_after")):
+            return {"same": None, "detail": f"{name} read a page that hadn't rested", **ran}
+    differences = _screen_differences(before.get("screen_after") or "", after.get("screen_after") or "")
+    keys = lambda s: {k for k in s if not k.startswith("settled_") and not k.endswith("_more")}
+    first, second = before.get("signals") or {}, after.get("signals") or {}
+    for key in sorted(keys(first) | keys(second)):
+        gone, new = set(first.get(key, [])) - set(second.get(key, [])), set(second.get(key, [])) - set(first.get(key, []))
+        if gone:
+            differences.append(f"{key} no longer has {', '.join(sorted(gone))}")
+        if new:
+            differences.append(f"{key} now also has {', '.join(sorted(new))}")
+    if differences:
+        return {"same": False, "detail": "; ".join(differences)}
+    return {"same": True, "detail": "same screen and trusted signals"}
+
+
 def fetch_happy_day_example(adapter: SUTAdapter) -> dict:
     """One real action at the live app, so onboarding starts from a fact: the first control
     on the entry state, actuated and classified. Proves the machinery (reach, actuate,
@@ -535,6 +585,8 @@ ADAPTER = SUTAdapter(
     describe_test_for_log=describe_test_for_log,
     describe_result_for_log=describe_result_for_log,
     redact_history_for_model=redact_history_for_model,
+    compare_replay=compare_replay,
+    before_replay=live_session.replay_blocker,
     render_test_entry=render_test_entry,
     render_onboarding_section=render_onboarding_section,
     report_title="Web GUI - live browser exploration",

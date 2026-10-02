@@ -14,6 +14,7 @@ from engine.http import default_check_sut_ready
 from engine.loop import get_bug_reports, get_happy_day_example, run_checkpoint_loop
 from engine.tools import final_observations
 from engine.report import render_report
+from engine.verify import replay_bugs
 
 
 def _one_line(half: dict) -> str:
@@ -82,6 +83,12 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
         final_hypothesis = checkpoints[-1]["hypothesis"]
         final_skeptic_review = checkpoints[-1]["skeptic_review"]
         observations = final_observations(final_hypothesis, final_skeptic_review)
+        # Every bug's tests run again before anything is written up (#177). One that
+        # doesn't reproduce is lowered to an anomaly here, so it never gets a bug report.
+        output["replays"], output["replay_log"] = replay_bugs(adapter, observations, casting_log, test_counter)
+        for record in output["replays"]:
+            print(f"  replayed {record['observation_id']}: {record['verdict']}"
+                  + (f" ({record['detail']})" if record.get("detail") else ""))
         output["observations"] = observations
         # Findings alone don't count: an anomaly_found run has a real problem in it.
         output["anomaly_found"] = any(o["kind"] in ("anomaly", "bug") for o in observations)

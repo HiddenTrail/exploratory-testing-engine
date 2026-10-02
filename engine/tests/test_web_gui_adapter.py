@@ -836,3 +836,45 @@ def test_the_expiry_message_names_credentials_never_their_values(tmp_path):
     with pytest.raises(SystemExit) as stopped:
         live_session.check_session_fresh(path, now=2)
     assert "SECRET-VALUE" not in str(stopped.value) and "cookie sid" in str(stopped.value)
+
+
+def _ran(screen_after="/profile||page", reached=True, verdict="sent", settled=True, **signals):
+    return {"result": {"reached_target_state": reached, "verdict": verdict, "screen_after": screen_after,
+                       "signals": {"settled_before": settled, "settled_after": settled, **signals}}}
+
+
+def test_a_replay_with_the_same_screen_and_trusted_signals_reproduces():
+    failed = ["GET http://127.0.0.1:3000/profile -> 500"]
+    original = _ran(failed_requests=failed)
+    replayed = {**_ran(failed_requests=failed), "signals_weak": {"failed_requests": ["GET https://cdn/x -> 404"]}}
+    assert adp.compare_replay(original, replayed)["same"] is True
+
+
+def test_a_replay_missing_the_failed_request_doesnt_reproduce():
+    # The milestone run (#177): a stale session's 500, gone with a fresh session.
+    same = adp.compare_replay(_ran(failed_requests=["GET http://127.0.0.1:3000/profile -> 500"]), _ran())
+    assert same["same"] is False and "failed_requests no longer has GET http://127.0.0.1:3000/profile -> 500" in same["detail"]
+    moved = adp.compare_replay(_ran(), _ran(screen_after="/login||page"))
+    assert moved["same"] is False and "landed on /login, not /profile" in moved["detail"]
+    changed = adp.compare_replay(_ran(screen_after="/profile||500 error", failed_requests=["GET /profile -> 500"]),
+                                 _ran(screen_after="/profile|button:save|user profile"))
+    assert changed["detail"] == ("/profile now shows the controls button:save; /profile no longer shows the "
+                                 "landmarks 500 error; /profile now shows the landmarks user profile; "
+                                 "failed_requests no longer has GET /profile -> 500")
+
+
+def test_a_replay_that_couldnt_act_or_rest_says_neither_way():
+    assert adp.compare_replay(_ran(), _ran(reached=False))["same"] is None
+    assert adp.compare_replay(_ran(reached=False), _ran())["original_ran"] is False
+    assert "original_ran" not in adp.compare_replay(_ran(), _ran(reached=False))
+    assert adp.compare_replay(_ran(), _ran(verdict="not_actuated"))["same"] is None
+    assert adp.compare_replay(_ran(), _ran(settled=False))["same"] is None
+    assert adp.compare_replay(_ran(), {"skipped": True, "skip_reason": "not a pair"})["same"] is None
+
+
+def test_replays_are_blocked_while_the_saved_session_has_expired(tmp_path, monkeypatch):
+    path = _session_with(tmp_path, cookies=[{"name": "token", "value": "abc", "expires": 1}])
+    monkeypatch.setattr(live_session, "live", lambda: type("S", (), {"session_file": str(path)})())
+    assert "has expired (cookie token)" in live_session.replay_blocker()
+    monkeypatch.setattr(live_session, "live", lambda: type("S", (), {"session_file": None})())
+    assert live_session.replay_blocker() is None
