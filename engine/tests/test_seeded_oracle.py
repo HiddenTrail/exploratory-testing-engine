@@ -70,6 +70,27 @@ def test_every_seed_names_only_heuristics_the_library_has():
         assert not missing, (seed["id"], missing)
 
 
+def test_every_oracle_and_attack_heuristic_has_a_seed():
+    # Issue #246: console_and_network_errors matched no seed, so no product's oracle had
+    # it, and the milestone run called a real console TypeError a mere finding.
+    seeds = seeder.load_seeds()
+    unseeded = [h["id"] for h in oracle_creator.load_heuristics()
+                if h["kind"] in ("oracle", "attack") and seeder._owner(seeds, h) is None]
+    assert unseeded == []
+
+
+def test_console_errors_and_several_tabs_reach_juice_shops_oracle():
+    by_id = {e["id"]: e for e in JUICE_SHOP}
+    errors = by_id["oracle:familiarity:product:console_and_network_errors"]
+    assert "shouldn't throw uncaught script errors" in errors["claim"]
+    assert "oracle:comparable_products:login-page:multiple_tabs" in by_id
+
+
+def test_the_oracle_lists_the_heuristics_no_seed_draws_on():
+    oracle = seeder.build_oracle("juice-shop")
+    assert "goldilocks" in oracle["not_drawn_on"] and "console_and_network_errors" not in oracle["not_drawn_on"]
+
+
 def test_the_built_oracle_has_unique_ids_and_every_seed_contributes():
     ids = [e["id"] for e in JUICE_SHOP]
     assert len(ids) == len(set(ids))

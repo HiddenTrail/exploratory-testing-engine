@@ -106,7 +106,11 @@ def build_oracle(product: str, wiki_dir: Path = product_layer.WIKI_DIR) -> dict[
                     "sources": [f"heuristic:{h['id']}"] + ([entity["page"]] if entity["page"] else []),
                     "score": float(h["base_weight"]) + bonus + (FEATURE_MATCH_BONUS if wanted else 0.0),
                 })
-    return {"product": product, "seeds": [s["id"] for s in seeds], "expectations": expectations}
+    # Said out loud, not dropped quietly: 40 of 118 heuristics, console_and_network_errors
+    # among them, once fell through every seed without anyone noticing (issue #246).
+    not_drawn_on = sorted(h["id"] for h in heuristics if owner[h["id"]] is None)
+    return {"product": product, "seeds": [s["id"] for s in seeds], "expectations": expectations,
+            "not_drawn_on": not_drawn_on}
 
 
 def pick_across_seeds(ideas: list[dict], limit: int) -> list[dict]:
@@ -148,6 +152,9 @@ def main() -> None:
         counts[e["seed"]] = counts.get(e["seed"], 0) + 1
     print(f"{len(oracle['expectations'])} expectations for {args.product}: "
           + ", ".join(f"{seed} {n}" for seed, n in counts.items()))
+    if oracle["not_drawn_on"]:
+        print(f"{len(oracle['not_drawn_on'])} heuristics no seed draws on (techniques and product models, "
+              f"by design so far): {', '.join(oracle['not_drawn_on'])}")
 
 
 if __name__ == "__main__":

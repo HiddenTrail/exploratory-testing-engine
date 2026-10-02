@@ -7,7 +7,7 @@ tags: [juice-shop, screen]
 status: draft
 generated: { by: claude-code/claude-opus-5-5, at: "2026-10-01T04:59:40Z" }
 product: juice-shop
-features: [login, form, input-field, email, password-reset, registration]
+features: [login, form, input-field, email, password-reset, registration, session]
 facts:
   - id: F1
     kind: shown

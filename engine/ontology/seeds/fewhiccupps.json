@@ -49,6 +49,7 @@
           "registration_rules",
           "password_reset_flow",
           "session_expiry",
+          "multiple_tabs",
           "language_switch",
           "email_formats"
         ]
@@ -120,6 +121,9 @@
       "name": "Familiarity",
       "question": "Is this a kind of problem you've seen in other products? Known bug patterns are worth checking for on purpose.",
       "draws_on": {
+        "heuristic_ids": [
+          "console_and_network_errors"
+        ],
         "heuristic_kinds": [
           "attack"
         ]
