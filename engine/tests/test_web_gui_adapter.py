@@ -913,3 +913,18 @@ def test_each_fresh_context_gets_the_sessionstorage_script():
     session._open_fresh_page()
     session._reboot()
     assert [c.init_scripts[-1] for c in session._browser.contexts] == ["restore();", "restore();"]
+
+
+def test_a_session_check_that_isnt_a_product_path_is_refused(monkeypatch):
+    # #243: Git Bash turned /profile into C:/Program Files/Git/profile, Juice Shop answered
+    # 200 for it, and the check passed without checking anything.
+    import pytest
+    for bad in ("C:/Program Files/Git/profile", "profile", "http://evil.test/profile", "//evil.test/x"):
+        monkeypatch.setenv("WEB_GUI_SESSION_CHECK", bad)
+        with pytest.raises(SystemExit, match="isn't a path on the product"):
+            live_session.session_check_path()
+    for good in ("/profile", "/rest/user/whoami?x=1:2"):
+        monkeypatch.setenv("WEB_GUI_SESSION_CHECK", good)
+        assert live_session.session_check_path() == good
+    monkeypatch.delenv("WEB_GUI_SESSION_CHECK")
+    assert live_session.session_check_path() == ""

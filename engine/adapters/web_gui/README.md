@@ -73,7 +73,9 @@ localStorage. Before a run, web_gui refuses a session whose credential cookies o
 expired (names that look like a credential, or any JWT with an `exp`), and warns when one
 expires within 30 minutes. A session with no dates to judge passes that check, so set
 `WEB_GUI_SESSION_CHECK` to a path that only works logged in, and the run stops if the server
-answers 400 or above.
+answers 400 or above. Pick one that really fails logged out: single-page apps often answer
+200 for any path. The value must be a path starting with `/`. Git Bash rewrites `/profile`
+into `C:/Program Files/Git/profile`, which is refused, so set `MSYS_NO_PATHCONV=1` there (#243).
 
 **Before a bug is reported** (#177), each test it cites runs again from a fresh browser
 context. It counts as reproduced only if the replay lands on the same screen with the same
