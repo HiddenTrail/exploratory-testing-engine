@@ -32,6 +32,7 @@ Feature: A stale saved session is refused before a run
       | a cookie "x" whose value is a JWT with an "exp" claim        | cookie x (its JWT)      |
       | a session cookie "sid" with no expiry date and a plain value | not checked             |
       | a localStorage entry "token" whose value is a JWT with "exp" | storage token (its JWT) |
+      | a sessionStorage entry "auth" whose value is a JWT with "exp" | storage auth (its JWT)  |
       | a localStorage entry "auth" with a plain value               | not checked             |
 
   Scenario: An expired credential stops the run

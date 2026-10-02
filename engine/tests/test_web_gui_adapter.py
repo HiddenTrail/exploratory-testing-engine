@@ -312,6 +312,10 @@ class _SessionContext:
     def __init__(self):
         self.page = _SessionPage()
         self.closed = False
+        self.init_scripts = []
+
+    def add_init_script(self, script):
+        self.init_scripts.append(script)
 
     def new_page(self):
         return self.page
@@ -878,3 +882,34 @@ def test_replays_are_blocked_while_the_saved_session_has_expired(tmp_path, monke
     assert "has expired (cookie token)" in live_session.replay_blocker()
     monkeypatch.setattr(live_session, "live", lambda: type("S", (), {"session_file": None})())
     assert live_session.replay_blocker() is None
+
+
+def test_saved_sessionstorage_goes_back_into_every_fresh_context(tmp_path):
+    # #228: restored by an init script, since Playwright's storage_state can't.
+    path = _session_with(tmp_path)
+    assert live_session.session_storage_script(path) is None
+    import json as json_mod
+    data = json_mod.loads(path.read_text(encoding="utf-8"))
+    data["origins"][0]["sessionStorage"] = [{"name": "bid", "value": "6\"'</script>"}]
+    path.write_text(json_mod.dumps(data), encoding="utf-8")
+    script = live_session.session_storage_script(path)
+    assert json_mod.dumps({"http://x": [["bid", "6\"'</script>"]]}) in script
+    assert "if (sessionStorage.length) return;" in script   # never overwrites what the app wrote
+
+
+def test_a_jwt_in_saved_sessionstorage_is_judged_by_its_exp_claim_too(tmp_path):
+    import json as json_mod
+    path = _session_with(tmp_path)
+    data = json_mod.loads(path.read_text(encoding="utf-8"))
+    data["origins"][0]["sessionStorage"] = [{"name": "auth", "value": _jwt({"exp": 5})}]
+    path.write_text(json_mod.dumps(data), encoding="utf-8")
+    assert live_session.session_expiry(path, now=10)["expired"] == ["storage auth (its JWT)"]
+
+
+def test_each_fresh_context_gets_the_sessionstorage_script():
+    session = object.__new__(live_session.Session)
+    session.base_url, session._browser, session._context = "http://x", _SessionBrowser(), None
+    session.session_file, session._session_storage_js = "logged-in.json", "restore();"
+    session._open_fresh_page()
+    session._reboot()
+    assert [c.init_scripts[-1] for c in session._browser.contexts] == ["restore();", "restore();"]
