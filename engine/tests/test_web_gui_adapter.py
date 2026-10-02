@@ -979,3 +979,12 @@ def test_a_new_tab_test_is_its_own_action_and_says_so(monkeypatch):
     assert entry["outcome"]["action_id"].endswith("(as a new tab)")
     assert "start_as" not in adp.execute_test(_good_test(), 2)["request"]
     assert "(as a new tab)" in adp.describe_test_for_log({**_good_test(), "start_as": "new_tab"})
+
+
+def test_the_schema_doc_and_the_carried_map_are_folded_in_the_report():
+    # #251: each runs to hundreds of lines and pushed the checkpoints far down the page.
+    import re
+    html = adp.render_onboarding_section("SCHEMA", {"carried_map": "st01 :: button:A", "baseline": "ok"}, {})
+    for title in ("What the Driver was told", "Carried map (the action space)"):
+        assert re.search(r'<details class="fold exhibit">\s*<summary>' + re.escape(title) + "</summary>", html)
+    assert "<details open" not in html

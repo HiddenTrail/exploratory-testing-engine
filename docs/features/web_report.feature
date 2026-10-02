@@ -67,6 +67,8 @@ Feature: The web report and log show each move and its signals
     When the report renders the onboarding section
     Then it shows "What the Driver was told", "Carried map (the action space)", "Where the run started" (the last two when check_ready filled them) and "Happy-day example"
     And the ranked oracle ideas when the evidence has them
+    # Each runs to hundreds of lines and pushed the checkpoints far down the page (#251).
+    And "What the Driver was told" and "Carried map (the action space)" are folded sections, closed until opened
 
   Scenario Outline: The log has one line for the test and one for its result
     Given <case>
