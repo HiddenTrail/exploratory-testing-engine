@@ -77,6 +77,11 @@ answers 400 or above. Pick one that really fails logged out: single-page apps of
 200 for any path. The value must be a path starting with `/`. Git Bash rewrites `/profile`
 into `C:/Program Files/Git/profile`, which is refused, so set `MSYS_NO_PATHCONV=1` there (#243).
 
+**A test can start as a new tab** (#249): with `"start_as": "new_tab"`, it gets the saved
+session's cookies and localStorage but empty sessionStorage, the way a second tab of the same
+logged-in browser would. That's where Juice Shop loses the basket. Run the same test both
+ways and compare.
+
 **Before a bug is reported** (#177), each test it cites runs again from a fresh browser
 context. It counts as reproduced only if the replay lands on the same screen with the same
 trusted signals. A replay that doesn't reach its state, doesn't send the action, or reads a

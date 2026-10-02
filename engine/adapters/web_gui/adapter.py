@@ -60,6 +60,13 @@ reaches the screen by replaying the steps that found it, from a fresh session, s
 reproducible as the map. This is how a run goes deeper than the map it was given; a test
 on a discovered screen that reaches yet another screen discovers that one too.
 
+NEW TAB. With a saved session, a test may set start_as to "new_tab": it then starts the
+way a new tab of the same logged-in browser would. Cookies and localStorage are shared with
+the saved tab, sessionStorage starts empty. Apps that keep part of a user's state per tab
+(a basket, a wizard's step, a selection) can lose it or break here. To use it, run the same
+(state, control) once as usual and once as a new tab, and compare. The result then carries
+started_as: "new_tab".
+
 WHAT YOU GET BACK, per test:
   screen_before / screen_after: the state signature before and after the control was actuated.
   screen_was: "same_screen" (the signature did not change), "known_screen" (it changed to a
@@ -124,6 +131,8 @@ def outcome_for(result: dict) -> outcome.Outcome:
     not be actuated at all (verdict not "sent") is the one honest False: it never reached
     the app."""
     action = result.get("action", "")
+    if result.get("started_as") == "new_tab":   # not the same action as from the same tab (#249)
+        action += " (as a new tab)"
     before = result.get("screen_before", "")
     after = result.get("screen_after", "")
 
@@ -205,10 +214,14 @@ def execute_test(test: dict, test_number: int) -> dict:
         }, outcome.Outcome(action_id=f"{state_id} :: {control_key}",
                            effect=outcome.UNKNOWN, accepted=False))
 
-    result = session.act(state_id, control_key)
+    start_as = test.get("start_as") or "same_tab"
+    result = session.act(state_id, control_key, start_as)
+    request = {"state": state_id, "control": control_key}
+    if start_as != "same_tab":
+        request["start_as"] = start_as
     return outcome.attach({
         "test_number": test_number,
-        "request": {"state": state_id, "control": control_key},
+        "request": request,
         "predicted_outcome": test["predicted_outcome"],
         "predicted_screen": predicted,
         "result": result,
@@ -280,7 +293,8 @@ def fetch_happy_day_example(adapter: SUTAdapter) -> dict:
 
 
 def describe_test_for_log(test: dict) -> str:
-    return f"{test['state_id']} :: {test['control_key']} -> predicting {test['predicted_screen']}"
+    tab = " (as a new tab)" if test.get("start_as") == "new_tab" else ""
+    return f"{test['state_id']} :: {test['control_key']}{tab} -> predicting {test['predicted_screen']}"
 
 
 def describe_result_for_log(result: dict) -> str:
@@ -355,6 +369,10 @@ CASTING_TOOL = {
                                         "description": "The control to actuate on that state - a 'role:name' key "
                                                        "listed under that state in carried_map, or under a "
                                                        "discovered screen's controls."},
+                        "start_as": {"type": "string", "enum": list(live_session.START_AS),
+                                     "description": "Optional, 'same_tab' if left out. 'new_tab' starts the test "
+                                                    "as a new tab of the logged-in browser (see NEW TAB). Only "
+                                                    "with a saved session."},
                         "predicted_screen": {"type": "string", "enum": list(PREDICTIONS),
                                              "description": "'same_screen' - nothing changes; 'known_screen' - it "
                                                             "goes to a state already in the map or seen this run; "
@@ -429,6 +447,12 @@ def validate_casting_response(data) -> list[str]:
                     errors.append(f"candidate_tests[{i}].{key} must be a string")
             if test.get("predicted_screen") not in PREDICTIONS:
                 errors.append(f"candidate_tests[{i}].predicted_screen must be one of: {', '.join(PREDICTIONS)}")
+            start_as = test.get("start_as", "same_tab")
+            if start_as not in live_session.START_AS:
+                errors.append(f"candidate_tests[{i}].start_as must be one of: {', '.join(live_session.START_AS)}")
+            elif start_as == "new_tab" and pairs and not live_session.has_session():
+                errors.append(f"candidate_tests[{i}].start_as is 'new_tab', but this run has no saved session, "
+                              "so a new tab is the same as any test. Leave start_as out.")
             # The safety enforcement: a pair outside the carried map has no vetted path or
             # control, so it is rejected and resubmitted rather than actuated.
             if pairs and "state_id" in test and "control_key" in test:
@@ -483,7 +507,8 @@ def render_test_entry(entry) -> str:
         '<span class="probe-label">Probe</span> (no linked hypothesis)')
     number_html = (f'<span class="test-number">Test #{esc(entry.get("test_number"))}</span>'
                    if entry.get("test_number") is not None else "")
-    action_html = f'<span class="test-number">{esc(request.get("state"))} :: {esc(request.get("control"))}</span>'
+    tab = " (as a new tab)" if request.get("start_as") == "new_tab" else ""
+    action_html = f'<span class="test-number">{esc(request.get("state"))} :: {esc(request.get("control"))}{tab}</span>'
 
     if entry.get("skipped"):
         return f"""

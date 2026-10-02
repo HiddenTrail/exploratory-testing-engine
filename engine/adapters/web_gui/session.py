@@ -60,6 +60,11 @@ _SESSION_ENV = "WEB_GUI_SESSION"
 # A path on the product that answers below 400 only for a session the server still accepts
 # (issue #227), e.g. /profile on Juice Shop. Optional: without it, only expiry dates are checked.
 _SESSION_CHECK_ENV = "WEB_GUI_SESSION_CHECK"
+# How a test may start (issue #249). "same_tab": the saved session as it was, sessionStorage
+# included. "new_tab": what a new tab of that logged-in browser gets, cookies and
+# localStorage but empty sessionStorage. A logged-in Juice Shop user's new tab lost the
+# basket, and only a person found it, because every test started as the same tab.
+START_AS = ("same_tab", "new_tab")
 
 
 def load_session_file(path) -> str:
@@ -437,7 +442,7 @@ class Session:
             self._context.add_init_script(_MUTATION_COUNTER_JS)
         except Exception:
             pass
-        if getattr(self, "_session_storage_js", None):
+        if getattr(self, "_session_storage_js", None) and getattr(self, "_start_as", "same_tab") != "new_tab":
             self._context.add_init_script(self._session_storage_js)
         self.page = self._context.new_page()
         self.col = Collector().attach(self.page)
@@ -681,11 +686,25 @@ class Session:
         self.seen_signatures.add(self.entry_signature)
         return self.entry_signature
 
-    def act(self, state_id: str, control_key: str) -> dict:
+    def act(self, state_id: str, control_key: str, start_as: str = "same_tab") -> dict:
         """Reach `state_id` by replaying its carried path, actuate `control_key`, and report
         the whole transition classified against the carried map. Recovery (a reboot) is part
-        of the operation when the action lands somewhere new, so the next test starts clean."""
+        of the operation when the action lands somewhere new, so the next test starts clean.
+        `start_as` "new_tab" starts every reboot of this test as a new tab (START_AS)."""
+        self._start_as = start_as
+        try:
+            result = self._act(state_id, control_key)
+        finally:
+            self._start_as = "same_tab"
+        if start_as != "same_tab":
+            result["started_as"] = start_as
+        return result
+
+    def _act(self, state_id: str, control_key: str) -> dict:
         plan = self.reference.plan_for(state_id, control_key)
+        # A new tab's page can sit differently while idle (it may fail requests a same-tab
+        # page doesn't), so its background is learned on its own.
+        noise_key = state_id if self._start_as == "same_tab" else f"{state_id}@{self._start_as}"
         self._reboot()
         replayed = self._replay(plan["path"])
         expected = self.reference._by_id.get(state_id, {}).get("signature", "")
@@ -695,8 +714,8 @@ class Session:
         # verified to have reached it: a drifted first replay would otherwise attach
         # another page's noise to this state for the rest of the run. The watch moves
         # the page on, so it rests and is read again afterwards.
-        if reached and state_id not in self._noise:
-            self._noise[state_id] = self._idle_noise()
+        if reached and noise_key not in self._noise:
+            self._noise[noise_key] = self._idle_noise()
             # The watch moves the page on: PrestaShop's slider turns about 5 s after each
             # load, so a read after the watch no longer matched the state (#146 audit
             # rerun). Reach the state afresh instead, as every later act does.
@@ -751,7 +770,7 @@ class Session:
             result["covered_by"] = self.last_covered_by
         origin = "{0.scheme}://{0.netloc}".format(urlsplit(self.base_url))
         result["signals"], weak = _signal_diff(before, after, self._requests_since(t0), storage_before, self._storage(),
-                                               settled_before, settled_after, self._noise.get(state_id, {}), origin,
+                                               settled_before, settled_after, self._noise.get(noise_key, {}), origin,
                                                sent=sent)
         if weak:
             result["signals_weak"] = weak
@@ -759,7 +778,9 @@ class Session:
         # so later runs can count how often it's reached (#157). Recorded before the
         # recovery reboot, from the capture taken on it. It also joins this run's map, so
         # later tests can act on it (#158).
-        if sent and after_sig not in self.reference.carried_signatures:
+        # Not from a new-tab test: the screen's path only replays from a new tab, and
+        # the run's map is replayed from the saved session as it was.
+        if sent and after_sig not in self.reference.carried_signatures and self._start_as == "same_tab":
             origin = "{0.scheme}://{0.netloc}".format(urlsplit(self.base_url))
             result["discovered"] = discovery(after, after_sig, plan["path"] + [plan["target"]], state_id,
                                              control_key, origin)
@@ -822,6 +843,11 @@ def live() -> Session:
     if _SESSION is None:
         raise SystemExit("The web-GUI session is not ready - check_ready must run first.")
     return _SESSION
+
+
+def has_session() -> bool:
+    """Whether this run starts from a saved session, so a new tab differs from the same tab."""
+    return bool(_SESSION is not None and _SESSION.session_file)
 
 
 def valid_pairs() -> set:
