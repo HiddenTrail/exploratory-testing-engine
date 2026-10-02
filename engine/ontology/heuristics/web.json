@@ -234,14 +234,14 @@
       "id": "console_and_network_errors",
       "name": "Console and network errors",
       "kind": "oracle",
-      "description": "Errors in the browser console or failed requests often point at bugs the page hides.",
+      "description": "A page shouldn't throw uncaught script errors, or fail its own requests, while it's used normally. Each one means something on the page didn't work as it was built to, even when the page hides it.",
       "apply": "Watch the console and network log while using each page, and note errors and failed requests.",
       "tags": [
         "gui",
         "error-handling",
         "reliability"
       ],
-      "base_weight": 2
+      "base_weight": 3
     }
   ]
 }

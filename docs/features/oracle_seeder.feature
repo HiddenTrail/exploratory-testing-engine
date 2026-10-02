@@ -67,6 +67,16 @@ Feature: A product's oracle is built from its wiki through the FEW HICCUPPS seed
     And 1.0 more when it has feature tags
     And heuristics for a surface the product doesn't have are left out
 
+  Scenario: Every oracle and attack heuristic has a seed, and the rest are listed
+    # console_and_network_errors once matched no seed, so no product's oracle had it,
+    # and a run called a real console TypeError a mere finding (issue #246).
+    When build_oracle runs
+    Then every heuristic of kind "oracle" or "attack" is drawn on by a seed
+    And "console_and_network_errors" is under "familiarity" as "oracle:familiarity:product:console_and_network_errors"
+    And "multiple_tabs" is under "comparable_products", on the screens with the "session" feature
+    And the oracle's "not_drawn_on" lists the heuristics no seed draws on, such as "goldilocks"
+    And the seeder CLI prints how many there are and names them
+
   Scenario: History and Explainability are standing expectations
     When build_oracle runs
     Then there is "oracle:history:product" and "oracle:explainability:product" with tier "standing"
