@@ -41,6 +41,10 @@ class Reference:
         self.transitions = data.get("transitions", [])
         self._by_id = {s["id"]: s for s in self.states}
         self.known_signatures = {s["signature"] for s in self.states}
+        # The map as carried in, before any screen discovered during the run joins it
+        # (issue #158): a discovery is judged against this, so it's still counted when
+        # it's reached again after it joined (#157).
+        self.carried_signatures = set(self.known_signatures)
         self._entry = self._find_entry()
         self._paths = self._compute_paths()          # state_id -> [step, ...] from the entry
         self._catalogue = self._build_catalogue()    # (state_id, control_key) -> {path, target}
@@ -100,6 +104,43 @@ class Reference:
                     "target": {"role": e["role"], "name": e["name"], "locator": e["locator"]},
                 }
         return cat
+
+    # ---- growing during a run (issue #158) -------------------------------------------
+
+    def add_discovery(self, record: dict, max_steps: int) -> str | None:
+        """Add a screen a test reached beyond the carried map (session.discovery's record)
+        as a state of this run's map, so later tests can act on it: its id becomes a
+        state id, its path is how it's reached (replayed from a fresh session, like any
+        carried path), and its controls the safety gate cleared become pairs. Returns the
+        state id, or None for a screen the carried map already has or one more than
+        `max_steps` steps from the start (so discoveries of discoveries can't run away)."""
+        if record["signature"] in self.carried_signatures or len(record["path"]) > max_steps:
+            return None
+        sid = record["id"]
+        if sid in self._by_id:
+            return sid
+        state = {"id": sid, "url": record["url"], "signature": record["signature"], "title": record["title"],
+                 "first_seen": len(self.states), "elements": record["elements"], "discovered": True,
+                 "reached_from": f"{record['from_state']} :: {record['via']}"}
+        self.states.append(state)
+        self._by_id[sid] = state
+        self.known_signatures.add(record["signature"])
+        self._paths[sid] = list(record["path"])
+        self.transitions.append({"source": record["from_state"], "dest": sid, "effect": "navigate",
+                                 "discovered": True, "action": {"kind": "click", "element_key": record["via"],
+                                                                 "target": record["path"][-1]["locator"]}})
+        for e in record["elements"]:
+            if e.get("committing", True) or not e.get("name"):   # the same fail-closed rule as the map
+                continue
+            self._catalogue[(sid, e["key"])] = {
+                "path": self._paths[sid],
+                "target": {"role": e["role"], "name": e["name"], "locator": e["locator"]},
+            }
+        return sid
+
+    def controls_on(self, state_id: str) -> list[str]:
+        """The control keys the Driver may act on at a state, sorted."""
+        return sorted(k for (sid, k) in self._catalogue if sid == state_id)
 
     # ---- queries ---------------------------------------------------------------------
 

@@ -45,12 +45,20 @@ headings - body text and map position are treated as the same state, a variant.
 
 THE ACTION SPACE. You may ask for exactly one named action per test: a (state, control)
 pair drawn from the carried map, which is given to you as `carried_map` in the onboarding
-evidence. Each line there reads `<state_id> :: <role>:<name>` - that pair, verbatim, is a
+evidence, or from a screen discovered earlier in this run (see DISCOVERED SCREENS). Each line there reads `<state_id> :: <role>:<name>` - that pair, verbatim, is a
 valid action. You cannot supply a CSS selector, a coordinate, or a control not on that map:
 the map is the whole action space, and it holds only controls an earlier read-only recon
 pass found and cleared as non-committing (nothing that deletes, buys, submits or sends).
 An action first navigates to its state by replaying the recon's path, then actuates the
 control.
+
+DISCOVERED SCREENS. When a test reaches a screen the carried map doesn't have, its result
+carries `discovered`: the screen's id (e.g. "d85f2417e") and, the first time, the controls
+on it the safety gate cleared. From the next round on, (that id, one of those controls) is
+a valid action too: put the id in state_id and the control in control_key. The harness
+reaches the screen by replaying the steps that found it, from a fresh session, so it's as
+reproducible as the map. This is how a run goes deeper than the map it was given; a test
+on a discovered screen that reaches yet another screen discovers that one too.
 
 WHAT YOU GET BACK, per test:
   screen_before / screen_after: the state signature before and after the control was actuated.
@@ -147,17 +155,31 @@ def outcome_for(result: dict) -> outcome.Outcome:
     )
 
 
+# How many of a discovered screen's controls the Driver is shown by name (issue #158).
+_DISCOVERY_CONTROLS_SHOWN = 30
+
+
 def redact_history_for_model(casting_log: list[dict]) -> list[dict]:
-    """The default redaction, plus a discovered screen cut to its id and how many safe
-    controls it offers: the full record (path, every element) stays in output.json for
-    feedback (#157), but would bloat every later prompt."""
+    """The default redaction, plus a discovered screen cut down: the full record (path,
+    every element) stays in output.json for feedback (#157), but would bloat every later
+    prompt. The first time a screen appears in these entries, the Driver gets the controls
+    it may now act on there (#158); after that, just its id."""
     from engine.redact import default_redact_history_for_model
 
     redacted = default_redact_history_for_model(casting_log)
+    listed = set()
     for entry in redacted:
         found = (entry.get("result") or {}).get("discovered")
-        if found:
-            entry["result"]["discovered"] = {"id": found["id"], "controls_offered": found["controls_offered"]}
+        if not found:
+            continue
+        short = {"id": found["id"]}
+        if found["id"] not in listed and found.get("in_run_map"):
+            controls = sorted(e["key"] for e in found["elements"] if not e.get("committing", True) and e.get("name"))
+            short["controls"] = controls[:_DISCOVERY_CONTROLS_SHOWN]
+            if len(controls) > _DISCOVERY_CONTROLS_SHOWN:
+                short["controls_more"] = len(controls) - _DISCOVERY_CONTROLS_SHOWN
+            listed.add(found["id"])
+        entry["result"]["discovered"] = short
     return redacted
 
 
@@ -178,7 +200,7 @@ def execute_test(test: dict, test_number: int) -> dict:
             "predicted_outcome": test["predicted_outcome"],
             "predicted_screen": predicted,
             "skipped": True,
-            "skip_reason": f"{state_id} :: {control_key} is not a pair in the carried map.",
+            "skip_reason": f"{state_id} :: {control_key} is not a pair in this run's map (carried or discovered).",
             "prediction_matched": False,
         }, outcome.Outcome(action_id=f"{state_id} :: {control_key}",
                            effect=outcome.UNKNOWN, accepted=False))
@@ -277,10 +299,12 @@ CASTING_TOOL = {
                             ),
                         },
                         "state_id": {"type": "string",
-                                     "description": "The state to act on - a state id from carried_map (e.g. 'st01')."},
+                                     "description": "The state to act on - a state id from carried_map (e.g. 'st01'), "
+                                                    "or the id of a screen discovered earlier this run (e.g. 'd85f2417e')."},
                         "control_key": {"type": "string",
                                         "description": "The control to actuate on that state - a 'role:name' key "
-                                                       "listed under that state in carried_map."},
+                                                       "listed under that state in carried_map, or under a "
+                                                       "discovered screen's controls."},
                         "predicted_screen": {"type": "string", "enum": list(PREDICTIONS),
                                              "description": "'same_screen' - nothing changes; 'known_screen' - it "
                                                             "goes to a state already in the map or seen this run; "
