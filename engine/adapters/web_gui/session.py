@@ -801,6 +801,27 @@ def _described(name: str) -> str:
     return f"from the saved session '{name}'" if name else "without a saved session"
 
 
+def replay_blocker() -> str | None:
+    """Why a bug's tests can't be trusted to replay right now, or None (issue #177). A
+    replay from a session the server no longer accepts reproduces the server's refusal
+    every time, which is how the #160 milestone run corroborated a false positive. So the
+    same checks as check_ready run again, at the end of the run."""
+    session = live()
+    if not session.session_file:
+        return None
+    try:
+        check_session_fresh(session.session_file, time.time())
+    except SystemExit as e:
+        return str(e)
+    check_path = os.environ.get(_SESSION_CHECK_ENV, "")
+    if check_path:
+        status = session.check_url(check_path)
+        if status is None or status >= 400:
+            return (f"the saved session {session_name(session.session_file)!r} failed its server check: "
+                    f"{check_path} answered {status or 'nothing'}")
+    return None
+
+
 def check_ready(adapter) -> None:
     """Load the carried reference, launch the browser, and confirm the SUT is up and on the
     mapped entry state before anything is spent. Raises SystemExit with an actionable

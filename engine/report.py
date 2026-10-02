@@ -158,6 +158,16 @@ def _lowered_label(observation) -> str:
             f'lowered because {esc(reason)})</span>')
 
 
+def _replay_badge(observation) -> str:
+    """Whether a bug's tests came out the same when run again before it was reported
+    (engine/verify.py, #177). Only bugs are replayed, and runs before #177 have no verdict."""
+    verdict = observation.get("replay")
+    if not verdict:
+        return ""
+    kind = {"reproduced": "good", "not reproduced": "bad"}.get(verdict, "warn")
+    return badge(f"replay: {verdict}", kind) + " "
+
+
 def _observation_line(observation, check) -> str:
     return (
         f'<li><span class="idtag">{esc(observation["id"])}</span> {esc(observation["kind"])} '
@@ -420,7 +430,7 @@ def _render_conclusion_section(observations) -> str:
         <li>
           <span class="idtag">{esc(o['id'])}</span> {esc(o['kind'])} ({esc(o['severity'])})
           {badge(o['status'], 'good' if o['status'] == 'corroborated' else 'warn')}
-          {inline_markdown(o['claim'])} {_tests_label(o['tests'])}{_lowered_label(o)}
+          {_replay_badge(o)}{inline_markdown(o['claim'])} {_tests_label(o['tests'])}{_lowered_label(o)}
           <div class="prose-muted">{inline_markdown(o['skeptic_note'])}</div>
         </li>
         """ for o in observations)

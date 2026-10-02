@@ -64,6 +64,16 @@ class SUTAdapter:
     describe_test_for_log: Callable[[dict], str] | None = None
     describe_result_for_log: Callable[[dict], str] | None = None
 
+    # Replaying a bug's tests before it's reported (engine/verify.py, issue #177). Opt-in,
+    # because only the adapter knows whether its tests can run twice and what "the same"
+    # means. compare_replay(original_entry, replay_result) returns {"same": True, False
+    # or None (couldn't tell), "detail": str}, plus "original_ran": False when the original
+    # test showed nothing to reproduce, so it doesn't count. before_replay() returns why replays can't
+    # be trusted right now (an expired session, say), or None. Without compare_replay,
+    # bugs are reported as not replayed.
+    compare_replay: Callable[[dict, dict], dict] | None = None
+    before_replay: Callable[[], str | None] | None = None
+
     # Report rendering hooks - the adapter owns request/response-shape rendering.
     render_test_entry: Callable[[dict], str] | None = None
     render_onboarding_section: Callable[[str, dict, dict], str] | None = None

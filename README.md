@@ -46,6 +46,13 @@ otherwise `inconclusive`. All observations go into `output.json` under
 `observations`. Only **bugs** get a written bug report (one LLM call for all of
 them), because findings and anomalies are already complete as they are. Output is a JSON result, a JSON bug list, and a self-contained HTML report.
 
+Before any bug is written up, the engine runs every test it cites again, exactly as
+cast (`engine/verify.py`, #177). The adapter says whether each replay came out the
+same. A bug whose tests don't all reproduce, or can't be replayed, is lowered to an
+anomaly with the reason, so it never gets a bug report. No model is called for this.
+Replay is opt-in through the adapter's `compare_replay` hook: so far only `web_gui`
+has it, and other adapters' bugs are marked "not replayed" in the report.
+
 ## Bootstrapping a new adapter automatically
 
 Testing a new API normally means hand-writing an *adapter* (see below). The
@@ -150,6 +157,7 @@ engine/
                 #   and given to the Skeptic so it doesn't guess coverage from the Driver's prose
   report.py     # generic HTML rendering (prose, badges, CSS, page/checkpoint structure)
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output
+  verify.py     # replays each bug's tests before it's reported, and lowers one that doesn't reproduce
   cli.py        # python -m engine.cli --adapter <name>
   adapters/
     registry.py           # name -> adapter module, resolved lazily at run time

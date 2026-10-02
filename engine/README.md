@@ -53,6 +53,13 @@ otherwise `inconclusive`. All observations go into `output.json` under
 `observations`. Only **bugs** get a written bug report (one LLM call for all of
 them), because findings and anomalies are already complete as they are.
 
+Before any bug is written up, the engine runs every test it cites again, exactly as
+cast (`engine/verify.py`, #177). The adapter says whether each replay came out the
+same. A bug whose tests don't all reproduce, or can't be replayed, is lowered to an
+anomaly with the reason, so it never gets a bug report. No model is called for this.
+Replay is opt-in through the adapter's `compare_replay` hook: so far only `web_gui`
+has it, and other adapters' bugs are marked "not replayed" in the report.
+
 **Known, accepted limitation:** the Skeptic's per-observation `discriminates_from_rival`
 check (in `observation_checks`) doesn't account for realistic value rounding/precision
 when deciding whether cited evidence discriminates a claim from its rival - see
@@ -81,6 +88,7 @@ engine/
   coverage.py   # what the tests have sent so far, per input field, for the Skeptic
   report.py     # generic HTML rendering (prose, badges, CSS, page/checkpoint structure)
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output
+  verify.py     # replays each bug's tests before it's reported, and lowers one that doesn't reproduce
   cli.py        # python -m engine.cli --adapter <name>
   config.py     # RunConfig: model, checkpoint and test budgets, output folder
   http.py, redact.py, util.py  # small shared helpers

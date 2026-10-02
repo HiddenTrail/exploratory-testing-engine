@@ -75,6 +75,13 @@ expires within 30 minutes. A session with no dates to judge passes that check, s
 `WEB_GUI_SESSION_CHECK` to a path that only works logged in, and the run stops if the server
 answers 400 or above.
 
+**Before a bug is reported** (#177), each test it cites runs again from a fresh browser
+context. It counts as reproduced only if the replay lands on the same screen with the same
+trusted signals. A replay that doesn't reach its state, doesn't send the action, or reads a
+page that hasn't rested can't tell either way, so the bug is lowered. The session checks
+above run again first, because a replay from an expired session reproduces the server's
+refusal every time.
+
 Session files hold live auth cookies: keep them in the gitignored `.sessions/`. Only a
 session's name ever reaches the Driver or a report.
 
