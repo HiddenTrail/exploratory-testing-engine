@@ -31,6 +31,7 @@ export WEB_GUI_ONTOLOGY="$PWD/.experiments/web-recon/out/ontology.json"
 export WEB_GUI_URL="http://localhost:5173"   # optional; defaults to the ontology's target.url
 export WEB_GUI_HEADED=1                        # optional; headless by default
 export WEB_GUI_SESSION=.sessions/juice-shop/logged-in.json  # optional; every test starts from this saved session (#154)
+export WEB_GUI_SESSION_CHECK=/profile         # optional; a path that answers below 400 only while the server accepts the session (#227)
 export WEB_GUI_PRODUCT=juice-shop             # optional; use that product's seeded oracle, built from the wiki
 export WEB_GUI_FEATURES="login,search,list-paging"  # optional, without a product: heuristic library tags to rank first
 python -m engine.cli --adapter web_gui
@@ -65,6 +66,14 @@ cd runs/spoor-juice-logged-in   # its own .spoor-cache, so the logged-out map is
 cd ../.. && python -m engine.adapters.web_gui.from_spoor --map runs/spoor-juice-logged-in/.spoor-cache/maps/127.0.0.1_3000.json     --url http://127.0.0.1:3000 --session .sessions/juice-shop/logged-in.json --out .experiments/web-recon/out/juice-shop-logged-in.json
 export WEB_GUI_ONTOLOGY="$PWD/.experiments/web-recon/out/juice-shop-logged-in.json" WEB_GUI_SESSION=.sessions/juice-shop/logged-in.json
 ```
+
+A saved session goes stale on the server long before the page shows it: Juice Shop's token
+cookie expires after a few hours, and the page still looks logged in from the copy in
+localStorage. Before a run, web_gui refuses a session whose credential cookies or JWTs have
+expired (names that look like a credential, or any JWT with an `exp`), and warns when one
+expires within 30 minutes. A session with no dates to judge passes that check, so set
+`WEB_GUI_SESSION_CHECK` to a path that only works logged in, and the run stops if the server
+answers 400 or above.
 
 Session files hold live auth cookies: keep them in the gitignored `.sessions/`. Only a
 session's name ever reaches the Driver or a report.
