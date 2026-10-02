@@ -40,8 +40,8 @@ mostly an archive of the prototypes that `engine/` grew out of.
    from start to finish, the way you'd review a colleague's work. Look for
    leftover debug code, dead branches, naming that doesn't match, and clumsy
    logic. Green tests don't replace reading the diff, and reading the diff
-   doesn't replace tests. Do both. Part of that review is the READMEs: see
-   step 6.
+   doesn't replace tests. Do both. Part of that review is the READMEs and the
+   feature files: see steps 6 and 7.
 6. **Update the READMEs your change affects, in the same PR.** This is a normal
    part of every change, not a separate chore. If you add, rename, move or
    delete a file, command, flag, adapter or folder, or change what something
@@ -50,7 +50,19 @@ mostly an archive of the prototypes that `engine/` grew out of.
    status and which folders the engine depends on. A PR that leaves a README
    wrong isn't finished. If a README was already wrong before your change and
    fixing it is out of scope, open an issue for it.
-7. **Don't merge your own PRs.** Open the PR, wait for CI, then stop and tell
+7. **Add or update a feature file for every change in behaviour, in the same
+   PR.** `docs/features/` describes what the engine does, one Gherkin
+   `.feature` per capability ([its README](docs/features/README.md) is the
+   index). A new capability gets a new file, with the header comment that says
+   why it exists and which code holds it. A change to an existing one updates
+   its file: add, change or remove the scenarios it affects, using the real
+   field names, flags and numbers. Removing a capability removes its file. Add
+   new files to the README index. Find the files a change touches with
+   `git grep -l <name> -- 'docs/features/'`. A change nobody can observe (a
+   refactor, a test-only change) needs no feature change, but say so in the PR.
+   Nothing runs these files yet, so check them yourself: every scenario has to
+   be true of the code in your PR.
+8. **Don't merge your own PRs.** Open the PR, wait for CI, then stop and tell
    the user what's in it: what changed, how you checked it, and anything you're
    unsure about. A person merges it, or tells you to. People review PRs, and a
    merge they didn't see coming is the kind of surprise this rule prevents.
@@ -284,7 +296,8 @@ every commit.
   for its source (or a new file for a new source). Use only kinds and tags from
   `vocabulary.json`; add a tag there first if none fits. The library tests check
   every entry.
-- **Keep the docs true.** READMEs are covered by workflow step 6. The same goes
+- **Keep the docs true.** READMEs are covered by workflow step 6 and the feature
+  files in `docs/features/` by step 7. The same goes
   for `docs/ontology-todo.md` and the other files in `docs/`: if your change
   makes them wrong (roadmap checkmarks included), fix them in the same PR.
 - **The product wiki (`wiki/`)** describes the product being tested, not this
