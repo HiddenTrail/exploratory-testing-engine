@@ -101,6 +101,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | [`saved_session.feature`](saved_session.feature) | web_gui tests start from a saved login session |
 | [`save_session.feature`](save_session.feature) | A session is saved by logging in by hand, or when a condition holds |
 | [`session_freshness.feature`](session_freshness.feature) | A stale saved session is refused before a run |
+| [`new_tab_start.feature`](new_tab_start.feature) | A web_gui test can start as a new tab of the logged-in browser |
 
 ## Web testing: mapping a site
 

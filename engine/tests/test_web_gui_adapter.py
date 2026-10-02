@@ -928,3 +928,54 @@ def test_a_session_check_that_isnt_a_product_path_is_refused(monkeypatch):
         assert live_session.session_check_path() == good
     monkeypatch.delenv("WEB_GUI_SESSION_CHECK")
     assert live_session.session_check_path() == ""
+
+
+# ---- starting a test as a new tab (issue #249) ---------------------------------------------
+
+def test_validate_checks_start_as(monkeypatch):
+    monkeypatch.setattr(live_session, "valid_pairs", lambda: {("st01", "button:A")})
+    monkeypatch.setattr(live_session, "has_session", lambda: True)
+    batch = lambda **kw: {"give_up": False, "reasoning": "r", "candidate_tests": [_good_test(**kw)]}
+    assert adp.validate_casting_response(batch(start_as="new_tab")) == []
+    assert any("start_as must be one of" in e for e in adp.validate_casting_response(batch(start_as="incognito")))
+    monkeypatch.setattr(live_session, "has_session", lambda: False)
+    assert any("no saved session" in e for e in adp.validate_casting_response(batch(start_as="new_tab")))
+
+
+def test_a_new_tab_context_gets_no_sessionstorage_but_the_same_tab_does():
+    session = object.__new__(live_session.Session)
+    session.base_url, session._browser, session._context = "http://x", _SessionBrowser(), None
+    session.session_file, session._session_storage_js = "logged-in.json", "restore();"
+    session._start_as = "new_tab"
+    session._reboot()
+    session._start_as = "same_tab"
+    session._reboot()
+    new_tab, same_tab = session._browser.contexts
+    assert "restore();" not in new_tab.init_scripts and new_tab.storage_state == "logged-in.json"
+    assert "restore();" in same_tab.init_scripts
+
+
+def test_act_marks_a_new_tab_test_and_goes_back_to_the_same_tab_after(monkeypatch):
+    session = object.__new__(live_session.Session)
+    seen = []
+    def fake_act(state_id, control_key):
+        seen.append(session._start_as)
+        return {"action": f"{state_id} :: {control_key}", "verdict": "sent"}
+    session._act = fake_act
+    assert session.act("st01", "button:A", "new_tab")["started_as"] == "new_tab"
+    assert "started_as" not in session.act("st01", "button:A")
+    assert seen == ["new_tab", "same_tab"] and session._start_as == "same_tab"
+
+
+def test_a_new_tab_test_is_its_own_action_and_says_so(monkeypatch):
+    class Live:
+        reference = type("R", (), {"pairs": lambda self: {("st01", "button:A")}})()
+        def act(self, state_id, control_key, start_as):
+            r = _result()
+            return {**r, "started_as": start_as} if start_as != "same_tab" else r
+    monkeypatch.setattr(live_session, "live", lambda: Live())
+    entry = adp.execute_test({**_good_test(), "start_as": "new_tab"}, 1)
+    assert entry["request"]["start_as"] == "new_tab"
+    assert entry["outcome"]["action_id"].endswith("(as a new tab)")
+    assert "start_as" not in adp.execute_test(_good_test(), 2)["request"]
+    assert "(as a new tab)" in adp.describe_test_for_log({**_good_test(), "start_as": "new_tab"})
