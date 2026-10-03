@@ -322,7 +322,12 @@ credentials for one role, for one hour. Someone with IAM rights does this once:
 
 1. **Trust GitHub.** In IAM, add an OpenID Connect identity provider with the URL
    `https://token.actions.githubusercontent.com` and the audience `sts.amazonaws.com`.
-2. **Make a role only this repository can take.** Its trust policy:
+2. **Make a role only this repository can take.** GitHub names the repository to AWS
+   by its ids, not its name (this repository uses GitHub's "immutable subject"), so a
+   deleted and re-created repository with the same name can't take the role. Get the
+   exact prefix with
+   `gh api repos/HiddenTrail/exploratory-testing-engine/actions/oidc/customization/sub`
+   (its `sub_claim_prefix`). The trust policy:
 
    ```json
    {
@@ -333,7 +338,7 @@ credentials for one role, for one hour. Someone with IAM rights does this once:
        "Action": "sts:AssumeRoleWithWebIdentity",
        "Condition": {
          "StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com"},
-         "StringLike": {"token.actions.githubusercontent.com:sub": "repo:HiddenTrail/exploratory-testing-engine:*"}
+         "StringLike": {"token.actions.githubusercontent.com:sub": "repo:HiddenTrail@89008424/exploratory-testing-engine@1296415683:*"}
        }
      }]
    }
