@@ -35,3 +35,12 @@ def test_cost_and_retries_are_counted_from_usage_and_the_log():
                    "cache_read_input_tokens": 1_000_000}}
     assert round(estimated_cost(usage), 2) == 19.05
     assert count_retries("produced malformed output\nproduced no tool call\nfine") == 2
+
+
+def test_the_summary_says_where_it_stands_from_the_last_testing_story():
+    area = {"area": "Card validation", "approach": "API", "tested": "partly", "not_tested": "Luhn | expiry",
+            "tests": [1], "quality": "bad", "confidence": "medium", "why": "w"}
+    text = summarize({**_OUTPUT, "checkpoints": [{"hypothesis": {"areas": [{**area, "area": "old"}]}},
+                                                 {"hypothesis": {"areas": [area]}}]})
+    assert "| Card validation | partly | bad | medium | Luhn \| expiry |" in text and "| old |" not in text
+    assert "Where it stands" not in summarize(_OUTPUT)          # runs before #265 have no story

@@ -608,3 +608,16 @@ def test_a_rejected_answer_is_logged_raw_with_its_stop_reason(capsys):
     out = capsys.readouterr().out
     assert 'attempt 1 raw answer (stop_reason=tool_use, ' in out
     assert '{"summary": "s", "behaviors": []}' in out
+
+
+def test_a_missing_field_found_nested_elsewhere_is_named():
+    # #265: a long hypothesis came back with its later fields inside an earlier one,
+    # and the log only showed "missing required field".
+    from engine.client import find_misplaced_fields
+    answer = {"summary": "s", "behaviors": [{"claim": "c", "tests": [1]},
+                                           {"observations": [], "areas": [{"area": "x"}]}]}
+    errors = ["missing required field 'observations'", "missing required field 'areas'",
+              "missing required field 'untested'", "'summary' is far too long"]
+    assert find_misplaced_fields(answer, errors) == ["observations at behaviors[1].observations",
+                                                     "areas at behaviors[1].areas"]
+    assert find_misplaced_fields({"observations": []}, ["missing required field 'areas'"]) == []

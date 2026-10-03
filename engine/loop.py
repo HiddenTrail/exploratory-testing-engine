@@ -177,7 +177,10 @@ def get_checkpoint_hypothesis(
         validate_fn=lambda data: validate_hypothesis_response(
             data, known_observation_ids=known_observation_ids, open_gap_ids=open_gap_ids,
         ),
-        max_tokens=2560,
+        # Room for the testing story (#265): with it, answers ran 2,000 to 2,560 tokens and
+        # 5 of 14 were cut off at the old 2,560, each costing a full retry. The limit costs
+        # nothing until it's hit.
+        max_tokens=4096,
         max_attempts=run_config.max_attempts,
         cache_static_content=True,
         usage_sink=usage_sink,

@@ -50,6 +50,13 @@ def summarize(output: dict, log_text: str | None = None, bugs: list | None = Non
     if bugs:
         lines.append(f"{len(bugs)} bug report(s) written to bugs.json.")
     lines.append("")
+    areas = ((output.get("checkpoints") or [{}])[-1].get("hypothesis") or {}).get("areas") or []
+    if areas:
+        lines += ["**Where it stands** (the Driver's last testing story):", "",
+                  "| Area | Covered | Quality | Confidence | Not tested |", "|---|---|---|---|---|"]
+        lines += [f"| {_cell(a['area'])} | {a['tested']} | {a['quality']} | {a['confidence']} | "
+                  f"{_cell(a.get('not_tested', ''))} |" for a in areas]
+        lines.append("")
     if observations:
         lines += ["| Id | Kind | Status | Severity | Replay | Claim |", "|---|---|---|---|---|---|"]
         for o in observations:

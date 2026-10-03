@@ -61,3 +61,14 @@ def test_the_detail_and_the_tests_are_folded():
 def test_a_checkpoint_without_a_conclusion_still_shows_its_tests():
     html = _render_checkpoint(3, None, {1: [{"round_reasoning": "r"}]}, lambda entry: "<p>TEST-ENTRY</p>")
     assert "Checkpoint 3" in html and "TEST-ENTRY" in html
+
+
+def test_the_report_shows_the_testing_story_and_where_it_stands():
+    # Issue #265: per checkpoint in its details, and the last one as its own section.
+    from engine.report import _areas_table, _render_standing_section
+    area = {"area": "Paging", "approach": "GUI clicks", "tested": "barely", "not_tested": "Last page",
+            "tests": [3], "quality": "neutral", "confidence": "low", "why": "One click"}
+    table = _areas_table([area])
+    assert "Paging" in table and "not tested: Last page" in table and ">neutral<" in table
+    assert "Where it stands" in _render_standing_section([{"hypothesis": {"areas": [area]}}])
+    assert _render_standing_section([{"hypothesis": {}}]) == ""
