@@ -61,6 +61,8 @@ def test_on_checkpoint_called_once_per_checkpoint_with_growing_state(monkeypatch
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", fake_hypothesis)
     monkeypatch.setattr(loop, "get_skeptic_review", fake_skeptic)
     monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": [], "obstacles": []})
+    monkeypatch.setattr(loop, "get_debrief_answers", lambda *a, **k: {"answers": []})
+    monkeypatch.setattr(loop, "get_reconsideration", lambda client, run_config, review, *a, **k: {"judgements": [], "revised_checks": [], "verdict": review["verdict"], "verdict_reason": review["verdict_reason"]})
 
     snapshots = []
 
@@ -88,6 +90,8 @@ def test_on_checkpoint_reflects_partial_progress_if_loop_would_stop_at_cap(monke
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", fake_hypothesis)
     monkeypatch.setattr(loop, "get_skeptic_review", fake_skeptic)
     monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": [], "obstacles": []})
+    monkeypatch.setattr(loop, "get_debrief_answers", lambda *a, **k: {"answers": []})
+    monkeypatch.setattr(loop, "get_reconsideration", lambda client, run_config, review, *a, **k: {"judgements": [], "revised_checks": [], "verdict": review["verdict"], "verdict_reason": review["verdict_reason"]})
 
     snapshots = []
     run_config = RunConfig(max_checkpoints=2)
@@ -106,6 +110,8 @@ def test_on_checkpoint_is_optional(monkeypatch):
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", fake_hypothesis)
     monkeypatch.setattr(loop, "get_skeptic_review", fake_skeptic)
     monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": [], "obstacles": []})
+    monkeypatch.setattr(loop, "get_debrief_answers", lambda *a, **k: {"answers": []})
+    monkeypatch.setattr(loop, "get_reconsideration", lambda client, run_config, review, *a, **k: {"judgements": [], "revised_checks": [], "verdict": review["verdict"], "verdict_reason": review["verdict_reason"]})
 
     # No on_checkpoint passed at all - must not raise.
     casting_log, checkpoints, stopped_reason = loop.run_checkpoint_loop(

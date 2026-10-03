@@ -65,6 +65,8 @@ def test_output_json_written_incrementally_and_survives_a_mid_run_crash(monkeypa
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", _fake_hypothesis)
     monkeypatch.setattr(loop, "get_skeptic_review", flaky_skeptic)
     monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": [], "obstacles": []})
+    monkeypatch.setattr(loop, "get_debrief_answers", lambda *a, **k: {"answers": []})
+    monkeypatch.setattr(loop, "get_reconsideration", lambda client, run_config, review, *a, **k: {"judgements": [], "revised_checks": [], "verdict": review["verdict"], "verdict_reason": review["verdict_reason"]})
 
     run_config = RunConfig(max_checkpoints=4, out_dir=tmp_path)
     output = runner.run(_FAKE_ADAPTER, run_config)
@@ -105,6 +107,8 @@ def test_output_json_keeps_the_raw_per_call_usage_log_beside_the_summary(monkeyp
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", _fake_hypothesis)
     monkeypatch.setattr(loop, "get_skeptic_review", lambda *a, **kw: _skeptic_review("weak"))
     monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": [], "obstacles": []})
+    monkeypatch.setattr(loop, "get_debrief_answers", lambda *a, **k: {"answers": []})
+    monkeypatch.setattr(loop, "get_reconsideration", lambda client, run_config, review, *a, **k: {"judgements": [], "revised_checks": [], "verdict": review["verdict"], "verdict_reason": review["verdict_reason"]})
 
     runner.run(_FAKE_ADAPTER, RunConfig(max_checkpoints=3, out_dir=tmp_path))
 
@@ -132,6 +136,8 @@ def test_mid_run_saves_already_carry_the_usage_recorded_so_far(monkeypatch, tmp_
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", _fake_hypothesis)
     monkeypatch.setattr(loop, "get_skeptic_review", lambda *a, **kw: _skeptic_review("weak"))
     monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": [], "obstacles": []})
+    monkeypatch.setattr(loop, "get_debrief_answers", lambda *a, **k: {"answers": []})
+    monkeypatch.setattr(loop, "get_reconsideration", lambda client, run_config, review, *a, **k: {"judgements": [], "revised_checks": [], "verdict": review["verdict"], "verdict_reason": review["verdict_reason"]})
 
     runner.run(_FAKE_ADAPTER, RunConfig(max_checkpoints=3, out_dir=tmp_path))
 
@@ -166,6 +172,8 @@ def test_bug_report_failure_does_not_clobber_a_successful_run_verdict(monkeypatc
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", _hypothesis_with("bug"))
     monkeypatch.setattr(loop, "get_skeptic_review", lambda *a, **kw: _review_checking_one_observation("strong_enough"))
     monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": [], "obstacles": []})
+    monkeypatch.setattr(loop, "get_debrief_answers", lambda *a, **k: {"answers": []})
+    monkeypatch.setattr(loop, "get_reconsideration", lambda client, run_config, review, *a, **k: {"judgements": [], "revised_checks": [], "verdict": review["verdict"], "verdict_reason": review["verdict_reason"]})
 
     def boom(*a, **kw):
         raise RuntimeError("bug-report tool exhausted retries")
@@ -186,6 +194,8 @@ def test_output_json_reflects_final_state_on_a_clean_run(monkeypatch, tmp_path):
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", _fake_hypothesis)
     monkeypatch.setattr(loop, "get_skeptic_review", lambda *a, **kw: _skeptic_review("strong_enough"))
     monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": [], "obstacles": []})
+    monkeypatch.setattr(loop, "get_debrief_answers", lambda *a, **k: {"answers": []})
+    monkeypatch.setattr(loop, "get_reconsideration", lambda client, run_config, review, *a, **k: {"judgements": [], "revised_checks": [], "verdict": review["verdict"], "verdict_reason": review["verdict_reason"]})
 
     run_config = RunConfig(max_checkpoints=4, out_dir=tmp_path)
     output = runner.run(_FAKE_ADAPTER, run_config)
@@ -204,6 +214,8 @@ def test_only_bugs_get_a_written_report_and_every_observation_gets_a_status(monk
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", _hypothesis_with("anomaly"))
     monkeypatch.setattr(loop, "get_skeptic_review", lambda *a, **kw: _review_checking_one_observation("strong_enough"))
     monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": [], "obstacles": []})
+    monkeypatch.setattr(loop, "get_debrief_answers", lambda *a, **k: {"answers": []})
+    monkeypatch.setattr(loop, "get_reconsideration", lambda client, run_config, review, *a, **k: {"judgements": [], "revised_checks": [], "verdict": review["verdict"], "verdict_reason": review["verdict_reason"]})
     calls = []
     monkeypatch.setattr(runner, "get_bug_reports", lambda *a, **kw: calls.append(a) or [])
 

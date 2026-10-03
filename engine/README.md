@@ -39,9 +39,19 @@ Against a live SUT, each checkpoint:
    gaps with the test that would close each. Its verdict must follow from its
    objections: `weak` needs at least one (evidence that doesn't discriminate,
    material coverage, a blocking gap, or a rejected prior answer), and
-   `strong_enough` allows none. The validator enforces this.
-4. The loop continues on `weak`, informed by the gaps, or stops on
-   `strong_enough` or a checkpoint cap.
+   `strong_enough` allows none. The validator enforces this. Before the review,
+   the Driver tells its **testing story** in its own call (`TESTING_STORY_TOOL`):
+   per area what it has seen, how it tested, how deep and of what, and what got
+   in the way; the Skeptic gets it with the previous checkpoint's.
+4. A **debrief** when the review is `weak` (`DEBRIEF_ANSWER_TOOL`,
+   `RECONSIDER_TOOL`): the Driver answers each question (defend with tests,
+   concede, or change approach), the engine attaches what the cited tests
+   recorded, and the Skeptic reconsiders. It can't say `strong_enough` while a
+   blocking question hasn't convinced it. Settled and conceded questions drop
+   out; the rest carry into the next checkpoint. Recorded on the checkpoint as
+   `debrief`.
+5. The loop continues on `weak`, informed by the questions still open, or stops
+   on `strong_enough` or a checkpoint cap.
 
 The engine stamps ids on observations (`C<n>.O<k>`) and gaps (`C<n>.G<k>`), so
 the next checkpoint can answer a gap or continue an observation by id.

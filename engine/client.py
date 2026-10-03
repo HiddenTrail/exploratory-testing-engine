@@ -350,6 +350,10 @@ def call_tool_with_retry(
         errors = validate_fn(answer)
         if not errors:
             return answer
+        # Kept in the usage log too, so a report can show why an answer took several
+        # tries (#266), not only the console log.
+        if usage_sink and usage is not None and usage_sink[-1].get("call") == tool_name:
+            usage_sink[-1]["rejected"] = [e[:200] for e in errors[:5]]
 
         # A reply that ran out of budget fails validation too, and it fails it in a way
         # that impersonates a model ignoring the instructions - a schema-shaped answer

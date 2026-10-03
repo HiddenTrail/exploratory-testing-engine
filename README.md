@@ -32,9 +32,15 @@ Against a live system under test (SUT), each **checkpoint**:
    claim from its own rival - not just whether evidence exists - and it can
    lower an observation's kind. Its verdict is `weak` (keep going) only if it
    raises a concrete objection, and `strong_enough` (stop) only if it raises
-   none.
-4. The loop continues on `weak`, informed by the Skeptic's gaps and the test
-   that would close each one, or stops on `strong_enough` or a checkpoint cap.
+   none. Before that, the Driver tells its **testing story**: per area, what it
+   has seen, how it tested and how deep that went, and what got in the way.
+4. A **debrief**: when the review is `weak`, the Driver answers each of the
+   Skeptic's questions (defends it with the tests that show it, concedes, or
+   changes approach), the engine attaches what those tests recorded, and the
+   Skeptic reconsiders and gives the checkpoint's verdict. The whole exchange
+   is recorded and shown in the report.
+5. The loop continues on `weak`, informed by the questions still open, or
+   stops on `strong_enough` or a checkpoint cap.
 
 Observations and gaps get ids from the engine (`C1.O2`, `C1.G3`), so a later
 checkpoint answers an earlier gap, or continues an earlier observation, by id.
