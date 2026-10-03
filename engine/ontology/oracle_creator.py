@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -110,8 +111,16 @@ def load_domain_claims(sut: str) -> list[dict[str, Any]]:
     return claims
 
 
+def context_path(key: str) -> Path:
+    """Where a SUT's or product's context file lives: next to this module, or in
+    ENGINE_CONTEXT_DIR when that's set, so a benchmark can learn into a scratch folder
+    instead of changing a committed context file."""
+    folder = os.environ.get("ENGINE_CONTEXT_DIR", "").strip()
+    return (Path(folder) if folder else ONTOLOGY_DIR) / f"context_{key}.json"
+
+
 def load_context(sut: str) -> dict[str, Any]:
-    path = ONTOLOGY_DIR / f"context_{sut}.json"
+    path = context_path(sut)
     if not path.exists():
         return {"test_results": [], "jira_entries": [], "risk_assessments": []}
     return json.loads(path.read_text(encoding="utf-8"))

@@ -110,9 +110,7 @@ def test_learn_counts_a_screen_reached_again_at_the_start_and_says_what_was_new(
     # Issue #159: a run checks earlier discoveries at its start; one that replays counts as
     # one more reach, so a screen seen once becomes reproduced without a test hitting it.
     import json
-    monkeypatch.setattr(feedback, "ONTOLOGY_DIR", tmp_path)
-    monkeypatch.setattr(feedback, "load_context", lambda key: json.loads(
-        (tmp_path / f"context_{key}.json").read_text(encoding="utf-8")) if (tmp_path / f"context_{key}.json").exists() else {})
+    monkeypatch.setenv("ENGINE_CONTEXT_DIR", str(tmp_path))
     monkeypatch.setattr(feedback, "known_ids", lambda sut, product=None: set())
     old = {"id": "d1", "signature": "/old|", "url": "u", "title": "Old", "from_state": "st01", "via": "button:A",
            "path": [], "elements": [], "controls_offered": 0}
@@ -131,3 +129,31 @@ def test_learn_counts_a_screen_reached_again_at_the_start_and_says_what_was_new(
     assert by_id["d1"]["status"] == "reproduced" and by_id["d1"]["runs"] == ["run1", "run2"]
     assert by_id["d2"]["status"] == "seen once"
     assert "1 new this run, 1 from earlier runs reached again at the start" in lines[1]
+
+
+
+def test_learn_counts_the_skeptics_objections_by_kind_and_tells_the_next_driver(tmp_path, monkeypatch):
+    # Issue #258: the Driver learns what the Skeptic keeps objecting to, between runs.
+    import json
+    monkeypatch.setenv("ENGINE_CONTEXT_DIR", str(tmp_path))
+    monkeypatch.setattr(feedback, "known_ids", lambda sut, product=None: set())
+    def review(*gaps):
+        return {"skeptic_review": {"gaps": [{"gap": text, "blocks_verdict": b, "kind": k} for k, b, text in gaps]}}
+    output = {"casting_log": [], "checkpoints": [
+        review(("rival_not_tested", True, "Next page vs a cosmetic no-op"), ("untested_area", False, "Search untested")),
+        review(("rival_not_tested", True, "Still no test that tells them apart"), ("other", True, "Odd")),
+        {"hypothesis": {}},                                   # a checkpoint cut short
+        review(("made_up_kind", True, "ignored")),            # not a known kind: left out
+    ]}
+    run = tmp_path / "run1" / "output.json"
+    run.parent.mkdir()
+    run.write_text(json.dumps(output), encoding="utf-8")
+    lines = feedback.learn("token_purchase", run)
+    assert "The Skeptic's objections this run: rival_not_tested 2, untested_area 1, other 1" in lines
+    context = json.loads((tmp_path / "context_token_purchase.json").read_text(encoding="utf-8"))
+    assert context["skeptic_objections"]["rival_not_tested"] == {
+        "times": 2, "blocking": 2, "runs": ["run1"], "example": "Still no test that tells them apart"}
+    history = feedback.driver_history(context)
+    assert [h["kind"] for h in history["most_common"]] == ["rival_not_tested", "untested_area"]   # "other" says nothing
+    assert history["most_common"][0]["means"].startswith("no test tells the claim from its rival")
+    assert feedback.driver_history({}) is None

@@ -209,6 +209,10 @@ checkpoints and 6/4 tests, so don't compare against them.
 - Run one first and check its cost from `usage_summary` in `output.json`
   before starting the rest. A run should cost well under $1.
 - Only compare runs made with the same settings and the same model.
+- A change that learns between runs (like #258) is benchmarked as a pair per SUT:
+  run A learns, run B starts from what A learned. Point `ENGINE_CONTEXT_DIR` at a
+  scratch folder (with a copy of any committed context file) and use `--learn`, so
+  the benchmark doesn't change `engine/ontology/context_*.json`.
 - Say what you measured and what it cost, in the PR or the issue.
 - The `exploratory run` workflow (`.github/workflows/exploratory-run.yml`) is a real
   run too, about $0.60 each. Start it, or label a PR `run-exploration`, only when

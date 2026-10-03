@@ -17,7 +17,7 @@ _STRONG = {
     "verdict_reason": "The race is shown against its rival and coverage is broad enough.",
     "observation_checks": [_CHECK, {**_CHECK, "observation_id": "C1.O2", "kind": "finding"}],
     "coverage": {"material": False, "untouched": ["Window reset timing"], "note": "A corner, not most of the API."},
-    "gaps": [{"gap": "Window reset untested", "next_test": "Exhaust, wait 60s, send one", "blocks_verdict": False, "about": []}],
+    "gaps": [{"gap": "Window reset untested", "next_test": "Exhaust, wait 60s, send one", "blocks_verdict": False, "kind": "untested_area", "about": []}],
     "prior_gaps_check": [],
 }
 

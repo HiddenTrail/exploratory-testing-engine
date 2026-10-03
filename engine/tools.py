@@ -15,6 +15,19 @@ token-purchase-poc's most-evolved version.
 
 OBSERVATION_KINDS = ("finding", "anomaly", "bug")
 REPRODUCED = ("consistent", "inconsistent", "once")
+# What kind of objection a Skeptic gap is (issue #258). A fixed list, so they can be
+# counted across runs and the next run's Driver told which ones keep coming up.
+OBJECTION_KINDS = {
+    "rival_not_tested": "no test tells the claim from its rival explanation",
+    "not_reproduced": "it was seen once, or not repeated the same way",
+    "no_contrast": "no test shows it not happening where it shouldn't",
+    "no_fact_cited": "it names no known fact it contradicts",
+    "input_not_reached": "the input may not have reached or been accepted by the system, "
+                         "or the test didn't start where it meant to",
+    "test_tool_artifact": "it may come from how the test was run, not from the system",
+    "untested_area": "an area, input or value no test has covered",
+    "other": "none of these",
+}
 SEVERITIES = ("low", "medium", "high")
 PRIOR_GAP_STATUSES = ("tested", "untestable", "resolved", "not_attempted")
 
@@ -517,13 +530,19 @@ SKEPTIC_TOOL = {
                             "description": f"A concrete test: what inputs, what outcome would be informative. {_limit('gap.next_test')}",
                         },
                         "blocks_verdict": {"type": "boolean", "description": "Is this gap a reason for 'weak'?"},
+                        "kind": {
+                            "type": "string",
+                            "enum": list(OBJECTION_KINDS),
+                            "description": "What kind of objection this is: " + "; ".join(
+                                f"{k}: {v}" for k, v in OBJECTION_KINDS.items()) + ".",
+                        },
                         "about": {
                             "type": "array",
                             "items": {"type": "string"},
                             "description": "Ids of the observations this gap is about. Empty if it's about coverage in general.",
                         },
                     },
-                    "required": ["gap", "next_test", "blocks_verdict", "about"],
+                    "required": ["gap", "next_test", "blocks_verdict", "kind", "about"],
                 },
             },
             "prior_gaps_check": {
@@ -684,6 +703,8 @@ def validate_skeptic_response(data, *, observations=(), open_gap_ids=()) -> list
         _check_text(errors, f"{where}.next_test", gap.get("next_test"), "gap.next_test")
         if not isinstance(gap.get("blocks_verdict"), bool):
             errors.append(f"{where}.blocks_verdict must be a boolean")
+        if gap.get("kind") not in OBJECTION_KINDS:
+            errors.append(f"{where}.kind must be one of {', '.join(OBJECTION_KINDS)}")
         about = gap.get("about")
         if not isinstance(about, list) or not all(isinstance(a, str) for a in about):
             errors.append(f"{where}.about must be a list of observation ids")

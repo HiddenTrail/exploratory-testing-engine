@@ -32,6 +32,14 @@ def main() -> None:
     args = parser.parse_args()
 
     adapter = load_adapter(args.adapter)
+    # What the Skeptic objected to in earlier runs on this system (#258), from the same
+    # context file --learn writes: the product's, or the adapter's own.
+    from engine.ontology.feedback import driver_history
+    from engine.ontology.oracle_creator import load_context
+    history = driver_history(load_context(args.learn or adapter.name))
+    if history:
+        print("The Driver is told what the Skeptic objected to most before: "
+              + ", ".join(h["kind"] for h in history["most_common"]))
     run_config = RunConfig.for_adapter(
         adapter,
         model=args.model,
@@ -39,6 +47,7 @@ def main() -> None:
         first_round_test_budget=args.first_round_test_budget,
         default_test_budget=args.default_test_budget,
         out_dir=args.out_dir,
+        skeptic_history=history,
     )
     output = run(adapter, run_config)
     # A run that broke, or that the spending limit stopped, teaches nothing, and exits

@@ -63,6 +63,10 @@ Feature: A cold Skeptic reviews each checkpoint hypothesis
     Then it is rejected with "verdict is 'weak' but no objection was raised"
     And the Skeptic is asked again with that error
 
+  Scenario: Every gap names its kind of objection
+    # Counted across runs and shown to the next run's Driver: see skeptic_memory.feature (#258).
+    Then each gap has a "kind" from the fixed list in engine/tools.py OBJECTION_KINDS
+
   Scenario: The Skeptic is told to test the "input was never accepted" rival
     Given the Skeptic system prompt and the observation_checks description
     Then both tell it to check that the hypothesis showed the input was processed at all

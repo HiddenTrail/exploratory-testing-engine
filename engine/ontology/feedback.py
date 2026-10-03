@@ -16,7 +16,11 @@ import json
 from datetime import date
 from pathlib import Path
 
-from engine.ontology.oracle_creator import ONTOLOGY_DIR, build_product_ideas, build_ranked_ideas, load_context
+from engine.ontology.oracle_creator import build_product_ideas, build_ranked_ideas, context_path, load_context
+from engine.tools import OBJECTION_KINDS
+
+# How many kinds of objection the next run's Driver is told about.
+_OBJECTIONS_SHOWN = 4
 
 
 def known_ids(sut: str, product: str | None = None) -> set[str]:
@@ -106,6 +110,50 @@ def merge_reached_again(context: dict, ids: list[str], run: str) -> dict:
     return context
 
 
+def extract_objections(output: dict) -> list[dict]:
+    """Every gap the Skeptic raised in the run, with its kind (issue #258). Gaps from runs
+    made before kinds existed have none and are left out."""
+    found = []
+    for cp in output.get("checkpoints", []):
+        for gap in (cp.get("skeptic_review") or {}).get("gaps", []):
+            if gap.get("kind") in OBJECTION_KINDS:
+                found.append({"kind": gap["kind"], "blocking": bool(gap.get("blocks_verdict")), "gap": gap.get("gap", "")})
+    return found
+
+
+def merge_objections(context: dict, found: list[dict], run: str) -> dict:
+    """Count the run's objections by kind: how often, how often they blocked the verdict,
+    in which runs, and the latest example in the Skeptic's words."""
+    counts = context.setdefault("skeptic_objections", {})
+    for o in found:
+        entry = counts.setdefault(o["kind"], {"times": 0, "blocking": 0, "runs": []})
+        entry["times"] += 1
+        entry["blocking"] += o["blocking"]
+        if run not in entry["runs"]:
+            entry["runs"].append(run)
+        entry["example"] = o["gap"]
+    return context
+
+
+def driver_history(context: dict) -> dict | None:
+    """What the next run's Driver is told about the Skeptic (issue #258): the kinds of
+    objection it raised most in earlier runs, blocking ones first, each with what it
+    means and an example. None when there's nothing to tell."""
+    counts = {k: v for k, v in (context.get("skeptic_objections") or {}).items() if k != "other"}
+    if not counts:
+        return None
+    ranked = sorted(counts.items(), key=lambda kv: (-kv[1]["blocking"], -kv[1]["times"], kv[0]))
+    return {
+        "note": ("In earlier runs on this system, the Skeptic most often objected to these kinds of thing. Design "
+                 "this run's tests so each is answered before it's raised, for example with a contrast case, a "
+                 "repeat, or a test that tells the claim from its rival. These are kinds from past runs, not gaps "
+                 "of this run: don't answer them in prior_gaps."),
+        "most_common": [{"kind": k, "means": OBJECTION_KINDS[k], "times": v["times"], "blocked_the_verdict": v["blocking"],
+                         "runs": len(v["runs"]), "example": v.get("example", "")}
+                        for k, v in ranked[:_OBJECTIONS_SHOWN]],
+    }
+
+
 def merge_results(context: dict, new_results: list[dict]) -> dict:
     by_claim_id = {r["claim_id"]: r for r in context.get("test_results", [])}
     for result in new_results:
@@ -133,16 +181,26 @@ def learn(sut: str, run_path: Path, product: str | None = None) -> list[str]:
     again = reached_at_start(output)
     if again:
         context = merge_reached_again(context, again, run=run)
+    objections = extract_objections(output)
+    if objections:
+        context = merge_objections(context, objections, run=run)
 
-    context_path = ONTOLOGY_DIR / f"context_{key}.json"
-    context_path.write_text(json.dumps(context, indent=2), encoding="utf-8")
-    lines = [f"Merged {len(new_results)} test result(s) into {context_path} (total now {len(context['test_results'])})"]
+    path = context_path(key)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(context, indent=2), encoding="utf-8")
+    lines = [f"Merged {len(new_results)} test result(s) into {path} (total now {len(context['test_results'])})"]
     if found or again:
         new = {d["id"] for d in found} - known_before
         reproduced = sum(1 for d in context["discoveries"] if d["status"] == "reproduced")
         lines.append(f"Screens beyond the map: {len(new)} new this run, {len(again)} from earlier runs reached again "
                      f"at the start, {len({d['id'] for d in found} & known_before)} known ones found again by tests "
                      f"({len(context['discoveries'])} known, {reproduced} reproduced)")
+    if objections:
+        kinds = {}
+        for o in objections:
+            kinds[o["kind"]] = kinds.get(o["kind"], 0) + 1
+        lines.append("The Skeptic's objections this run: " + ", ".join(
+            f"{k} {n}" for k, n in sorted(kinds.items(), key=lambda kv: -kv[1])))
     if dropped:
         lines.append(f"Dropped {len(dropped)} made-up id(s) that aren't ranked ideas for {sut}: "
                      f"{', '.join(sorted(set(dropped)))}")

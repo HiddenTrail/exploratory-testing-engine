@@ -48,7 +48,7 @@ def _fake_hypothesis(client, adapter, run_config, happy_day_example, casting_log
 
 def _skeptic_review(verdict):
     return {
-        "verdict": verdict, "verdict_reason": "r", "observation_checks": [], "coverage": {"material": verdict == "weak", "untouched": [], "note": "c"}, "gaps": [{"gap": "g", "next_test": "t", "blocks_verdict": False, "about": []}], "prior_gaps_check": [],
+        "verdict": verdict, "verdict_reason": "r", "observation_checks": [], "coverage": {"material": verdict == "weak", "untouched": [], "note": "c"}, "gaps": [{"gap": "g", "next_test": "t", "blocks_verdict": False, "kind": "untested_area", "about": []}], "prior_gaps_check": [],
     }
 
 
@@ -233,3 +233,21 @@ def test_learn_feeds_the_run_into_the_context_after_it_ends(monkeypatch, tmp_pat
     monkeypatch.setattr(sys, "argv", ["cli", "--adapter", "token_purchase", "--out-dir", str(tmp_path)])
     cli.main()
     assert calls == []                                  # without --learn, nothing is written
+
+
+def test_the_run_command_gives_the_driver_the_skeptics_history(monkeypatch, tmp_path):
+    import json
+    import sys
+    import engine.cli as cli
+    seen = []
+    (tmp_path / "context_shop.json").write_text(json.dumps({"skeptic_objections": {
+        "no_contrast": {"times": 3, "blocking": 2, "runs": ["r1"], "example": "e"}}}), encoding="utf-8")
+    monkeypatch.setenv("ENGINE_CONTEXT_DIR", str(tmp_path))
+    monkeypatch.setattr(cli, "run", lambda adapter, config: seen.append(config.skeptic_history) or {"stopped_reason": "x"})
+    monkeypatch.setattr("engine.ontology.feedback.learn", lambda *a: [])
+    monkeypatch.setattr(sys, "argv", ["cli", "--adapter", "token_purchase", "--out-dir", str(tmp_path), "--learn", "shop"])
+    cli.main()
+    assert [h["kind"] for h in seen[0]["most_common"]] == ["no_contrast"]
+    monkeypatch.setattr(sys, "argv", ["cli", "--adapter", "token_purchase", "--out-dir", str(tmp_path)])
+    cli.main()
+    assert seen[1] is None                              # no context_token_purchase.json in this folder
