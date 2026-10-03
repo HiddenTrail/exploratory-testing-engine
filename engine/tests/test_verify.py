@@ -104,6 +104,7 @@ def test_a_run_writes_no_bug_report_for_a_bug_that_doesnt_reproduce(monkeypatch,
         "summary": "s", "behaviors": [], "untested": [{"area": "u"}], "prior_gaps": [], "observations": [{
             "kind": "bug", "continues": "", "claim": "500", "tests": [1], "violates": "the docs", "reproduced": "consistent",
             "mechanism": "m", "rival": "r", "rival_ruled_out": True, "why": "w", "severity": "high"}]})
+    monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": [], "obstacles": []})
     monkeypatch.setattr(loop, "get_skeptic_review", lambda *a, **k: {
         "verdict": "satisfied", "verdict_reason": "r", "coverage": {"material": False, "untouched": [], "note": "c"},
         "observation_checks": [{"observation_id": "C1.O1", "kind": "bug", "discriminates_from_rival": True, "note": "n"}],

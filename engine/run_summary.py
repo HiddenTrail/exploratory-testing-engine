@@ -53,9 +53,14 @@ def summarize(output: dict, log_text: str | None = None, bugs: list | None = Non
     areas = ((output.get("checkpoints") or [{}])[-1].get("hypothesis") or {}).get("areas") or []
     if areas:
         lines += ["**Where it stands** (the Driver's last testing story):", "",
-                  "| Area | Covered | Quality | Confidence | Not tested |", "|---|---|---|---|---|"]
-        lines += [f"| {_cell(a['area'])} | {a['tested']} | {a['quality']} | {a['confidence']} | "
-                  f"{_cell(a.get('not_tested', ''))} |" for a in areas]
+                  "| Area | Coverage | Seen so far | Confidence | Not tested |", "|---|---|---|---|---|"]
+        lines += [f"| {_cell(a['area'])} | {_cell((a.get('coverage') or a.get('tested', '')).replace('_', ' '))}"
+                  f"{' of ' + _cell(a['coverage_of']) if a.get('coverage_of') else ''} | "
+                  f"{a['quality'].replace('_', ' ')} | {a['confidence']} | {_cell(a.get('not_tested', ''))} |"
+                  for a in areas]
+        obstacles = (output["checkpoints"][-1].get("hypothesis") or {}).get("obstacles") or []
+        if obstacles:
+            lines += ["", "What got in the way: " + "; ".join(_cell(o["obstacle"]) for o in obstacles)]
         lines.append("")
     if observations:
         lines += ["| Id | Kind | Status | Severity | Replay | Claim |", "|---|---|---|---|---|---|"]

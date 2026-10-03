@@ -72,3 +72,18 @@ def test_the_report_shows_the_testing_story_and_where_it_stands():
     assert "Paging" in table and "not tested: Last page" in table and ">neutral<" in table
     assert "Where it stands" in _render_standing_section([{"hypothesis": {"areas": [area]}}])
     assert _render_standing_section([{"hypothesis": {}}]) == ""
+
+
+
+def test_the_story_says_what_coverage_is_of_how_problems_would_show_and_what_got_in_the_way():
+    # #271: Bolton's three strands and Bach's dashboard; the story leads the report.
+    from engine.report import _areas_table, _render_standing_section
+    area = {"area": "Paging", "approach": "GUI clicks", "coverage": "can_it_work", "coverage_of": "next and previous",
+            "oracle": "the same items twice", "not_tested": "Last page", "tests": [3],
+            "quality": "concerns", "confidence": "low", "why": "One click"}
+    table = _areas_table([area])
+    assert "can it work" in table and "of next and previous" in table
+    assert "a problem would show as: the same items twice" in table and ">concerns<" in table
+    section = _render_standing_section([{"hypothesis": {"areas": [area], "obstacles": [
+        {"obstacle": "The page has no item ids", "would_help": "Stable ids"}]}}])
+    assert "What got in the way of testing" in section and "What would help: Stable ids" in section

@@ -279,7 +279,8 @@ def _render_checkpoint(checkpoint_num, checkpoint_entry, rounds, render_test_ent
 
     details = []
     if hypothesis.get("areas"):
-        details.append(f"<p><strong>The Driver's testing story</strong></p>{_areas_table(hypothesis['areas'])}")
+        details.append(f"<p><strong>The Driver's testing story</strong></p>{_areas_table(hypothesis['areas'])}"
+                       f"{_obstacles_list(hypothesis.get('obstacles'))}")
     if behaviors:
         details.append(f"<p><strong>Confirmed behavior</strong></p><ul>{behaviors}</ul>")
     if observations:
@@ -460,36 +461,60 @@ def _render_diagnostics_section(checkpoints) -> str:
     """
 
 
-_QUALITY_TONES = {"good": "good", "neutral": "warn", "bad": "bad"}
+_QUALITY_TONES = {"no_problems_seen_yet": "good", "concerns": "warn", "problems_found": "bad",
+                  "good": "good", "neutral": "warn", "bad": "bad"}   # the second three: runs before #271
 
 
 def _areas_table(areas) -> str:
     """The Driver's testing story (#265): per area, how it tested, how much it thinks it
     covered, its quality estimate and how sure it is."""
+    def covered(a):
+        level = esc((a.get("coverage") or a.get("tested", "")).replace("_", " "))
+        of = f' <span class="prose-muted">of {inline_markdown(a["coverage_of"])}</span>' if a.get("coverage_of") else ""
+        left = (f'<div class="prose-muted">not tested: {inline_markdown(a["not_tested"])}</div>'
+                if a.get("not_tested") else "")
+        return level + of + left
+
+    def tested(a):
+        oracle = f'<div class="prose-muted">a problem would show as: {inline_markdown(a["oracle"])}</div>' \
+            if a.get("oracle") else ""
+        return inline_markdown(a["approach"]) + oracle
+
     rows = "".join(
-        f"""<tr><td>{inline_markdown(a['area'])}</td><td>{inline_markdown(a['approach'])}</td>
-        <td>{esc(a['tested'])}{f'<div class="prose-muted">not tested: {inline_markdown(a["not_tested"])}</div>' if a.get('not_tested') else ''}</td>
-        <td>{badge(a['quality'], _QUALITY_TONES.get(a['quality'], 'neutral'))}</td><td>{esc(a['confidence'])}</td>
-        <td>{inline_markdown(a['why'])} {_tests_label(a['tests'])}</td></tr>"""
+        f"""<tr><td>{inline_markdown(a['area'])}</td><td>{tested(a)}</td><td>{covered(a)}</td>
+        <td>{badge(a['quality'].replace('_', ' '), _QUALITY_TONES.get(a['quality'], 'neutral'))}</td>
+        <td>{esc(a['confidence'])}</td><td>{inline_markdown(a['why'])} {_tests_label(a['tests'])}</td></tr>"""
         for a in areas)
     return ('<div class="table-scroll"><table class="data-table"><thead><tr><th>Area</th><th>How it was tested</th>'
-            '<th>Covered</th><th>Quality</th><th>Confidence</th><th>Why</th></tr></thead>'
+            '<th>Coverage</th><th>Seen so far</th><th>Confidence</th><th>Why</th></tr></thead>'
             f'<tbody>{rows}</tbody></table></div>')
+
+
+def _obstacles_list(obstacles) -> str:
+    """The third strand of the testing story (#271): what made the testing harder."""
+    if not obstacles:
+        return ""
+    items = "".join(f"<li>{inline_markdown(o['obstacle'])}"
+                    + (f' <span class="prose-muted">What would help: {inline_markdown(o["would_help"])}</span>'
+                       if o.get("would_help") else "") + "</li>" for o in obstacles)
+    return f"<p><strong>What got in the way of testing</strong></p><ul>{items}</ul>"
 
 
 def _render_standing_section(checkpoints) -> str:
     """Where the system stands, by the Driver's last testing story (#265). Runs made
     before it existed have no areas, and get no section."""
-    areas = ((checkpoints or [{}])[-1].get("hypothesis") or {}).get("areas")
-    if not areas:
+    last = ((checkpoints or [{}])[-1].get("hypothesis") or {})
+    if not last.get("areas"):
         return ""
     return f"""
     <section id="standing">
-      <p class="eyebrow">Final checkpoint</p>
+      <p class="eyebrow">The testing story</p>
       <h2>Where it stands</h2>
-      <p class="prose">The Driver's own estimate, area by area, from its last checkpoint. The Skeptic's
-        verdict on it is in the checkpoint above.</p>
-      {_areas_table(areas)}
+      <p class="prose">The Driver's account from its last checkpoint: what it has seen of each area so far, how
+        it tested it and how deep that went, and what got in the way. Assessments grounded in the tests, not
+        counts. The Skeptic's review of it is in the last checkpoint below.</p>
+      {_areas_table(last['areas'])}
+      {_obstacles_list(last.get('obstacles'))}
     </section>
     """
 
@@ -751,14 +776,16 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
             _stat(reason.replace("_", " "), "stopped because"),
         ]
 
-    nav_items = [("#schema", "Schema")]
+    nav_items = []
+    # The testing story first (Bolton: the bug list alone is one strand of three, #271).
+    if ((checkpoints or [{}])[-1].get("hypothesis") or {}).get("areas"):
+        nav_items.append(("#standing", "Where it stands"))
+    nav_items.append(("#schema", "Schema"))
     if casting_log or checkpoints:
         nav_items.append(("#casting", "Checkpoints"))
     if checkpoints:
         nav_items.append(("#interplay", "Driver and Skeptic"))
         nav_items.append(("#diagnostics", "Diagnostics"))
-    if ((checkpoints or [{}])[-1].get("hypothesis") or {}).get("areas"):
-        nav_items.append(("#standing", "Where it stands"))
     if observations:
         nav_items.append(("#conclusion", "Conclusion"))
     if bug_reports:
@@ -792,6 +819,8 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
     <div class="stat-row">{''.join(stats)}</div>
   </div>
 
+  {_render_standing_section(checkpoints)}
+
   <section id="schema">
     <p class="eyebrow">Onboarding</p>
     <h2>Schema &amp; happy-day example</h2>
@@ -807,8 +836,6 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
   {_render_interplay_section(checkpoints)}
 
   {_render_diagnostics_section(checkpoints)}
-
-  {_render_standing_section(checkpoints)}
 
   {_render_conclusion_section(observations)}
 

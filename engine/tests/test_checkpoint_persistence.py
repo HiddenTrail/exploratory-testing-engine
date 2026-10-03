@@ -45,7 +45,7 @@ def _make_fakes(num_checkpoints_before_strong_enough):
         calls["hypothesis"] += 1
         return {"summary": "b", "behaviors": [], "observations": [], "untested": [{"area": "u"}], "prior_gaps": []}
 
-    def fake_skeptic(client, run_config, hypothesis, prior_skeptic_review=None, usage_sink=None, test_coverage=None):
+    def fake_skeptic(client, run_config, hypothesis, prior_skeptic_review=None, usage_sink=None, test_coverage=None, previous_story=None):
         calls["skeptic"] += 1
         verdict = "strong_enough" if calls["skeptic"] >= num_checkpoints_before_strong_enough else "weak"
         return {
@@ -60,6 +60,7 @@ def test_on_checkpoint_called_once_per_checkpoint_with_growing_state(monkeypatch
     monkeypatch.setattr(loop, "get_casting_round", fake_casting_round)
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", fake_hypothesis)
     monkeypatch.setattr(loop, "get_skeptic_review", fake_skeptic)
+    monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": [], "obstacles": []})
 
     snapshots = []
 
@@ -86,6 +87,7 @@ def test_on_checkpoint_reflects_partial_progress_if_loop_would_stop_at_cap(monke
     monkeypatch.setattr(loop, "get_casting_round", fake_casting_round)
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", fake_hypothesis)
     monkeypatch.setattr(loop, "get_skeptic_review", fake_skeptic)
+    monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": [], "obstacles": []})
 
     snapshots = []
     run_config = RunConfig(max_checkpoints=2)
@@ -103,6 +105,7 @@ def test_on_checkpoint_is_optional(monkeypatch):
     monkeypatch.setattr(loop, "get_casting_round", fake_casting_round)
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", fake_hypothesis)
     monkeypatch.setattr(loop, "get_skeptic_review", fake_skeptic)
+    monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": [], "obstacles": []})
 
     # No on_checkpoint passed at all - must not raise.
     casting_log, checkpoints, stopped_reason = loop.run_checkpoint_loop(
