@@ -104,3 +104,30 @@ def test_feedback_records_discovered_screens_and_counts_reaches_across_runs():
     d = context["discoveries"][0]
     assert (d["times_reached"], d["runs"], d["status"], d["first_seen"], d["last_seen"]) == (
         2, ["run-1", "run-2"], "reproduced", "run-1", "run-2")
+
+
+def test_learn_counts_a_screen_reached_again_at_the_start_and_says_what_was_new(tmp_path, monkeypatch):
+    # Issue #159: a run checks earlier discoveries at its start; one that replays counts as
+    # one more reach, so a screen seen once becomes reproduced without a test hitting it.
+    import json
+    monkeypatch.setattr(feedback, "ONTOLOGY_DIR", tmp_path)
+    monkeypatch.setattr(feedback, "load_context", lambda key: json.loads(
+        (tmp_path / f"context_{key}.json").read_text(encoding="utf-8")) if (tmp_path / f"context_{key}.json").exists() else {})
+    monkeypatch.setattr(feedback, "known_ids", lambda sut, product=None: set())
+    old = {"id": "d1", "signature": "/old|", "url": "u", "title": "Old", "from_state": "st01", "via": "button:A",
+           "path": [], "elements": [], "controls_offered": 0}
+    new = {**old, "id": "d2", "signature": "/new|"}
+    first = tmp_path / "run1" / "output.json"
+    first.parent.mkdir()
+    first.write_text(json.dumps({"casting_log": [{"test_number": 1, "result": {"discovered": old}}]}), encoding="utf-8")
+    feedback.learn("web_gui", first, "shop")
+    second = tmp_path / "run2" / "output.json"
+    second.parent.mkdir()
+    second.write_text(json.dumps({"onboarding_extra": {"earlier_discoveries": {"joined": ["d1"]}},
+                                  "casting_log": [{"test_number": 1, "result": {"discovered": new}}]}), encoding="utf-8")
+    lines = feedback.learn("web_gui", second, "shop")
+    context = json.loads((tmp_path / "context_shop.json").read_text(encoding="utf-8"))
+    by_id = {d["id"]: d for d in context["discoveries"]}
+    assert by_id["d1"]["status"] == "reproduced" and by_id["d1"]["runs"] == ["run1", "run2"]
+    assert by_id["d2"]["status"] == "seen once"
+    assert "1 new this run, 1 from earlier runs reached again at the start" in lines[1]

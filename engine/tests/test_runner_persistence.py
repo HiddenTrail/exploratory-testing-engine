@@ -206,3 +206,27 @@ def test_only_bugs_get_a_written_report_and_every_observation_gets_a_status(monk
     assert calls == []
     assert output["anomaly_found"] is True
     assert [(o["id"], o["kind"], o["status"]) for o in output["observations"]] == [("C1.O1", "anomaly", "corroborated")]
+
+
+def test_learn_feeds_the_run_into_the_context_after_it_ends(monkeypatch, tmp_path):
+    # Issue #159: one command per run; the next run starts from what this one learned.
+    import sys
+    import engine.cli as cli
+    import engine.ontology.feedback as feedback
+    calls = []
+    monkeypatch.setattr(cli, "run", lambda adapter, config: {"stopped_reason": "checkpoints_exhausted"})
+    monkeypatch.setattr(feedback, "learn", lambda sut, path, product: calls.append((sut, path, product)) or ["ok"])
+    monkeypatch.setattr(sys, "argv", ["cli", "--adapter", "token_purchase", "--out-dir", str(tmp_path), "--learn", "shop"])
+    cli.main()
+    assert calls == [("token_purchase", tmp_path / "output.json", "shop")]
+    calls.clear()
+    monkeypatch.setattr(sys, "argv", ["cli", "--adapter", "token_purchase", "--out-dir", str(tmp_path), "--learn"])
+    cli.main()
+    assert calls == [("token_purchase", tmp_path / "output.json", None)]
+    calls.clear()
+    monkeypatch.setattr(cli, "run", lambda adapter, config: {"stopped_reason": "error"})
+    cli.main()
+    assert calls == []                                  # a run that broke teaches nothing
+    monkeypatch.setattr(sys, "argv", ["cli", "--adapter", "token_purchase", "--out-dir", str(tmp_path)])
+    cli.main()
+    assert calls == []                                  # without --learn, nothing is written

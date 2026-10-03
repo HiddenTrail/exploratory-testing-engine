@@ -128,7 +128,9 @@ python -m engine.cli --adapter token_purchase
 Writes `runs/<adapter>/output.json`, `runs/<adapter>/bugs.json` (if any
 bugs were found), and `runs/<adapter>/report.html`. Override run
 parameters with `--model`, `--max-checkpoints`, `--first-round-budget`,
-`--default-budget`, `--out-dir`.
+`--default-budget`, `--out-dir`. `--learn [product]` feeds the run's results and
+discovered screens into the context layer when it ends, so the next run starts
+from them (#159).
 
 ### Authenticating through Bedrock instead of an API key
 

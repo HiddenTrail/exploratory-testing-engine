@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from pathlib import Path
+from urllib.parse import urlsplit
 
 # The three structural predictions the Driver may make about where an action lands - the
 # same taxonomy web-recon's signature draws and clash_royale predicts against.
@@ -107,13 +108,17 @@ class Reference:
 
     # ---- growing during a run (issue #158) -------------------------------------------
 
-    def add_discovery(self, record: dict, max_steps: int) -> str | None:
+    def add_discovery(self, record: dict, max_steps: int, earlier_run: bool = False) -> str | None:
         """Add a screen a test reached beyond the carried map (session.discovery's record)
         as a state of this run's map, so later tests can act on it: its id becomes a
         state id, its path is how it's reached (replayed from a fresh session, like any
         carried path), and its controls the safety gate cleared become pairs. Returns the
         state id, or None for a screen the carried map already has or one more than
-        `max_steps` steps from the start (so discoveries of discoveries can't run away)."""
+        `max_steps` steps from the start (so discoveries of discoveries can't run away).
+
+        `earlier_run`: a screen an earlier run found, checked at the start of this one
+        (issue #159). It joins as if it were carried, so reaching it again isn't a new
+        discovery."""
         if record["signature"] in self.carried_signatures or len(record["path"]) > max_steps:
             return None
         sid = record["id"]
@@ -125,6 +130,9 @@ class Reference:
         self.states.append(state)
         self._by_id[sid] = state
         self.known_signatures.add(record["signature"])
+        if earlier_run:
+            state["from_earlier_run"] = True
+            self.carried_signatures.add(record["signature"])
         self._paths[sid] = list(record["path"])
         self.transitions.append({"source": record["from_state"], "dest": sid, "effect": "navigate",
                                  "discovered": True, "action": {"kind": "click", "element_key": record["via"],
@@ -160,7 +168,12 @@ class Reference:
         title = s.get("title") or ""
         parts = (s.get("signature") or "").split("|")
         hint = title or (parts[2] if len(parts) > 2 and parts[2] else (parts[0] or "/"))
-        return f"{state_id} ({hint[:40]})" if hint else state_id
+        if s.get("from_earlier_run"):
+            # A single-page app gives every screen one title, so the route says more.
+            url = urlsplit(s.get("url") or "")
+            route = url.path + (f"#{url.fragment}" if url.fragment else "")
+            hint = f"{route or hint[:40]}, found by an earlier run"
+        return f"{state_id} ({hint[:80]})" if hint else state_id
 
     def is_known(self, sig: str) -> bool:
         return sig in self.known_signatures

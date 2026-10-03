@@ -85,12 +85,68 @@ def merge_discoveries(context: dict, found: list[dict], run: str) -> dict:
     return context
 
 
+def reached_at_start(output: dict) -> list[str]:
+    """The earlier discoveries a run replayed and reached at its start (issue #159), which
+    count as one more reach each."""
+    return list((output.get("onboarding_extra") or {}).get("earlier_discoveries", {}).get("joined", []))
+
+
+def merge_reached_again(context: dict, ids: list[str], run: str) -> dict:
+    """One more reach for each known discovery in `ids`, as merge_discoveries counts one."""
+    by_id = {d["id"]: d for d in context.get("discoveries", [])}
+    for sid in ids:
+        known = by_id.get(sid)
+        if known is None:
+            continue
+        known["times_reached"] += 1
+        if run not in known["runs"]:
+            known["runs"].append(run)
+        known["last_seen"] = run
+        known["status"] = "reproduced" if known["times_reached"] >= 2 else "seen once"
+    return context
+
+
 def merge_results(context: dict, new_results: list[dict]) -> dict:
     by_claim_id = {r["claim_id"]: r for r in context.get("test_results", [])}
     for result in new_results:
         by_claim_id[result["claim_id"]] = result
     context["test_results"] = list(by_claim_id.values())
     return context
+
+
+def learn(sut: str, run_path: Path, product: str | None = None) -> list[str]:
+    """Feed one run into the context: results per oracle id, the screens it reached
+    beyond the map, and the earlier screens it reached again at its start. The next
+    run's oracle is rebuilt from this when it starts; the run itself is never re-ranked
+    (issue #159). Returns what was learned, as lines to print."""
+    output = json.loads(Path(run_path).read_text(encoding="utf-8"))
+    new_results, dropped = extract_results(output, known_ids(sut, product))
+    run = output.get("run_id") or Path(run_path).parent.name
+
+    key = product or sut
+    context = load_context(key)
+    known_before = {d["id"] for d in context.get("discoveries", [])}
+    context = merge_results(context, new_results)
+    found = extract_discoveries(output)
+    if found:
+        context = merge_discoveries(context, found, run=run)
+    again = reached_at_start(output)
+    if again:
+        context = merge_reached_again(context, again, run=run)
+
+    context_path = ONTOLOGY_DIR / f"context_{key}.json"
+    context_path.write_text(json.dumps(context, indent=2), encoding="utf-8")
+    lines = [f"Merged {len(new_results)} test result(s) into {context_path} (total now {len(context['test_results'])})"]
+    if found or again:
+        new = {d["id"] for d in found} - known_before
+        reproduced = sum(1 for d in context["discoveries"] if d["status"] == "reproduced")
+        lines.append(f"Screens beyond the map: {len(new)} new this run, {len(again)} from earlier runs reached again "
+                     f"at the start, {len({d['id'] for d in found} & known_before)} known ones found again by tests "
+                     f"({len(context['discoveries'])} known, {reproduced} reproduced)")
+    if dropped:
+        lines.append(f"Dropped {len(dropped)} made-up id(s) that aren't ranked ideas for {sut}: "
+                     f"{', '.join(sorted(set(dropped)))}")
+    return lines
 
 
 def main() -> None:
@@ -100,26 +156,8 @@ def main() -> None:
     parser.add_argument("--product", default=None,
                         help="for a product with a wiki (e.g. juice-shop): its context file is keyed by product")
     args = parser.parse_args()
-
-    output = json.loads(Path(args.run).read_text(encoding="utf-8"))
-    new_results, dropped = extract_results(output, known_ids(args.sut, args.product))
-
-    key = args.product or args.sut
-    context = load_context(key)
-    context = merge_results(context, new_results)
-    found = extract_discoveries(output)
-    if found:
-        context = merge_discoveries(context, found, run=output.get("run_id") or Path(args.run).parent.name)
-
-    context_path = ONTOLOGY_DIR / f"context_{key}.json"
-    context_path.write_text(json.dumps(context, indent=2), encoding="utf-8")
-    print(f"Merged {len(new_results)} test result(s) into {context_path} (total now {len(context['test_results'])})")
-    if found:
-        reproduced = sum(1 for d in context["discoveries"] if d["status"] == "reproduced")
-        print(f"Recorded {len(found)} reach(es) of {len({d['id'] for d in found})} screen(s) beyond the map "
-              f"({len(context['discoveries'])} known, {reproduced} reproduced)")
-    if dropped:
-        print(f"Dropped {len(dropped)} made-up id(s) that aren't ranked ideas for {args.sut}: {', '.join(sorted(set(dropped)))}")
+    for line in learn(args.sut, Path(args.run), args.product):
+        print(line)
 
 
 if __name__ == "__main__":
