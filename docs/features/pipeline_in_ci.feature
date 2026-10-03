@@ -50,8 +50,8 @@ Feature: The whole pipeline runs in GitHub Actions and reports as an artifact
       | spoor_seconds      | 3600  | 30  | 600 |
 
   Scenario: A model input that isn't a Claude model id is refused
-    When it's started with model "x; curl evil"
-    Then it stops with "it must be a Claude model id like claude-sonnet-5"
+    When it's started with model "claude-sonnet-5" or "x; curl evil"
+    Then it stops with "it must be a Bedrock Claude model id like anthropic.claude-sonnet-5"
 
   Scenario: At most 5 real runs in 24 hours
     # Counted through the API by the workflow's file path, so it works before the file
@@ -70,10 +70,22 @@ Feature: The whole pipeline runs in GitHub Actions and reports as an artifact
     And they're fixed in the workflow, not inputs
     And a run the limit stops fails the job, and its context isn't kept for the next run
 
-  Scenario: Without the model key it stops before anything is installed
-    Given the repository secret ANTHROPIC_API_KEY is unset, or the pull request is from a fork
+  Scenario: Without the AWS role it stops before anything is installed
+    Given the repository variable AWS_ROLE_ARN is unset
     When the job starts
-    Then it fails with "The repository secret ANTHROPIC_API_KEY isn't set"
+    Then it fails with "The repository variable AWS_ROLE_ARN isn't set"
+
+  Scenario: The model is reached through Bedrock with short-lived credentials
+    # No key is stored: GitHub proves to AWS which repository the job is from (OIDC).
+    Given AWS_ROLE_ARN names a role whose trust policy allows only this repository
+    When the job starts
+    Then it takes the role for one hour, in AWS_REGION (eu-west-1 if unset)
+    And the engine runs with ENGINE_USE_BEDROCK "1" and the model "anthropic.claude-sonnet-5" unless one is given
+
+  Scenario: Bedrock is checked with one token before the long steps
+    When the credentials are in place and the engine is installed
+    Then one call with max_tokens 1 is made to the chosen model
+    And if AWS refuses it, the job stops there, before Spoor and the engine run
 
   Scenario: One run at a time
     Given an exploratory run is in progress

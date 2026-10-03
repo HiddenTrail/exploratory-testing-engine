@@ -7,8 +7,11 @@ name: exploratory run
 #
 # It calls a model, about $0.60 a run, so it never runs on a push. Start it by hand
 # (Actions > exploratory run > Run workflow), or put the label "run-exploration" on a
-# pull request. It needs the repository secret ANTHROPIC_API_KEY. Pull requests from
-# forks don't get secrets, and the job doesn't even start for one.
+# pull request. The model is reached through Amazon Bedrock with no stored key: GitHub
+# proves to AWS which repository the job is from (OIDC) and gets short-lived
+# credentials for one role. It needs the repository variables AWS_ROLE_ARN and
+# AWS_REGION; the root README's "Setting up AWS for the pipeline" says how to make the
+# role. The job doesn't start for a pull request from a fork.
 #
 # Safety, so it can't misfire, loop or run up a bill (layers, each on its own):
 # - It starts only from a person: a manual run, or adding the label to a pull request
@@ -21,6 +24,7 @@ name: exploratory run
 # - One run at a time, and every step has its own time limit inside the job's 60 minutes.
 # - The engine stops itself at $1.50 or 40 model calls (engine/budget.py), whatever the
 #   checkpoints and budgets say. These limits are set here, not as inputs.
+# - The AWS credentials last one hour, and the role can only call Bedrock models.
 "on":
   workflow_dispatch:
     inputs:
@@ -34,8 +38,8 @@ name: exploratory run
         description: "Tests in each later round"
         default: "6"
       model:
-        description: "Model (the same as the Bedrock runs, so results compare)"
-        default: "claude-sonnet-5"
+        description: "Bedrock model id"
+        default: "anthropic.claude-sonnet-5"
       spoor_seconds:
         description: "How long Spoor may map, in seconds"
         default: "300"
@@ -52,6 +56,7 @@ permissions:
   contents: read
   actions: read          # to fetch the previous run's context artifact and count today's runs
   pull-requests: write   # only to remove the run-exploration label once the run starts
+  id-token: write        # to prove to AWS which repository this is, for the Bedrock role
 
 jobs:
   explore:
@@ -69,7 +74,8 @@ jobs:
       MAX_CHECKPOINTS: ${{ inputs.max_checkpoints || '3' }}
       FIRST_ROUND_BUDGET: ${{ inputs.first_round_budget || '10' }}
       DEFAULT_BUDGET: ${{ inputs.default_budget || '6' }}
-      MODEL: ${{ inputs.model || 'claude-sonnet-5' }}
+      MODEL: ${{ inputs.model || 'anthropic.claude-sonnet-5' }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-1' }}
       SPOOR_SECONDS: ${{ inputs.spoor_seconds || '300' }}
     services:
       juice-shop:
@@ -99,8 +105,8 @@ jobs:
           check "first_round_budget" "$FIRST_ROUND_BUDGET" 1 15
           check "default_budget" "$DEFAULT_BUDGET" 1 10
           check "spoor_seconds" "$SPOOR_SECONDS" 30 600
-          if ! [[ "$MODEL" =~ ^claude-[a-z0-9.-]+$ ]]; then
-            echo "::error::model is '$MODEL'; it must be a Claude model id like claude-sonnet-5."
+          if ! [[ "$MODEL" =~ ^anthropic\.claude-[a-z0-9.-]+$ ]]; then
+            echo "::error::model is '$MODEL'; it must be a Bedrock Claude model id like anthropic.claude-sonnet-5."
             exit 1
           fi
 
@@ -120,15 +126,25 @@ jobs:
             exit 1
           fi
 
-      - name: Check the model key is set
+      - name: Check the AWS role is set
         timeout-minutes: 1
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
         run: |
-          if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::error::The repository secret ANTHROPIC_API_KEY isn't set (or this is a pull request from a fork, which gets no secrets)."
+          if [ -z "$AWS_ROLE_ARN" ]; then
+            echo "::error::The repository variable AWS_ROLE_ARN isn't set. See \"Setting up AWS for the pipeline\" in the root README."
             exit 1
           fi
+
+      # Credentials for one hour, the job's own limit, so they can't outlive the run.
+      - name: Get short-lived AWS credentials for Bedrock
+        timeout-minutes: 2
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: exploratory-run-${{ github.run_id }}
+          role-duration-seconds: 3600
 
       - uses: actions/setup-python@v5
         with:
@@ -141,6 +157,21 @@ jobs:
           pip install -r .experiments/web-recon/requirements.txt
           pip install -r engine/requirements-spoor.txt
           python -m playwright install --with-deps chromium
+
+      # One one-token call, before Spoor and the rest take 20 minutes: wrong permissions
+      # or a wrong model id show up here, with AWS naming what was refused.
+      - name: Check Bedrock answers
+        timeout-minutes: 2
+        env:
+          ENGINE_USE_BEDROCK: "1"
+        run: |
+          python - <<'PY'
+          import os
+          from engine.client import build_client
+          reply = build_client().messages.create(model=os.environ["MODEL"], max_tokens=1,
+                                                 messages=[{"role": "user", "content": "hi"}])
+          print(f"Bedrock answered with {os.environ['MODEL']}.")
+          PY
 
       - name: Wait for Juice Shop
         timeout-minutes: 3
@@ -189,7 +220,7 @@ jobs:
       - name: Run the engine and learn from it
         timeout-minutes: 30
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ENGINE_USE_BEDROCK: "1"
           WEB_GUI_ONTOLOGY: runs/ci/map.json
           WEB_GUI_URL: http://127.0.0.1:3000
           WEB_GUI_SESSION: .sessions/juice-shop/logged-in.json
