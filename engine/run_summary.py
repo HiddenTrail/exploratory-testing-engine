@@ -14,7 +14,7 @@ import json
 import sys
 from pathlib import Path
 
-from engine import budget
+from engine import budget, interplay
 
 
 _KIND_ORDER = {"bug": 0, "anomaly": 1, "finding": 2}
@@ -59,6 +59,9 @@ def summarize(output: dict, log_text: str | None = None, bugs: list | None = Non
             lines.append(f"| {o.get('id', '')} | {kind} | {o.get('status', '')} | {o.get('severity', '')} | "
                          f"{o.get('replay', '')} | {_cell(o.get('claim', ''))} |")
         lines.append("")
+    measured = interplay.measure(output.get("checkpoints") or [])
+    if measured:
+        lines += ["**The Driver and the Skeptic:** " + " ".join(interplay.summary_lines(measured)), ""]
     usage = output.get("usage_summary") or {}
     if usage:
         calls = sum(c.get("calls", 0) for c in usage.values())

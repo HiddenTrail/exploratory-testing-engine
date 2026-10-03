@@ -16,6 +16,7 @@ from engine.tools import final_observations
 from engine.report import render_report
 from engine.verify import replay_bugs
 from engine.budget import BudgetExceeded, start_run
+from engine import interplay
 
 
 def _one_line(half: dict) -> str:
@@ -139,6 +140,8 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
         output["stopped_reason"] = "error"
 
     output["usage_summary"] = summarize_usage(usage_log)
+    # How the Driver answered the Skeptic (#257), from whatever checkpoints finished.
+    output["interplay"] = interplay.measure(output.get("checkpoints") or [])
     if output["usage_summary"]:
         print("\nToken usage by call type:")
         for call, agg in output["usage_summary"].items():
