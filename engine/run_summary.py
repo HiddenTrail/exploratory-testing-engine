@@ -14,18 +14,18 @@ import json
 import sys
 from pathlib import Path
 
-# An estimate only, at list prices per million tokens for a Sonnet-class model (input,
-# output, cache write, cache read). The real bill is in the provider's console; this is
-# here so a run that suddenly costs three times as much stands out.
-_PRICE_PER_MTOK = (3.00, 15.00, 3.75, 0.30)
+from engine import budget
+
 
 _KIND_ORDER = {"bug": 0, "anomaly": 1, "finding": 2}
 
 
 def estimated_cost(usage_summary: dict) -> float:
-    totals = [sum(call.get(k, 0) for call in usage_summary.values())
-              for k in ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")]
-    return sum(t * p for t, p in zip(totals, _PRICE_PER_MTOK)) / 1_000_000
+    """An estimate only, at engine/budget.py's list prices. The real bill is in the
+    provider's console; this is here so a run that suddenly costs three times as much
+    stands out."""
+    keys = ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
+    return budget.estimated_cost({k: sum(call.get(k, 0) for call in usage_summary.values()) for k in keys})
 
 
 def count_retries(log_text: str) -> int:
@@ -40,7 +40,9 @@ def summarize(output: dict, log_text: str | None = None, bugs: list | None = Non
     observations = sorted(output.get("observations", []), key=lambda o: _KIND_ORDER.get(o.get("kind"), 9))
     counts = {k: sum(1 for o in observations if o.get("kind") == k) for k in ("bug", "anomaly", "finding")}
     lines = ["## Exploratory run", ""]
-    if output.get("error"):
+    if output.get("stopped_reason") == "budget_exceeded":
+        lines += [f"**The spending limit stopped the run:** {_cell(output.get('error', ''))}", ""]
+    elif output.get("error"):
         lines += [f"**The run stopped with an error:** {_cell(output['error'])}", ""]
     lines.append(f"{counts['bug']} bug(s), {counts['anomaly']} anomaly(ies), {counts['finding']} finding(s) from "
                  f"{len(output.get('casting_log', []))} tests and {len(output.get('checkpoints', []))} checkpoint(s). "

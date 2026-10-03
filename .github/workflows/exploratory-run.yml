@@ -8,7 +8,19 @@ name: exploratory run
 # It calls a model, about $0.60 a run, so it never runs on a push. Start it by hand
 # (Actions > exploratory run > Run workflow), or put the label "run-exploration" on a
 # pull request. It needs the repository secret ANTHROPIC_API_KEY. Pull requests from
-# forks don't get secrets, so a label on one of those stops at the key check.
+# forks don't get secrets, and the job doesn't even start for one.
+#
+# Safety, so it can't misfire, loop or run up a bill (layers, each on its own):
+# - It starts only from a person: a manual run, or adding the label to a pull request
+#   from this repository. Pushes, other labels, edits and new commits don't start it.
+#   The label is removed as the run starts, so one label is one run.
+# - Nothing it does can start another run: it doesn't push, comment, label or dispatch,
+#   and GitHub never starts workflows from what its own token does anyway.
+# - The inputs have hard ranges, checked before anything is installed.
+# - At most 5 runs in 24 hours; a sixth stops before spending anything.
+# - One run at a time, and every step has its own time limit inside the job's 60 minutes.
+# - The engine stops itself at $1.50 or 40 model calls (engine/budget.py), whatever the
+#   checkpoints and budgets say. These limits are set here, not as inputs.
 "on":
   workflow_dispatch:
     inputs:
@@ -38,11 +50,15 @@ concurrency:
 
 permissions:
   contents: read
-  actions: read     # to fetch the previous run's context artifact
+  actions: read          # to fetch the previous run's context artifact and count today's runs
+  pull-requests: write   # only to remove the run-exploration label once the run starts
 
 jobs:
   explore:
-    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-exploration'
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.label.name == 'run-exploration' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -63,7 +79,49 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Use up the label, so one label is one run
+        if: github.event_name == 'pull_request'
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr edit ${{ github.event.pull_request.number }} --remove-label run-exploration
+
+      - name: Check the inputs are within their limits
+        timeout-minutes: 1
+        run: |
+          check() {  # name value min max
+            if ! [[ "$2" =~ ^[0-9]+$ ]] || [ "$2" -lt "$3" ] || [ "$2" -gt "$4" ]; then
+              echo "::error::$1 is '$2'; it must be a whole number from $3 to $4."
+              exit 1
+            fi
+          }
+          check "max_checkpoints" "$MAX_CHECKPOINTS" 1 4
+          check "first_round_budget" "$FIRST_ROUND_BUDGET" 1 15
+          check "default_budget" "$DEFAULT_BUDGET" 1 10
+          check "spoor_seconds" "$SPOOR_SECONDS" 30 600
+          if ! [[ "$MODEL" =~ ^claude-[a-z0-9.-]+$ ]]; then
+            echo "::error::model is '$MODEL'; it must be a Claude model id like claude-sonnet-5."
+            exit 1
+          fi
+
+      - name: Stop if there have been 5 runs in the last 24 hours
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          since=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+          # By the workflow's file path, which works before it's on master (listing by
+          # workflow name doesn't). Any label on any PR makes a run record, mostly skipped
+          # ones; only real runs count. If this can't count, the step fails: fail closed.
+          runs=$(gh api "repos/${{ github.repository }}/actions/runs?created=>=$since&per_page=100"             -q '[.workflow_runs[] | select(.path == ".github/workflows/exploratory-run.yml" and .conclusion != "skipped")] | length')
+          echo "$runs run(s) of this workflow in the last 24 hours, this one included."
+          if [ "$runs" -gt 5 ]; then
+            echo "::error::$runs runs in 24 hours; the limit is 5. Something may be starting it by mistake. Try again tomorrow, or raise the limit in the workflow on purpose."
+            exit 1
+          fi
+
       - name: Check the model key is set
+        timeout-minutes: 1
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
@@ -77,6 +135,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install the engine, web-recon and the pinned Spoor
+        timeout-minutes: 15
         run: |
           pip install -r engine/requirements.txt
           pip install -r .experiments/web-recon/requirements.txt
@@ -84,6 +143,7 @@ jobs:
           python -m playwright install --with-deps chromium
 
       - name: Wait for Juice Shop
+        timeout-minutes: 3
         run: |
           for i in $(seq 1 60); do
             curl -sf "$URL" >/dev/null && exit 0
@@ -93,10 +153,11 @@ jobs:
           exit 1
 
       - name: Fetch what earlier runs learned
+        timeout-minutes: 3
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          previous=$(gh run list --workflow exploratory-run.yml --status success --limit 1 --json databaseId -q '.[0].databaseId' || true)
+          previous=$(gh api "repos/${{ github.repository }}/actions/runs?status=success&per_page=100"             -q '[.workflow_runs[] | select(.path == ".github/workflows/exploratory-run.yml")][0].id // empty' || true)
           if [ -n "$previous" ] && gh run download "$previous" --name "context-$PRODUCT" --dir engine/ontology; then
             echo "Starting from the context of run $previous."
           else
@@ -104,24 +165,29 @@ jobs:
           fi
 
       - name: Log in with no person
+        timeout-minutes: 3
         run: |
           python -m engine.adapters.web_gui.login_recipe --recipe test-targets/login-recipes/$PRODUCT.json \
             --url "$URL" --product "$PRODUCT" --name logged-in
 
       - name: Map the site with Spoor from that session
+        timeout-minutes: 13
         run: |
           mkdir -p runs/spoor
           cd runs/spoor
-          spoor explore "$URL" --session "$GITHUB_WORKSPACE/.sessions/$PRODUCT/logged-in.json" \
+          # Spoor's own cap, then a hard kill two minutes after it in case Spoor hangs.
+          timeout --kill-after=30 "$((SPOOR_SECONDS + 120))" spoor explore "$URL" --session "$GITHUB_WORKSPACE/.sessions/$PRODUCT/logged-in.json" \
             --max-depth 2 --max-seconds "$SPOOR_SECONDS"
 
       - name: Convert the map for the engine
+        timeout-minutes: 15
         run: |
           mkdir -p runs/ci
           python -m engine.adapters.web_gui.from_spoor --map runs/spoor/.spoor-cache/maps/127.0.0.1_3000.json \
             --url "$URL" --session ".sessions/$PRODUCT/logged-in.json" --out runs/ci/map.json
 
       - name: Run the engine and learn from it
+        timeout-minutes: 30
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           WEB_GUI_ONTOLOGY: runs/ci/map.json
@@ -129,6 +195,8 @@ jobs:
           WEB_GUI_SESSION: .sessions/juice-shop/logged-in.json
           WEB_GUI_SESSION_CHECK: /profile
           WEB_GUI_PRODUCT: juice-shop
+          ENGINE_MAX_COST_USD: "1.50"
+          ENGINE_MAX_MODEL_CALLS: "40"
         run: |
           set -o pipefail
           python -m engine.cli --adapter web_gui --out-dir runs/ci --model "$MODEL" \
@@ -137,6 +205,7 @@ jobs:
 
       - name: Write the summary
         if: always()
+        timeout-minutes: 2
         run: |
           if [ -f runs/ci/output.json ]; then
             python -m engine.run_summary runs/ci/output.json --log runs/ci/run.log >> "$GITHUB_STEP_SUMMARY"
@@ -149,6 +218,7 @@ jobs:
       # only runs/ci and the context file are uploaded, never .sessions or .spoor-cache.
       - name: Upload the report
         if: always()
+        timeout-minutes: 5
         uses: actions/upload-artifact@v4
         with:
           name: exploratory-run
@@ -158,6 +228,7 @@ jobs:
 
       - name: Keep what this run learned for the next one
         if: success()
+        timeout-minutes: 5
         uses: actions/upload-artifact@v4
         with:
           name: context-${{ env.PRODUCT }}

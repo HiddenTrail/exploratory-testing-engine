@@ -90,6 +90,7 @@ engine/
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output
   verify.py     # replays each bug's tests before it's reported, and lowers one that doesn't reproduce
   run_summary.py # a run's outcome as Markdown, for a CI job's summary page
+  budget.py     # the hard spending limit: stops a run at ENGINE_MAX_MODEL_CALLS calls or about ENGINE_MAX_COST_USD
   cli.py        # python -m engine.cli --adapter <name>
   config.py     # RunConfig: model, checkpoint and test budgets, output folder
   http.py, redact.py, util.py  # small shared helpers

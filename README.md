@@ -160,6 +160,7 @@ engine/
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output
   verify.py     # replays each bug's tests before it's reported, and lowers one that doesn't reproduce
   run_summary.py # a run's outcome as Markdown, for a CI job's summary page
+  budget.py     # the hard spending limit: stops a run at ENGINE_MAX_MODEL_CALLS calls or about ENGINE_MAX_COST_USD
   cli.py        # python -m engine.cli --adapter <name>
   adapters/
     registry.py           # name -> adapter module, resolved lazily at run time
@@ -302,7 +303,15 @@ uploads `report.html`, `output.json` and `bugs.json` as the `exploratory-run`
 artifact, with a summary on the run's page. Each run starts from the context file the
 last successful run left (`context-juice-shop` artifact). It calls a model (about
 $0.60 a run), so it never runs on a push: start it from the Actions tab, or label a
-PR `run-exploration`. It needs the `ANTHROPIC_API_KEY` repository secret.
+PR `run-exploration`. It needs the `ANTHROPIC_API_KEY` repository secret. It can't
+misfire or loop: only a person starts it, a label is used up by the run it starts,
+inputs have hard ranges, there are at most 5 runs a day, every step has a time
+limit, and the engine stops itself at $1.50 or 40 model calls.
+
+Every run, anywhere, has a spending limit (`engine/budget.py`): it stops before the
+next model call once it has made `ENGINE_MAX_MODEL_CALLS` calls (default 80) or spent
+about `ENGINE_MAX_COST_USD` (default $3.00). A run it stops keeps its output, and the
+run command exits with code 2.
 
 The game harness carries its own suites, which CI does **not** run - they are
 Windows-only (Win32 window handles, GDI capture) while CI is Linux:

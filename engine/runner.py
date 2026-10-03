@@ -15,6 +15,7 @@ from engine.loop import get_bug_reports, get_happy_day_example, run_checkpoint_l
 from engine.tools import final_observations
 from engine.report import render_report
 from engine.verify import replay_bugs
+from engine.budget import BudgetExceeded, start_run
 
 
 def _one_line(half: dict) -> str:
@@ -31,6 +32,9 @@ def _one_line(half: dict) -> str:
 
 def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
     validate_adapter(adapter)
+    # Before anything that could spend: a bad limit stops the run here, at no cost.
+    limits = start_run()
+    print(f"Spending limit: about ${limits.max_cost_usd:.2f} or {limits.max_calls} model calls, whichever comes first.")
     client = build_client()
 
     (adapter.check_sut_ready or default_check_sut_ready)(adapter)
@@ -115,6 +119,11 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
                 print(f"  bug-report generation failed ({type(e).__name__}: {e}); "
                       f"keeping the run verdict, writing no bug reports.")
                 output["bug_report_error"] = str(e)
+    except BudgetExceeded as e:
+        # Everything finished so far is kept; the run just can't spend any more.
+        print(e)
+        output["error"] = str(e)
+        output["stopped_reason"] = "budget_exceeded"
     except RuntimeError as e:
         print(f"Stopped early: {e}")
         output["error"] = str(e)

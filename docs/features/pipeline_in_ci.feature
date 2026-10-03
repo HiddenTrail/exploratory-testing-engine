@@ -29,6 +29,47 @@ Feature: The whole pipeline runs in GitHub Actions and reports as an artifact
       | a pull request gets any other label                        | is skipped                                                      |
       | someone pushes                                             | doesn't start                                                   |
 
+  Scenario: A label only starts it on a pull request from this repository, and only once
+    Given a pull request from a fork gets the label "run-exploration"
+    Then the job doesn't start
+    Given a pull request from this repository gets the label "run-exploration"
+    When the job starts
+    Then it removes the label, so one label is one run
+    # Removing a label isn't a trigger, and GitHub never starts workflows from what its
+    # own token does, so nothing the job does can start another run.
+
+  Scenario Outline: Inputs outside their limits stop the run before anything is installed
+    When it's started with <input> set to "<value>"
+    Then it stops with "<input> is '<value>'; it must be a whole number from <min> to <max>."
+
+    Examples:
+      | input              | value | min | max |
+      | max_checkpoints    | 9     | 1   | 4   |
+      | first_round_budget | 40    | 1   | 15  |
+      | default_budget     | 0     | 1   | 10  |
+      | spoor_seconds      | 3600  | 30  | 600 |
+
+  Scenario: A model input that isn't a Claude model id is refused
+    When it's started with model "x; curl evil"
+    Then it stops with "it must be a Claude model id like claude-sonnet-5"
+
+  Scenario: At most 5 real runs in 24 hours
+    # Counted through the API by the workflow's file path, so it works before the file
+    # is on master. Skipped runs (any label on any PR makes one) don't count. If it
+    # can't count, the step fails.
+    Given 5 runs of exploratory-run.yml that weren't skipped started in the last 24 hours
+    When a sixth starts
+    Then it stops before anything is installed, saying the limit is 5 and something may be starting it by mistake
+
+  Scenario: Every step has its own time limit inside the job's 60 minutes
+    Then installing has 15 minutes, Spoor 13, converting 15 and the engine 30
+    And Spoor is killed two minutes after its own --max-seconds if it hangs
+
+  Scenario: The engine runs with a lower spending limit than the default
+    Then the engine step sets ENGINE_MAX_COST_USD "1.50" and ENGINE_MAX_MODEL_CALLS "40"
+    And they're fixed in the workflow, not inputs
+    And a run the limit stops fails the job, and its context isn't kept for the next run
+
   Scenario: Without the model key it stops before anything is installed
     Given the repository secret ANTHROPIC_API_KEY is unset, or the pull request is from a fork
     When the job starts

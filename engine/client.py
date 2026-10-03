@@ -11,6 +11,8 @@ import anthropic
 from anthropic import Anthropic, AnthropicBedrockMantle
 from dotenv import load_dotenv
 
+from engine import budget
+
 DEFAULT_MODEL = "claude-sonnet-4-6"
 # Bedrock's Messages-API endpoint does NOT carry claude-sonnet-4-6, so a
 # Bedrock run cannot be on the same model as a direct-API run - this is the
@@ -278,6 +280,9 @@ def call_tool_with_retry(
     messages = [{"role": "user", "content": content}]
     last_errors = ["no attempts made"]
     for attempt in range(1, max_attempts + 1):
+        # The run's hard spending limit (engine/budget.py): checked before every call,
+        # retries included, so nothing can keep calling the model past it.
+        budget.guard().check()
         try:
             message = client.messages.create(
                 model=model,
@@ -296,6 +301,7 @@ def call_tool_with_retry(
             continue
 
         usage = getattr(message, "usage", None)
+        budget.guard().record(usage)
         _record_usage(usage_sink, tool_name, usage)
         if usage is not None:
             cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
