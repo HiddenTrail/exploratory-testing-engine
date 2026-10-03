@@ -109,6 +109,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | [`skeptic_memory.feature`](skeptic_memory.feature) | The Driver is told what the Skeptic objected to most in earlier runs |
 | [`testing_story.feature`](testing_story.feature) | The Driver tells its testing story, and the Skeptic debriefs it |
 | [`checkpoint_debrief.feature`](checkpoint_debrief.feature) | Each checkpoint ends with a debrief the Driver has to win with evidence |
+| [`web_sweep.feature`](web_sweep.feature) | A sweep runs every reachable action once and lists what the harness observed |
 
 ## Web testing: mapping a site
 
