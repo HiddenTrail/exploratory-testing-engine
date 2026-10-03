@@ -193,6 +193,30 @@ def unstring_json_fields(value, schema, path: str = "") -> tuple[object, list[st
     return value, fixed
 
 
+def find_misplaced_fields(answer, errors: list[str]) -> list[str]:
+    """For each "missing required field 'x'" error, where 'x' turned up instead, if
+    anywhere in the answer, as "x at behaviors[2].x". Long hypothesis answers sometimes
+    come back with their later fields nested inside an earlier one, and the log only
+    showed the start of the answer, so the cause couldn't be read back (#265)."""
+    missing = [e.split("'")[1] for e in errors if e.startswith("missing required field '")]
+    found = []
+
+    def walk(value, path):
+        if isinstance(value, dict):
+            for key, sub in value.items():
+                here = f"{path}.{key}" if path else key
+                if key in missing and path:
+                    found.append(f"{key} at {here}")
+                walk(sub, here)
+        elif isinstance(value, list):
+            for i, sub in enumerate(value):
+                walk(sub, f"{path}[{i}]")
+
+    if missing:
+        walk(answer, "")
+    return found
+
+
 def _now_iso() -> str:
     """Wall-clock stamp for usage records. Wall clock rather than a monotonic
     reading because the thing it exists to measure - cache TTL expiry - is a
@@ -340,6 +364,9 @@ def call_tool_with_retry(
         raw = json.dumps(tool_use.input, ensure_ascii=False)
         print(f"  attempt {attempt} raw answer (stop_reason={message.stop_reason}, {len(raw)} chars): "
               f"{raw[:_RAW_ANSWER_LOG_CHARS]}{' ...' if len(raw) > _RAW_ANSWER_LOG_CHARS else ''}")
+        misplaced = find_misplaced_fields(tool_use.input, errors)
+        if misplaced:
+            print(f"  attempt {attempt}: missing fields found elsewhere in the answer: {', '.join(misplaced)}")
         last_errors = ([f"reply was cut off at max_tokens={max_tokens}: " + "; ".join(errors)]
                        if truncated else errors)
         if truncated:

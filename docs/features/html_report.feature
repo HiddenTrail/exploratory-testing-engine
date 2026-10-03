@@ -42,6 +42,7 @@ Feature: The HTML report puts the conclusion first and folds the details
       | tests or checkpoints    | Checkpoints        | #casting     |
       | at least one checkpoint | Driver and Skeptic | #interplay   |
       | at least one checkpoint | Diagnostics        | #diagnostics |
+      | a testing story         | Where it stands    | #standing    |
       | final observations      | Conclusion         | #conclusion  |
       | at least one bug report | Bug report         | #bug-report  |
 

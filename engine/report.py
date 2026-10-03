@@ -278,6 +278,8 @@ def _render_checkpoint(checkpoint_num, checkpoint_entry, rounds, render_test_ent
     prior = "".join(_prior_gap_detail(g, skeptic_checks.get(g["gap_id"])) for g in hypothesis["prior_gaps"])
 
     details = []
+    if hypothesis.get("areas"):
+        details.append(f"<p><strong>The Driver's testing story</strong></p>{_areas_table(hypothesis['areas'])}")
     if behaviors:
         details.append(f"<p><strong>Confirmed behavior</strong></p><ul>{behaviors}</ul>")
     if observations:
@@ -454,6 +456,40 @@ def _render_diagnostics_section(checkpoints) -> str:
       them: an action that was never accepted cannot have demonstrated anything about what it
       does, and a test that did not start from the baseline was not the test it was cast as.</p>
       {body}
+    </section>
+    """
+
+
+_QUALITY_TONES = {"good": "good", "neutral": "warn", "bad": "bad"}
+
+
+def _areas_table(areas) -> str:
+    """The Driver's testing story (#265): per area, how it tested, how much it thinks it
+    covered, its quality estimate and how sure it is."""
+    rows = "".join(
+        f"""<tr><td>{inline_markdown(a['area'])}</td><td>{inline_markdown(a['approach'])}</td>
+        <td>{esc(a['tested'])}{f'<div class="prose-muted">not tested: {inline_markdown(a["not_tested"])}</div>' if a.get('not_tested') else ''}</td>
+        <td>{badge(a['quality'], _QUALITY_TONES.get(a['quality'], 'neutral'))}</td><td>{esc(a['confidence'])}</td>
+        <td>{inline_markdown(a['why'])} {_tests_label(a['tests'])}</td></tr>"""
+        for a in areas)
+    return ('<div class="table-scroll"><table class="data-table"><thead><tr><th>Area</th><th>How it was tested</th>'
+            '<th>Covered</th><th>Quality</th><th>Confidence</th><th>Why</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table></div>')
+
+
+def _render_standing_section(checkpoints) -> str:
+    """Where the system stands, by the Driver's last testing story (#265). Runs made
+    before it existed have no areas, and get no section."""
+    areas = ((checkpoints or [{}])[-1].get("hypothesis") or {}).get("areas")
+    if not areas:
+        return ""
+    return f"""
+    <section id="standing">
+      <p class="eyebrow">Final checkpoint</p>
+      <h2>Where it stands</h2>
+      <p class="prose">The Driver's own estimate, area by area, from its last checkpoint. The Skeptic's
+        verdict on it is in the checkpoint above.</p>
+      {_areas_table(areas)}
     </section>
     """
 
@@ -721,6 +757,8 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
     if checkpoints:
         nav_items.append(("#interplay", "Driver and Skeptic"))
         nav_items.append(("#diagnostics", "Diagnostics"))
+    if ((checkpoints or [{}])[-1].get("hypothesis") or {}).get("areas"):
+        nav_items.append(("#standing", "Where it stands"))
     if observations:
         nav_items.append(("#conclusion", "Conclusion"))
     if bug_reports:
@@ -769,6 +807,8 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
   {_render_interplay_section(checkpoints)}
 
   {_render_diagnostics_section(checkpoints)}
+
+  {_render_standing_section(checkpoints)}
 
   {_render_conclusion_section(observations)}
 

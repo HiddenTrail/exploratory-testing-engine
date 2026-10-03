@@ -63,6 +63,10 @@ Feature: A cold Skeptic reviews each checkpoint hypothesis
     Then it is rejected with "verdict is 'weak' but no objection was raised"
     And the Skeptic is asked again with that error
 
+  Scenario: The Skeptic questions the Driver's testing story
+    # See testing_story.feature (#265).
+    Then the Skeptic checks the hypothesis "areas" against the cited tests and test_coverage
+
   Scenario: Every gap names its kind of objection
     # Counted across runs and shown to the next run's Driver: see skeptic_memory.feature (#258).
     Then each gap has a "kind" from the fixed list in engine/tools.py OBJECTION_KINDS

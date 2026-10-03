@@ -30,6 +30,12 @@ OBJECTION_KINDS = {
     "other": "none of these",
 }
 SEVERITIES = ("low", "medium", "high")
+# The Driver's testing story, per area (issue #265): how much it thinks it tested,
+# its estimate of the area's quality, and how sure it is.
+AREA_TESTED = ("thoroughly", "partly", "barely")
+AREA_QUALITY = ("good", "neutral", "bad")
+CONFIDENCE = ("high", "medium", "low")
+MAX_AREAS = 5
 PRIOR_GAP_STATUSES = ("tested", "untestable", "resolved", "not_attempted")
 
 # Word limits for the short text fields. Each limit is written into the field's
@@ -45,6 +51,10 @@ WORD_LIMITS = {
     "observation.rival": 25,
     "observation.why": 25,
     "untested.area": 15,
+    "area.area": 10,
+    "area.approach": 15,
+    "area.not_tested": 20,
+    "area.why": 30,
     "prior_gap.reason": 25,
 }
 MAX_BEHAVIORS = 5
@@ -146,6 +156,42 @@ HYPOTHESIS_TOOL = {
                     ],
                 },
             },
+            "areas": {
+                "type": "array",
+                "description": (
+                    "Your testing story, one entry per part of the system you tested (at most "
+                    f"{MAX_AREAS}): where you were, how you tested it, how much you think you covered "
+                    "and what you didn't, how good it looks and how sure you are. Back it with the "
+                    "tests, not just pass or fail: the Skeptic will check it against them. An honest "
+                    "'partly' with a clear 'not_tested' beats a 'thoroughly' you can't show."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "area": {"type": "string", "description": f"The part of the system. {_limit('area.area')}"},
+                        "approach": {
+                            "type": "string",
+                            "description": f"How you tested it: the layer and the technique. {_limit('area.approach')}",
+                        },
+                        "tested": {"type": "string", "enum": list(AREA_TESTED),
+                                   "description": "How much of this area you think your tests covered."},
+                        "not_tested": {
+                            "type": "string",
+                            "description": f"What's left untested in this area, or empty. {_limit('area.not_tested')}",
+                        },
+                        "tests": _TESTS,
+                        "quality": {"type": "string", "enum": list(AREA_QUALITY),
+                                    "description": "Your estimate of how well this area works, from what you saw."},
+                        "confidence": {"type": "string", "enum": list(CONFIDENCE),
+                                       "description": "How sure you are of that estimate."},
+                        "why": {
+                            "type": "string",
+                            "description": f"Why you estimate coverage and quality so, citing tests. {_limit('area.why')}",
+                        },
+                    },
+                    "required": ["area", "approach", "tested", "not_tested", "tests", "quality", "confidence", "why"],
+                },
+            },
             "untested": {
                 "type": "array",
                 "description": f"Things not tried yet that are worth trying next. At most {MAX_UNTESTED} entries.",
@@ -187,7 +233,7 @@ HYPOTHESIS_TOOL = {
                 },
             },
         },
-        "required": ["summary", "behaviors", "observations", "untested", "prior_gaps"],
+        "required": ["summary", "behaviors", "observations", "areas", "untested", "prior_gaps"],
     },
 }
 
@@ -283,6 +329,28 @@ def validate_hypothesis_response(data, *, known_observation_ids=(), open_gap_ids
                 errors.append(f"observations[{i}] must be an object")
                 continue
             errors.extend(_observation_errors(i, o, known_observation_ids))
+
+    areas = data["areas"]
+    if not isinstance(areas, list) or not areas:
+        errors.append("'areas' must be a non-empty list: your testing story, one entry per area you tested")
+    else:
+        if len(areas) > 2 * MAX_AREAS:
+            errors.append(f"'areas' has {len(areas)} entries, limit {MAX_AREAS}")
+        for i, a in enumerate(areas):
+            if not isinstance(a, dict):
+                errors.append(f"areas[{i}] must be an object")
+                continue
+            where = f"areas[{i}]"
+            _check_text(errors, f"{where}.area", a.get("area"), "area.area")
+            _check_text(errors, f"{where}.approach", a.get("approach"), "area.approach")
+            _check_text(errors, f"{where}.not_tested", a.get("not_tested"), "area.not_tested", required=False)
+            _check_text(errors, f"{where}.why", a.get("why"), "area.why")
+            for field, allowed in (("tested", AREA_TESTED), ("quality", AREA_QUALITY), ("confidence", CONFIDENCE)):
+                if a.get(field) not in allowed:
+                    errors.append(f"{where}.{field} must be one of {', '.join(allowed)}")
+            if not _is_test_list(a.get("tests")) or not a.get("tests"):
+                errors.append(f"{where}.tests must cite the test numbers behind it; an area with no tests "
+                              "belongs in 'untested'")
 
     untested = data["untested"]
     if not isinstance(untested, list):
@@ -602,6 +670,13 @@ while the system was still busy. Apply this hardest when a claim rests on SEVERA
 do nothing: "each of these is individually broken" and "nothing was being accepted at that point" predict
 the same observations, and the second is one cause rather than several coincidences. That is a
 discriminates_from_rival=false finding even if the hypothesis dealt properly with some other rival.
+
+The hypothesis also has 'areas': the Driver's own account of each part it tested, how, how much it thinks
+it covered and what it didn't, its estimate of the area's quality and how sure it is. Question that account,
+the way a test lead would. Does what the cited tests and test_coverage show support "thoroughly"? A
+"coverage_overstated" gap is for when it doesn't. Do the tests support the quality estimate and the
+confidence, or is it more sure than its testing? That's "overclaimed". Was the approach able to find what
+it claims to have looked for? That's "method_in_doubt".
 
 Check each observation's kind too. A bug must contradict a known fact (it names which in 'violates') and
 reproduce consistently. If you'd call it something more cautious, say so in 'kind'; the engine keeps the

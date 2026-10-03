@@ -23,6 +23,9 @@ _HYPOTHESIS = {
     "summary": "Sequential requests are limited correctly, concurrent ones are not.",
     "behaviors": [{"claim": "Sequential requests stop at 5", "tests": [2, 3]}],
     "observations": [_OBSERVATION],
+    "areas": [{"area": "Per-client rate limit", "approach": "API, sequential then concurrent bursts",
+               "tested": "partly", "not_tested": "Window reset, other clients", "tests": [1, 2, 3, 4],
+               "quality": "bad", "confidence": "medium", "why": "Sequential holds at 5 (2, 3); bursts exceed it (1, 4)"}],
     "untested": [{"area": "Window reset timing"}],
     "prior_gaps": [],
 }
@@ -172,3 +175,30 @@ def test_the_next_checkpoint_is_shown_the_earlier_observations_with_their_ids(mo
         happy_day_example=_HAPPY_DAY, test_counter=itertools.count(1),
     )
     assert seen == [[], ["C1.O1"], ["C1.O1", "C2.O1"]]
+
+
+
+# ---- the testing story (issue #265) -----------------------------------------------------------
+
+def _with_area(**changes):
+    return _hypothesis(areas=[{**_HYPOTHESIS["areas"][0], **changes}])
+
+
+def test_the_testing_story_is_required_and_needs_at_least_one_area():
+    assert "areas" in HYPOTHESIS_TOOL["input_schema"]["required"]
+    assert any("'areas' must be a non-empty list" in e for e in validate_hypothesis_response(_hypothesis(areas=[])))
+
+
+def test_an_areas_estimates_come_from_fixed_scales_and_it_cites_its_tests():
+    errors = validate_hypothesis_response(_with_area(tested="mostly", quality="great", confidence="sure", tests=[]))
+    assert any("areas[0].tested must be one of thoroughly, partly, barely" in e for e in errors)
+    assert any("areas[0].quality must be one of good, neutral, bad" in e for e in errors)
+    assert any("areas[0].confidence must be one of high, medium, low" in e for e in errors)
+    assert any("areas[0].tests must cite the test numbers behind it" in e for e in errors)
+    assert validate_hypothesis_response(_with_area(not_tested="")) == []      # nothing left is fine
+
+
+def test_the_skeptic_is_told_to_question_the_testing_story():
+    from engine.tools import SKEPTIC_SYSTEM_PROMPT
+    assert "'areas': the Driver's own account" in SKEPTIC_SYSTEM_PROMPT
+    assert '"coverage_overstated" gap' in SKEPTIC_SYSTEM_PROMPT and '"overclaimed"' in SKEPTIC_SYSTEM_PROMPT
