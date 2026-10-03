@@ -159,6 +159,7 @@ engine/
   report.py     # generic HTML rendering (prose, badges, CSS, page/checkpoint structure)
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output
   verify.py     # replays each bug's tests before it's reported, and lowers one that doesn't reproduce
+  run_summary.py # a run's outcome as Markdown, for a CI job's summary page
   cli.py        # python -m engine.cli --adapter <name>
   adapters/
     registry.py           # name -> adapter module, resolved lazily at run time
@@ -291,6 +292,17 @@ be put under the name. What that buys is having the assertions that matter -
 that the kit’s own preflight/watch-only sampling never grabs with verification,
 that the safety layers are checked before any frame is scored, and that
 `--allow-battle` is never constructed - checked on every PR rather than only on the one machine with the game installed.
+
+**The whole pipeline in GitHub Actions** (#255):
+[`.github/workflows/exploratory-run.yml`](.github/workflows/exploratory-run.yml)
+starts Juice Shop on the runner, logs in from
+`test-targets/login-recipes/juice-shop.json` with no person, maps the site with the
+pinned Spoor from that session, converts the map, runs the engine with `--learn`, and
+uploads `report.html`, `output.json` and `bugs.json` as the `exploratory-run`
+artifact, with a summary on the run's page. Each run starts from the context file the
+last successful run left (`context-juice-shop` artifact). It calls a model (about
+$0.60 a run), so it never runs on a push: start it from the Actions tab, or label a
+PR `run-exploration`. It needs the `ANTHROPIC_API_KEY` repository secret.
 
 The game harness carries its own suites, which CI does **not** run - they are
 Windows-only (Win32 window handles, GDI capture) while CI is Linux:

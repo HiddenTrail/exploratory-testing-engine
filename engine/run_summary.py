@@ -1,0 +1,83 @@
+"""A run's outcome as a short Markdown summary, for a CI job's summary page (issue #255).
+
+    python -m engine.run_summary runs/ci/output.json [--log runs/ci/run.log] >> "$GITHUB_STEP_SUMMARY"
+
+Reads only the engine's own fields in output.json: the observations and their status,
+the bug replays (#177), the stop reason and the token usage. The retries are counted
+from the run's log, where call_tool_with_retry prints each one. No model call.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+# An estimate only, at list prices per million tokens for a Sonnet-class model (input,
+# output, cache write, cache read). The real bill is in the provider's console; this is
+# here so a run that suddenly costs three times as much stands out.
+_PRICE_PER_MTOK = (3.00, 15.00, 3.75, 0.30)
+
+_KIND_ORDER = {"bug": 0, "anomaly": 1, "finding": 2}
+
+
+def estimated_cost(usage_summary: dict) -> float:
+    totals = [sum(call.get(k, 0) for call in usage_summary.values())
+              for k in ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")]
+    return sum(t * p for t, p in zip(totals, _PRICE_PER_MTOK)) / 1_000_000
+
+
+def count_retries(log_text: str) -> int:
+    return log_text.count("produced malformed output") + log_text.count("produced no tool call")
+
+
+def _cell(text) -> str:
+    return str(text).replace("|", "\\|").replace("\n", " ")
+
+
+def summarize(output: dict, log_text: str | None = None, bugs: list | None = None) -> str:
+    observations = sorted(output.get("observations", []), key=lambda o: _KIND_ORDER.get(o.get("kind"), 9))
+    counts = {k: sum(1 for o in observations if o.get("kind") == k) for k in ("bug", "anomaly", "finding")}
+    lines = ["## Exploratory run", ""]
+    if output.get("error"):
+        lines += [f"**The run stopped with an error:** {_cell(output['error'])}", ""]
+    lines.append(f"{counts['bug']} bug(s), {counts['anomaly']} anomaly(ies), {counts['finding']} finding(s) from "
+                 f"{len(output.get('casting_log', []))} tests and {len(output.get('checkpoints', []))} checkpoint(s). "
+                 f"Stopped: `{output.get('stopped_reason', '?')}`.")
+    if bugs:
+        lines.append(f"{len(bugs)} bug report(s) written to bugs.json.")
+    lines.append("")
+    if observations:
+        lines += ["| Id | Kind | Status | Severity | Replay | Claim |", "|---|---|---|---|---|---|"]
+        for o in observations:
+            kind = o.get("kind", "")
+            if o.get("driver_kind") and o["driver_kind"] != kind:
+                kind += f" (Driver said {o['driver_kind']})"
+            lines.append(f"| {o.get('id', '')} | {kind} | {o.get('status', '')} | {o.get('severity', '')} | "
+                         f"{o.get('replay', '')} | {_cell(o.get('claim', ''))} |")
+        lines.append("")
+    usage = output.get("usage_summary") or {}
+    if usage:
+        calls = sum(c.get("calls", 0) for c in usage.values())
+        retries = f", {count_retries(log_text)} retried" if log_text is not None else ""
+        lines.append(f"{calls} model call(s){retries}. Estimated cost about ${estimated_cost(usage):.2f} "
+                     f"(list prices for a Sonnet-class model; the provider's console has the real bill).")
+    return "\n".join(lines) + "\n"
+
+
+def main() -> None:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    ap = argparse.ArgumentParser(description="Summarize a run's output.json as Markdown.")
+    ap.add_argument("output", type=Path, help="the run's output.json")
+    ap.add_argument("--log", type=Path, default=None, help="the run's console log, to count retries")
+    args = ap.parse_args()
+    output = json.loads(args.output.read_text(encoding="utf-8"))
+    bugs_path = args.output.with_name("bugs.json")
+    bugs = json.loads(bugs_path.read_text(encoding="utf-8")) if bugs_path.exists() else None
+    log_text = args.log.read_text(encoding="utf-8", errors="replace") if args.log and args.log.exists() else None
+    print(summarize(output, log_text, bugs), end="")
+
+
+if __name__ == "__main__":
+    main()

@@ -103,6 +103,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | [`session_freshness.feature`](session_freshness.feature) | A stale saved session is refused before a run |
 | [`new_tab_start.feature`](new_tab_start.feature) | A web_gui test can start as a new tab of the logged-in browser |
 | [`learn_between_runs.feature`](learn_between_runs.feature) | A run starts from the screens earlier runs discovered, and learns for the next one |
+| [`pipeline_in_ci.feature`](pipeline_in_ci.feature) | The whole pipeline runs in GitHub Actions and reports as an artifact |
 
 ## Web testing: mapping a site
 

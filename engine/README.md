@@ -89,6 +89,7 @@ engine/
   report.py     # generic HTML rendering (prose, badges, CSS, page/checkpoint structure)
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output
   verify.py     # replays each bug's tests before it's reported, and lowers one that doesn't reproduce
+  run_summary.py # a run's outcome as Markdown, for a CI job's summary page
   cli.py        # python -m engine.cli --adapter <name>
   config.py     # RunConfig: model, checkpoint and test budgets, output folder
   http.py, redact.py, util.py  # small shared helpers
@@ -193,6 +194,10 @@ Runs on every push to `master`, every PR into `master`, and on demand, via
 `.github/workflows/engine-tests.yml` - no Anthropic API key needed, since no
 test makes a real LLM call. The same workflow compile-checks `engine/` and
 runs the `clash-royale-kit` and `.experiments/web-recon` tests.
+
+`.github/workflows/exploratory-run.yml` runs the whole pipeline on a throwaway Juice
+Shop with real model calls, by hand or on a PR labelled `run-exploration` (#255). See
+the root README.
 
 Most tests (`test_sut_regression.py`, `test_client_retry.py`, the
 `*_parity.py` files) run in-process against the mock SUT via FastAPI's

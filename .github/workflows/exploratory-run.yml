@@ -1,0 +1,166 @@
+name: exploratory run
+
+# The whole pipeline on a throwaway Juice Shop, end to end (#255): log in with no
+# person, map the site with Spoor from that session, convert the map, run the engine,
+# and keep what it learned for the next run. The report, output and bug reports are
+# uploaded as an artifact, with a short summary on the run's page.
+#
+# It calls a model, about $0.60 a run, so it never runs on a push. Start it by hand
+# (Actions > exploratory run > Run workflow), or put the label "run-exploration" on a
+# pull request. It needs the repository secret ANTHROPIC_API_KEY. Pull requests from
+# forks don't get secrets, so a label on one of those stops at the key check.
+"on":
+  workflow_dispatch:
+    inputs:
+      max_checkpoints:
+        description: "Checkpoints (each is three model calls)"
+        default: "3"
+      first_round_budget:
+        description: "Tests in the first round"
+        default: "10"
+      default_budget:
+        description: "Tests in each later round"
+        default: "6"
+      model:
+        description: "Model (the same as the Bedrock runs, so results compare)"
+        default: "claude-sonnet-5"
+      spoor_seconds:
+        description: "How long Spoor may map, in seconds"
+        default: "300"
+  pull_request:
+    types: [labeled]
+
+# One run at a time: they share the context artifact, and two at once would each learn
+# from the same starting point and overwrite each other's lessons.
+concurrency:
+  group: exploratory-run
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read     # to fetch the previous run's context artifact
+
+jobs:
+  explore:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-exploration'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PYTHONUNBUFFERED: "1"
+      PYTHONIOENCODING: utf-8
+      URL: http://127.0.0.1:3000
+      PRODUCT: juice-shop
+      MAX_CHECKPOINTS: ${{ inputs.max_checkpoints || '3' }}
+      FIRST_ROUND_BUDGET: ${{ inputs.first_round_budget || '10' }}
+      DEFAULT_BUDGET: ${{ inputs.default_budget || '6' }}
+      MODEL: ${{ inputs.model || 'claude-sonnet-5' }}
+      SPOOR_SECONDS: ${{ inputs.spoor_seconds || '300' }}
+    services:
+      juice-shop:
+        image: bkimminich/juice-shop:v17.1.1   # the same pin as test-targets/docker-compose.yml
+        ports:
+          - "3000:3000"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the model key is set
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::The repository secret ANTHROPIC_API_KEY isn't set (or this is a pull request from a fork, which gets no secrets)."
+            exit 1
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install the engine, web-recon and the pinned Spoor
+        run: |
+          pip install -r engine/requirements.txt
+          pip install -r .experiments/web-recon/requirements.txt
+          pip install -r engine/requirements-spoor.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Wait for Juice Shop
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf "$URL" >/dev/null && exit 0
+            sleep 2
+          done
+          echo "::error::Juice Shop didn't answer at $URL within 2 minutes."
+          exit 1
+
+      - name: Fetch what earlier runs learned
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          previous=$(gh run list --workflow exploratory-run.yml --status success --limit 1 --json databaseId -q '.[0].databaseId' || true)
+          if [ -n "$previous" ] && gh run download "$previous" --name "context-$PRODUCT" --dir engine/ontology; then
+            echo "Starting from the context of run $previous."
+          else
+            echo "No earlier context; this run starts fresh."
+          fi
+
+      - name: Log in with no person
+        run: |
+          python -m engine.adapters.web_gui.login_recipe --recipe test-targets/login-recipes/$PRODUCT.json \
+            --url "$URL" --product "$PRODUCT" --name logged-in
+
+      - name: Map the site with Spoor from that session
+        run: |
+          mkdir -p runs/spoor
+          cd runs/spoor
+          spoor explore "$URL" --session "$GITHUB_WORKSPACE/.sessions/$PRODUCT/logged-in.json" \
+            --max-depth 2 --max-seconds "$SPOOR_SECONDS"
+
+      - name: Convert the map for the engine
+        run: |
+          mkdir -p runs/ci
+          python -m engine.adapters.web_gui.from_spoor --map runs/spoor/.spoor-cache/maps/127.0.0.1_3000.json \
+            --url "$URL" --session ".sessions/$PRODUCT/logged-in.json" --out runs/ci/map.json
+
+      - name: Run the engine and learn from it
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          WEB_GUI_ONTOLOGY: runs/ci/map.json
+          WEB_GUI_URL: http://127.0.0.1:3000
+          WEB_GUI_SESSION: .sessions/juice-shop/logged-in.json
+          WEB_GUI_SESSION_CHECK: /profile
+          WEB_GUI_PRODUCT: juice-shop
+        run: |
+          set -o pipefail
+          python -m engine.cli --adapter web_gui --out-dir runs/ci --model "$MODEL" \
+            --max-checkpoints "$MAX_CHECKPOINTS" --first-round-budget "$FIRST_ROUND_BUDGET" \
+            --default-budget "$DEFAULT_BUDGET" --learn "$PRODUCT" 2>&1 | tee runs/ci/run.log
+
+      - name: Write the summary
+        if: always()
+        run: |
+          if [ -f runs/ci/output.json ]; then
+            python -m engine.run_summary runs/ci/output.json --log runs/ci/run.log >> "$GITHUB_STEP_SUMMARY"
+            echo "The full report is report.html in the run's artifact." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The run wrote no output.json; see the job log." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # The session file and Spoor's cache hold live credentials and raw captures, so
+      # only runs/ci and the context file are uploaded, never .sessions or .spoor-cache.
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exploratory-run
+          path: runs/ci/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Keep what this run learned for the next one
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: context-${{ env.PRODUCT }}
+          path: engine/ontology/context_${{ env.PRODUCT }}.json
+          if-no-files-found: ignore
+          retention-days: 90

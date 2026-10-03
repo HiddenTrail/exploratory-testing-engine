@@ -1,0 +1,19 @@
+{
+  "about": "Log in to the local Juice Shop test target with no person (issue #255): register a throwaway account through its API, then log in through the form. Run with python -m engine.adapters.web_gui.login_recipe. Only for the local sandbox: the registration creates data.",
+  "credentials": {
+    "email": "generated:email",
+    "password": "generated:password"
+  },
+  "steps": [
+    {"request": {"method": "POST", "path": "/api/Users/", "json": {
+      "email": "{email}", "password": "{password}", "passwordRepeat": "{password}",
+      "securityQuestion": {"id": 1}, "securityAnswer": "qes"}}},
+    {"goto": "/#/login"},
+    {"click_if_present": {"role": "button", "name": "Close Welcome Banner"}},
+    {"click_if_present": {"role": "button", "name": "dismiss cookie message"}},
+    {"fill": "#email", "value": "{email}"},
+    {"fill": "#password", "value": "{password}"},
+    {"click": "#loginButton"}
+  ],
+  "until": "storage:bid"
+}
