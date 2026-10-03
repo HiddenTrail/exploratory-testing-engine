@@ -176,6 +176,8 @@ def test_the_next_checkpoint_is_shown_the_earlier_observations_with_their_ids(mo
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", fake_hypothesis)
     monkeypatch.setattr(loop, "get_skeptic_review", fake_skeptic)
     monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": [], "obstacles": []})
+    monkeypatch.setattr(loop, "get_debrief_answers", lambda *a, **k: {"answers": []})
+    monkeypatch.setattr(loop, "get_reconsideration", lambda client, run_config, review, *a, **k: {"judgements": [], "revised_checks": [], "verdict": review["verdict"], "verdict_reason": review["verdict_reason"]})
     loop.run_checkpoint_loop(
         client=None, adapter=_ADAPTER, run_config=RunConfig(max_checkpoints=3),
         happy_day_example=_HAPPY_DAY, test_counter=itertools.count(1),
@@ -263,6 +265,8 @@ def test_the_loop_asks_for_the_story_and_merges_it_into_the_hypothesis(monkeypat
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", lambda *a, **k: {
         "summary": "s", "behaviors": [], "observations": [], "untested": [], "prior_gaps": []})
     monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": _HYPOTHESIS["areas"], "obstacles": []})
+    monkeypatch.setattr(loop, "get_debrief_answers", lambda *a, **k: {"answers": []})
+    monkeypatch.setattr(loop, "get_reconsideration", lambda client, run_config, review, *a, **k: {"judgements": [], "revised_checks": [], "verdict": review["verdict"], "verdict_reason": review["verdict_reason"]})
 
     def skeptic(client, run_config, hypothesis, *a, **k):
         seen["areas"] = hypothesis.get("areas")

@@ -42,6 +42,20 @@ def _objected(cp: dict, root: dict[str, str]) -> set[str]:
     return {root.get(i, i) for i in ids}
 
 
+def _debrief_counts(thread: list[dict]) -> dict:
+    """How a checkpoint's debrief went (#266): the Driver's stances, and whether the
+    Skeptic was convinced."""
+    stances = [((d.get("answer") or {}).get("stance") or "unanswered") for d in thread]
+    convinced = [((d.get("judgement") or {}).get("convinced") or "unjudged") for d in thread]
+    return {
+        "questions": len(thread),
+        "defended": stances.count("defend"), "conceded": stances.count("concede"),
+        "changed_approach": stances.count("change_approach"),
+        "convinced": convinced.count("yes"), "partly": convinced.count("partly"),
+        "open_after": sum(1 for d in thread if d.get("outcome") in ("open", "new_approach")),
+    }
+
+
 def measure(checkpoints: list[dict]) -> dict:
     """Per checkpoint and for the whole run. Empty when the run has no checkpoints. A
     checkpoint missing its hypothesis or review (a run cut short) counts as empty."""
@@ -73,11 +87,15 @@ def measure(checkpoints: list[dict]) -> dict:
             "answers_judged": len(checks),
             "objections": len(objected),
             "objections_again": len(objected & previous_objected),
+            "debrief": _debrief_counts(cp.get("debrief") or []),
         })
         previous_blocking = {g.get("id") for g in gaps if g.get("blocks_verdict")}
         previous_objected = objected
 
     satisfied_at = next((r["checkpoint"] for r in rows if r["verdict"] == SATISFIED), None)
+    debrief = {key: sum(r["debrief"][key] for r in rows) for key in rows[0]["debrief"]}
+    last_thread = (checkpoints[-1].get("debrief") or [])
+    still_open = [d["gap_id"] for d in last_thread if d.get("outcome") in ("open", "new_approach")]
     stubborn = sorted(((n, claim) for claim, n in longest.items() if n > 1), reverse=True)
     return {
         "checkpoints": rows,
@@ -95,6 +113,9 @@ def measure(checkpoints: list[dict]) -> dict:
             # Claims objected to in more than one checkpoint in a row, longest first:
             # [claim's first id, checkpoints in a row].
             "stubborn_objections": [[claim, n] for n, claim in stubborn],
+            "debrief": debrief,
+            # Questions left open after the last checkpoint's debrief: the run's loose ends.
+            "still_open": still_open,
         },
     }
 
@@ -113,6 +134,13 @@ def summary_lines(interplay: dict) -> list[str]:
     ]
     if run["blocking_not_attempted"]:
         lines.append(f"{run['blocking_not_attempted']} blocking gap(s) weren't even attempted.")
+    d = run.get("debrief") or {}
+    if d.get("questions"):
+        lines.append(f"In the debriefs the Driver defended {d['defended']}, conceded {d['conceded']} and changed "
+                     f"approach on {d['changed_approach']} of {d['questions']} question(s); the Skeptic was convinced "
+                     f"by {d['convinced']} and partly by {d['partly']}.")
+    if run.get("still_open"):
+        lines.append(f"Still open at the end: {', '.join(run['still_open'])}.")
     if run["stubborn_objections"]:
         worst = ", ".join(f"{claim} ({n} checkpoints in a row)" for claim, n in run["stubborn_objections"])
         lines.append(f"Objections that kept coming back: {worst}.")

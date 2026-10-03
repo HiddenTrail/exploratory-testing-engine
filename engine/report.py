@@ -177,6 +177,33 @@ def _observation_line(observation, check) -> str:
     )
 
 
+_OUTCOME_TONES = {"settled": "good", "conceded": "warn", "new_approach": "neutral", "open": "bad"}
+_CONVINCED_TONES = {"yes": "good", "partly": "warn", "no": "bad"}
+
+
+def _debrief_html(thread) -> str:
+    """The checkpoint's debrief (#266): each question, the Driver's answer with the tests
+    it cited, the Skeptic's judgement and the outcome. Folded: the detail behind the
+    checkpoint's verdict."""
+    if not thread:
+        return ""
+    items = []
+    for d in thread:
+        answer, judgement = d.get("answer") or {}, d.get("judgement") or {}
+        blocked = f" {badge('blocked the verdict', 'bad')}" if d.get("blocked") else ""
+        answer_html = (f'<div><strong>Driver</strong> {badge(answer["stance"].replace("_", " "), "neutral")} '
+                       f'{inline_markdown(answer.get("argument", ""))} {_tests_label(answer.get("tests", []))}'
+                       + (f' <span class="prose-muted">(what those tests recorded was attached)</span>'
+                          if d.get("evidence") else "") + "</div>") if answer else '<div class="prose-muted">No answer.</div>'
+        judged_html = (f'<div><strong>Skeptic</strong> {badge("convinced: " + judgement["convinced"], _CONVINCED_TONES.get(judgement["convinced"], "neutral"))} '
+                       f'{inline_markdown(judgement.get("why", ""))}</div>') if judgement else ""
+        items.append(f"""<li><span class="idtag">{esc(d['gap_id'])}</span> {badge(d.get('kind', '').replace('_', ' '), 'neutral')}{blocked}
+          {inline_markdown(d.get('question', ''))}
+          {answer_html}{judged_html}
+          <div>{badge(d['outcome'].replace('_', ' '), _OUTCOME_TONES.get(d['outcome'], 'neutral'))}</div></li>""")
+    return f'<details class="fold"><summary>Debrief ({len(thread)} question(s))</summary><ul class="line-list">{"".join(items)}</ul></details>'
+
+
 def _gap_line(gap) -> str:
     blocks = f" {badge('blocks verdict', 'bad')}" if gap["blocks_verdict"] else ""
     return (
@@ -236,6 +263,15 @@ def _coverage_table(test_coverage) -> str:
         rows.append(f"<tr><td><code>{esc(f['field'])}</code></td><td>{tried}</td><td>{never}</td></tr>")
     return (f'<p class="prose-muted">What {test_coverage["tests_run"]} test(s) have sent so far, from the log:</p>'
             '<table><tr><th>Field</th><th>Values tried</th><th>Never tried</th></tr>' + "".join(rows) + "</table>")
+
+
+def _verdict_change(skeptic) -> str:
+    """The first review's verdict, when the debrief changed it (#266)."""
+    first = skeptic.get("first_verdict")
+    if not first or first == skeptic["verdict"]:
+        return ""
+    return (f' <span class="prose-muted">(before the debrief: {esc(first.replace("_", " "))}, '
+            f'{inline_markdown(skeptic.get("first_verdict_reason", ""))})</span>')
 
 
 def _render_checkpoint(checkpoint_num, checkpoint_entry, rounds, render_test_entry) -> str:
@@ -298,9 +334,10 @@ def _render_checkpoint(checkpoint_num, checkpoint_entry, rounds, render_test_ent
     <div class="checkpoint">
       <h3>Checkpoint {checkpoint_num} {verdict_badge(skeptic['verdict'])}</h3>
       <p class="summary">{inline_markdown(hypothesis['summary'])}</p>
-      <p class="skeptic-line"><strong>Skeptic:</strong> {inline_markdown(skeptic['verdict_reason'])}</p>
+      <p class="skeptic-line"><strong>Skeptic:</strong> {inline_markdown(skeptic['verdict_reason'])}{_verdict_change(skeptic)}</p>
       {observations_html}
       {gaps_html}
+      {_debrief_html(checkpoint_entry.get("debrief"))}
       {_prior_gaps_line(hypothesis['prior_gaps'], skeptic['prior_gaps_check'])}
       <details class="fold">
         <summary>Details: evidence, coverage and prior gaps</summary>
@@ -490,6 +527,17 @@ def _areas_table(areas) -> str:
             f'<tbody>{rows}</tbody></table></div>')
 
 
+def _still_open(thread) -> str:
+    """The questions left open after the last debrief (#266): the run's honest loose ends."""
+    left = [d for d in (thread or []) if d.get("outcome") in ("open", "new_approach")]
+    if not left:
+        return ""
+    items = "".join(f"<li><span class=\"idtag\">{esc(d['gap_id'])}</span> {inline_markdown(d.get('question', ''))}"
+                    f" {badge(d['outcome'].replace('_', ' '), _OUTCOME_TONES.get(d['outcome'], 'neutral'))}</li>"
+                    for d in left)
+    return f"<p><strong>Questions still open</strong></p><ul>{items}</ul>"
+
+
 def _obstacles_list(obstacles) -> str:
     """The third strand of the testing story (#271): what made the testing harder."""
     if not obstacles:
@@ -515,6 +563,7 @@ def _render_standing_section(checkpoints) -> str:
         counts. The Skeptic's review of it is in the last checkpoint below.</p>
       {_areas_table(last['areas'])}
       {_obstacles_list(last.get('obstacles'))}
+      {_still_open(checkpoints[-1].get('debrief'))}
     </section>
     """
 

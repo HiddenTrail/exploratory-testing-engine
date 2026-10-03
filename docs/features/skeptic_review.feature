@@ -68,6 +68,11 @@ Feature: A cold Skeptic reviews each checkpoint hypothesis
     Then the Skeptic gets the hypothesis "areas" and "obstacles", and the previous checkpoint's areas
     And it checks them against the cited tests and test_coverage, the way a test lead debriefs a tester
 
+  Scenario: A weak review is followed by a debrief
+    # See checkpoint_debrief.feature (#266): the Driver answers each gap, and the Skeptic
+    # reconsiders against what the cited tests recorded before the checkpoint's verdict stands.
+    Then the review's gaps are the questions of the checkpoint's debrief
+
   Scenario: Every gap names its kind of objection
     # Counted across runs and shown to the next run's Driver: see skeptic_memory.feature (#258).
     Then each gap has a "kind" from the fixed list in engine/tools.py OBJECTION_KINDS

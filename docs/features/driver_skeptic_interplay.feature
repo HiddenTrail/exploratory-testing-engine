@@ -37,6 +37,13 @@ Feature: Every run measures how well the Driver answered the Skeptic
     And checkpoint 2 answered both "not_attempted"
     Then checkpoint 2 has 1 blocking gap not attempted
 
+  Scenario: The debrief is counted too
+    # See checkpoint_debrief.feature (#266). The gaps and checks counted above are the
+    # ones after the debrief.
+    Then each checkpoint has "debrief": questions, defended, conceded, changed_approach, convinced, partly and open_after
+    And the run totals them, and lists under "still_open" the questions the last debrief left open
+    And the summary says how the Driver answered and how often the Skeptic was convinced
+
   Scenario: The run says when the Skeptic was satisfied
     Then "satisfied_at" is the first checkpoint whose verdict was "strong_enough"
     And it is empty when the Skeptic never was

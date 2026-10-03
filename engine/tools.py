@@ -962,6 +962,257 @@ def reconcile_kinds(hypothesis: dict, skeptic_review: dict) -> None:
             observation["lowered_because"] = "the Skeptic judged it more cautiously"
 
 
+
+# --- The checkpoint debrief (issue #266) ----------------------------------
+# After the Skeptic's first review, the Driver answers each of its questions (its gaps)
+# with argument and evidence, or concedes a point, or changes approach; the engine
+# attaches what the cited tests recorded; and the Skeptic reconsiders. One exchange per
+# checkpoint, and only when there are questions. The Skeptic stays the critic: it judges
+# answers against the attached evidence, not against how they're worded.
+
+STANCES = ("defend", "concede", "change_approach")
+CONVINCED = ("yes", "partly", "no")
+MAX_CITED_TESTS = 8
+DEBRIEF_WORD_LIMITS = {"answer.argument": 45, "judgement.why": 30, "verdict_reason": 30, "check.note": 30}
+WORD_LIMITS.update({k: v for k, v in DEBRIEF_WORD_LIMITS.items() if k not in WORD_LIMITS})
+
+DEBRIEF_ANSWER_TOOL = {
+    "name": "submit_debrief_answers",
+    "description": "Answer each of the Skeptic's questions about your testing.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "answers": {
+                "type": "array",
+                "description": "One answer per question in 'skeptic_questions', by its id.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "gap_id": {"type": "string", "description": "The question's id, for example 'C2.G1'."},
+                        "stance": {
+                            "type": "string",
+                            "enum": list(STANCES),
+                            "description": (
+                                "defend: your tests show you're right, and you cite them. concede: you accept "
+                                "the point, and say exactly what you withdraw or lower. change_approach: more of "
+                                "the same won't settle it, and you say what you'll test differently next round."
+                            ),
+                        },
+                        "argument": {
+                            "type": "string",
+                            "description": f"Your answer, in your own words. {_limit('answer.argument')}",
+                        },
+                        "tests": {
+                            "type": "array", "items": {"type": "integer"},
+                            "description": (f"The tests that show it, at most {MAX_CITED_TESTS}. The engine attaches "
+                                            "what they recorded. Empty when you concede or change approach."),
+                        },
+                    },
+                    "required": ["gap_id", "stance", "argument", "tests"],
+                },
+            },
+        },
+        "required": ["answers"],
+    },
+}
+
+DEBRIEF_ANSWER_SYSTEM_PROMPT = """The Skeptic has reviewed your hypothesis and testing story, and has
+questions about your testing (in 'skeptic_questions'). Answer each one, once, by its id, the way a tester
+answers a test lead in a debrief.
+- defend: when your tests show you're right. Argue it, and cite the tests that show it. The engine attaches
+  what those tests actually recorded, so cite the ones whose results make your case, not the ones you
+  remember as related.
+- concede: when the point is fair. Say exactly what you withdraw or lower.
+- change_approach: when more tests of the same kind won't settle it. Say what you'll test differently
+  next round (another technique, another starting state, a contrast case) and why that would give new
+  evidence.
+Don't concede to please the Skeptic: if your tests support you, defend. Don't defend what your tests don't
+show. Keep every argument short: it has a word limit."""
+
+RECONSIDER_TOOL = {
+    "name": "submit_reconsideration",
+    "description": "Judge the Driver's answers to your questions, and give this checkpoint's verdict.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "judgements": {
+                "type": "array",
+                "description": "One per question you asked, by its id.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "gap_id": {"type": "string"},
+                        "convinced": {"type": "string", "enum": list(CONVINCED),
+                                      "description": "Did the answer, and the evidence attached to it, convince you?"},
+                        "why": {"type": "string", "description": _limit("judgement.why")},
+                    },
+                    "required": ["gap_id", "convinced", "why"],
+                },
+            },
+            "revised_checks": {
+                "type": "array",
+                "description": ("Only for observations whose check the answers changed: the revised check. "
+                                "Empty if none changed."),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "observation_id": {"type": "string"},
+                        "discriminates_from_rival": {"type": "boolean"},
+                        "note": {"type": "string", "description": _limit("check.note")},
+                    },
+                    "required": ["observation_id", "discriminates_from_rival", "note"],
+                },
+            },
+            "verdict": {"type": "string", "enum": ["weak", "strong_enough"],
+                        "description": "This checkpoint's verdict, after the debrief."},
+            "verdict_reason": {"type": "string", "description": _limit("verdict_reason")},
+        },
+        "required": ["judgements", "revised_checks", "verdict", "verdict_reason"],
+    },
+}
+
+RECONSIDER_SYSTEM_PROMPT = """You asked the Driver questions about its testing, and it has answered (in
+'answers'). Under each answer is 'evidence': what the tests it cites actually recorded, attached by the
+engine, not the Driver's account of them. Judge each answer against that evidence, not against how it's
+worded.
+- convinced "yes": the evidence shows what the answer claims, and it would have come out differently had
+  your concern been right. "partly": some of it holds. "no": it doesn't show it, or the evidence would look
+  the same either way.
+- A concession settles nothing about the product: the observation it concerns stays unproven. Judge only
+  whether the concession is honest and specific.
+- A change of approach is judged next round, by its results. Here, say whether the new approach could
+  give evidence the old one couldn't.
+If an answer changes your view of an observation's evidence, give its revised check. Then give the
+checkpoint's verdict: "strong_enough" only if no objection remains: every question that blocked your
+verdict convinced you ("yes"), and no observation check says its evidence doesn't tell it from its
+rival. Being argued at is not being convinced. Keep every field short."""
+
+
+def validate_debrief_answers(data, *, gap_ids=()) -> list[str]:
+    if not isinstance(data, dict) or not isinstance(data.get("answers"), list):
+        return ["'answers' must be a list, one answer per question"]
+    errors, answered = [], []
+    for i, a in enumerate(data["answers"]):
+        if not isinstance(a, dict):
+            errors.append(f"answers[{i}] must be an object")
+            continue
+        where = f"answers[{i}]"
+        if a.get("gap_id") not in gap_ids:
+            errors.append(f"{where}.gap_id is '{a.get('gap_id')}', which isn't one of the questions ({', '.join(gap_ids)})")
+        answered.append(a.get("gap_id"))
+        if a.get("stance") not in STANCES:
+            errors.append(f"{where}.stance must be one of {', '.join(STANCES)}")
+        _check_text(errors, f"{where}.argument", a.get("argument"), "answer.argument")
+        if not _is_test_list(a.get("tests")):
+            errors.append(f"{where}.tests must be a list of test numbers")
+        elif a.get("stance") == "defend" and not a["tests"]:
+            errors.append(f"{where} defends, so it must cite the tests that show it")
+        elif len(a["tests"]) > MAX_CITED_TESTS:
+            errors.append(f"{where}.tests cites {len(a['tests'])} tests, limit {MAX_CITED_TESTS}")
+    errors.extend(_once_each("answers", "question", answered, list(gap_ids)))
+    return errors
+
+
+def validate_reconsideration(data, *, gap_ids=(), blocking_ids=(), observation_ids=(), failing_checks=(),
+                             defended_ids=None) -> list[str]:
+    """failing_checks: observation ids whose first-review check said the evidence doesn't
+    tell them from their rival. defended_ids: the questions the Driver defended (None:
+    all). A "strong_enough" verdict needs every blocking question defended and judged
+    "yes", and every such check revised to true: a promised approach proves nothing yet."""
+    if not isinstance(data, dict):
+        return [f"expected an object, got {type(data).__name__}"]
+    errors = [f"missing required field '{k}'" for k in RECONSIDER_TOOL["input_schema"]["required"] if k not in data]
+    if errors:
+        return errors
+    judged, convinced = [], {}
+    for i, j in enumerate(data["judgements"] if isinstance(data["judgements"], list) else []):
+        if not isinstance(j, dict):
+            errors.append(f"judgements[{i}] must be an object")
+            continue
+        if j.get("gap_id") not in gap_ids:
+            errors.append(f"judgements[{i}].gap_id is '{j.get('gap_id')}', which isn't one of your questions")
+        judged.append(j.get("gap_id"))
+        convinced[j.get("gap_id")] = j.get("convinced")
+        if j.get("convinced") not in CONVINCED:
+            errors.append(f"judgements[{i}].convinced must be one of {', '.join(CONVINCED)}")
+        _check_text(errors, f"judgements[{i}].why", j.get("why"), "judgement.why")
+    errors.extend(_once_each("judgements", "question", judged, list(gap_ids)))
+    revised = {}
+    for i, c in enumerate(data["revised_checks"] if isinstance(data["revised_checks"], list) else []):
+        if not isinstance(c, dict) or c.get("observation_id") not in observation_ids:
+            errors.append(f"revised_checks[{i}] must name an observation in the hypothesis")
+            continue
+        if not isinstance(c.get("discriminates_from_rival"), bool):
+            errors.append(f"revised_checks[{i}].discriminates_from_rival must be a boolean")
+        revised[c["observation_id"]] = c.get("discriminates_from_rival")
+        _check_text(errors, f"revised_checks[{i}].note", c.get("note"), "check.note")
+    if data["verdict"] not in ("weak", "strong_enough"):
+        errors.append("'verdict' must be weak or strong_enough")
+    elif data["verdict"] == "strong_enough":
+        still_blocking = [g for g in blocking_ids
+                          if convinced.get(g) != "yes" or (defended_ids is not None and g not in defended_ids)]
+        still_failing = [o for o in failing_checks if revised.get(o) is not True]
+        if still_blocking or still_failing:
+            errors.append("'strong_enough' needs no objection left: "
+                          + ", ".join([f"{g} didn't convince you" for g in still_blocking]
+                                      + [f"{o}'s check still says it doesn't discriminate" for o in still_failing]))
+    _check_text(errors, "verdict_reason", data.get("verdict_reason"), "verdict_reason")
+    return errors
+
+
+def merge_debrief(review: dict, questions: list[dict], answers: dict, reconsideration: dict, evidence: dict) -> list[dict]:
+    """Apply the debrief to the checkpoint's review, in place, and return the debrief
+    thread: one record per question. A question the Skeptic was convinced on stops
+    blocking. A conceded one needs no further answer, but its observation stays
+    unproven. The rest stay open, for the next checkpoint. The first review's verdict is
+    kept as 'first_verdict'."""
+    by_answer = {a["gap_id"]: a for a in (answers or {}).get("answers", [])}
+    by_judgement = {j["gap_id"]: j for j in (reconsideration or {}).get("judgements", [])}
+    thread = []
+    for gap in questions:
+        answer, judgement = by_answer.get(gap["id"]), by_judgement.get(gap["id"])
+        convinced = (judgement or {}).get("convinced")
+        stance = (answer or {}).get("stance")
+        # Only a defence that convinced the Skeptic settles a question. "yes" to a change of
+        # approach means the approach could work, not that anything was shown: in #266's
+        # benchmark, mapping any "yes" to settled cleared blocking questions on a promise.
+        if stance == "concede":
+            outcome = "conceded"
+        elif stance == "change_approach":
+            outcome = "new_approach"
+        elif stance == "defend" and convinced == "yes":
+            outcome = "settled"
+        else:
+            outcome = "open"
+        gap["outcome"] = outcome
+        if outcome == "settled" and gap.get("blocks_verdict"):
+            gap["blocked_before_debrief"] = True
+            gap["blocks_verdict"] = False
+        thread.append({
+            "gap_id": gap["id"], "kind": gap.get("kind", ""), "question": gap.get("gap", ""),
+            "about": gap.get("about", []), "blocked": bool(gap.get("blocked_before_debrief") or gap.get("blocks_verdict")),
+            "answer": answer, "evidence": {str(n): evidence.get(n) for n in (answer or {}).get("tests", [])
+                                          if n in evidence},
+            "judgement": judgement, "outcome": outcome,
+        })
+    revised = {c["observation_id"]: c for c in (reconsideration or {}).get("revised_checks", [])}
+    for check in review.get("observation_checks", []):
+        if check["observation_id"] in revised:
+            new = revised[check["observation_id"]]
+            check["first_discriminates_from_rival"] = check["discriminates_from_rival"]
+            check["discriminates_from_rival"] = new["discriminates_from_rival"]
+            check["note"] = new["note"]
+    if reconsideration:
+        review["first_verdict"], review["first_verdict_reason"] = review["verdict"], review["verdict_reason"]
+        review["verdict"], review["verdict_reason"] = reconsideration["verdict"], reconsideration["verdict_reason"]
+    return thread
+
+
+def open_part(review: dict) -> dict:
+    """The review as the next checkpoint must answer it: without the questions the
+    debrief settled or the Driver conceded."""
+    return {**review, "gaps": [g for g in review["gaps"] if g.get("outcome") not in ("settled", "conceded")]}
+
 BUG_REPORT_WORD_LIMITS = {
     "bug.title": 15,
     "bug.description": 60,

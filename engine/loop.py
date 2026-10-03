@@ -27,6 +27,14 @@ from engine.tools import (
     SKEPTIC_TOOL,
     TESTING_STORY_SYSTEM_PROMPT,
     TESTING_STORY_TOOL,
+    DEBRIEF_ANSWER_SYSTEM_PROMPT,
+    DEBRIEF_ANSWER_TOOL,
+    RECONSIDER_SYSTEM_PROMPT,
+    RECONSIDER_TOOL,
+    merge_debrief,
+    open_part,
+    validate_debrief_answers,
+    validate_reconsideration,
     lower_unsupported_bugs,
     reconcile_kinds,
     stamp_gap_ids,
@@ -218,10 +226,81 @@ def get_testing_story(
         cached_segments=cached_segments,
         user_message=json.dumps(fresh_evidence, indent=2),
         validate_fn=validate_testing_story,
-        max_tokens=2048,
+        # 2,048 cut a five-area story off once in #266's benchmark.
+        max_tokens=3072,
         max_attempts=run_config.max_attempts,
         cache_static_content=True,
         usage_sink=usage_sink,
+    )
+
+
+def get_debrief_answers(
+    client: Anthropic,
+    adapter: SUTAdapter,
+    run_config: RunConfig,
+    happy_day_example: dict,
+    history_segments: list[str],
+    hypothesis: dict,
+    questions: list[dict],
+    usage_sink: list[dict] | None = None,
+) -> dict:
+    """The Driver answers the Skeptic's questions (#266), with its whole test history in
+    view through the same cached evidence as the hypothesis."""
+    cached_segments = _cacheable_evidence_segments(
+        adapter, happy_day_example, "ALL TESTS THIS SESSION", history_segments,
+        skeptic_history=run_config.skeptic_history,
+    )
+    fresh = {"your_hypothesis": {k: hypothesis[k] for k in ("summary", "observations", "areas") if k in hypothesis},
+             "skeptic_questions": [{k: g[k] for k in ("id", "kind", "gap", "next_test", "blocks_verdict", "about") if k in g}
+                                   for g in questions]}
+    gap_ids = tuple(g["id"] for g in questions)
+    return call_tool_with_retry(
+        client, model=run_config.model, system=DEBRIEF_ANSWER_SYSTEM_PROMPT, tools=[DEBRIEF_ANSWER_TOOL],
+        tool_name="submit_debrief_answers", cached_segments=cached_segments, user_message=json.dumps(fresh, indent=2),
+        validate_fn=lambda data: validate_debrief_answers(data, gap_ids=gap_ids),
+        max_tokens=2048, max_attempts=run_config.max_attempts, cache_static_content=True, usage_sink=usage_sink,
+    )
+
+
+def cited_evidence(adapter: SUTAdapter, casting_log: list[dict], answers: dict) -> dict:
+    """What the tests the Driver cites actually recorded, as the Driver itself saw them
+    (the adapter's redacted view), keyed by test number. The Skeptic judges answers
+    against this, not against the Driver's description of it."""
+    cited = {n for a in answers.get("answers", []) for n in a.get("tests", [])}
+    entries = [e for e in casting_log if e.get("test_number") in cited]
+    return {e["test_number"]: e for e in _redact(adapter, entries)}
+
+
+def get_reconsideration(
+    client: Anthropic, run_config: RunConfig, review: dict, questions: list[dict], answers: dict,
+    evidence: dict, hypothesis: dict, usage_sink: list[dict] | None = None,
+) -> dict:
+    """The Skeptic judges the Driver's answers against the evidence the engine attached
+    (#266). It sees its own review, the answers with their evidence, and nothing of the
+    Driver's reasoning beyond the answers."""
+    by_id = {a["gap_id"]: a for a in answers.get("answers", [])}
+    payload = {
+        "your_review": {k: review[k] for k in ("verdict", "verdict_reason", "observation_checks") if k in review},
+        "answers": [{"question": {k: g[k] for k in ("id", "kind", "gap", "blocks_verdict", "about") if k in g},
+                     "answer": by_id.get(g["id"]),
+                     "evidence": {str(n): evidence.get(n) for n in (by_id.get(g["id"]) or {}).get("tests", [])}}
+                    for g in questions],
+        "observations": [{k: o[k] for k in ("id", "kind", "claim", "rival") if k in o}
+                         for o in hypothesis.get("observations", [])],
+    }
+    gap_ids = tuple(g["id"] for g in questions)
+    blocking = tuple(g["id"] for g in questions if g.get("blocks_verdict"))
+    observation_ids = tuple(o["id"] for o in hypothesis.get("observations", []))
+    failing = tuple(c["observation_id"] for c in review.get("observation_checks", [])
+                    if c.get("discriminates_from_rival") is False)
+    defended = tuple(a["gap_id"] for a in answers.get("answers", []) if a.get("stance") == "defend")
+    return call_tool_with_retry(
+        client, model=run_config.model, system=RECONSIDER_SYSTEM_PROMPT, tools=[RECONSIDER_TOOL],
+        tool_name="submit_reconsideration", user_message=json.dumps(payload, indent=2),
+        validate_fn=lambda data: validate_reconsideration(data, gap_ids=gap_ids, blocking_ids=blocking,
+                                                          observation_ids=observation_ids, failing_checks=failing,
+                                                          defended_ids=defended),
+        max_tokens=2048, max_attempts=run_config.max_attempts, cache_static_content=True, usage_sink=usage_sink,
     )
 
 
@@ -374,7 +453,8 @@ def run_checkpoint_loop(
         if new_entries:
             history_segments.append(_render_history_fragment(checkpoint_num, new_entries))
 
-        prior_skeptic_review = prior_feedback["skeptic_review"] if prior_feedback else None
+        # Without the questions the debrief settled or the Driver conceded (#266).
+        prior_skeptic_review = open_part(prior_feedback["skeptic_review"]) if prior_feedback else None
 
         # Run diagnostics over the whole log so far, not just this checkpoint's
         # entries: a collapsed action space and a broken reset both take more than
@@ -419,6 +499,21 @@ def run_checkpoint_loop(
         stamp_gap_ids(checkpoint_num, skeptic_review)
         reconcile_kinds(hypothesis, skeptic_review)
         print(f"  skeptic verdict: {skeptic_review['verdict']} - {skeptic_review['verdict_reason']}")
+
+        # The debrief (#266): the Driver answers the Skeptic's questions with argument and
+        # evidence, and the Skeptic reconsiders, before the next round of tests.
+        debrief = []
+        questions = skeptic_review["gaps"]
+        if skeptic_review["verdict"] == "weak" and questions:
+            print(f"  debrief: the Driver answers {len(questions)} question(s)...")
+            answers = get_debrief_answers(client, adapter, run_config, happy_day_example, history_segments,
+                                          hypothesis, questions, usage_sink=usage_sink)
+            evidence = cited_evidence(adapter, casting_log, answers)
+            reconsideration = get_reconsideration(client, run_config, skeptic_review, questions, answers, evidence,
+                                                  hypothesis, usage_sink=usage_sink)
+            debrief = merge_debrief(skeptic_review, questions, answers, reconsideration, evidence)
+            print("  debrief: " + ", ".join(f"{d['gap_id']} {d['outcome']}" for d in debrief)
+                  + f"; verdict now {skeptic_review['verdict']}")
         for o in hypothesis["observations"]:
             if "driver_kind" in o:
                 print(f"  {o['id']} lowered from {o['driver_kind']} to {o['kind']}: {o['lowered_because']}")
@@ -429,6 +524,7 @@ def run_checkpoint_loop(
             "skeptic_review": skeptic_review,
             "test_coverage": test_coverage,
             "diagnostics": diagnostics.as_dicts(findings),
+            "debrief": debrief,
         })
 
         if on_checkpoint is not None:

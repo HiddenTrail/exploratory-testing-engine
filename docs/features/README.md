@@ -108,6 +108,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | [`driver_skeptic_interplay.feature`](driver_skeptic_interplay.feature) | Every run measures how well the Driver answered the Skeptic |
 | [`skeptic_memory.feature`](skeptic_memory.feature) | The Driver is told what the Skeptic objected to most in earlier runs |
 | [`testing_story.feature`](testing_story.feature) | The Driver tells its testing story, and the Skeptic debriefs it |
+| [`checkpoint_debrief.feature`](checkpoint_debrief.feature) | Each checkpoint ends with a debrief the Driver has to win with evidence |
 
 ## Web testing: mapping a site
 
