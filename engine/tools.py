@@ -15,17 +15,18 @@ token-purchase-poc's most-evolved version.
 
 OBSERVATION_KINDS = ("finding", "anomaly", "bug")
 REPRODUCED = ("consistent", "inconsistent", "once")
-# What kind of objection a Skeptic gap is (issue #258). A fixed list, so they can be
-# counted across runs and the next run's Driver told which ones keep coming up.
+# The kind of question a Skeptic gap asks about the testing (issue #258). The Skeptic
+# stays the critic: it questions what the Driver claims and how it tested, and never
+# suggests where to look. A fixed list, so the kinds can be counted across runs and
+# the next run's Driver told which ones keep coming up.
 OBJECTION_KINDS = {
+    "overclaimed": "the claim is stronger than the tests behind it",
+    "coverage_overstated": "something is called covered or confirmed that the tests don't show",
+    "method_in_doubt": "a test may not have done what was meant: it didn't reach its state, the input "
+                       "wasn't accepted, tests weren't independent, or the result came from the test tool",
     "rival_not_tested": "no test tells the claim from its rival explanation",
     "not_reproduced": "it was seen once, or not repeated the same way",
-    "no_contrast": "no test shows it not happening where it shouldn't",
-    "no_fact_cited": "it names no known fact it contradicts",
-    "input_not_reached": "the input may not have reached or been accepted by the system, "
-                         "or the test didn't start where it meant to",
-    "test_tool_artifact": "it may come from how the test was run, not from the system",
-    "untested_area": "an area, input or value no test has covered",
+    "not_worth_continuing": "this line gives no new evidence; more of the same won't change anything",
     "other": "none of these",
 }
 SEVERITIES = ("low", "medium", "high")
@@ -519,7 +520,9 @@ SKEPTIC_TOOL = {
                 "description": (
                     f"Up to {MAX_GAPS} gaps or weak assumptions, each with the test that would close it. These "
                     "feed the next checkpoint's planning. Only mark blocks_verdict for a gap that is a material "
-                    "reason for 'weak'."
+                    "reason for 'weak'. A gap is a question about the testing (see 'kind'), not a list of what "
+                    "nobody has tried yet: an untested area is a gap only if the Driver called it covered or it "
+                    "bears on one of its claims."
                 ),
                 "items": {
                     "type": "object",

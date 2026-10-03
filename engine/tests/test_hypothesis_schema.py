@@ -162,7 +162,7 @@ def test_the_next_checkpoint_is_shown_the_earlier_observations_with_their_ids(mo
         return _hypothesis(observations=[dict(_OBSERVATION)])
 
     def fake_skeptic(*a, **kw):
-        return {"verdict": "weak", "verdict_reason": "r", "observation_checks": [], "coverage": {"material": True, "untouched": [], "note": "c"}, "gaps": [{"gap": "g", "next_test": "t", "blocks_verdict": False, "kind": "untested_area", "about": []}], "prior_gaps_check": []}
+        return {"verdict": "weak", "verdict_reason": "r", "observation_checks": [], "coverage": {"material": True, "untouched": [], "note": "c"}, "gaps": [{"gap": "g", "next_test": "t", "blocks_verdict": False, "kind": "other", "about": []}], "prior_gaps_check": []}
 
     monkeypatch.setattr(loop, "get_casting_round", fake_casting)
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", fake_hypothesis)

@@ -140,7 +140,7 @@ def test_learn_counts_the_skeptics_objections_by_kind_and_tells_the_next_driver(
     def review(*gaps):
         return {"skeptic_review": {"gaps": [{"gap": text, "blocks_verdict": b, "kind": k} for k, b, text in gaps]}}
     output = {"casting_log": [], "checkpoints": [
-        review(("rival_not_tested", True, "Next page vs a cosmetic no-op"), ("untested_area", False, "Search untested")),
+        review(("rival_not_tested", True, "Next page vs a cosmetic no-op"), ("coverage_overstated", False, "Search called covered, one test")),
         review(("rival_not_tested", True, "Still no test that tells them apart"), ("other", True, "Odd")),
         {"hypothesis": {}},                                   # a checkpoint cut short
         review(("made_up_kind", True, "ignored")),            # not a known kind: left out
@@ -149,11 +149,11 @@ def test_learn_counts_the_skeptics_objections_by_kind_and_tells_the_next_driver(
     run.parent.mkdir()
     run.write_text(json.dumps(output), encoding="utf-8")
     lines = feedback.learn("token_purchase", run)
-    assert "The Skeptic's objections this run: rival_not_tested 2, untested_area 1, other 1" in lines
+    assert "The Skeptic's objections this run: rival_not_tested 2, coverage_overstated 1, other 1" in lines
     context = json.loads((tmp_path / "context_token_purchase.json").read_text(encoding="utf-8"))
     assert context["skeptic_objections"]["rival_not_tested"] == {
         "times": 2, "blocking": 2, "runs": ["run1"], "example": "Still no test that tells them apart"}
     history = feedback.driver_history(context)
-    assert [h["kind"] for h in history["most_common"]] == ["rival_not_tested", "untested_area"]   # "other" says nothing
+    assert [h["kind"] for h in history["most_common"]] == ["rival_not_tested", "coverage_overstated"]   # "other" says nothing
     assert history["most_common"][0]["means"].startswith("no test tells the claim from its rival")
     assert feedback.driver_history({}) is None

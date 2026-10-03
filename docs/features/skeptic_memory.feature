@@ -1,7 +1,8 @@
 # The Driver learns, between runs, what the Skeptic keeps objecting to (issue #258).
 #
 # The Driver answered objections one checkpoint late and never learned which ones keep
-# coming. So the Skeptic now tags each gap with a kind from a fixed list, the feedback
+# coming. The Skeptic stays the critic: its gaps are questions about the testing, not a
+# list of what nobody has tried. It tags each gap with a kind from a fixed list, the feedback
 # step counts the kinds per system in the context layer, and the next run's Driver is
 # told the most common ones before it casts a test. It's learned between runs, never
 # within one, and the Skeptic doesn't see it, so its review stays cold. No extra model
@@ -18,20 +19,20 @@ Feature: The Driver is told what the Skeptic objected to most in earlier runs
   So that the Driver designs tests against the objections it usually gets
 
   Scenario Outline: Every gap the Skeptic raises has a kind
+    # An untested area is a gap only if the Driver called it covered or it bears on a claim.
     When the Skeptic reviews a checkpoint
     Then each gap has "kind" set to one of the objection kinds
     And a gap with any other kind makes the review invalid, so it's retried
 
     Examples:
-      | kind               | means                                                                                                     |
-      | rival_not_tested   | no test tells the claim from its rival explanation                                                        |
-      | not_reproduced     | it was seen once, or not repeated the same way                                                            |
-      | no_contrast        | no test shows it not happening where it shouldn't                                                         |
-      | no_fact_cited      | it names no known fact it contradicts                                                                     |
-      | input_not_reached  | the input may not have reached or been accepted by the system, or the test didn't start where it meant to |
-      | test_tool_artifact | it may come from how the test was run, not from the system                                                |
-      | untested_area      | an area, input or value no test has covered                                                               |
-      | other              | none of these                                                                                             |
+      | kind                 | means                                                                                                                                                           |
+      | overclaimed          | the claim is stronger than the tests behind it                                                                                                                  |
+      | coverage_overstated  | something is called covered or confirmed that the tests don't show                                                                                              |
+      | method_in_doubt      | a test may not have done what was meant: it didn't reach its state, the input wasn't accepted, tests weren't independent, or the result came from the test tool |
+      | rival_not_tested     | no test tells the claim from its rival explanation                                                                                                              |
+      | not_reproduced       | it was seen once, or not repeated the same way                                                                                                                  |
+      | not_worth_continuing | this line gives no new evidence; more of the same won't change anything                                                                                         |
+      | other                | none of these                                                                                                                                                   |
 
   Scenario: Feedback counts the objections by kind
     When feedback learns from a run
