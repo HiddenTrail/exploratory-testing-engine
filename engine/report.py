@@ -18,6 +18,7 @@ import json
 import re
 from pathlib import Path
 
+from engine import interplay
 from engine.adapter import SUTAdapter
 
 
@@ -370,6 +371,43 @@ def _render_one_bug_report(bug_report) -> str:
 _DIAGNOSTIC_TONES = {"stop": "bad", "warn": "warn", "info": "neutral"}
 
 
+def _answered_cell(answered: dict) -> str:
+    if not any(answered.values()):
+        return "none"
+    return ", ".join(f"{n} {status.replace('_', ' ')}" for status, n in answered.items() if n)
+
+
+def _render_interplay_section(checkpoints) -> str:
+    """How well the Driver answered the Skeptic (engine/interplay.py, #257), computed from
+    the checkpoints, so it also renders for runs made before it was recorded."""
+    measured = interplay.measure(checkpoints or [])
+    if not measured:
+        return ""
+    rows = "".join(
+        f"""<tr><td>{r['checkpoint']}</td><td>{esc(r['verdict'].replace('_', ' '))}</td>
+        <td>{r['gaps']} ({r['blocking_gaps']} blocking)</td>
+        <td>{_answered_cell(r['answered'])}</td>
+        <td>{r['blocking_not_attempted']}</td><td>{r['answers_accepted']} of {r['answers_judged']}</td>
+        <td>{r['objections']} ({r['objections_again']} again)</td></tr>"""
+        for r in measured["checkpoints"])
+    lines = "".join(f"<li>{esc(line)}</li>" for line in interplay.summary_lines(measured))
+    return f"""
+    <section id="interplay">
+      <p class="eyebrow">The Driver and the Skeptic</p>
+      <h2>How the Driver answered the Skeptic</h2>
+      <ul class="prose">{lines}</ul>
+      <div class="table-scroll"><table class="data-table">
+        <thead><tr><th>Checkpoint</th><th>Verdict</th><th>Gaps raised</th><th>Earlier gaps answered</th>
+          <th>Blocking, not attempted</th><th>Answers accepted</th><th>Objections</th></tr></thead>
+        <tbody>{rows}</tbody>
+      </table></div>
+      <p class="prose-muted">An objection is a blocking gap about an observation, or a check saying its
+        evidence doesn't tell it from its rival. "Again" means the same claim, followed through
+        'continues', was objected to in the checkpoint before. Counted by code, with no model.</p>
+    </section>
+    """
+
+
 def _render_diagnostics_section(checkpoints) -> str:
     """The run's own findings about itself - see engine/diagnostics.py.
 
@@ -475,6 +513,13 @@ CSS = """
 }
 
 * { box-sizing: border-box; }
+
+/* The Driver and Skeptic table (#257): wide, so it scrolls on its own on a phone. */
+.table-scroll { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.data-table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+.data-table th, .data-table td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.data-table th { color: var(--ink-soft); font-weight: 600; }
+.data-table tr:last-child td { border-bottom: 0; }
 
 body {
   font-family: var(--font-body);
@@ -674,6 +719,7 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
     if casting_log or checkpoints:
         nav_items.append(("#casting", "Checkpoints"))
     if checkpoints:
+        nav_items.append(("#interplay", "Driver and Skeptic"))
         nav_items.append(("#diagnostics", "Diagnostics"))
     if observations:
         nav_items.append(("#conclusion", "Conclusion"))
@@ -719,6 +765,8 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
     <h2>Checkpoints</h2>
     {casting_html}
   </section>
+
+  {_render_interplay_section(checkpoints)}
 
   {_render_diagnostics_section(checkpoints)}
 

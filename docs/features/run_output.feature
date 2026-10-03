@@ -23,6 +23,7 @@ Feature: A run writes a JSON result, a bug list when there are bugs, and an HTML
     And it has "observations", the final checkpoint's observations, each with the status the engine gave it
     And it has "anomaly_found", "usage_log" and "usage_summary"
     And it has "replays" and "replay_log", the bug replays (see bug_replay.feature)
+    And it has "interplay", how well the Driver answered the Skeptic (see driver_skeptic_interplay.feature)
 
   Scenario Outline: stopped_reason says why the run ended
     When the run ends because <cause>

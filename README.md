@@ -154,6 +154,7 @@ engine/
   diagnostics.py # domain-free detectors over those envelopes - facts about the RUN rather than the SUT:
                 #   a state whose actions are all inert, a batch that didn't start from one place, a
                 #   baseline reset that stopped working, a prior that matched nothing
+  interplay.py  # how well the Driver answered the Skeptic: gaps, answers, objections that came back
   coverage.py   # what the tests have sent so far, per input field, worked out from the casting schema
                 #   and given to the Skeptic so it doesn't guess coverage from the Driver's prose
   report.py     # generic HTML rendering (prose, badges, CSS, page/checkpoint structure)

@@ -37,12 +37,13 @@ Feature: The HTML report puts the conclusion first and folds the details
     Then the top bar has a "<link>" link to "<anchor>"
 
     Examples:
-      | content                 | link        | anchor       |
-      | anything                | Schema      | #schema      |
-      | tests or checkpoints    | Checkpoints | #casting     |
-      | at least one checkpoint | Diagnostics | #diagnostics |
-      | final observations      | Conclusion  | #conclusion  |
-      | at least one bug report | Bug report  | #bug-report  |
+      | content                 | link               | anchor       |
+      | anything                | Schema             | #schema      |
+      | tests or checkpoints    | Checkpoints        | #casting     |
+      | at least one checkpoint | Driver and Skeptic | #interplay   |
+      | at least one checkpoint | Diagnostics        | #diagnostics |
+      | final observations      | Conclusion         | #conclusion  |
+      | at least one bug report | Bug report         | #bug-report  |
 
   Scenario: Each checkpoint shows its conclusion and folds the rest
     Given a checkpoint with a hypothesis, a Skeptic review and 4 tests
