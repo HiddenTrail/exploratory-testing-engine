@@ -214,6 +214,11 @@ checkpoints and 6/4 tests, so don't compare against them.
   scratch folder (with a copy of any committed context file) and use `--learn`, so
   the benchmark doesn't change `engine/ontology/context_*.json`.
 - Say what you measured and what it cost, in the PR or the issue.
+- **Every time you run something, say where its files are**, so the user can
+  check them by hand: the run folder and the files in it (`output.json`,
+  `report.html`, `bugs.json`, the console log), with full paths. That goes for
+  benchmarks, live checks and CI runs (for those, the run's page and the
+  `gh run download <id>` command). Say it in your reply, not only in the PR.
 - The `exploratory run` workflow (`.github/workflows/exploratory-run.yml`) is a real
   run too, about $0.60 each. Start it, or label a PR `run-exploration`, only when
   that's the point of the change. Never weaken its safety layers (triggers, input
