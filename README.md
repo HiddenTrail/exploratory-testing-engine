@@ -159,6 +159,8 @@ engine/
   report.py     # generic HTML rendering (prose, badges, CSS, page/checkpoint structure)
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output
   verify.py     # replays each bug's tests before it's reported, and lowers one that doesn't reproduce
+  run_summary.py # a run's outcome as Markdown, for a CI job's summary page
+  budget.py     # the hard spending limit: stops a run at ENGINE_MAX_MODEL_CALLS calls or about ENGINE_MAX_COST_USD
   cli.py        # python -m engine.cli --adapter <name>
   adapters/
     registry.py           # name -> adapter module, resolved lazily at run time
@@ -291,6 +293,75 @@ be put under the name. What that buys is having the assertions that matter -
 that the kit’s own preflight/watch-only sampling never grabs with verification,
 that the safety layers are checked before any frame is scored, and that
 `--allow-battle` is never constructed - checked on every PR rather than only on the one machine with the game installed.
+
+**The whole pipeline in GitHub Actions** (#255):
+[`.github/workflows/exploratory-run.yml`](.github/workflows/exploratory-run.yml)
+starts Juice Shop on the runner, logs in from
+`test-targets/login-recipes/juice-shop.json` with no person, maps the site with the
+pinned Spoor from that session, converts the map, runs the engine with `--learn`, and
+uploads `report.html`, `output.json` and `bugs.json` as the `exploratory-run`
+artifact, with a summary on the run's page. Each run starts from the context file the
+last successful run left (`context-juice-shop` artifact). It calls a model (about
+$0.60 a run), so it never runs on a push: start it from the Actions tab, or label a
+PR `run-exploration`. It reaches the model through Bedrock with no stored key (see
+"Setting up AWS for the pipeline" below). It can't misfire or loop: only a person
+starts it, a label is used up by the run it starts, inputs have hard ranges, there
+are at most 5 runs a day, every step has a time limit, the AWS credentials last one
+hour, and the engine stops itself at $1.50 or 40 model calls.
+
+Every run, anywhere, has a spending limit (`engine/budget.py`): it stops before the
+next model call once it has made `ENGINE_MAX_MODEL_CALLS` calls (default 80) or spent
+about `ENGINE_MAX_COST_USD` (default $3.00). A run it stops keeps its output, and the
+run command exits with code 2.
+
+#### Setting up AWS for the pipeline
+
+The workflow reaches the model through Amazon Bedrock, with no key stored anywhere:
+GitHub proves to AWS which repository the job is from (OIDC), and AWS hands it
+credentials for one role, for one hour. Someone with IAM rights does this once:
+
+1. **Trust GitHub.** In IAM, add an OpenID Connect identity provider with the URL
+   `https://token.actions.githubusercontent.com` and the audience `sts.amazonaws.com`.
+2. **Make a role only this repository can take.** Its trust policy:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Effect": "Allow",
+       "Principal": {"Federated": "arn:aws:iam::<account id>:oidc-provider/token.actions.githubusercontent.com"},
+       "Action": "sts:AssumeRoleWithWebIdentity",
+       "Condition": {
+         "StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com"},
+         "StringLike": {"token.actions.githubusercontent.com:sub": "repo:HiddenTrail/exploratory-testing-engine:*"}
+       }
+     }]
+   }
+   ```
+
+   Keep its maximum session at one hour, the job's own limit.
+3. **Let it call Bedrock models and nothing else.** The engine uses Bedrock's
+   Messages endpoint (`bedrock-mantle.<region>.api.aws`), and the SDK signs those
+   requests for the service `bedrock-mantle`, so the permission is most likely:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{"Effect": "Allow", "Action": "bedrock-mantle:*", "Resource": "*"}]
+   }
+   ```
+
+   That action name comes from reading the SDK, not from AWS's documentation, so
+   check it. The workflow's "Check Bedrock answers" step makes one one-token call
+   before anything else runs, and if AWS refuses, its error names the action it
+   wanted. The model must also be enabled for the account in that region.
+4. **Tell the workflow.** Set two repository variables (they aren't secrets):
+   `gh variable set AWS_ROLE_ARN --body arn:aws:iam::<account id>:role/<role name>` and
+   `gh variable set AWS_REGION --body eu-west-1`.
+5. **Recommended: a budget alarm in AWS.** An AWS Budgets cost budget on Amazon
+   Bedrock with an email alert. It works even if the workflow and the engine both
+   go wrong, and it shows the real bill, where the engine's limit is only an
+   estimate.
 
 The game harness carries its own suites, which CI does **not** run - they are
 Windows-only (Win32 window handles, GDI capture) while CI is Linux:

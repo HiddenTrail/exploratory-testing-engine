@@ -41,11 +41,16 @@ def main() -> None:
         out_dir=args.out_dir,
     )
     output = run(adapter, run_config)
+    # A run that broke, or that the spending limit stopped, teaches nothing, and exits
+    # non-zero so a script or a CI job sees it.
+    stopped_badly = output.get("stopped_reason") in ("error", "budget_exceeded")
     # Never re-ranked mid-run; the next run rebuilds its oracle from what this one learned.
-    if args.learn is not None and output.get("stopped_reason") != "error":
+    if args.learn is not None and not stopped_badly:
         from engine.ontology.feedback import learn
         for line in learn(adapter.name, run_config.out_dir / "output.json", args.learn or None):
             print(line)
+    if stopped_badly:
+        sys.exit(2)
 
 
 if __name__ == "__main__":

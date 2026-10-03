@@ -224,9 +224,12 @@ def test_learn_feeds_the_run_into_the_context_after_it_ends(monkeypatch, tmp_pat
     cli.main()
     assert calls == [("token_purchase", tmp_path / "output.json", None)]
     calls.clear()
-    monkeypatch.setattr(cli, "run", lambda adapter, config: {"stopped_reason": "error"})
-    cli.main()
-    assert calls == []                                  # a run that broke teaches nothing
+    for reason in ("error", "budget_exceeded"):          # a run that broke or hit the limit teaches nothing
+        monkeypatch.setattr(cli, "run", lambda adapter, config, r=reason: {"stopped_reason": r})
+        with pytest.raises(SystemExit) as stopped:
+            cli.main()
+        assert stopped.value.code == 2 and calls == []
+    monkeypatch.setattr(cli, "run", lambda adapter, config: {"stopped_reason": "checkpoints_exhausted"})
     monkeypatch.setattr(sys, "argv", ["cli", "--adapter", "token_purchase", "--out-dir", str(tmp_path)])
     cli.main()
     assert calls == []                                  # without --learn, nothing is written

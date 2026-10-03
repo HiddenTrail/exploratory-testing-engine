@@ -1,0 +1,268 @@
+name: exploratory run
+
+# The whole pipeline on a throwaway Juice Shop, end to end (#255): log in with no
+# person, map the site with Spoor from that session, convert the map, run the engine,
+# and keep what it learned for the next run. The report, output and bug reports are
+# uploaded as an artifact, with a short summary on the run's page.
+#
+# It calls a model, about $0.60 a run, so it never runs on a push. Start it by hand
+# (Actions > exploratory run > Run workflow), or put the label "run-exploration" on a
+# pull request. The model is reached through Amazon Bedrock with no stored key: GitHub
+# proves to AWS which repository the job is from (OIDC) and gets short-lived
+# credentials for one role. It needs the repository variables AWS_ROLE_ARN and
+# AWS_REGION; the root README's "Setting up AWS for the pipeline" says how to make the
+# role. The job doesn't start for a pull request from a fork.
+#
+# Safety, so it can't misfire, loop or run up a bill (layers, each on its own):
+# - It starts only from a person: a manual run, or adding the label to a pull request
+#   from this repository. Pushes, other labels, edits and new commits don't start it.
+#   The label is removed as the run starts, so one label is one run.
+# - Nothing it does can start another run: it doesn't push, comment, label or dispatch,
+#   and GitHub never starts workflows from what its own token does anyway.
+# - The inputs have hard ranges, checked before anything is installed.
+# - At most 5 runs in 24 hours; a sixth stops before spending anything.
+# - One run at a time, and every step has its own time limit inside the job's 60 minutes.
+# - The engine stops itself at $1.50 or 40 model calls (engine/budget.py), whatever the
+#   checkpoints and budgets say. These limits are set here, not as inputs.
+# - The AWS credentials last one hour, and the role can only call Bedrock models.
+"on":
+  workflow_dispatch:
+    inputs:
+      max_checkpoints:
+        description: "Checkpoints (each is three model calls)"
+        default: "3"
+      first_round_budget:
+        description: "Tests in the first round"
+        default: "10"
+      default_budget:
+        description: "Tests in each later round"
+        default: "6"
+      model:
+        description: "Bedrock model id"
+        default: "anthropic.claude-sonnet-5"
+      spoor_seconds:
+        description: "How long Spoor may map, in seconds"
+        default: "300"
+  pull_request:
+    types: [labeled]
+
+# One run at a time: they share the context artifact, and two at once would each learn
+# from the same starting point and overwrite each other's lessons.
+concurrency:
+  group: exploratory-run
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read          # to fetch the previous run's context artifact and count today's runs
+  pull-requests: write   # only to remove the run-exploration label once the run starts
+  id-token: write        # to prove to AWS which repository this is, for the Bedrock role
+
+jobs:
+  explore:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.label.name == 'run-exploration' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PYTHONUNBUFFERED: "1"
+      PYTHONIOENCODING: utf-8
+      URL: http://127.0.0.1:3000
+      PRODUCT: juice-shop
+      MAX_CHECKPOINTS: ${{ inputs.max_checkpoints || '3' }}
+      FIRST_ROUND_BUDGET: ${{ inputs.first_round_budget || '10' }}
+      DEFAULT_BUDGET: ${{ inputs.default_budget || '6' }}
+      MODEL: ${{ inputs.model || 'anthropic.claude-sonnet-5' }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-1' }}
+      SPOOR_SECONDS: ${{ inputs.spoor_seconds || '300' }}
+    services:
+      juice-shop:
+        image: bkimminich/juice-shop:v17.1.1   # the same pin as test-targets/docker-compose.yml
+        ports:
+          - "3000:3000"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use up the label, so one label is one run
+        if: github.event_name == 'pull_request'
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr edit ${{ github.event.pull_request.number }} --remove-label run-exploration
+
+      - name: Check the inputs are within their limits
+        timeout-minutes: 1
+        run: |
+          check() {  # name value min max
+            if ! [[ "$2" =~ ^[0-9]+$ ]] || [ "$2" -lt "$3" ] || [ "$2" -gt "$4" ]; then
+              echo "::error::$1 is '$2'; it must be a whole number from $3 to $4."
+              exit 1
+            fi
+          }
+          check "max_checkpoints" "$MAX_CHECKPOINTS" 1 4
+          check "first_round_budget" "$FIRST_ROUND_BUDGET" 1 15
+          check "default_budget" "$DEFAULT_BUDGET" 1 10
+          check "spoor_seconds" "$SPOOR_SECONDS" 30 600
+          if ! [[ "$MODEL" =~ ^anthropic\.claude-[a-z0-9.-]+$ ]]; then
+            echo "::error::model is '$MODEL'; it must be a Bedrock Claude model id like anthropic.claude-sonnet-5."
+            exit 1
+          fi
+
+      - name: Stop if there have been 5 runs in the last 24 hours
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          since=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+          # By the workflow's file path, which works before it's on master (listing by
+          # workflow name doesn't). Any label on any PR makes a run record, mostly skipped
+          # ones; only real runs count. If this can't count, the step fails: fail closed.
+          runs=$(gh api "repos/${{ github.repository }}/actions/runs?created=>=$since&per_page=100"             -q '[.workflow_runs[] | select(.path == ".github/workflows/exploratory-run.yml" and .conclusion != "skipped")] | length')
+          echo "$runs run(s) of this workflow in the last 24 hours, this one included."
+          if [ "$runs" -gt 5 ]; then
+            echo "::error::$runs runs in 24 hours; the limit is 5. Something may be starting it by mistake. Try again tomorrow, or raise the limit in the workflow on purpose."
+            exit 1
+          fi
+
+      - name: Check the AWS role is set
+        timeout-minutes: 1
+        env:
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+        run: |
+          if [ -z "$AWS_ROLE_ARN" ]; then
+            echo "::error::The repository variable AWS_ROLE_ARN isn't set. See \"Setting up AWS for the pipeline\" in the root README."
+            exit 1
+          fi
+
+      # Credentials for one hour, the job's own limit, so they can't outlive the run.
+      - name: Get short-lived AWS credentials for Bedrock
+        timeout-minutes: 2
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: exploratory-run-${{ github.run_id }}
+          role-duration-seconds: 3600
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install the engine, web-recon and the pinned Spoor
+        timeout-minutes: 15
+        run: |
+          pip install -r engine/requirements.txt
+          pip install -r .experiments/web-recon/requirements.txt
+          pip install -r engine/requirements-spoor.txt
+          python -m playwright install --with-deps chromium
+
+      # One one-token call, before Spoor and the rest take 20 minutes: wrong permissions
+      # or a wrong model id show up here, with AWS naming what was refused.
+      - name: Check Bedrock answers
+        timeout-minutes: 2
+        env:
+          ENGINE_USE_BEDROCK: "1"
+        run: |
+          python - <<'PY'
+          import os
+          from engine.client import build_client
+          reply = build_client().messages.create(model=os.environ["MODEL"], max_tokens=1,
+                                                 messages=[{"role": "user", "content": "hi"}])
+          print(f"Bedrock answered with {os.environ['MODEL']}.")
+          PY
+
+      - name: Wait for Juice Shop
+        timeout-minutes: 3
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf "$URL" >/dev/null && exit 0
+            sleep 2
+          done
+          echo "::error::Juice Shop didn't answer at $URL within 2 minutes."
+          exit 1
+
+      - name: Fetch what earlier runs learned
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          previous=$(gh api "repos/${{ github.repository }}/actions/runs?status=success&per_page=100"             -q '[.workflow_runs[] | select(.path == ".github/workflows/exploratory-run.yml")][0].id // empty' || true)
+          if [ -n "$previous" ] && gh run download "$previous" --name "context-$PRODUCT" --dir engine/ontology; then
+            echo "Starting from the context of run $previous."
+          else
+            echo "No earlier context; this run starts fresh."
+          fi
+
+      - name: Log in with no person
+        timeout-minutes: 3
+        run: |
+          python -m engine.adapters.web_gui.login_recipe --recipe test-targets/login-recipes/$PRODUCT.json \
+            --url "$URL" --product "$PRODUCT" --name logged-in
+
+      - name: Map the site with Spoor from that session
+        timeout-minutes: 13
+        run: |
+          mkdir -p runs/spoor
+          cd runs/spoor
+          # Spoor's own cap, then a hard kill two minutes after it in case Spoor hangs.
+          timeout --kill-after=30 "$((SPOOR_SECONDS + 120))" spoor explore "$URL" --session "$GITHUB_WORKSPACE/.sessions/$PRODUCT/logged-in.json" \
+            --max-depth 2 --max-seconds "$SPOOR_SECONDS"
+
+      - name: Convert the map for the engine
+        timeout-minutes: 15
+        run: |
+          mkdir -p runs/ci
+          python -m engine.adapters.web_gui.from_spoor --map runs/spoor/.spoor-cache/maps/127.0.0.1_3000.json \
+            --url "$URL" --session ".sessions/$PRODUCT/logged-in.json" --out runs/ci/map.json
+
+      - name: Run the engine and learn from it
+        timeout-minutes: 30
+        env:
+          ENGINE_USE_BEDROCK: "1"
+          WEB_GUI_ONTOLOGY: runs/ci/map.json
+          WEB_GUI_URL: http://127.0.0.1:3000
+          WEB_GUI_SESSION: .sessions/juice-shop/logged-in.json
+          WEB_GUI_SESSION_CHECK: /profile
+          WEB_GUI_PRODUCT: juice-shop
+          ENGINE_MAX_COST_USD: "1.50"
+          ENGINE_MAX_MODEL_CALLS: "40"
+        run: |
+          set -o pipefail
+          python -m engine.cli --adapter web_gui --out-dir runs/ci --model "$MODEL" \
+            --max-checkpoints "$MAX_CHECKPOINTS" --first-round-budget "$FIRST_ROUND_BUDGET" \
+            --default-budget "$DEFAULT_BUDGET" --learn "$PRODUCT" 2>&1 | tee runs/ci/run.log
+
+      - name: Write the summary
+        if: always()
+        timeout-minutes: 2
+        run: |
+          if [ -f runs/ci/output.json ]; then
+            python -m engine.run_summary runs/ci/output.json --log runs/ci/run.log >> "$GITHUB_STEP_SUMMARY"
+            echo "The full report is report.html in the run's artifact." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The run wrote no output.json; see the job log." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # The session file and Spoor's cache hold live credentials and raw captures, so
+      # only runs/ci and the context file are uploaded, never .sessions or .spoor-cache.
+      - name: Upload the report
+        if: always()
+        timeout-minutes: 5
+        uses: actions/upload-artifact@v4
+        with:
+          name: exploratory-run
+          path: runs/ci/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Keep what this run learned for the next one
+        if: success()
+        timeout-minutes: 5
+        uses: actions/upload-artifact@v4
+        with:
+          name: context-${{ env.PRODUCT }}
+          path: engine/ontology/context_${{ env.PRODUCT }}.json
+          if-no-files-found: ignore
+          retention-days: 90

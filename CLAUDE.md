@@ -210,6 +210,13 @@ checkpoints and 6/4 tests, so don't compare against them.
   before starting the rest. A run should cost well under $1.
 - Only compare runs made with the same settings and the same model.
 - Say what you measured and what it cost, in the PR or the issue.
+- The `exploratory run` workflow (`.github/workflows/exploratory-run.yml`) is a real
+  run too, about $0.60 each. Start it, or label a PR `run-exploration`, only when
+  that's the point of the change. Never weaken its safety layers (triggers, input
+  ranges, the daily cap, time limits, the spending limit) to make a run go through.
+- Every run stops at `ENGINE_MAX_COST_USD` (default $3) or `ENGINE_MAX_MODEL_CALLS`
+  (default 80). Raise them in the environment for a reason you can name; they can't
+  be switched off.
 
 ## Scraping and mapping websites: use Spoor
 
