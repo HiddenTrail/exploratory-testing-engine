@@ -560,10 +560,10 @@ def render_onboarding_section(api_schema, onboarding_extra, happy_day_example) -
     map_html = ""
     if extra.get("carried_map"):
         map_html = f"""
-    <div class="exhibit">
-      <h3>Carried map (the action space)</h3>
+    <details class="fold exhibit">
+      <summary>Carried map (the action space)</summary>
       <pre class="schema-doc">{esc(extra['carried_map'])}</pre>
-    </div>
+    </details>
     """
     baseline_html = ""
     if extra.get("baseline"):
@@ -574,11 +574,13 @@ def render_onboarding_section(api_schema, onboarding_extra, happy_day_example) -
       <pre class="schema-doc">{esc(extra['baseline'])}</pre>
     </div>
     """
+    # The schema doc and the map are folded, like the oracle list: background the Driver
+    # was given, each hundreds of lines, which pushed the checkpoints far down (#251).
     return f"""
-    <div class="exhibit">
-      <h3>What the Driver was told</h3>
+    <details class="fold exhibit">
+      <summary>What the Driver was told</summary>
       <pre class="schema-doc">{esc(api_schema)}</pre>
-    </div>
+    </details>
     {map_html}
     {baseline_html}
     {render_oracle_ranked(extra.get('oracle_ranked'))}
