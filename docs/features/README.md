@@ -106,6 +106,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | [`pipeline_in_ci.feature`](pipeline_in_ci.feature) | The whole pipeline runs in GitHub Actions and reports as an artifact |
 | [`spending_limit.feature`](spending_limit.feature) | A run stops itself at a spending limit |
 | [`driver_skeptic_interplay.feature`](driver_skeptic_interplay.feature) | Every run measures how well the Driver answered the Skeptic |
+| [`skeptic_memory.feature`](skeptic_memory.feature) | The Driver is told what the Skeptic objected to most in earlier runs |
 
 ## Web testing: mapping a site
 

@@ -50,7 +50,7 @@ def _capture_segments(monkeypatch, *, max_checkpoints):
 
     def fake_skeptic(client, run_config, hypothesis, prior_skeptic_review=None, usage_sink=None, test_coverage=None):
         return {
-            "verdict": "weak", "verdict_reason": "r", "observation_checks": [], "coverage": {"material": True, "untouched": [], "note": "c"}, "gaps": [{"gap": "g", "next_test": "t", "blocks_verdict": False, "about": []}], "prior_gaps_check": [],
+            "verdict": "weak", "verdict_reason": "r", "observation_checks": [], "coverage": {"material": True, "untouched": [], "note": "c"}, "gaps": [{"gap": "g", "next_test": "t", "blocks_verdict": False, "kind": "other", "about": []}], "prior_gaps_check": [],
         }
 
     monkeypatch.setattr(loop, "get_casting_round", fake_casting)
@@ -116,3 +116,14 @@ def test_a_rendered_fragment_is_stable_for_the_same_entries():
     reordered = [{"a": 1, "response": {"y": 1, "z": 0}, "b": 2}]
 
     assert loop._render_history_fragment(2, entries) == loop._render_history_fragment(2, reordered)
+
+
+def test_the_skeptics_history_reaches_the_drivers_evidence_only_when_there_is_one():
+    # Issue #258: earlier runs' objections are static for the whole run, so they sit in
+    # the cached head of the evidence, before the growing test history.
+    import json
+    history = {"note": "n", "most_common": [{"kind": "rival_not_tested"}]}
+    head = loop._cacheable_evidence_segments(_ADAPTER, _HAPPY_DAY, "T", ["cp1"], skeptic_history=history)[0]
+    assert json.loads(head.split("\n\n=== T ===")[0])["skeptic_history"] == history
+    plain = loop._cacheable_evidence_segments(_ADAPTER, _HAPPY_DAY, "T", ["cp1"])[0]
+    assert "skeptic_history" not in plain

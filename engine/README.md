@@ -131,9 +131,11 @@ python -m engine.cli --adapter token_purchase
 Writes `runs/<adapter>/output.json`, `runs/<adapter>/bugs.json` (if any
 bugs were found), and `runs/<adapter>/report.html`. Override run
 parameters with `--model`, `--max-checkpoints`, `--first-round-budget`,
-`--default-budget`, `--out-dir`. `--learn [product]` feeds the run's results and
-discovered screens into the context layer when it ends, so the next run starts
-from them (#159).
+`--default-budget`, `--out-dir`. `--learn [product]` feeds the run's results,
+discovered screens and the Skeptic's objections (by kind) into the context layer
+when it ends, so the next run starts from them (#159, #258). Each run's Driver is
+told the kinds of objection the Skeptic raised most before. `ENGINE_CONTEXT_DIR`
+moves the context files to another folder, for benchmarks.
 
 ### Authenticating through Bedrock instead of an API key
 

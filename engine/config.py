@@ -20,6 +20,9 @@ class RunConfig:
     first_round_test_budget: int = 12
     default_test_budget: int = 8
     out_dir: Path = Path("runs/default")
+    # What earlier runs' Skeptic objected to most (engine/ontology/feedback.py,
+    # driver_history, #258), given to the Driver; None when there's no history.
+    skeptic_history: dict | None = None
 
     def __post_init__(self):
         # max_checkpoints <= 0 makes run_checkpoint_loop's range() empty, so
@@ -40,6 +43,7 @@ class RunConfig:
         first_round_test_budget: int | None = None,
         default_test_budget: int | None = None,
         out_dir: Path | None = None,
+        skeptic_history: dict | None = None,
     ) -> "RunConfig":
         return RunConfig(
             model=model or default_model(),
@@ -48,4 +52,5 @@ class RunConfig:
             first_round_test_budget=first_round_test_budget or adapter.default_first_round_test_budget,
             default_test_budget=default_test_budget or adapter.default_test_budget,
             out_dir=out_dir or Path("runs") / adapter.name,
+            skeptic_history=skeptic_history,
         )

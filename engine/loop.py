@@ -40,12 +40,17 @@ def _redact(adapter: SUTAdapter, casting_log: list[dict]) -> list[dict]:
     return redact_fn(casting_log)
 
 
-def _base_evidence(adapter: SUTAdapter, happy_day_example: dict) -> dict:
-    return {
+def _base_evidence(adapter: SUTAdapter, happy_day_example: dict, skeptic_history: dict | None = None) -> dict:
+    evidence = {
         "api_schema": adapter.api_schema_doc,
         **adapter.onboarding_extra,
         "happy_day_example": happy_day_example,
     }
+    # The Driver learns from earlier runs' objections (#258). Never from the current
+    # run's Skeptic beyond the review it's already given, so the Skeptic stays cold.
+    if skeptic_history:
+        evidence["skeptic_history"] = skeptic_history
+    return evidence
 
 
 def _render_history_fragment(checkpoint_num: int, entries: list[dict]) -> str:
@@ -58,7 +63,8 @@ def _render_history_fragment(checkpoint_num: int, entries: list[dict]) -> str:
 
 
 def _cacheable_evidence_segments(
-    adapter: SUTAdapter, happy_day_example: dict, section_title: str, history_segments: list[str]
+    adapter: SUTAdapter, happy_day_example: dict, section_title: str, history_segments: list[str],
+    skeptic_history: dict | None = None,
 ) -> list[str]:
     """The static evidence (schema, known accounts, oracle data, happy-day
     example - identical for the whole run) followed by the growing test history,
@@ -70,7 +76,7 @@ def _cacheable_evidence_segments(
     call_tool_with_retry's cached_segments and run_checkpoint_loop.
     """
     head = (
-        json.dumps(_base_evidence(adapter, happy_day_example), indent=2, sort_keys=True)
+        json.dumps(_base_evidence(adapter, happy_day_example, skeptic_history), indent=2, sort_keys=True)
         + f"\n\n=== {section_title} ==="
     )
     return [head, *history_segments]
@@ -101,7 +107,8 @@ def get_casting_round(
     # then ~14k at checkpoint 3 - so it costs one extra write per run, not one
     # per checkpoint. Not worth flattening the prompt over.
     cached_segments = _cacheable_evidence_segments(
-        adapter, happy_day_example, "TESTS TRIED IN EARLIER ROUNDS", history_segments
+        adapter, happy_day_example, "TESTS TRIED IN EARLIER ROUNDS", history_segments,
+        skeptic_history=run_config.skeptic_history,
     )
     fresh_evidence = {}
     if prior_checkpoint_feedback is not None:
@@ -141,7 +148,8 @@ def get_checkpoint_hypothesis(
     name."""
     earlier_observations = earlier_observations or []
     cached_segments = _cacheable_evidence_segments(
-        adapter, happy_day_example, "ALL TESTS THIS SESSION", history_segments
+        adapter, happy_day_example, "ALL TESTS THIS SESSION", history_segments,
+        skeptic_history=run_config.skeptic_history,
     )
     open_gap_ids = tuple(gap["id"] for gap in prior_skeptic_review["gaps"]) if prior_skeptic_review else ()
     # Both of these go in the FRESH message, not the cached segments: they change
