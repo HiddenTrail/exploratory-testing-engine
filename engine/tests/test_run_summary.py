@@ -38,9 +38,13 @@ def test_cost_and_retries_are_counted_from_usage_and_the_log():
 
 
 def test_the_summary_says_where_it_stands_from_the_last_testing_story():
-    area = {"area": "Card validation", "approach": "API", "tested": "partly", "not_tested": "Luhn | expiry",
-            "tests": [1], "quality": "bad", "confidence": "medium", "why": "w"}
-    text = summarize({**_OUTPUT, "checkpoints": [{"hypothesis": {"areas": [{**area, "area": "old"}]}},
-                                                 {"hypothesis": {"areas": [area]}}]})
-    assert "| Card validation | partly | bad | medium | Luhn \| expiry |" in text and "| old |" not in text
+    area = {"area": "Card validation", "approach": "API", "coverage": "common_and_critical", "coverage_of": "inputs",
+            "oracle": "o", "not_tested": "Luhn | expiry", "tests": [1], "quality": "problems_found",
+            "confidence": "medium", "why": "w"}
+    text = summarize({**_OUTPUT, "checkpoints": [
+        {"hypothesis": {"areas": [{**area, "area": "old"}]}},
+        {"hypothesis": {"areas": [area], "obstacles": [{"obstacle": "No expired cards on file", "would_help": "x"}]}}]})
+    assert ("| Card validation | common and critical of inputs | problems found | medium | Luhn \| expiry |" in text
+            and "| old |" not in text)
+    assert "What got in the way: No expired cards on file" in text
     assert "Where it stands" not in summarize(_OUTPUT)          # runs before #265 have no story

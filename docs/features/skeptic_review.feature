@@ -63,9 +63,10 @@ Feature: A cold Skeptic reviews each checkpoint hypothesis
     Then it is rejected with "verdict is 'weak' but no objection was raised"
     And the Skeptic is asked again with that error
 
-  Scenario: The Skeptic questions the Driver's testing story
-    # See testing_story.feature (#265).
-    Then the Skeptic checks the hypothesis "areas" against the cited tests and test_coverage
+  Scenario: The Skeptic debriefs the Driver's testing story
+    # See testing_story.feature (#265, #271).
+    Then the Skeptic gets the hypothesis "areas" and "obstacles", and the previous checkpoint's areas
+    And it checks them against the cited tests and test_coverage, the way a test lead debriefs a tester
 
   Scenario: Every gap names its kind of objection
     # Counted across runs and shown to the next run's Driver: see skeptic_memory.feature (#258).

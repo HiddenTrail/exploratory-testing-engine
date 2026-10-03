@@ -6,10 +6,12 @@ import copy
 
 from engine.tools import (
     HYPOTHESIS_TOOL,
+    TESTING_STORY_TOOL,
     lower_unsupported_bugs,
     stamp_gap_ids,
     stamp_observation_ids,
     validate_hypothesis_response,
+    validate_testing_story,
 )
 
 _OBSERVATION = {
@@ -24,8 +26,11 @@ _HYPOTHESIS = {
     "behaviors": [{"claim": "Sequential requests stop at 5", "tests": [2, 3]}],
     "observations": [_OBSERVATION],
     "areas": [{"area": "Per-client rate limit", "approach": "API, sequential then concurrent bursts",
-               "tested": "partly", "not_tested": "Window reset, other clients", "tests": [1, 2, 3, 4],
-               "quality": "bad", "confidence": "medium", "why": "Sequential holds at 5 (2, 3); bursts exceed it (1, 4)"}],
+               "coverage": "common_and_critical", "coverage_of": "request timing and concurrency",
+               "oracle": "accepted count above the disclosed limit", "not_tested": "Window reset, other clients",
+               "tests": [1, 2, 3, 4], "quality": "problems_found", "confidence": "medium",
+               "why": "Sequential holds at 5 (2, 3); bursts exceed it (1, 4)"}],
+    "obstacles": [{"obstacle": "No way to reset the window on demand", "would_help": "A reset endpoint"}],
     "untested": [{"area": "Window reset timing"}],
     "prior_gaps": [],
 }
@@ -170,6 +175,7 @@ def test_the_next_checkpoint_is_shown_the_earlier_observations_with_their_ids(mo
     monkeypatch.setattr(loop, "get_casting_round", fake_casting)
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", fake_hypothesis)
     monkeypatch.setattr(loop, "get_skeptic_review", fake_skeptic)
+    monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": [], "obstacles": []})
     loop.run_checkpoint_loop(
         client=None, adapter=_ADAPTER, run_config=RunConfig(max_checkpoints=3),
         happy_day_example=_HAPPY_DAY, test_counter=itertools.count(1),
@@ -180,25 +186,89 @@ def test_the_next_checkpoint_is_shown_the_earlier_observations_with_their_ids(mo
 
 # ---- the testing story (issue #265) -----------------------------------------------------------
 
+def _story(**changes):
+    return {"areas": _HYPOTHESIS["areas"], "obstacles": _HYPOTHESIS["obstacles"], **changes}
+
+
 def _with_area(**changes):
-    return _hypothesis(areas=[{**_HYPOTHESIS["areas"][0], **changes}])
+    return _story(areas=[{**_HYPOTHESIS["areas"][0], **changes}])
 
 
-def test_the_testing_story_is_required_and_needs_at_least_one_area():
-    assert "areas" in HYPOTHESIS_TOOL["input_schema"]["required"]
-    assert any("'areas' must be a non-empty list" in e for e in validate_hypothesis_response(_hypothesis(areas=[])))
+def test_the_testing_story_is_its_own_call_and_needs_at_least_one_area():
+    # #271: inside the hypothesis the answer grew too big and broke too often.
+    assert TESTING_STORY_TOOL["input_schema"]["required"] == ["areas", "obstacles"]
+    assert "areas" not in HYPOTHESIS_TOOL["input_schema"]["properties"]
+    assert validate_testing_story(_story()) == []
+    assert any("'areas' must be a non-empty list" in e for e in validate_testing_story(_story(areas=[])))
 
 
 def test_an_areas_estimates_come_from_fixed_scales_and_it_cites_its_tests():
-    errors = validate_hypothesis_response(_with_area(tested="mostly", quality="great", confidence="sure", tests=[]))
-    assert any("areas[0].tested must be one of thoroughly, partly, barely" in e for e in errors)
-    assert any("areas[0].quality must be one of good, neutral, bad" in e for e in errors)
+    errors = validate_testing_story(_with_area(coverage="thoroughly", quality="good", confidence="sure", tests=[]))
+    assert any("areas[0].coverage must be one of can_it_work, common_and_critical, deep" in e for e in errors)
+    assert any("areas[0].quality must be one of no_problems_seen_yet, concerns, problems_found" in e for e in errors)
     assert any("areas[0].confidence must be one of high, medium, low" in e for e in errors)
     assert any("areas[0].tests must cite the test numbers behind it" in e for e in errors)
-    assert validate_hypothesis_response(_with_area(not_tested="")) == []      # nothing left is fine
+    assert validate_testing_story(_with_area(not_tested="")) == []      # nothing left is fine
 
 
-def test_the_skeptic_is_told_to_question_the_testing_story():
+def test_the_story_says_what_coverage_is_of_how_a_problem_would_show_and_what_got_in_the_way():
+    # #271: after Bolton's three strands and Bach's dashboard.
+    errors = validate_testing_story(_with_area(coverage_of="", oracle=""))
+    assert "areas[0].coverage_of must not be empty" in errors and "areas[0].oracle must not be empty" in errors
+    assert "missing required field 'obstacles'" in validate_testing_story({"areas": _HYPOTHESIS["areas"]})
+    assert validate_testing_story(_story(obstacles=[])) == []     # nothing in the way is fine
+    assert "obstacles[0].obstacle must not be empty" in validate_testing_story(
+        _story(obstacles=[{"obstacle": "", "would_help": ""}]))
+
+
+def test_the_skeptic_is_told_to_debrief_the_testing_story():
     from engine.tools import SKEPTIC_SYSTEM_PROMPT
-    assert "'areas': the Driver's own account" in SKEPTIC_SYSTEM_PROMPT
-    assert '"coverage_overstated" gap' in SKEPTIC_SYSTEM_PROMPT and '"overclaimed"' in SKEPTIC_SYSTEM_PROMPT
+    for phrase in ("tells its testing story", '"how do you know?"', "Distrust a clean story",
+                   "Coverage is only ever of something", "'previous_story'"):
+        assert phrase in SKEPTIC_SYSTEM_PROMPT, phrase
+
+
+def test_the_skeptic_receives_the_story_and_the_previous_one():
+    # #271: the story was left off the Skeptic's evidence, so it was asked to question
+    # something it never saw.
+    import json
+    from engine import loop
+    from engine.config import RunConfig
+    sent = {}
+
+    def fake_call(client, **kw):
+        sent.update(json.loads(kw["user_message"]))
+        return {"verdict": "strong_enough", "verdict_reason": "r", "observation_checks": [], "gaps": [],
+                "coverage": {"material": False, "untouched": [], "note": "n"}, "prior_gaps_check": []}
+
+    original = loop.call_tool_with_retry
+    loop.call_tool_with_retry = fake_call
+    try:
+        loop.get_skeptic_review(None, RunConfig(), _HYPOTHESIS, previous_story=[{"area": "earlier"}])
+    finally:
+        loop.call_tool_with_retry = original
+    assert sent["areas"] == _HYPOTHESIS["areas"] and sent["obstacles"] == _HYPOTHESIS["obstacles"]
+    assert sent["previous_story"] == [{"area": "earlier"}]
+
+
+
+def test_the_loop_asks_for_the_story_and_merges_it_into_the_hypothesis(monkeypatch):
+    # #271: the story comes from its own call, and the Skeptic, the report and the
+    # summary find it on the hypothesis as before.
+    import itertools
+    from engine import loop
+    from engine.config import RunConfig
+    seen = {}
+    monkeypatch.setattr(loop, "get_casting_round", lambda *a, **k: {"give_up": True, "reasoning": "r", "candidate_tests": []})
+    monkeypatch.setattr(loop, "get_checkpoint_hypothesis", lambda *a, **k: {
+        "summary": "s", "behaviors": [], "observations": [], "untested": [], "prior_gaps": []})
+    monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": _HYPOTHESIS["areas"], "obstacles": []})
+
+    def skeptic(client, run_config, hypothesis, *a, **k):
+        seen["areas"] = hypothesis.get("areas")
+        return {"verdict": "strong_enough", "verdict_reason": "r", "observation_checks": [], "gaps": [],
+                "coverage": {"material": False, "untouched": [], "note": "n"}, "prior_gaps_check": []}
+    monkeypatch.setattr(loop, "get_skeptic_review", skeptic)
+    adapter = type("A", (), {"casting_tool_schema": {}, "redact_history_for_model": None})()
+    _, checkpoints, _ = loop.run_checkpoint_loop(None, adapter, RunConfig(max_checkpoints=1), {}, itertools.count(1))
+    assert seen["areas"] == _HYPOTHESIS["areas"] and checkpoints[0]["hypothesis"]["areas"] == _HYPOTHESIS["areas"]

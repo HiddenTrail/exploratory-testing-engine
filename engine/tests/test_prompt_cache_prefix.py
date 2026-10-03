@@ -48,7 +48,7 @@ def _capture_segments(monkeypatch, *, max_checkpoints):
         seen["hypothesis"].append(list(history_segments))
         return {"summary": "b", "behaviors": [], "observations": [], "untested": [{"area": "u"}], "prior_gaps": []}
 
-    def fake_skeptic(client, run_config, hypothesis, prior_skeptic_review=None, usage_sink=None, test_coverage=None):
+    def fake_skeptic(client, run_config, hypothesis, prior_skeptic_review=None, usage_sink=None, test_coverage=None, previous_story=None):
         return {
             "verdict": "weak", "verdict_reason": "r", "observation_checks": [], "coverage": {"material": True, "untouched": [], "note": "c"}, "gaps": [{"gap": "g", "next_test": "t", "blocks_verdict": False, "kind": "other", "about": []}], "prior_gaps_check": [],
         }
@@ -56,6 +56,7 @@ def _capture_segments(monkeypatch, *, max_checkpoints):
     monkeypatch.setattr(loop, "get_casting_round", fake_casting)
     monkeypatch.setattr(loop, "get_checkpoint_hypothesis", fake_hypothesis)
     monkeypatch.setattr(loop, "get_skeptic_review", fake_skeptic)
+    monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": [], "obstacles": []})
 
     loop.run_checkpoint_loop(
         client=None, adapter=_ADAPTER, run_config=RunConfig(max_checkpoints=max_checkpoints),

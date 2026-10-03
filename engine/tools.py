@@ -30,12 +30,24 @@ OBJECTION_KINDS = {
     "other": "none of these",
 }
 SEVERITIES = ("low", "medium", "high")
-# The Driver's testing story, per area (issue #265): how much it thinks it tested,
-# its estimate of the area's quality, and how sure it is.
-AREA_TESTED = ("thoroughly", "partly", "barely")
-AREA_QUALITY = ("good", "neutral", "bad")
+# The Driver's testing story (#265, #271), after Michael Bolton's three strands (the
+# product's status, how it was tested, how good that testing was) and James Bach's
+# low-tech testing dashboard. Coverage levels have meanings, so a claim of coverage can
+# be checked, and they are assessments grounded in tests, never counts. Quality is in
+# safety language: what has been seen so far, not what is true for always.
+COVERAGE_LEVELS = {
+    "can_it_work": "it can work at all: the basic path",
+    "common_and_critical": "the common and the critical cases",
+    "deep": "if there were a bad bug here, we would probably know about it",
+}
+QUALITY_SEEN = {
+    "no_problems_seen_yet": "no problems seen so far, and no definite suspicions",
+    "concerns": "something looks wrong, not confirmed",
+    "problems_found": "a problem was found and shown",
+}
 CONFIDENCE = ("high", "medium", "low")
 MAX_AREAS = 5
+MAX_OBSTACLES = 3
 PRIOR_GAP_STATUSES = ("tested", "untestable", "resolved", "not_attempted")
 
 # Word limits for the short text fields. Each limit is written into the field's
@@ -53,8 +65,12 @@ WORD_LIMITS = {
     "untested.area": 15,
     "area.area": 10,
     "area.approach": 15,
+    "area.coverage_of": 12,
+    "area.oracle": 15,
     "area.not_tested": 20,
     "area.why": 30,
+    "obstacle.obstacle": 20,
+    "obstacle.would_help": 15,
     "prior_gap.reason": 25,
 }
 MAX_BEHAVIORS = 5
@@ -156,42 +172,6 @@ HYPOTHESIS_TOOL = {
                     ],
                 },
             },
-            "areas": {
-                "type": "array",
-                "description": (
-                    "Your testing story, one entry per part of the system you tested (at most "
-                    f"{MAX_AREAS}): where you were, how you tested it, how much you think you covered "
-                    "and what you didn't, how good it looks and how sure you are. Back it with the "
-                    "tests, not just pass or fail: the Skeptic will check it against them. An honest "
-                    "'partly' with a clear 'not_tested' beats a 'thoroughly' you can't show."
-                ),
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "area": {"type": "string", "description": f"The part of the system. {_limit('area.area')}"},
-                        "approach": {
-                            "type": "string",
-                            "description": f"How you tested it: the layer and the technique. {_limit('area.approach')}",
-                        },
-                        "tested": {"type": "string", "enum": list(AREA_TESTED),
-                                   "description": "How much of this area you think your tests covered."},
-                        "not_tested": {
-                            "type": "string",
-                            "description": f"What's left untested in this area, or empty. {_limit('area.not_tested')}",
-                        },
-                        "tests": _TESTS,
-                        "quality": {"type": "string", "enum": list(AREA_QUALITY),
-                                    "description": "Your estimate of how well this area works, from what you saw."},
-                        "confidence": {"type": "string", "enum": list(CONFIDENCE),
-                                       "description": "How sure you are of that estimate."},
-                        "why": {
-                            "type": "string",
-                            "description": f"Why you estimate coverage and quality so, citing tests. {_limit('area.why')}",
-                        },
-                    },
-                    "required": ["area", "approach", "tested", "not_tested", "tests", "quality", "confidence", "why"],
-                },
-            },
             "untested": {
                 "type": "array",
                 "description": f"Things not tried yet that are worth trying next. At most {MAX_UNTESTED} entries.",
@@ -233,9 +213,151 @@ HYPOTHESIS_TOOL = {
                 },
             },
         },
-        "required": ["summary", "behaviors", "observations", "areas", "untested", "prior_gaps"],
+        "required": ["summary", "behaviors", "observations", "untested", "prior_gaps"],
     },
 }
+
+TESTING_STORY_TOOL = {
+    "name": "submit_testing_story",
+    "description": "Tell the testing story behind the hypothesis you just formed.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "areas": {
+                "type": "array",
+                "description": (
+                    "Your testing story, one entry per part of the system you tested (at most "
+                    f"{MAX_AREAS}): where you were, how you tested it and how you'd recognize a problem, "
+                    "how much you covered and of what, what you didn't, what you've seen of its quality "
+                    "and how sure you are. Assessments grounded in the tests, never counts: the Skeptic "
+                    "will check them against the tests. An honest 'can_it_work' with a clear "
+                    "'not_tested' beats a 'deep' you can't show."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "area": {"type": "string", "description": f"The part of the system. {_limit('area.area')}"},
+                        "approach": {
+                            "type": "string",
+                            "description": f"How you tested it: the layer and the technique. {_limit('area.approach')}",
+                        },
+                        "coverage": {
+                            "type": "string",
+                            "enum": list(COVERAGE_LEVELS),
+                            "description": "How deep your testing of this area went: " + "; ".join(
+                                f"{k}: {v}" for k, v in COVERAGE_LEVELS.items()) + ".",
+                        },
+                        "coverage_of": {
+                            "type": "string",
+                            "description": ("What that coverage is of: inputs, states, sequences, timing, data, "
+                                            f"users... Coverage only means something against a model. "
+                                            f"{_limit('area.coverage_of')}"),
+                        },
+                        "oracle": {
+                            "type": "string",
+                            "description": f"How you'd recognize a problem here. {_limit('area.oracle')}",
+                        },
+                        "not_tested": {
+                            "type": "string",
+                            "description": f"What's left untested in this area, or empty. {_limit('area.not_tested')}",
+                        },
+                        "tests": _TESTS,
+                        "quality": {
+                            "type": "string",
+                            "enum": list(QUALITY_SEEN),
+                            "description": "What you've seen of this area's quality, so far: " + "; ".join(
+                                f"{k}: {v}" for k, v in QUALITY_SEEN.items()) + ".",
+                        },
+                        "confidence": {"type": "string", "enum": list(CONFIDENCE),
+                                       "description": "How sure you are of that estimate."},
+                        "why": {
+                            "type": "string",
+                            "description": f"Why you estimate coverage and quality so, citing tests. {_limit('area.why')}",
+                        },
+                    },
+                    "required": ["area", "approach", "coverage", "coverage_of", "oracle", "not_tested", "tests",
+                                 "quality", "confidence", "why"],
+                },
+            },
+            "obstacles": {
+                "type": "array",
+                "description": (
+                    f"How good your testing could be, at most {MAX_OBSTACLES}: what made it harder, slower or "
+                    "impossible (the system's testability, the tools, missing data or access), and what would "
+                    "help. Empty if nothing got in the way."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "obstacle": {"type": "string", "description": _limit("obstacle.obstacle")},
+                        "would_help": {"type": "string", "description": _limit("obstacle.would_help")},
+                    },
+                    "required": ["obstacle", "would_help"],
+                },
+            },
+        },
+        "required": ["areas", "obstacles"],
+    },
+}
+
+TESTING_STORY_SYSTEM_PROMPT = """You just formed this checkpoint's hypothesis about the system (it's in
+your evidence). Now tell the testing story behind it, the way a tester reports to a test lead: three strands,
+braided together. What you've seen of each area so far. How you tested it, how you'd recognize a problem,
+how deep that went and what it was of, and what you didn't test. And how good your testing could be: what
+got in the way. These are assessments, not counts, and each rests on the tests you cite: the Skeptic will
+check them against those tests. Say what you have seen, not what is true for always: "no problems seen yet"
+is a claim about your testing. Keep every field short: each one has a word limit."""
+
+
+def validate_testing_story(data) -> list[str]:
+    """The testing story (#265, #271), asked for in its own call: in the hypothesis call,
+    the bigger answer broke too often (fields lost, or written in another tool format)."""
+    if not isinstance(data, dict):
+        return [f"expected an object, got {type(data).__name__}"]
+    errors = [f"missing required field '{key}'" for key in TESTING_STORY_TOOL["input_schema"]["required"]
+              if key not in data]
+    if errors:
+        return errors
+    areas = data["areas"]
+    if not isinstance(areas, list) or not areas:
+        errors.append("'areas' must be a non-empty list: your testing story, one entry per area you tested")
+    else:
+        if len(areas) > 2 * MAX_AREAS:
+            errors.append(f"'areas' has {len(areas)} entries, limit {MAX_AREAS}")
+        for i, a in enumerate(areas):
+            if not isinstance(a, dict):
+                errors.append(f"areas[{i}] must be an object")
+                continue
+            where = f"areas[{i}]"
+            _check_text(errors, f"{where}.area", a.get("area"), "area.area")
+            _check_text(errors, f"{where}.approach", a.get("approach"), "area.approach")
+            _check_text(errors, f"{where}.coverage_of", a.get("coverage_of"), "area.coverage_of")
+            _check_text(errors, f"{where}.oracle", a.get("oracle"), "area.oracle")
+            _check_text(errors, f"{where}.not_tested", a.get("not_tested"), "area.not_tested", required=False)
+            _check_text(errors, f"{where}.why", a.get("why"), "area.why")
+            for field, allowed in (("coverage", tuple(COVERAGE_LEVELS)), ("quality", tuple(QUALITY_SEEN)),
+                                   ("confidence", CONFIDENCE)):
+                if a.get(field) not in allowed:
+                    errors.append(f"{where}.{field} must be one of {', '.join(allowed)}")
+            if not _is_test_list(a.get("tests")) or not a.get("tests"):
+                errors.append(f"{where}.tests must cite the test numbers behind it; an area with no tests "
+                              "belongs in 'untested'")
+
+    obstacles = data["obstacles"]
+    if not isinstance(obstacles, list):
+        errors.append("'obstacles' must be a list (empty if nothing got in the way)")
+    else:
+        if len(obstacles) > 2 * MAX_OBSTACLES:
+            errors.append(f"'obstacles' has {len(obstacles)} entries, limit {MAX_OBSTACLES}")
+        for i, o in enumerate(obstacles):
+            if not isinstance(o, dict):
+                errors.append(f"obstacles[{i}] must be an object")
+                continue
+            _check_text(errors, f"obstacles[{i}].obstacle", o.get("obstacle"), "obstacle.obstacle")
+            _check_text(errors, f"obstacles[{i}].would_help", o.get("would_help"), "obstacle.would_help", required=False)
+
+    return errors
+
 
 HYPOTHESIS_SYSTEM_PROMPT = """You are characterizing this system's behavior based on real test results
 from this session so far. Keep every field short: each one has a word limit, and test numbers are the
@@ -329,28 +451,6 @@ def validate_hypothesis_response(data, *, known_observation_ids=(), open_gap_ids
                 errors.append(f"observations[{i}] must be an object")
                 continue
             errors.extend(_observation_errors(i, o, known_observation_ids))
-
-    areas = data["areas"]
-    if not isinstance(areas, list) or not areas:
-        errors.append("'areas' must be a non-empty list: your testing story, one entry per area you tested")
-    else:
-        if len(areas) > 2 * MAX_AREAS:
-            errors.append(f"'areas' has {len(areas)} entries, limit {MAX_AREAS}")
-        for i, a in enumerate(areas):
-            if not isinstance(a, dict):
-                errors.append(f"areas[{i}] must be an object")
-                continue
-            where = f"areas[{i}]"
-            _check_text(errors, f"{where}.area", a.get("area"), "area.area")
-            _check_text(errors, f"{where}.approach", a.get("approach"), "area.approach")
-            _check_text(errors, f"{where}.not_tested", a.get("not_tested"), "area.not_tested", required=False)
-            _check_text(errors, f"{where}.why", a.get("why"), "area.why")
-            for field, allowed in (("tested", AREA_TESTED), ("quality", AREA_QUALITY), ("confidence", CONFIDENCE)):
-                if a.get(field) not in allowed:
-                    errors.append(f"{where}.{field} must be one of {', '.join(allowed)}")
-            if not _is_test_list(a.get("tests")) or not a.get("tests"):
-                errors.append(f"{where}.tests must cite the test numbers behind it; an area with no tests "
-                              "belongs in 'untested'")
 
     untested = data["untested"]
     if not isinstance(untested, list):
@@ -671,12 +771,22 @@ do nothing: "each of these is individually broken" and "nothing was being accept
 the same observations, and the second is one cause rather than several coincidences. That is a
 discriminates_from_rival=false finding even if the hypothesis dealt properly with some other rival.
 
-The hypothesis also has 'areas': the Driver's own account of each part it tested, how, how much it thinks
-it covered and what it didn't, its estimate of the area's quality and how sure it is. Question that account,
-the way a test lead would. Does what the cited tests and test_coverage show support "thoroughly"? A
-"coverage_overstated" gap is for when it doesn't. Do the tests support the quality estimate and the
-confidence, or is it more sure than its testing? That's "overclaimed". Was the approach able to find what
-it claims to have looked for? That's "method_in_doubt".
+The hypothesis also tells its testing story: 'areas', the Driver's account of each part it tested (how, how
+it would recognize a problem, how deep its coverage went and of what, what it didn't test, what it has seen
+of the quality and how sure it is), and 'obstacles', what made the testing harder or impossible. Debrief it
+the way a test lead debriefs a tester. Ask "how do you know?" of every claim: proof of how it was tested, not
+just of the outcome.
+- Coverage levels have meanings. "deep" claims that a bad bug there would probably have been found; check that
+  against the cited tests and test_coverage. Coverage is only ever of something: inputs say nothing about
+  sequences, timing, data or different users. When the tests don't back the level, that's
+  "coverage_overstated".
+- A quality call or a confidence more sure than the testing behind it is "overclaimed". "no_problems_seen_yet"
+  is a claim too.
+- An approach or an oracle that couldn't have shown the problem it claims to have looked for is
+  "method_in_doubt".
+- Distrust a clean story: every area fine and nothing in the way is less believable than a realistic mix.
+- If 'previous_story' is in your evidence, compare: an area whose coverage and evidence didn't move since the
+  last checkpoint, though it was worked on, is a line that gives no new evidence ("not_worth_continuing").
 
 Check each observation's kind too. A bug must contradict a known fact (it names which in 'violates') and
 reproduce consistently. If you'd call it something more cautious, say so in 'kind'; the engine keeps the
