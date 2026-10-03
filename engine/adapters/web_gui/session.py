@@ -39,6 +39,7 @@ from safety import SEARCH_PROBE, TEXT_ROLES        # noqa: E402
 from safety import safe_actions                    # noqa: E402
 
 from engine.adapters.web_gui import reference as ref_mod  # noqa: E402
+from engine.ontology.oracle_creator import load_context  # noqa: E402
 
 # Roles Playwright can target by (role, accessible name) - the robust first step of the
 # actuation ladder, same set web-recon's crawler uses.
@@ -222,6 +223,13 @@ _COVER_JS = r"""
   return {state: "covered", by: describe(box)};
 }
 """
+
+# The product whose context file holds earlier runs' discoveries (issue #159): the same
+# WEB_GUI_PRODUCT that picks the seeded oracle.
+_PRODUCT_ENV = "WEB_GUI_PRODUCT"
+# At most this many earlier discoveries are checked at the start of a run, the most often
+# reached first. Each costs one replay, a few seconds, and no model call.
+_MAX_EARLIER_DISCOVERIES = 20
 
 # A discovered screen joins the run's map (issue #158) only if it's at most this many
 # steps from the start, so a chain of discoveries can't wander off indefinitely.
@@ -665,6 +673,12 @@ class Session:
             return "known_screen"
         return "new_screen"
 
+    def reaches(self, path: list[dict], sig: str) -> bool:
+        """Whether replaying `path` from a fresh start lands on the screen `sig`."""
+        self._reboot()
+        replayed = self._replay(path)
+        return replayed and signature(self._capture_expecting(sig)) == sig
+
     def check_url(self, path: str) -> int | None:
         """The HTTP status of `path` on the product, opened in a fresh context loaded from
         the session (issue #227), or None if it didn't answer."""
@@ -845,6 +859,27 @@ def live() -> Session:
     return _SESSION
 
 
+def join_earlier_discoveries(session: "Session", discoveries: list[dict]) -> dict:
+    """Check the screens earlier runs discovered (context_<product>.json, issue #159) and
+    add the ones that still replay to this run's map, so the Driver can act on them from
+    the first round. Each is replayed once from a fresh start: it joins only if it lands
+    on the same screen, which also counts as one more reach of it (feedback reads
+    "joined"). Returns the ids by outcome."""
+    outcome: dict[str, list[str]] = {"joined": [], "not_reached": [], "already_in_map": [], "too_deep": []}
+    ranked = sorted(discoveries, key=lambda d: -d.get("times_reached", 0))
+    for record in ranked[:_MAX_EARLIER_DISCOVERIES]:
+        if record["signature"] in session.reference.carried_signatures:
+            outcome["already_in_map"].append(record["id"])
+        elif len(record["path"]) > _MAX_DISCOVERY_STEPS:
+            outcome["too_deep"].append(record["id"])
+        elif session.reaches(record["path"], record["signature"]):
+            session.reference.add_discovery(record, _MAX_DISCOVERY_STEPS, earlier_run=True)
+            outcome["joined"].append(record["id"])
+        else:
+            outcome["not_reached"].append(record["id"])
+    return {k: v for k, v in outcome.items() if v}
+
+
 def has_session() -> bool:
     """Whether this run starts from a saved session, so a new tab differs from the same tab."""
     return bool(_SESSION is not None and _SESSION.session_file)
@@ -943,6 +978,16 @@ def check_ready(adapter) -> None:
             f"{expected[:60]}..., got {entry_sig[:60]}.... The app may have changed since "
             f"the recon; known/new_screen readings are relative to the carried map.")
         print(baseline_note)
+
+    # Screens earlier runs discovered join the map before the Driver is briefed (#159).
+    product = os.environ.get(_PRODUCT_ENV, "").strip()
+    earlier = load_context(product).get("discoveries", []) if product else []
+    if earlier:
+        joined = join_earlier_discoveries(session, earlier)
+        adapter.onboarding_extra["earlier_discoveries"] = joined
+        print("Screens from earlier runs: " + ", ".join(f"{len(v)} {k.replace('_', ' ')}" for k, v in joined.items()))
+    else:
+        adapter.onboarding_extra.pop("earlier_discoveries", None)
 
     # onboarding_extra is merged into the Driver's evidence (engine/loop._base_evidence) and
     # rendered in the report, so the carried map - the action space - is filled in here, the

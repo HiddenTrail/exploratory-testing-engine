@@ -133,6 +133,7 @@ Full status and backlog: [`docs/ontology-todo.md`](docs/ontology-todo.md).
 python -m engine.ontology.oracle_creator --sut token_purchase   # layer 4: rank
 python -m engine.ontology.website --sut token_purchase          # view all 4 layers
 python -m engine.ontology.feedback --sut token_purchase --run <output.json>  # close the loop
+python -m engine.cli --adapter web_gui --learn juice-shop       # or close it as the run ends (#159)
 python -m engine.ontology.seeder --product juice-shop           # a product's oracle, built from its wiki
 ```
 

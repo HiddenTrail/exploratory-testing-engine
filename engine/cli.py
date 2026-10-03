@@ -26,6 +26,9 @@ def main() -> None:
     parser.add_argument("--first-round-budget", type=int, default=None, dest="first_round_test_budget")
     parser.add_argument("--default-budget", type=int, default=None, dest="default_test_budget")
     parser.add_argument("--out-dir", type=Path, default=None, help="Override the results directory (default: runs/<adapter>).")
+    parser.add_argument("--learn", nargs="?", const="", default=None, metavar="PRODUCT",
+                        help="After the run, feed its results and discoveries into the context layer, so the next "
+                             "run starts from them (issue #159). Give the product (e.g. juice-shop) when it has a wiki.")
     args = parser.parse_args()
 
     adapter = load_adapter(args.adapter)
@@ -37,7 +40,12 @@ def main() -> None:
         default_test_budget=args.default_test_budget,
         out_dir=args.out_dir,
     )
-    run(adapter, run_config)
+    output = run(adapter, run_config)
+    # Never re-ranked mid-run; the next run rebuilds its oracle from what this one learned.
+    if args.learn is not None and output.get("stopped_reason") != "error":
+        from engine.ontology.feedback import learn
+        for line in learn(adapter.name, run_config.out_dir / "output.json", args.learn or None):
+            print(line)
 
 
 if __name__ == "__main__":

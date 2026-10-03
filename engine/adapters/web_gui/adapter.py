@@ -52,6 +52,11 @@ pass found and cleared as non-committing (nothing that deletes, buys, submits or
 An action first navigates to its state by replaying the recon's path, then actuates the
 control.
 
+SCREENS FROM EARLIER RUNS. carried_map can include screens earlier runs discovered, marked
+"found by an earlier run". Each was replayed once at the start of this run and landed where
+it did before, so it's as valid a state as any other. earlier_discoveries lists which joined
+and which no longer replay.
+
 DISCOVERED SCREENS. When a test reaches a screen the carried map doesn't have, its result
 carries `discovered`: the screen's id (e.g. "d85f2417e") and, the first time, the controls
 on it the safety gate cleared. From the next round on, (that id, one of those controls) is
@@ -565,6 +570,18 @@ def render_onboarding_section(api_schema, onboarding_extra, happy_day_example) -
       <pre class="schema-doc">{esc(extra['carried_map'])}</pre>
     </details>
     """
+    earlier_html = ""
+    if extra.get("earlier_discoveries"):
+        rows = "".join(f"<li><strong>{esc(k.replace('_', ' '))}:</strong> {esc(', '.join(v))}</li>"
+                       for k, v in extra["earlier_discoveries"].items())
+        earlier_html = f"""
+    <div class="exhibit">
+      <h3>Screens from earlier runs</h3>
+      <p class="prose-muted">Screens earlier runs discovered, each replayed once at the start of this run.
+        The ones that landed where they did before joined the map (#159).</p>
+      <ul>{rows}</ul>
+    </div>
+    """
     baseline_html = ""
     if extra.get("baseline"):
         warned = str(extra["baseline"]).startswith("WARNING")
@@ -583,6 +600,7 @@ def render_onboarding_section(api_schema, onboarding_extra, happy_day_example) -
     </details>
     {map_html}
     {baseline_html}
+    {earlier_html}
     {render_oracle_ranked(extra.get('oracle_ranked'))}
     <div class="exhibit">
       <h3>Happy-day example</h3>

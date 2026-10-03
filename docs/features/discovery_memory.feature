@@ -28,7 +28,7 @@ Feature: Screens found beyond the map are remembered across runs
     And the run discovered screens
     Then they go under "discoveries" in "engine/ontology/context_juice-shop.json"
     And the run is named by the output's "run_id", or by the folder output.json is in
-    And it prints "Recorded N reach(es) of M screen(s) beyond the map (K known, R reproduced)"
+    And it prints "Screens beyond the map: N new this run, A from earlier runs reached again at the start, F known ones found again by tests (K known, R reproduced)" (#159)
 
   Scenario: A screen reached for the first time is "seen once"
     Given the context has no discoveries

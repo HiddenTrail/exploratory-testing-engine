@@ -790,6 +790,42 @@ def test_a_test_on_a_discovered_screen_is_valid_once_it_joined(monkeypatch):
     assert adp.validate_casting_response(data) == []
 
 
+# ---- starting from earlier runs' discoveries (issue #159) ----------------------------------
+
+def test_a_screen_from_an_earlier_run_joins_as_carried_and_is_labelled():
+    ref = ref_mod.Reference(_ontology())
+    record = _record()
+    sid = ref.add_discovery(record, max_steps=6, earlier_run=True)
+    assert (sid, "button:Go") in ref.pairs()
+    assert record["signature"] in ref.carried_signatures        # reaching it again isn't a new discovery
+    assert f"{sid} (/new, found by an earlier run)" in ref.driver_briefing()
+
+
+def test_earlier_discoveries_join_only_when_they_still_replay():
+    ref = ref_mod.Reference(_ontology())
+    good, gone = _record(sig="/a|button:go|"), _record(sig="/b|button:go|")
+    mapped, deep = _record(sig=ref._by_id["st02"]["signature"]), _record(sig="/deep|", steps=7)
+    session = type("S", (), {"reference": ref, "reaches": lambda self, path, sig: sig == good["signature"]})()
+    outcome = live_session.join_earlier_discoveries(session, [gone, good, mapped, deep])
+    assert outcome == {"joined": [good["id"]], "not_reached": [gone["id"]], "already_in_map": [mapped["id"]],
+                       "too_deep": [deep["id"]]}
+    assert (good["id"], "button:Go") in ref.pairs() and (gone["id"], "button:Go") not in ref.pairs()
+
+
+def test_at_most_twenty_earlier_discoveries_are_checked_the_most_reached_first():
+    ref = ref_mod.Reference(_ontology())
+    records = [{**_record(sig=f"/p{i}|button:go|"), "times_reached": i} for i in range(25)]
+    checked = []
+    session = type("S", (), {"reference": ref, "reaches": lambda self, path, sig: checked.append(sig) or True})()
+    assert len(live_session.join_earlier_discoveries(session, records)["joined"]) == 20
+    assert checked[0] == "/p24|button:go|" and "/p0|button:go|" not in checked
+
+
+def test_the_report_lists_the_screens_from_earlier_runs():
+    html = adp.render_onboarding_section("S", {"earlier_discoveries": {"joined": ["d1"], "not_reached": ["d2"]}}, {})
+    assert "Screens from earlier runs" in html and "joined:</strong> d1" in html and "not reached:</strong> d2" in html
+
+
 def _session_with(tmp_path, cookies=(), storage=()):
     import json as json_mod
     path = tmp_path / "logged-in.json"
