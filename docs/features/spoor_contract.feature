@@ -9,6 +9,11 @@
 # talks to Spoor only through its CLI and the saved map, never its Python modules.
 # Once Spoor tags releases (HiddenTrail/ht-spoor#171), a release gets pinned instead.
 #
+# It also covers mapping from a saved session (issue #156): the fixture site shows an
+# account link only when localStorage holds contract_session=1, so a session file is
+# the only way to reach the account page. Spoor maps from it, and from_spoor converts
+# that map by replaying it from the same session.
+#
 # Code: engine/requirements-spoor.txt, .github/workflows/spoor-contract.yml,
 # engine/tests/test_spoor_contract.py, engine/tests/fixtures/spoor_contract_site/,
 # engine/adapters/web_gui/from_spoor.py (map_errors)
@@ -50,6 +55,20 @@ Feature: CI checks Spoor's saved map against what from_spoor reads
     And it has at least 2 states and at least one transition between different states
     # If this drops to one state, the format may be fine but the check is no longer
     # testing anything.
+
+  Scenario: A saved session reaches a page a logged-out map can't
+    Given a session file in our format whose localStorage for the site holds "contract_session" = "1", and which also carries a "sessionStorage" entry
+    When the test runs "spoor explore <site url> --session <file>" in a folder of its own, so the logged-out map isn't overwritten
+    Then the session map has the action "Your account" and more states than the logged-out map
+    And the logged-out map has no "Your account" action
+    And map_errors finds nothing wrong with the session map
+
+  Scenario: from_spoor converts a session map and records the session
+    Given Spoor's map made with the session file "logged-in.json"
+    When "python -m engine.adapters.web_gui.from_spoor --map <map> --url <site url> --session <file> --out <file>" runs
+    Then it exits with code 0
+    And the converted map has a state whose URL ends with "/account.html", so the replay from the session reached it too
+    And the converted map's "session"."session_name" is "logged-in"
 
   Scenario Outline: The test is skipped only when Spoor is missing and not required
     Given Spoor's CLI is <cli>
