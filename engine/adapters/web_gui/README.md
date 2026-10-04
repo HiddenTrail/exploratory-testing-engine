@@ -33,7 +33,7 @@ export WEB_GUI_HEADED=1                        # optional; headless by default
 export WEB_GUI_SESSION=.sessions/juice-shop/logged-in.json  # optional; every test starts from this saved session (#154)
 export WEB_GUI_SESSION_CHECK=/profile         # optional; a path that answers below 400 only while the server accepts the session (#227)
 export WEB_GUI_PRODUCT=juice-shop             # optional; use that product's seeded oracle, built from the wiki
-export WEB_GUI_FEATURES="login,search,list-paging"  # optional, without a product: heuristic library tags to rank first
+export WEB_GUI_FEATURES="login,search,list-paging"  # optional: library tags to rank first; with a product, the run's focus (e.g. security), up to a third of the ideas
 python -m engine.cli --adapter web_gui
 ```
 

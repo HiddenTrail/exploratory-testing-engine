@@ -70,14 +70,15 @@
     {
       "id": "standards",
       "name": "Statutes and standards",
-      "question": "Does the product follow the laws, regulations and standards that apply to it, such as accessibility or privacy rules?",
+      "question": "Does the product follow the laws, regulations and standards that apply to it, such as accessibility, privacy and security rules?",
       "draws_on": {
         "fact_kinds": [
           "standard"
         ],
         "heuristic_tags": [
           "accessibility",
-          "privacy"
+          "privacy",
+          "security"
         ]
       },
       "fact_template": "The product follows this standard: {fact}",

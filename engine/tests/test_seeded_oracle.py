@@ -142,3 +142,31 @@ def test_feedback_knows_a_products_expectation_ids():
 
 def test_the_oracle_is_plain_json():
     json.dumps(seeder.build_oracle("juice-shop"))   # the data a separate Oracle service would hand over
+
+
+
+# ---- security quality (issue #278) -------------------------------------------------------------
+
+SECURITY_HEURISTICS = ("client_storage_secrets", "third_party_requests", "own_resources_refused",
+                       "browser_security_policy", "console_reveals_internals")
+
+
+def test_the_security_quality_heuristics_go_under_standards():
+    seeds = seeder.load_seeds()
+    by_id = {h["id"]: h for h in oracle_creator.load_heuristics()}
+    for hid in SECURITY_HEURISTICS:
+        assert "security" in by_id[hid]["tags"] and "gui" in by_id[hid]["tags"], hid
+        assert seeder._owner(seeds, by_id[hid])["id"] == "standards", hid
+    placed = {e["id"].rsplit(":", 1)[1] for e in JUICE_SHOP if e["seed"] == "standards"}
+    assert set(SECURITY_HEURISTICS) <= placed
+
+
+def test_a_run_focus_gets_up_to_a_third_of_the_drivers_ideas():
+    plain = oracle_creator.build_product_ideas("juice-shop", limit=15)["ranked_ideas"]
+    focused = oracle_creator.build_product_ideas("juice-shop", limit=15, focus=("security",))["ranked_ideas"]
+    assert len(focused) == 15
+    in_focus = [i for i in focused if i.get("focus")]
+    assert len(in_focus) == 5 and all(i["focus"] == ["security"] for i in in_focus)
+    assert all("(this run's focus: security)" in i["rationale"] for i in in_focus)
+    assert len({i["category"] for i in focused}) >= 8              # still rounded across the seeds
+    assert not any(i.get("focus") for i in plain)

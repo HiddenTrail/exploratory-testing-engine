@@ -50,6 +50,15 @@ Feature: Each adapter chooses its oracle, and either can turn it off
     Then "oracle_ranked" is build_product_ideas for "juice-shop" with limit 15
     # The 15 are picked by taking turns across the FEW HICCUPPS seeds.
 
+  Scenario: A run focus gets up to a third of the product's ideas
+    # Without it, the Standards seed's two or so slots went to accessibility, and no
+    # security heuristic reached the Driver (#278).
+    Given "WEB_GUI_PRODUCT" is "juice-shop" and "WEB_GUI_FEATURES" is "security"
+    When the web_gui adapter is loaded
+    Then up to 5 of the 15 ideas are from heuristics tagged "security", best first, each with "focus": ["security"] and "(this run's focus: security)" in its rationale
+    And the other 10 still take turns across the seeds
+    And the CI workflow's "focus" input sets it, and refuses anything but lowercase tags
+
   Scenario: web_gui without a product uses GUI heuristics ranked by WEB_GUI_FEATURES
     Given "WEB_GUI_PRODUCT" is not set
     And "WEB_GUI_FEATURES" is "login,search"

@@ -77,6 +77,10 @@ Feature: A product's oracle is built from its wiki through the FEW HICCUPPS seed
     And the oracle's "not_drawn_on" lists the heuristics no seed draws on, such as "goldilocks"
     And the seeder CLI prints how many there are and names them
 
+  Scenario: Security quality heuristics go under Standards
+    # #278: the Standards seed draws on the "security" tag as well as accessibility and privacy.
+    Then client_storage_secrets, third_party_requests, own_resources_refused, browser_security_policy and console_reveals_internals are under "standards"
+
   Scenario: History and Explainability are standing expectations
     When build_oracle runs
     Then there is "oracle:history:product" and "oracle:explainability:product" with tier "standing"

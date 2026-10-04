@@ -242,6 +242,72 @@
         "reliability"
       ],
       "base_weight": 3
+    },
+    {
+      "id": "client_storage_secrets",
+      "name": "Secrets in browser storage",
+      "kind": "oracle",
+      "description": "Login tokens and personal data shouldn't sit where any script on the page can read them, such as browser storage or the URL: one injected script is then enough to take them.",
+      "apply": "After logging in and using account pages, look at what the browser keeps in storage and in URLs, by name: tokens, emails, account ids.",
+      "tags": [
+        "gui",
+        "security",
+        "privacy",
+        "session"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "third_party_requests",
+      "name": "Requests to third parties",
+      "kind": "oracle",
+      "description": "A page shouldn't send the user's data to, or load its code from, sites the user didn't choose, and a third party that fails shouldn't break the page.",
+      "apply": "Watch the requests each page makes to other origins: what they carry, what code they load, and what happens to the page when they fail.",
+      "tags": [
+        "gui",
+        "security",
+        "privacy",
+        "reliability"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "own_resources_refused",
+      "name": "Own resources refused",
+      "kind": "oracle",
+      "description": "In normal use, a page shouldn't be refused its own resources (401, 403): it points at access rules that don't match what the page needs, or at a user offered what they may not have.",
+      "apply": "On each page, especially account pages, note any refused request to the product itself, and what the user was doing.",
+      "tags": [
+        "gui",
+        "security",
+        "error-handling"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "browser_security_policy",
+      "name": "Browser security policies",
+      "kind": "oracle",
+      "description": "Security policies the browser enforces, such as a Content Security Policy, should be valid: a directive the browser rejects is ignored, and the protection is quietly weaker than written.",
+      "apply": "Read the console on each page for security policy warnings and violations, and note which directive and page.",
+      "tags": [
+        "gui",
+        "security"
+      ],
+      "base_weight": 2
+    },
+    {
+      "id": "console_reveals_internals",
+      "name": "Internals in the console",
+      "kind": "oracle",
+      "description": "What the browser console shows of an error shouldn't reveal internals an attacker can use: stack traces with source paths, internal addresses, software versions, queries.",
+      "apply": "When a page logs an error, read what it reveals beyond 'something failed'.",
+      "tags": [
+        "gui",
+        "security",
+        "error-handling"
+      ],
+      "base_weight": 2
     }
   ]
 }
