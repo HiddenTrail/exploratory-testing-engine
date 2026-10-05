@@ -53,6 +53,7 @@ Feature: The HTML report puts the conclusion first and folds the details
     And the Driver's summary, the Skeptic's reason, one line per observation and one line per gap are visible
     And a fold "Details: evidence, coverage and prior gaps" holds behaviours, observation details, untested areas, coverage and prior-gap answers
     And a fold "Tests this checkpoint (4)" holds the tests, drawn by the adapter's render_test_entry
+    And when the last casting attempt dropped tests (#288), the fold says "(4, 1 dropped)" and lists each one with its errors
     # A checkpoint with no observations says "Nothing looked wrong this checkpoint."
 
   Scenario: A checkpoint with no conclusion still shows its tests

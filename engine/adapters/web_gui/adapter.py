@@ -435,6 +435,26 @@ budget, and set give_up to true if you have no good ideas left.
 Call submit_casting_round with your answer."""
 
 
+# How many of a state's controls a rejection lists. Juice Shop's busiest screen in the
+# map has 17; the cap keeps a retry message from growing with a bigger product.
+_MAX_LISTED_CONTROLS = 30
+
+
+def _not_in_map(i: int, state_id: str, control_key: str, pairs: set) -> str:
+    """The rejection for a pair outside the map, with the controls that state does have
+    (#288). The Driver had guessed keys from what earlier tests showed ("button to
+    deposit", "textbox:") and couldn't find the real ones far back in a long prompt, so
+    it got them wrong three times and the run ended."""
+    controls = sorted(c for s, c in pairs if s == state_id)
+    if not controls:
+        return (f"candidate_tests[{i}] names state {state_id}, which is not in the carried map. "
+                f"Pick a state listed in carried_map.")
+    listed = ", ".join(controls[:_MAX_LISTED_CONTROLS]) + (" ..." if len(controls) > _MAX_LISTED_CONTROLS else "")
+    return (f"candidate_tests[{i}] names {state_id} :: {control_key}, which is not a (state, control) pair "
+            f"in the carried map. The controls of {state_id} are exactly: {listed}. Copy one as written, "
+            f"or drop this test.")
+
+
 def validate_casting_response(data) -> list[str]:
     errors, tests = casting_envelope_errors(data)
     if not isinstance(tests, list) or not tests:
@@ -463,10 +483,7 @@ def validate_casting_response(data) -> list[str]:
             # control, so it is rejected and resubmitted rather than actuated.
             if pairs and "state_id" in test and "control_key" in test:
                 if (test["state_id"], test["control_key"]) not in pairs:
-                    errors.append(
-                        f"candidate_tests[{i}] names {test['state_id']} :: {test['control_key']}, "
-                        f"which is not a (state, control) pair in the carried map. Pick one listed "
-                        f"under a state in carried_map.")
+                    errors.append(_not_in_map(i, test["state_id"], test["control_key"], pairs))
     return errors
 
 

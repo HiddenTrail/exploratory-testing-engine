@@ -300,10 +300,16 @@ def _render_checkpoint(checkpoint_num, checkpoint_entry, rounds, render_test_ent
     answers, and the tests themselves - is folded underneath. Fully generic: the
     hypothesis/Skeptic schema is the same for every adapter."""
     test_count = sum(len(entries) for entries in rounds.values())
+    # Tests the last casting attempt still got wrong, left out so the run could go on (#288).
+    dropped = (checkpoint_entry or {}).get("dropped_tests") or []
+    dropped_html = "".join(
+        f"<li>{esc(' :: '.join(str(d['test'].get(k, '')) for k in ('state_id', 'control_key')) if isinstance(d['test'], dict) else str(d['test']))}: "
+        f"{esc('; '.join(d['errors']))}</li>" for d in dropped)
     tests_fold = f"""
       <details class="fold">
-        <summary>Tests this checkpoint ({test_count})</summary>
+        <summary>Tests this checkpoint ({test_count}{f", {len(dropped)} dropped" if dropped else ""})</summary>
         {_render_rounds(rounds, render_test_entry)}
+        {f'<p><strong>Dropped before running, still wrong at the last try</strong></p><ul>{dropped_html}</ul>' if dropped else ""}
       </details>"""
     if not checkpoint_entry:
         return f'<div class="checkpoint"><h3>Checkpoint {checkpoint_num}</h3>{tests_fold}</div>'

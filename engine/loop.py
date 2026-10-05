@@ -33,6 +33,7 @@ from engine.tools import (
     RECONSIDER_TOOL,
     merge_debrief,
     open_part,
+    salvage_casting,
     validate_debrief_answers,
     validate_reconsideration,
     lower_unsupported_bugs,
@@ -134,6 +135,7 @@ def get_casting_round(
         cached_segments=cached_segments,
         user_message=json.dumps(fresh_evidence, indent=2),
         validate_fn=adapter.validate_casting_response,
+        salvage_fn=salvage_casting(adapter.validate_casting_response),
         max_tokens=adapter.casting_max_tokens(test_budget),
         max_attempts=run_config.max_attempts,
         cache_static_content=True,
@@ -415,6 +417,9 @@ def run_checkpoint_loop(
         )
 
         entries_before = len(casting_log)
+        dropped_tests = casting.get("dropped_tests", [])
+        for dropped in dropped_tests:
+            print(f"  dropped a test that couldn't be fixed in time: {dropped['errors']}")
         if casting.get("give_up", False):
             print(f"  Claude gave up casting: {casting['reasoning']}")
         else:
@@ -524,6 +529,8 @@ def run_checkpoint_loop(
             "test_coverage": test_coverage,
             "diagnostics": diagnostics.as_dicts(findings),
             "debrief": debrief,
+            # Tests the last casting attempt still got wrong, left out so the run could go on (#288).
+            "dropped_tests": dropped_tests,
         })
 
         if on_checkpoint is not None:

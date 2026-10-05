@@ -267,6 +267,7 @@ def summarize_usage(usage_log: list[dict]) -> dict[str, dict]:
 def call_tool_with_retry(
     client, *, model, system, tools, tool_name, user_message, validate_fn, max_tokens,
     max_attempts=DEFAULT_MAX_ATTEMPTS, cache_static_content=False, cached_segments=None, usage_sink=None,
+    salvage_fn=None,
 ):
     """Retries are informed, not blind repeats: on failure, the model's own malformed call and
     the concrete validation errors are fed back as a tool_result before asking again, so a
@@ -294,6 +295,10 @@ def call_tool_with_retry(
     and nothing is ever read back however append-only the text itself was. One block per appended
     chunk gives the boundaries somewhere real to land. user_message stays the small, call-specific
     remainder that changes every time and is never cached.
+
+    salvage_fn, if given, gets one last chance at the final attempt's answer when it fails
+    validation: it returns a usable part of it, or None. What it returns is validated again
+    before it's used, so it can only cut an answer down, never let a broken one through.
 
     usage_sink, if given, gets one record appended per raw API response (see _record_usage) -
     the caller's way of collecting real cache_read/cache_creation/input/output token counts
@@ -350,6 +355,11 @@ def call_tool_with_retry(
         errors = validate_fn(answer)
         if not errors:
             return answer
+        if attempt == max_attempts and salvage_fn is not None:
+            salvaged = salvage_fn(answer)
+            if salvaged is not None and not validate_fn(salvaged):
+                print(f"  attempt {attempt} was not all usable: {errors} - keeping the usable part")
+                return salvaged
         # Kept in the usage log too, so a report can show why an answer took several
         # tries (#266), not only the console log.
         if usage_sink and usage is not None and usage_sink[-1].get("call") == tool_name:

@@ -1374,6 +1374,31 @@ literal tests, not unrelated new exploration. The next hypothesis has to answer 
 aimed at a gap is worth more than one that isn't."""
 
 
+def salvage_casting(validate_fn):
+    """The casting round's salvage_fn for call_tool_with_retry (issue #288). On the last
+    attempt, a round where most tests are fine shouldn't end the run because of one bad
+    one: CI run 37297715890 died after $1.07 when one test of four named a control the map
+    doesn't have, three times over. Each test is checked on its own with the adapter's own
+    validator, so this needs no knowledge of what the errors mean. It keeps the round only
+    if at least half of the tests pass, so a prompt that is badly wrong still fails loudly.
+    The dropped tests and why go in 'dropped_tests'."""
+    def salvage(answer):
+        tests = answer.get("candidate_tests") if isinstance(answer, dict) else None
+        if not isinstance(tests, list) or not tests:
+            return None
+        kept, dropped = [], []
+        for test in tests:
+            errors = validate_fn({**answer, "candidate_tests": [test]})
+            if errors:
+                dropped.append({"test": test, "errors": errors})
+            else:
+                kept.append(test)
+        if not kept or 2 * len(kept) < len(tests):
+            return None
+        return {**answer, "candidate_tests": kept, "dropped_tests": dropped}
+    return salvage
+
+
 def casting_envelope_errors(data) -> tuple[list[str], object]:
     """The checks every adapter's casting validator starts with. give_up may be
     left out when the answer has tests: that already says the Driver didn't give
