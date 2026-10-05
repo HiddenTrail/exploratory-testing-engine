@@ -60,7 +60,15 @@ Feature: The Driver can only act on controls the map cleared as safe
     Given the session is ready
     When the Driver casts a test on "st01 :: button:Ghost"
     Then validate_casting_response returns an error saying it "is not a (state, control) pair in the carried map"
+    And the error lists that state's controls: "The controls of st01 are exactly: button:A, ...", at most 30
     And the round is sent back to the Driver instead of run
+    # #288: the Driver guessed keys like "button to deposit" from earlier results and
+    # couldn't find the real ones far back in the prompt, three times in a row.
+
+  Scenario: A test on a state the map doesn't have says so
+    Given the session is ready
+    When the Driver casts a test on "st99 :: button:A"
+    Then the error says "names state st99, which is not in the carried map"
 
   Scenario: Before the session is ready the validator only checks the shape
     # valid_pairs() is empty until check_ready has run, so validation degrades to

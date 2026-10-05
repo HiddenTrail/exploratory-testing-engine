@@ -32,6 +32,10 @@ def count_retries(log_text: str) -> int:
     return log_text.count("produced malformed output") + log_text.count("produced no tool call")
 
 
+def count_dropped_tests(output: dict) -> int:
+    return sum(len(c.get("dropped_tests") or []) for c in output.get("checkpoints", []))
+
+
 def _cell(text) -> str:
     return str(text).replace("|", "\\|").replace("\n", " ")
 
@@ -84,6 +88,8 @@ def summarize(output: dict, log_text: str | None = None, bugs: list | None = Non
     if usage:
         calls = sum(c.get("calls", 0) for c in usage.values())
         retries = f", {count_retries(log_text)} retried" if log_text is not None else ""
+        dropped = count_dropped_tests(output)
+        retries += f", {dropped} cast test(s) dropped as unusable" if dropped else ""
         lines.append(f"{calls} model call(s){retries}. Estimated cost about ${estimated_cost(usage):.2f} "
                      f"(list prices for a Sonnet-class model; the provider's console has the real bill).")
     return "\n".join(lines) + "\n"

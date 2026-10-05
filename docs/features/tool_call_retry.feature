@@ -12,7 +12,12 @@
 # JSON text cost a retry on about half the hypothesis calls (#91), so that is
 # repaired before validation. The raw rejected answer goes into the log (#95).
 #
-# Code: engine/client.py (call_tool_with_retry, unstring_json_fields)
+# A casting round that is mostly fine shouldn't end a run over one bad test. CI run
+# 37297715890 died after $1.07 because one test of four named a control the map doesn't
+# have, at every attempt (#288). So the last attempt can be salvaged.
+#
+# Code: engine/client.py (call_tool_with_retry, unstring_json_fields),
+# engine/tools.py (salvage_casting), engine/loop.py (get_casting_round)
 
 Feature: Every model call is a forced tool call, checked and retried with feedback
   As someone paying for runs
@@ -71,6 +76,28 @@ Feature: Every model call is a forced tool call, checked and retried with feedba
     When the model sends "items" as JSON text that doesn't parse
     Then the log shows "couldn't turn JSON text back into structure at items:" and the parser's error
     And the validator still gets the text, and reports it
+
+  Scenario: The last casting attempt keeps its usable tests
+    Given every casting reply has 3 tests and one of them fails validation
+    When the engine casts with the default 3 attempts
+    Then the first two attempts are sent back as usual
+    And after the third the round goes on with the 2 tests that pass the validator on their own
+    And the log shows "attempt 3 was not all usable: ... - keeping the usable part"
+    And the checkpoint records the dropped test and its errors in "dropped_tests"
+    And the report's "Tests this checkpoint (N, 1 dropped)" fold lists it, and the run summary says "1 cast test(s) dropped as unusable"
+
+  Scenario Outline: A salvage only keeps a round that is mostly right
+    Given the last casting attempt has <good> good tests of <total>
+    Then the round is <result>
+
+    Examples:
+      | good | total | result                                |
+      | 2    | 3     | kept with 2 tests                     |
+      | 1    | 2     | kept with 1 test                      |
+      | 1    | 3     | not kept, and the engine gives up     |
+      | 2    | 2     | accepted as it is, nothing to salvage |
+    # A fault in the round itself, like reasoning that isn't text, fails every test on its
+    # own, so nothing is kept. What a salvage returns is validated again before it's used.
 
   Scenario Outline: The engine gives up after the attempt budget is spent
     Given every reply <failure>
