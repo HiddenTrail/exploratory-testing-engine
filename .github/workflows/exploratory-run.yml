@@ -240,6 +240,8 @@ jobs:
         run: |
           if [ -f runs/ci/output.json ]; then
             python -m engine.run_summary runs/ci/output.json --log runs/ci/run.log >> "$GITHUB_STEP_SUMMARY"
+            # Found X of Y known problems, by evidence (#277); kept as score.json in the artifact.
+            python -m engine.adapters.web_gui.score --known test-targets/known-problems/$PRODUCT.json               --run runs/ci/output.json --out runs/ci/score.json >> "$GITHUB_STEP_SUMMARY"
             echo "The full report is report.html in the run's artifact." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "The run wrote no output.json; see the job log." >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,107 @@
+{
+  "about": "Known problems in the local Juice Shop test target (v17.1.1, test-targets/docker-compose.yml) that the web_gui harness can observe through a logged-in map, for scoring runs: found X of Y (issue #277). Each problem says how it shows in a test's recorded signals; engine/adapters/web_gui/score.py matches by that evidence, never by a model: an observation finds a problem when a test it cites recorded the signal and its claim names the problem (one of 'named_by', any case). Proposed from the sweep (#276, runs/sweep/juice-shop.json) and the milestone runs.",
+  "review": {
+    "status": "proposed",
+    "note": "Proposed by Claude Code on 2026-10-04 from the sweep; awaiting review by a person. Change 'status' to 'reviewed' and add 'by' once checked."
+  },
+  "target": "juice-shop",
+  "problems": [
+    {
+      "id": "JS01",
+      "title": "The basket breaks in a new tab of a logged-in browser",
+      "quality": "reliability",
+      "severity": "medium",
+      "detail": "A logged-in user who opens the shop in a new tab gets an empty basket and a TypeError: the basket id is kept per tab (sessionStorage) while the login is shared (localStorage). Found by hand in the milestone run (runs/milestone/BUG-basket-new-tab.md), then by the engine itself in milestone run 3.",
+      "match": {
+        "signal": "console_error",
+        "pattern": "Cannot read properties of null (reading 'Products')",
+        "start_as": "new_tab"
+      },
+      "named_by": [
+        "new tab",
+        "basket",
+        "Products"
+      ]
+    },
+    {
+      "id": "JS02",
+      "title": "The About page throws a script error on every load",
+      "quality": "reliability",
+      "severity": "low",
+      "detail": "TypeError reading 'nativeElement' while the page renders, logged in or out.",
+      "match": {
+        "signal": "console_error",
+        "pattern": "reading 'nativeElement'"
+      },
+      "named_by": [
+        "About",
+        "nativeElement"
+      ]
+    },
+    {
+      "id": "JS03",
+      "title": "The profile page is refused one of its own resources",
+      "quality": "reliability",
+      "severity": "low",
+      "detail": "Loading /profile, a request for one of its own resources answers 403.",
+      "match": {
+        "signal": "console_error",
+        "pattern": "the server responded with a status of 403"
+      },
+      "named_by": [
+        "403",
+        "refused",
+        "forbidden"
+      ]
+    },
+    {
+      "id": "JS04",
+      "title": "The profile page's Content Security Policy has an invalid source",
+      "quality": "security",
+      "severity": "low",
+      "detail": "The img-src directive lists a source the browser rejects and ignores, so the policy isn't what it was written to be.",
+      "match": {
+        "signal": "console_error",
+        "pattern": "Content Security Policy directive 'img-src' contains an invalid source"
+      },
+      "named_by": [
+        "Content Security Policy",
+        "CSP",
+        "img-src"
+      ]
+    },
+    {
+      "id": "JS05",
+      "title": "The profile page depends on a third-party CDN that fails to load",
+      "quality": "security",
+      "severity": "low",
+      "detail": "Material stylesheet and script are requested from an outside CDN and the loads abort. A third-party dependency on an account page: a supply-chain and reliability concern.",
+      "match": {
+        "signal": "failed_request",
+        "pattern": "material.min"
+      },
+      "named_by": [
+        "CDN",
+        "material",
+        "third-party",
+        "third party",
+        "stylesheet",
+        "external"
+      ]
+    }
+  ],
+  "out_of_reach": [
+    {
+      "id": "JS-X1",
+      "title": "The login token is kept in browser storage, readable by any script on the page",
+      "quality": "security",
+      "why": "Not observable in a run: the saved session already holds the token, so no test sees it written. Needs a storage check at the start of a run, or a run that logs in itself."
+    }
+  ],
+  "left_out": [
+    {
+      "pattern": "failed image requests on github.com after following the GitHub link",
+      "why": "Outside the product: errors on GitHub's own page (sweep P07, P08)."
+    }
+  ]
+}
