@@ -11,6 +11,7 @@ adapter.
 """
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable
 
 _DEFAULT_CASTING_MAX_TOKENS: Callable[[int], int] = lambda budget: 4096 if budget <= 8 else 6144
@@ -78,6 +79,11 @@ class SUTAdapter:
     # content at the end of the run, {"known": n, "found": [...], "seen_not_reported": [...],
     # "missed": [...], ...}, or None when the target has no known-problems list.
     score_run: Callable[[dict], dict | None] | None = None
+    # Media of the tests the run's conclusions rest on (#286): given those test numbers
+    # and the run's folder, it saves what it has (a web test's video) and returns test
+    # number -> path relative to the folder. The runner puts the path on each test's
+    # entry as "video", for the report to show.
+    save_test_media: Callable[[set[int], Path], dict[int, str]] | None = None
 
     # Report rendering hooks - the adapter owns request/response-shape rendering.
     render_test_entry: Callable[[dict], str] | None = None

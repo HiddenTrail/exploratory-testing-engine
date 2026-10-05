@@ -133,6 +133,7 @@ def main() -> None:
     os.environ["WEB_GUI_ONTOLOGY"], os.environ["WEB_GUI_URL"] = args.ontology, args.url
     if args.session:
         os.environ["WEB_GUI_SESSION"] = args.session
+    os.environ["WEB_GUI_VIDEO"] = "off"   # a sweep has no report to show videos in (#286)
     from engine.adapters.web_gui import adapter as adp
     from engine.adapters.web_gui import session as live_session
 

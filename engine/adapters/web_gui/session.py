@@ -20,7 +20,9 @@ import atexit
 import json
 import os
 import re
+import shutil
 import sys
+import tempfile
 import time
 from urllib.parse import urlsplit
 from pathlib import Path
@@ -227,6 +229,17 @@ _COVER_JS = r"""
 # The product whose context file holds earlier runs' discoveries (issue #159): the same
 # WEB_GUI_PRODUCT that picks the seeded oracle.
 _PRODUCT_ENV = "WEB_GUI_PRODUCT"
+# Videos of the tests (#286), on unless WEB_GUI_VIDEO=off. They show whatever the
+# logged-in page shows, so they follow the screenshot rules: kept with the run's other
+# files, never committed and never sent to a model. Not Playwright traces: those hold
+# cookies and tokens.
+_VIDEO_ENV = "WEB_GUI_VIDEO"
+# Big enough to read the page. A test of about 10 s came to just under 0.5 MB.
+_VIDEO_SIZE = {"width": 960, "height": 675}
+
+
+def video_on() -> bool:
+    return os.environ.get(_VIDEO_ENV, "").strip().lower() != "off"
 # At most this many earlier discoveries are checked at the start of a run, the most often
 # reached first. Each costs one replay, a few seconds, and no model call.
 _MAX_EARLIER_DISCOVERIES = 20
@@ -410,7 +423,8 @@ def discovery(obs, sig: str, path: list[dict], from_state: str, via: str, origin
 
 
 class Session:
-    def __init__(self, reference: ref_mod.Reference, base_url: str, headed: bool, session_file: str | None = None):
+    def __init__(self, reference: ref_mod.Reference, base_url: str, headed: bool, session_file: str | None = None,
+                 record_video: bool = False):
         from playwright.sync_api import sync_playwright
         self.reference = reference
         self.base_url = base_url
@@ -419,6 +433,12 @@ class Session:
         self._pw = sync_playwright().start()
         self._browser = self._pw.chromium.launch(headless=not headed, slow_mo=300 if headed else 0)
         self._context = None
+        # Every browser context records into a scratch folder. Only the recording each
+        # test acted in is remembered, and save_videos keeps the ones asked for (#286).
+        # Only a run records (check_ready); the sweep and the audits have no report to show it.
+        self._video_dir = tempfile.mkdtemp(prefix="qes-video-") if record_video else None
+        self._videos: dict = {}                    # test number -> its Playwright Video
+        self.last_video = None
         self._open_fresh_page()
         self.seen_signatures: set[str] = set()   # signatures first sighted this run
         self.last_covered_by = ""                  # what was on top of the last control clicked
@@ -432,6 +452,33 @@ class Session:
                 (shut.close if hasattr(shut, "close") else shut.stop)()
             except Exception:
                 pass
+        if getattr(self, "_video_dir", None):
+            shutil.rmtree(self._video_dir, ignore_errors=True)
+
+    def save_videos(self, test_numbers, dest: Path) -> dict[int, str]:
+        """Keep the videos of these tests as dest/test_<n>.webm and drop the rest (#286).
+        A video is only complete once its context is closed, so recording stops here: the
+        session goes on in a fresh context that doesn't record. Returns test number ->
+        file name, for the tests that have a video."""
+        scratch = self._video_dir
+        if not scratch:
+            return {}
+        self._video_dir = None
+        self._open_fresh_page()
+        saved = {}
+        for n in sorted(test_numbers):
+            video = self._videos.get(n)
+            if video is None:
+                continue
+            dest.mkdir(parents=True, exist_ok=True)
+            try:
+                video.save_as(dest / f"test_{n}.webm")
+                saved[n] = f"test_{n}.webm"
+            except Exception as e:   # a lost video is a missing exhibit, not a failed run
+                print(f"  couldn't save the video of test #{n}: {e}")
+        # The rest were never asked for, and close() no longer knows the folder.
+        shutil.rmtree(scratch, ignore_errors=True)
+        return saved
 
     # ---- primitives ------------------------------------------------------------------
 
@@ -443,6 +490,9 @@ class Session:
         listens on one page."""
         old = self._context
         options = {"viewport": {"width": 1280, "height": 900}}
+        if getattr(self, "_video_dir", None):
+            options["record_video_dir"] = self._video_dir
+            options["record_video_size"] = _VIDEO_SIZE
         if getattr(self, "session_file", None):
             options["storage_state"] = self.session_file
         self._context = self._browser.new_context(**options)
@@ -542,6 +592,12 @@ class Session:
         except Exception:
             pass
         return keys
+
+    def _video_of_page(self):
+        try:
+            return self.page.video if self._video_dir else None
+        except Exception:
+            return None
 
     def _shot(self):
         try:
@@ -700,16 +756,20 @@ class Session:
         self.seen_signatures.add(self.entry_signature)
         return self.entry_signature
 
-    def act(self, state_id: str, control_key: str, start_as: str = "same_tab") -> dict:
+    def act(self, state_id: str, control_key: str, start_as: str = "same_tab", test_number=None) -> dict:
         """Reach `state_id` by replaying its carried path, actuate `control_key`, and report
         the whole transition classified against the carried map. Recovery (a reboot) is part
         of the operation when the action lands somewhere new, so the next test starts clean.
-        `start_as` "new_tab" starts every reboot of this test as a new tab (START_AS)."""
+        `start_as` "new_tab" starts every reboot of this test as a new tab (START_AS).
+        With a test_number, the video of the context the action ran in is kept under it."""
         self._start_as = start_as
+        self.last_video = None
         try:
             result = self._act(state_id, control_key)
         finally:
             self._start_as = "same_tab"
+            if test_number is not None and self.last_video is not None:
+                self._videos[test_number] = self.last_video
         if start_as != "same_tab":
             result["started_as"] = start_as
         return result
@@ -755,6 +815,9 @@ class Session:
         after = capture(self.page, self.col)
         after_sig = signature(after)
         after_png = self._shot()
+        # The recording that shows this test: the path to the state, then the action.
+        # Taken before the recovery reboot opens a context of its own.
+        self.last_video = self._video_of_page()
         screen_was = self._classify(before_sig, after_sig)
         first_sight = after_sig not in self.seen_signatures
         # NONE vs VARIANT: same signature, but did the body text OR the pixels still move?
@@ -973,7 +1036,7 @@ def check_ready(adapter) -> None:
               f"{_described(session_name(session_file))}. Expect tests not to reach their states; make the map "
               f"with the same session (from_spoor --session).")
     check_path = session_check_path()   # before the browser starts, so a bad value costs nothing
-    session = Session(reference, base_url, headed, session_file)
+    session = Session(reference, base_url, headed, session_file, record_video=video_on())
     if session_file and check_path:
         status = session.check_url(check_path)
         if status is None or status >= 400:

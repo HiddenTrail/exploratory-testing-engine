@@ -31,6 +31,37 @@ def _one_line(half: dict) -> str:
     return str(half.get("body", half)) if isinstance(half, dict) else str(half)
 
 
+def cited_tests(output: dict) -> set[int]:
+    """The tests a run's conclusions rest on (#286): the ones its observations cite, at
+    every checkpoint and at the end (a bug report rests on its observation's), and the
+    ones the debrief answers cite. Not the replays of bugs: the report shows those only
+    as a verdict, so their videos would have nowhere to go."""
+    cited = set()
+    for checkpoint in output.get("checkpoints") or []:
+        for o in (checkpoint.get("hypothesis") or {}).get("observations") or []:
+            cited.update(o.get("tests") or [])
+        for exchange in checkpoint.get("debrief") or []:
+            cited.update((exchange.get("answer") or {}).get("tests") or [])
+    for o in output.get("observations") or []:
+        cited.update(o.get("tests") or [])
+    return {n for n in cited if isinstance(n, int)}
+
+
+def keep_test_media(adapter: SUTAdapter, output: dict, out_dir) -> None:
+    """The adapter keeps the media of the cited tests (#286) and each test's entry gets
+    its path. Media is an exhibit, so failing to keep it never fails the run."""
+    try:
+        kept = adapter.save_test_media(cited_tests(output), out_dir)
+    except Exception as e:
+        print(f"Couldn't keep the test videos ({type(e).__name__}: {e})")
+        return
+    for entry in output.get("casting_log") or []:
+        if entry.get("test_number") in kept:
+            entry["video"] = kept[entry["test_number"]]
+    if kept:
+        print(f"Kept the videos of {len(kept)} cited test(s), e.g. {out_dir / next(iter(kept.values()))}")
+
+
 def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
     validate_adapter(adapter)
     # Before anything that could spend: a bad limit stops the run here, at no cost.
@@ -147,6 +178,8 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
         if score:
             output["score"] = score
             print(f"Known problems found: {len(score['found'])} of {score['known']}")
+    if adapter.save_test_media is not None:
+        keep_test_media(adapter, output, out_dir)
     # How the Driver answered the Skeptic (#257), from whatever checkpoints finished.
     output["interplay"] = interplay.measure(output.get("checkpoints") or [])
     if output["usage_summary"]:
