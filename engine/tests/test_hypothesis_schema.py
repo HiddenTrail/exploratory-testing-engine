@@ -26,11 +26,12 @@ _HYPOTHESIS = {
     "behaviors": [{"claim": "Sequential requests stop at 5", "tests": [2, 3]}],
     "observations": [_OBSERVATION],
     "areas": [{"area": "Per-client rate limit", "approach": "API, sequential then concurrent bursts",
-               "coverage": "common_and_critical", "coverage_of": "request timing and concurrency",
+               "coverage": "common_and_critical", "coverage_of": ["timing", "users"],
                "oracle": "accepted count above the disclosed limit", "not_tested": "Window reset, other clients",
                "tests": [1, 2, 3, 4], "quality": "problems_found", "confidence": "medium",
                "why": "Sequential holds at 5 (2, 3); bursts exceed it (1, 4)"}],
-    "obstacles": [{"obstacle": "No way to reset the window on demand", "would_help": "A reset endpoint"}],
+    "obstacles": [{"obstacle": "No way to reset the window on demand", "would_help": "A reset endpoint",
+                   "help_from": "product"}],
     "untested": [{"area": "Window reset timing"}],
     "prior_gaps": [],
 }
@@ -215,12 +216,15 @@ def test_an_areas_estimates_come_from_fixed_scales_and_it_cites_its_tests():
 
 def test_the_story_says_what_coverage_is_of_how_a_problem_would_show_and_what_got_in_the_way():
     # #271: after Bolton's three strands and Bach's dashboard.
-    errors = validate_testing_story(_with_area(coverage_of="", oracle=""))
-    assert "areas[0].coverage_of must not be empty" in errors and "areas[0].oracle must not be empty" in errors
+    errors = validate_testing_story(_with_area(coverage_of="request timing", oracle=""))
+    assert "areas[0].coverage_of must list one or more of inputs, states, sequences, timing, data, users" in errors
+    assert "areas[0].oracle must not be empty" in errors
+    assert "obstacles[0].help_from must be one of engine, map, test_data, product" in validate_testing_story(
+        _story(obstacles=[{"obstacle": "o", "would_help": "w", "help_from": "someone"}]))
     assert "missing required field 'obstacles'" in validate_testing_story({"areas": _HYPOTHESIS["areas"]})
     assert validate_testing_story(_story(obstacles=[])) == []     # nothing in the way is fine
     assert "obstacles[0].obstacle must not be empty" in validate_testing_story(
-        _story(obstacles=[{"obstacle": "", "would_help": ""}]))
+        _story(obstacles=[{"obstacle": "", "would_help": "", "help_from": "engine"}]))
 
 
 def test_the_skeptic_is_told_to_debrief_the_testing_story():

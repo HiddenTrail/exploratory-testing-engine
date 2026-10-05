@@ -19,6 +19,7 @@ import re
 from pathlib import Path
 
 from engine import interplay
+from engine.glossary import LEVEL_TAGS, QUALITY_TAGS, glossary_for
 from engine.adapter import SUTAdapter
 
 
@@ -157,6 +158,23 @@ def _lowered_label(observation) -> str:
     reason = observation.get("lowered_because", "")
     return (f' <span class="prose-muted">(the Driver said {esc(observation["driver_kind"])}, '
             f'lowered because {esc(reason)})</span>')
+
+
+_SEVERITY = {"high": 3, "medium": 2, "low": 1}
+_KIND_WEIGHT = {"bug": 3, "anomaly": 2, "finding": 1}
+
+
+def _headline(observations, bug_reports, counts, score) -> str:
+    """The most serious confirmed thing (#285): a bug report, else the most severe
+    corroborated bug or anomaly. Otherwise a plain summary, never just whichever
+    observation happens to come first."""
+    if bug_reports:
+        return max(bug_reports, key=lambda b: _SEVERITY.get(b.get("severity"), 0))["title"]
+    serious = [o for o in observations if o["status"] == "corroborated" and o["kind"] in ("bug", "anomaly")]
+    if serious:
+        return max(serious, key=lambda o: (_KIND_WEIGHT[o["kind"]], _SEVERITY.get(o["severity"], 0)))["claim"]
+    # The counts are already in the line above the headline.
+    return "No confirmed problem" + (f" · found {len(score['found'])} of {score['known']} known problems" if score else "")
 
 
 def _replay_badge(observation) -> str:
@@ -502,12 +520,15 @@ _QUALITY_TONES = {"no_problems_seen_yet": "good", "concerns": "warn", "problems_
                   "good": "good", "neutral": "warn", "bad": "bad"}   # the second three: runs before #271
 
 
-def _areas_table(areas) -> str:
+def _areas_table(areas, brief: bool = False) -> str:
     """The Driver's testing story (#265): per area, how it tested, how much it thinks it
     covered, its quality estimate and how sure it is."""
     def covered(a):
-        level = esc((a.get("coverage") or a.get("tested", "")).replace("_", " "))
-        of = f' <span class="prose-muted">of {inline_markdown(a["coverage_of"])}</span>' if a.get("coverage_of") else ""
+        raw = a.get("coverage") or a.get("tested", "")
+        level = esc(LEVEL_TAGS.get(raw, raw.replace("_", " ")))
+        dims = a.get("coverage_of")
+        dims = ", ".join(dims) if isinstance(dims, list) else dims   # a list since #285, prose before
+        of = f' <span class="prose-muted">of {inline_markdown(dims)}</span>' if dims else ""
         left = (f'<div class="prose-muted">not tested: {inline_markdown(a["not_tested"])}</div>'
                 if a.get("not_tested") else "")
         return level + of + left
@@ -517,13 +538,17 @@ def _areas_table(areas) -> str:
             if a.get("oracle") else ""
         return inline_markdown(a["approach"]) + oracle
 
+    def status(a):
+        tag = QUALITY_TAGS.get(a["quality"], a["quality"].replace("_", " "))
+        return badge(f"{tag} · {a['confidence']}", _QUALITY_TONES.get(a["quality"], "neutral"))
+
+    with_why = any(a.get("why") for a in areas) and not brief
     rows = "".join(
-        f"""<tr><td>{inline_markdown(a['area'])}</td><td>{tested(a)}</td><td>{covered(a)}</td>
-        <td>{badge(a['quality'].replace('_', ' '), _QUALITY_TONES.get(a['quality'], 'neutral'))}</td>
-        <td>{esc(a['confidence'])}</td><td>{inline_markdown(a['why'])} {_tests_label(a['tests'])}</td></tr>"""
+        f"""<tr><td>{inline_markdown(a['area'])}</td><td>{tested(a)}</td><td>{covered(a)}</td><td>{status(a)}</td>"""
+        + (f"<td>{inline_markdown(a.get('why', ''))} {_tests_label(a['tests'])}</td>" if with_why else "") + "</tr>"
         for a in areas)
     return ('<div class="table-scroll"><table class="data-table"><thead><tr><th>Area</th><th>How it was tested</th>'
-            '<th>Coverage</th><th>Seen so far</th><th>Confidence</th><th>Why</th></tr></thead>'
+            '<th>Coverage</th><th>Status</th>' + ("<th>Why</th>" if with_why else "") + '</tr></thead>'
             f'<tbody>{rows}</tbody></table></div>')
 
 
@@ -543,6 +568,7 @@ def _obstacles_list(obstacles) -> str:
     if not obstacles:
         return ""
     items = "".join(f"<li>{inline_markdown(o['obstacle'])}"
+                    + (f' {badge("help from " + o["help_from"].replace("_", " "), "neutral")}' if o.get("help_from") else "")
                     + (f' <span class="prose-muted">What would help: {inline_markdown(o["would_help"])}</span>'
                        if o.get("would_help") else "") + "</li>" for o in obstacles)
     return f"<p><strong>What got in the way of testing</strong></p><ul>{items}</ul>"
@@ -557,13 +583,69 @@ def _render_standing_section(checkpoints) -> str:
     return f"""
     <section id="standing">
       <p class="eyebrow">The testing story</p>
-      <h2>Where it stands</h2>
-      <p class="prose">The Driver's account from its last checkpoint: what it has seen of each area so far, how
-        it tested it and how deep that went, and what got in the way. Assessments grounded in the tests, not
-        counts. The Skeptic's review of it is in the last checkpoint below.</p>
-      {_areas_table(last['areas'])}
-      {_obstacles_list(last.get('obstacles'))}
-      {_still_open(checkpoints[-1].get('debrief'))}
+      <details class="fold" open>
+        <summary>Where it stands ({len(last['areas'])} area(s))</summary>
+        <p class="prose">The Driver's account from its last checkpoint: what it has seen of each area so far,
+          how it tested it and how deep that went, and what got in the way. Assessments grounded in the tests,
+          not counts; the tags are explained in the glossary at the end. The Skeptic's review of it is in the
+          last checkpoint below.</p>
+        {_areas_table(last['areas'], brief=True)}
+        {_obstacles_list(last.get('obstacles'))}
+        {_still_open(checkpoints[-1].get('debrief'))}
+      </details>
+    </section>
+    """
+
+
+def _render_oracle_outcomes(ranked, casting_log, observations) -> str:
+    """What came of each idea the oracle gave the Driver (#285): the tests that cited it,
+    how many came out as predicted, and the observations those tests support. It's the
+    "how problems were recognized" strand of the story; the raw list stays folded with
+    the onboarding."""
+    if not ranked:
+        return ""
+    cited_by = {}
+    for e in casting_log:
+        if e.get("oracle_claim_id"):
+            cited_by.setdefault(e["oracle_claim_id"], []).append(e)
+    rows = []
+    for idea in ranked:
+        tests = cited_by.get(idea["id"], [])
+        numbers = {e.get("test_number") for e in tests}
+        held = sum(1 for e in tests if e.get("prediction_matched"))
+        supported = sorted({o["id"] for o in observations if numbers & set(o.get("tests", []))})
+        rows.append(f"<tr><td>{inline_markdown(idea['claim'])}</td><td>{len(tests) or '-'}</td>"
+                    f"<td>{f'{held} of {len(tests)}' if tests else '-'}</td><td>{esc(', '.join(supported)) or '-'}</td></tr>")
+    used = sum(1 for idea in ranked if cited_by.get(idea["id"]))
+    return f"""
+    <section id="oracle-outcomes">
+      <p class="eyebrow">How problems were looked for</p>
+      <details class="fold">
+        <summary>The oracle's ideas: {used} of {len(ranked)} tested</summary>
+        <p class="prose-muted">Each idea the oracle gave the Driver, the tests that cited it, how many came out as
+          the Driver predicted, and the final observations those tests support.</p>
+        <div class="table-scroll"><table class="data-table"><thead><tr><th>Idea</th><th>Tests</th>
+          <th>Predictions held</th><th>Observations</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>
+      </details>
+    </section>
+    """
+
+
+def _render_glossary(output) -> str:
+    """Every tag this report uses, with what it means (#285)."""
+    groups = glossary_for(output)
+    if not groups:
+        return ""
+    body = "".join(f"<p><strong>{esc(group)}</strong></p><ul>"
+                   + "".join(f"<li><strong>{esc(term)}</strong>: {esc(meaning)}</li>" for term, meaning in terms)
+                   + "</ul>" for group, terms in groups)
+    return f"""
+    <section id="glossary">
+      <p class="eyebrow">Reading this report</p>
+      <details class="fold">
+        <summary>Glossary of the tags used here</summary>
+        {body}
+      </details>
     </section>
     """
 
@@ -630,6 +712,7 @@ CSS = """
 .data-table th, .data-table td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 .data-table th { color: var(--ink-soft); font-weight: 600; }
 .data-table tr:last-child td { border-bottom: 0; }
+.data-table td .badge { white-space: nowrap; }
 
 body {
   font-family: var(--font-body);
@@ -810,12 +893,14 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
     elif observations:
         counts = {kind: sum(1 for o in observations if o["kind"] == kind) for kind in ("bug", "anomaly", "finding")}
         eyebrow = ", ".join(f"{n} {kind}{'' if n == 1 else 's'}" for kind, n in counts.items() if n)
-        title = bug_reports[0]["title"] if len(bug_reports) == 1 else observations[0]["claim"]
+        title = _headline(observations, bug_reports, counts, output.get("score"))
         stats = [
             _stat(checkpoints_run, "checkpoints run"),
             _stat(len(casting_log), "tests executed"),
             _stat(sum(1 for o in observations if o["status"] == "corroborated"), "corroborated"),
         ]
+        if output.get("score"):
+            stats.append(_stat(f"{len(output['score']['found'])} of {output['score']['known']}", "known problems found"))
     else:
         reason = output.get("stopped_reason", "unknown")
         eyebrow, title = "Checkpoints concluded", "Nothing looked wrong"
@@ -870,6 +955,8 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
 
   {_render_standing_section(checkpoints)}
 
+  {_render_oracle_outcomes(onboarding_extra.get("oracle_ranked"), casting_log, observations)}
+
   <section id="schema">
     <p class="eyebrow">Onboarding</p>
     <h2>Schema &amp; happy-day example</h2>
@@ -889,6 +976,8 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
   {_render_conclusion_section(observations)}
 
   {_render_bug_report_section(bug_reports)}
+
+  {_render_glossary(output)}
 </div>
 </body>
 </html>

@@ -34,9 +34,11 @@ Feature: A run is scored against a target's known problems
     And the problems listed as out of the harness's reach, which aren't counted
     And with --out it writes the score as JSON
 
-  Scenario: Every CI run is scored
-    When the exploratory-run workflow writes its summary
-    Then it scores the run against test-targets/known-problems/<product>.json, adds the score to the summary, and keeps runs/ci/score.json in the artifact
+  Scenario: A run scores itself when its target has a list
+    # Since #285, through the adapter's score_run hook.
+    Given WEB_GUI_KNOWN_PROBLEMS names a list, or WEB_GUI_PRODUCT is "juice-shop" and test-targets/known-problems/juice-shop.json exists
+    When the run ends
+    Then output.json has "score", the report's headline line and stats show "known problems found", and the run summary (and so the CI page) starts with it
 
   Scenario: The list says who checked it
     Then a known-problems list has "review": "status" "proposed" until a person has checked it, then "reviewed" with "by"

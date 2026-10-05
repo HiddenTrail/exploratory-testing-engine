@@ -25,6 +25,7 @@ Feature: A run writes a JSON result, a bug list when there are bugs, and an HTML
     And it has "replays" and "replay_log", the bug replays (see bug_replay.feature)
     And it has "interplay", how well the Driver answered the Skeptic (see driver_skeptic_interplay.feature)
     And each checkpoint has "debrief", the recorded exchange after the Skeptic's review (see checkpoint_debrief.feature)
+    And it has "score" when the adapter scores the run against the target's known problems (see run_score.feature)
 
   Scenario Outline: stopped_reason says why the run ended
     When the run ends because <cause>

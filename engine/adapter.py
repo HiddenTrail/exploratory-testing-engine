@@ -74,6 +74,11 @@ class SUTAdapter:
     compare_replay: Callable[[dict, dict], dict] | None = None
     before_replay: Callable[[], str | None] | None = None
 
+    # The run scored against the target's known problems (#277, #285): given output.json's
+    # content at the end of the run, {"known": n, "found": [...], "seen_not_reported": [...],
+    # "missed": [...], ...}, or None when the target has no known-problems list.
+    score_run: Callable[[dict], dict | None] | None = None
+
     # Report rendering hooks - the adapter owns request/response-shape rendering.
     render_test_entry: Callable[[dict], str] | None = None
     render_onboarding_section: Callable[[str, dict, dict], str] | None = None
