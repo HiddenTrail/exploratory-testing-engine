@@ -164,23 +164,48 @@ def _context_delta(idea_id: str, context: dict[str, Any]) -> tuple[float, str]:
     return CONFIRMED_STALE_PENALTY, "confirmed"
 
 
-def build_product_ideas(product: str, limit: int | None = None) -> dict[str, Any]:
+# With a run focus, at most this share of the Driver's slots goes to ideas with a focus tag.
+FOCUS_SHARE = 1 / 3
+
+
+def build_product_ideas(product: str, limit: int | None = None, focus: tuple = ()) -> dict[str, Any]:
     """A product's oracle, built by engine/ontology/seeder.py from the heuristic
     library and the product's wiki, scored with its context (context_<product>.json)
-    and ranked. With a limit, the pick takes turns across seeds (pick_across_seeds)."""
+    and ranked. With a limit, the pick takes turns across seeds (pick_across_seeds).
+
+    focus: library tags this run looks at first, e.g. ("security",) (#278). Ideas from
+    heuristics with a focus tag get up to FOCUS_SHARE of the limit, best first, and the
+    rest still take turns across seeds, so a focused run stays a rounded one. Without
+    it, the Standards seed's two or so slots went to accessibility, and no security
+    heuristic reached the Driver."""
     from engine.ontology.seeder import build_oracle, pick_across_seeds  # it imports this module
 
     context = load_context(product)
+    tags_of = {h["id"]: set(h["tags"]) for h in load_heuristics()}
     ideas = []
     for e in build_oracle(product)["expectations"]:
         delta, status = _context_delta(e["id"], context)
+        heuristic = next((s.split(":", 1)[1] for s in e["sources"] if s.startswith("heuristic:")), None)
+        focused = sorted(set(focus) & tags_of.get(heuristic, set()))
         ideas.append({
             "id": e["id"], "tier": e["tier"], "score": e["score"] + delta, "status": status,
             "category": e["seed"], "entity": e["entity"], "claim": e["claim"],
             # The expectation's sources stay in the built oracle; the Driver doesn't need them.
-            "rationale": f"{e['seed_name']}. Check: {e['check']}", "source": "seeded_oracle",
+            "rationale": f"{e['seed_name']}. Check: {e['check']}"
+                         + (f" (this run's focus: {', '.join(focused)})" if focused else ""),
+            "source": "seeded_oracle",
+            **({"focus": focused} if focused else {}),
         })
-    ideas = pick_across_seeds(ideas, limit) if limit is not None else sorted(ideas, key=lambda i: i["score"], reverse=True)
+    if limit is None:
+        ideas = sorted(ideas, key=lambda i: i["score"], reverse=True)
+    elif focus:
+        in_focus = sorted((i for i in ideas if i.get("focus")), key=lambda i: i["score"], reverse=True)
+        first = in_focus[:int(limit * FOCUS_SHARE)]
+        chosen = {i["id"] for i in first}
+        rest = pick_across_seeds([i for i in ideas if i["id"] not in chosen], limit - len(first))
+        ideas = sorted(first + rest, key=lambda i: i["score"], reverse=True)
+    else:
+        ideas = pick_across_seeds(ideas, limit)
     for rank, idea in enumerate(ideas, start=1):
         idea["rank"] = rank
     return {"sut": product, "generated_at": datetime.now(timezone.utc).isoformat(), "ranked_ideas": ideas}

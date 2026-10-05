@@ -329,14 +329,16 @@ def describe_result_for_log(result: dict) -> str:
 # The oracle. With WEB_GUI_PRODUCT naming a product in the wiki (e.g. "juice-shop"),
 # it's that product's seeded oracle (issue #138): the heuristic library and the
 # product's facts run through the FEW HICCUPPS seeds, top ORACLE_TOP_N taking turns
-# across seeds. Without one, it's library heuristics only (issue #128): those that
-# fit a GUI, with the ones matching WEB_GUI_FEATURES (comma-separated library tags,
-# e.g. "login,search") ranked first. #111 showed a ranked oracle makes the Driver
+# across seeds; WEB_GUI_FEATURES (comma-separated library tags, e.g. "security") is
+# then the run's focus, which gets up to a third of the slots (#278). Without a
+# product, it's library heuristics only (issue #128): those that fit a GUI, with the
+# ones matching WEB_GUI_FEATURES (e.g. "login,search") ranked first. #111 showed a ranked oracle makes the Driver
 # find what it lists sooner. WEB_GUI_ORACLE=off leaves it out, for comparing runs.
 ORACLE_TOP_N = 15
 ORACLE_PRODUCT = os.environ.get("WEB_GUI_PRODUCT", "").strip()
 ORACLE_FEATURES = tuple(f.strip() for f in os.environ.get("WEB_GUI_FEATURES", "").split(",") if f.strip())
-ORACLE_RANKED = (build_product_ideas(ORACLE_PRODUCT, limit=ORACLE_TOP_N) if ORACLE_PRODUCT else build_ranked_ideas(
+ORACLE_RANKED = (build_product_ideas(ORACLE_PRODUCT, limit=ORACLE_TOP_N, focus=ORACLE_FEATURES)
+                 if ORACLE_PRODUCT else build_ranked_ideas(
     "web_gui", surfaces=("gui",), features=ORACLE_FEATURES, heuristic_limit=ORACLE_TOP_N,
 ))["ranked_ideas"]
 ORACLE_ENABLED = os.environ.get("WEB_GUI_ORACLE", "").strip().lower() != "off"
