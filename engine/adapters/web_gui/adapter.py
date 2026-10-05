@@ -27,6 +27,7 @@ So this run looks and navigates only; nothing it can name mutates the app.
 """
 
 import os
+from pathlib import Path
 
 from engine import outcome
 from engine.adapter import SUTAdapter
@@ -221,7 +222,7 @@ def execute_test(test: dict, test_number: int) -> dict:
                            effect=outcome.UNKNOWN, accepted=False))
 
     start_as = test.get("start_as") or "same_tab"
-    result = session.act(state_id, control_key, start_as)
+    result = session.act(state_id, control_key, start_as, test_number=test_number)
     request = {"state": state_id, "control": control_key}
     if start_as != "same_tab":
         request["start_as"] = start_as
@@ -234,6 +235,24 @@ def execute_test(test: dict, test_number: int) -> dict:
         "actual_screen": result["screen_was"],
         "prediction_matched": result["screen_was"] == predicted,
     }, outcome_for(result))
+
+
+def save_test_media(test_numbers, out_dir: Path) -> dict[int, str]:
+    """The videos of these tests, kept in out_dir/videos (#286). Empty with no live
+    session or with WEB_GUI_VIDEO=off."""
+    session = live_session._SESSION
+    if session is None:
+        return {}
+    return {n: f"videos/{name}" for n, name in session.save_videos(test_numbers, out_dir / "videos").items()}
+
+
+def _video_html(entry) -> str:
+    """The test's video, when it was kept (#286). preload="none", so a report with many
+    videos still opens quickly."""
+    if not entry.get("video"):
+        return ""
+    return (f'<details class="fold"><summary>Video of this test</summary>'
+            f'<video controls preload="none" width="640" src="{esc(entry["video"])}"></video></details>')
 
 
 def _screen_differences(first: str, second: str) -> list[str]:
@@ -551,6 +570,7 @@ def render_test_entry(entry) -> str:
             {_screen_badge(entry.get('predicted_screen'))}</div>
           <div class="test-outcome">{badge('control could not be actuated', 'bad')}</div>
           {_signals_html(result)}
+          {_video_html(entry)}
         </article>
         """
 
@@ -572,6 +592,7 @@ def render_test_entry(entry) -> str:
       </div>
       <div class="test-outcome prose-muted">click took <span class="num">{esc(result.get('click', '?'))}s</span>, settled in <span class="num">{esc(result.get('settle'))}s</span>{f", clicked through {esc(result['covered_by'])} on top of it" if result.get('covered_by') else ""}</div>
       {_signals_html(result)}
+      {_video_html(entry)}
     </article>
     """
 
@@ -657,6 +678,7 @@ ADAPTER = SUTAdapter(
     redact_history_for_model=redact_history_for_model,
     compare_replay=compare_replay,
     score_run=score_run,
+    save_test_media=save_test_media,
     before_replay=live_session.replay_blocker,
     render_test_entry=render_test_entry,
     render_onboarding_section=render_onboarding_section,

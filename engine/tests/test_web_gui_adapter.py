@@ -1006,7 +1006,7 @@ def test_act_marks_a_new_tab_test_and_goes_back_to_the_same_tab_after(monkeypatc
 def test_a_new_tab_test_is_its_own_action_and_says_so(monkeypatch):
     class Live:
         reference = type("R", (), {"pairs": lambda self: {("st01", "button:A")}})()
-        def act(self, state_id, control_key, start_as):
+        def act(self, state_id, control_key, start_as, test_number=None):
             r = _result()
             return {**r, "started_as": start_as} if start_as != "same_tab" else r
     monkeypatch.setattr(live_session, "live", lambda: Live())

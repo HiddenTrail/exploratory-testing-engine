@@ -84,6 +84,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | [`web_recovery.feature`](web_recovery.feature) | The browser recovers after reaching a new screen |
 | [`web_discoveries.feature`](web_discoveries.feature) | Screens beyond the map are recorded and join the run's map |
 | [`web_report.feature`](web_report.feature) | The web report and log show each move and its signals |
+| [`test_videos.feature`](test_videos.feature) | The tests a run rests on can be watched |
 
 ## Web testing: signals
 
