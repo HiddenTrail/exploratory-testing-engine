@@ -71,6 +71,12 @@ def summarize(output: dict, log_text: str | None = None, bugs: list | None = Non
             lines.append(f"| {o.get('id', '')} | {kind} | {o.get('status', '')} | {o.get('severity', '')} | "
                          f"{o.get('replay', '')} | {_cell(o.get('claim', ''))} |")
         lines.append("")
+    if output.get("score"):
+        s = output["score"]
+        lines += [f"**Known problems found: {len(s['found'])} of {s['known']}** ({s.get('target', '')}, list "
+                  f"{s.get('review') or 'unreviewed'}): found {', '.join(f['id'] for f in s['found']) or 'none'}; "
+                  f"seen by a test but not reported {', '.join(x['id'] for x in s['seen_not_reported']) or 'none'}; "
+                  f"missed {', '.join(m['id'] for m in s['missed']) or 'none'}.", ""]
     measured = interplay.measure(output.get("checkpoints") or [])
     if measured:
         lines += ["**The Driver and the Skeptic:** " + " ".join(interplay.summary_lines(measured)), ""]

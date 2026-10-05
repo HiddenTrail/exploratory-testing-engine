@@ -72,8 +72,14 @@ Feature: The web_gui adapter checks its map and the live app before a run starts
     And it has "safety_note", saying the run is read-only
     And it has "oracle_ranked" unless WEB_GUI_ORACLE is "off"
 
-  Scenario: The happy-day example is one real action on the entry state
-    Given the session is ready
+  Scenario: A web run has no happy-day example
+    # Since #285: one click on the start page told the Driver nothing, and cost a test and
+    # evidence tokens on every call. check_ready already proves the machinery.
     When the loop asks for the happy-day example
-    Then the first (state, control) pair on the entry state, in sorted order, is acted on for real
-    And its request and the full act result are the example
+    Then its request and response are empty, and nothing is acted on
+    And the Driver's evidence and the report leave it out
+
+  Scenario: The Driver gets the names of the product's parts
+    When check_ready runs
+    Then the onboarding evidence has "product_areas": the wiki's screen titles when WEB_GUI_PRODUCT has a wiki, then every screen of the map by route, e.g. "start page", "basket", "privacy security / privacy policy"
+    And with earlier discoveries, "earlier_discovery_routes" maps each screen id to its route, which the report shows next to the id

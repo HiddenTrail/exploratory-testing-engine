@@ -65,7 +65,8 @@ Feature: The web report and log show each move and its signals
 
   Scenario: The onboarding section shows what the Driver was told
     When the report renders the onboarding section
-    Then it shows "What the Driver was told", "Carried map (the action space)", "Where the run started" (the last two when check_ready filled them) and "Happy-day example"
+    Then it shows "What the Driver was told", "Carried map (the action space)" and "Where the run started" (the last two when check_ready filled them), and a "Happy-day example" only for runs made before #285
+    And "Where the run started" says "the start page matches the map", or "the start page differs from the map"
     And the ranked oracle ideas when the evidence has them
     # Each runs to hundreds of lines and pushed the checkpoints far down the page (#251).
     And "What the Driver was told" and "Carried map (the action space)" are folded sections, closed until opened

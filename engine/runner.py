@@ -40,9 +40,10 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
 
     (adapter.check_sut_ready or default_check_sut_ready)(adapter)
 
-    print("Fetching the one happy-day example from the live SUT...")
     happy_day_example = get_happy_day_example(adapter)
-    print(f"  {_one_line(happy_day_example['request'])} -> {_one_line(happy_day_example['response'])}")
+    if happy_day_example.get("request") or happy_day_example.get("response"):
+        print("The happy-day example from the live SUT:")
+        print(f"  {_one_line(happy_day_example['request'])} -> {_one_line(happy_day_example['response'])}")
 
     out_dir = run_config.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -140,6 +141,12 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
         output["stopped_reason"] = "error"
 
     output["usage_summary"] = summarize_usage(usage_log)
+    # Found X of Y known problems (#277), when the target has a list.
+    if adapter.score_run is not None and output.get("observations") is not None:
+        score = adapter.score_run(output)
+        if score:
+            output["score"] = score
+            print(f"Known problems found: {len(score['found'])} of {score['known']}")
     # How the Driver answered the Skeptic (#257), from whatever checkpoints finished.
     output["interplay"] = interplay.measure(output.get("checkpoints") or [])
     if output["usage_summary"]:

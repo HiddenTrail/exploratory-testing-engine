@@ -46,6 +46,11 @@ QUALITY_SEEN = {
     "problems_found": "a problem was found and shown",
 }
 CONFIDENCE = ("high", "medium", "low")
+# What an area's coverage is of: coverage only means something against a model (Bolton).
+# A fixed list since #285, because free text came back as prose about method.
+COVERAGE_DIMENSIONS = ("inputs", "states", "sequences", "timing", "data", "users")
+# Who could remove an obstacle (#285): "what would help" mixed the engine up with the product.
+HELP_FROM = ("engine", "map", "test_data", "product")
 MAX_AREAS = 5
 MAX_OBSTACLES = 3
 PRIOR_GAP_STATUSES = ("tested", "untestable", "resolved", "not_attempted")
@@ -248,10 +253,11 @@ TESTING_STORY_TOOL = {
                                 f"{k}: {v}" for k, v in COVERAGE_LEVELS.items()) + ".",
                         },
                         "coverage_of": {
-                            "type": "string",
-                            "description": ("What that coverage is of: inputs, states, sequences, timing, data, "
-                                            f"users... Coverage only means something against a model. "
-                                            f"{_limit('area.coverage_of')}"),
+                            "type": "array",
+                            "items": {"type": "string", "enum": list(COVERAGE_DIMENSIONS)},
+                            "description": ("What that coverage is of, one or more: the inputs tried, the states "
+                                            "it was in, the sequences of actions, timing, the data, the kinds of "
+                                            "user. Coverage only means something against a model."),
                         },
                         "oracle": {
                             "type": "string",
@@ -291,8 +297,14 @@ TESTING_STORY_TOOL = {
                     "properties": {
                         "obstacle": {"type": "string", "description": _limit("obstacle.obstacle")},
                         "would_help": {"type": "string", "description": _limit("obstacle.would_help")},
+                        "help_from": {
+                            "type": "string", "enum": list(HELP_FROM),
+                            "description": ("Who could remove it: the engine (what the test tool can do), the map "
+                                            "(which screens and controls tests can reach), test_data (accounts, "
+                                            "records), or the product itself (its testability)."),
+                        },
                     },
-                    "required": ["obstacle", "would_help"],
+                    "required": ["obstacle", "would_help", "help_from"],
                 },
             },
         },
@@ -301,7 +313,9 @@ TESTING_STORY_TOOL = {
 }
 
 TESTING_STORY_SYSTEM_PROMPT = """You just formed this checkpoint's hypothesis about the system (it's in
-your evidence). Now tell the testing story behind it, the way a tester reports to a test lead: three strands,
+your evidence). An area is a part of the product a user would recognize (a page, a feature, a flow), not a
+control you clicked or an overlay that got in the way: if 'product_areas' is in your evidence, name each area
+after one of them. Unrelated parts are separate areas, even if you tested them the same way. Now tell the testing story behind it, the way a tester reports to a test lead: three strands,
 braided together. What you've seen of each area so far. How you tested it, how you'd recognize a problem,
 how deep that went and what it was of, and what you didn't test. And how good your testing could be: what
 got in the way. These are assessments, not counts, and each rests on the tests you cite: the Skeptic will
@@ -331,7 +345,9 @@ def validate_testing_story(data) -> list[str]:
             where = f"areas[{i}]"
             _check_text(errors, f"{where}.area", a.get("area"), "area.area")
             _check_text(errors, f"{where}.approach", a.get("approach"), "area.approach")
-            _check_text(errors, f"{where}.coverage_of", a.get("coverage_of"), "area.coverage_of")
+            dims = a.get("coverage_of")
+            if not isinstance(dims, list) or not dims or any(d not in COVERAGE_DIMENSIONS for d in dims):
+                errors.append(f"{where}.coverage_of must list one or more of {', '.join(COVERAGE_DIMENSIONS)}")
             _check_text(errors, f"{where}.oracle", a.get("oracle"), "area.oracle")
             _check_text(errors, f"{where}.not_tested", a.get("not_tested"), "area.not_tested", required=False)
             _check_text(errors, f"{where}.why", a.get("why"), "area.why")
@@ -355,6 +371,8 @@ def validate_testing_story(data) -> list[str]:
                 continue
             _check_text(errors, f"obstacles[{i}].obstacle", o.get("obstacle"), "obstacle.obstacle")
             _check_text(errors, f"obstacles[{i}].would_help", o.get("would_help"), "obstacle.would_help", required=False)
+            if o.get("help_from") not in HELP_FROM:
+                errors.append(f"obstacles[{i}].help_from must be one of {', '.join(HELP_FROM)}")
 
     return errors
 

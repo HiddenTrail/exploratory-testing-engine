@@ -42,7 +42,13 @@ Feature: The Driver tells its testing story, and the Skeptic debriefs it
     When the Driver tells its testing story
     Then it has "areas", up to 5, each with "area", "approach", "coverage", "coverage_of", "oracle", "not_tested", "tests", "quality", "confidence" and "why"
     And each area cites the tests behind it
-    And it has "obstacles", up to 3, each with "obstacle" and "would_help", empty if nothing got in the way
+    And it has "obstacles", up to 3, each with "obstacle", "would_help" and "help_from" (engine, map, test_data or product), empty if nothing got in the way
+    And "coverage_of" lists one or more of inputs, states, sequences, timing, data, users (#285: free text came back as prose about method)
+
+  Scenario: Areas are parts of the product, not controls
+    # #285: one row bundled the account menu, the language radio and "add new card"; another was named after an overlay.
+    Given the evidence has "product_areas"
+    Then the Driver is told to name each area after a part of the product from it, never after a control or an overlay, and to keep unrelated parts apart
 
   Scenario Outline: Coverage levels have meanings
     Then the coverage level "<level>" means "<meaning>"
@@ -67,14 +73,15 @@ Feature: The Driver tells its testing story, and the Skeptic debriefs it
     Then the story is rejected with "<message>"
 
     Examples:
-      | problem                            | message                                                                                          |
-      | there are no areas at all          | 'areas' must be a non-empty list                                                                 |
-      | an area's coverage is "thoroughly" | areas[0].coverage must be one of can_it_work, common_and_critical, deep                          |
-      | an area's quality is "good"        | areas[0].quality must be one of no_problems_seen_yet, concerns, problems_found                   |
-      | an area says nothing it's "of"     | areas[0].coverage_of must not be empty                                                           |
-      | an area names no oracle            | areas[0].oracle must not be empty                                                                |
-      | an area cites no tests             | areas[0].tests must cite the test numbers behind it; an area with no tests belongs in 'untested' |
-      | there's no "obstacles" field       | missing required field 'obstacles'                                                               |
+      | problem                              | message                                                                                          |
+      | there are no areas at all            | 'areas' must be a non-empty list                                                                 |
+      | an area's coverage is "thoroughly"   | areas[0].coverage must be one of can_it_work, common_and_critical, deep                          |
+      | an area's quality is "good"          | areas[0].quality must be one of no_problems_seen_yet, concerns, problems_found                   |
+      | an area's coverage_of is prose       | areas[0].coverage_of must list one or more of inputs, states, sequences, timing, data, users     |
+      | an obstacle's help_from is "someone" | obstacles[0].help_from must be one of engine, map, test_data, product                            |
+      | an area names no oracle              | areas[0].oracle must not be empty                                                                |
+      | an area cites no tests               | areas[0].tests must cite the test numbers behind it; an area with no tests belongs in 'untested' |
+      | there's no "obstacles" field         | missing required field 'obstacles'                                                               |
 
   Scenario: The Skeptic receives the story, and the previous one
     # It was left off the Skeptic's evidence at first, so the Skeptic was asked to question

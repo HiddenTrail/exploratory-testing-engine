@@ -34,6 +34,7 @@ from engine.tools import CASTING_REASONING_DESCRIPTION, PRIOR_FEEDBACK_GUIDE, ca
 from engine.adapters.web_gui import reference as ref_mod
 from engine.adapters.web_gui import session as live_session
 from engine.adapters.web_gui.reference import PREDICTIONS
+from engine.adapters.web_gui.score import score_run
 from engine.ontology.oracle_creator import build_product_ideas, build_ranked_ideas
 from engine.report import badge, bool_badge, esc, inline_markdown, render_json_block, render_oracle_ranked
 
@@ -289,12 +290,10 @@ def fetch_happy_day_example(adapter: SUTAdapter) -> dict:
     """One real action at the live app, so onboarding starts from a fact: the first control
     on the entry state, actuated and classified. Proves the machinery (reach, actuate,
     observe, recover) works before a single API call is spent proposing tests."""
-    session = live_session.live()
-    ref = session.reference
-    entry = ref.entry()
-    ordered = sorted(ref.pairs())
-    pair = next((p for p in ordered if p[0] == entry), ordered[0])
-    return {"request": {"state": pair[0], "control": pair[1]}, "response": session.act(*pair)}
+    # Empty since #285: for a web run, one click on the start page told the Driver nothing
+    # and cost a test and evidence tokens on every call. check_ready already proves the
+    # machinery (the server check and the start page) before anything is spent.
+    return {"request": {}, "response": {}}
 
 
 def describe_test_for_log(test: dict) -> str:
@@ -564,6 +563,16 @@ def render_onboarding_section(api_schema, onboarding_extra, happy_day_example) -
     extra = onboarding_extra or {}
     happy_request = (happy_day_example or {}).get("request", {})
     happy_response = (happy_day_example or {}).get("response", {})
+    # Runs before #285 had one; a web run has none now.
+    happy_html = "" if not (happy_request or happy_response) else f"""
+    <div class="exhibit">
+      <h3>Happy-day example</h3>
+      <p class="eyebrow">Request</p>
+      {render_json_block(happy_request)}
+      <p class="eyebrow">Response</p>
+      {render_json_block(happy_response)}
+    </div>
+    """
     map_html = ""
     if extra.get("carried_map"):
         map_html = f"""
@@ -574,7 +583,9 @@ def render_onboarding_section(api_schema, onboarding_extra, happy_day_example) -
     """
     earlier_html = ""
     if extra.get("earlier_discoveries"):
-        rows = "".join(f"<li><strong>{esc(k.replace('_', ' '))}:</strong> {esc(', '.join(v))}</li>"
+        routes = extra.get("earlier_discovery_routes") or {}
+        named = lambda sid: f"{routes[sid]} ({sid})" if sid in routes else sid
+        rows = "".join(f"<li><strong>{esc(k.replace('_', ' '))}:</strong> {esc(', '.join(named(s) for s in v))}</li>"
                        for k, v in extra["earlier_discoveries"].items())
         earlier_html = f"""
     <div class="exhibit">
@@ -589,7 +600,8 @@ def render_onboarding_section(api_schema, onboarding_extra, happy_day_example) -
         warned = str(extra["baseline"]).startswith("WARNING")
         baseline_html = f"""
     <div class="exhibit">
-      <h3>Where the run started {badge('drifted', 'warn') if warned else badge('confirmed', 'good')}</h3>
+      <h3>Where the run started {badge('the start page differs from the map', 'warn') if warned
+                                    else badge('the start page matches the map', 'good')}</h3>
       <pre class="schema-doc">{esc(extra['baseline'])}</pre>
     </div>
     """
@@ -604,13 +616,7 @@ def render_onboarding_section(api_schema, onboarding_extra, happy_day_example) -
     {baseline_html}
     {earlier_html}
     {render_oracle_ranked(extra.get('oracle_ranked'))}
-    <div class="exhibit">
-      <h3>Happy-day example</h3>
-      <p class="eyebrow">Request</p>
-      {render_json_block(happy_request)}
-      <p class="eyebrow">Response</p>
-      {render_json_block(happy_response)}
-    </div>
+    {happy_html}
     """
 
 
@@ -633,6 +639,7 @@ ADAPTER = SUTAdapter(
     describe_result_for_log=describe_result_for_log,
     redact_history_for_model=redact_history_for_model,
     compare_replay=compare_replay,
+    score_run=score_run,
     before_replay=live_session.replay_blocker,
     render_test_entry=render_test_entry,
     render_onboarding_section=render_onboarding_section,

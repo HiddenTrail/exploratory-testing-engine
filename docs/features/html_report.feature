@@ -26,10 +26,10 @@ Feature: The HTML report puts the conclusion first and folds the details
     And the stats are <stats>
 
     Examples:
-      | state                        | eyebrow                         | title                                                             | stats                                                     |
-      | "error" is set               | "Run incomplete"                | "Stopped early"                                                   | the error cut to 40 characters, labelled "reason"         |
-      | there are final observations | counts like "1 bug, 2 findings" | the one bug report's title, or else the first observation's claim | "checkpoints run", "tests executed" and "corroborated"    |
-      | there are no observations    | "Checkpoints concluded"         | "Nothing looked wrong"                                            | "checkpoints run", "tests executed" and "stopped because" |
+      | state                        | eyebrow                         | title                                                                                                                                                                                                | stats                                                                                                    |
+      | "error" is set               | "Run incomplete"                | "Stopped early"                                                                                                                                                                                      | the error cut to 40 characters, labelled "reason"                                                        |
+      | there are final observations | counts like "1 bug, 2 findings" | the most serious confirmed thing: the most severe bug report's title, else the most severe corroborated bug or anomaly; else "No confirmed problem", with the known-problems score when there is one | "checkpoints run", "tests executed", "corroborated", and "known problems found" when the run has a score |
+      | there are no observations    | "Checkpoints concluded"         | "Nothing looked wrong"                                                                                                                                                                               | "checkpoints run", "tests executed" and "stopped because"                                                |
 
   Scenario Outline: The top bar links only to the sections the run has
     Given a run output with <content>
@@ -80,6 +80,22 @@ Feature: The HTML report puts the conclusion first and folds the details
     Then the "Findings, anomalies and bugs" section lists each observation with its status and the Skeptic's note
     And a bug that was replayed carries its replay badge (see bug_replay.feature)
     And the "Bug report" section shows the report's title, severity, status, description, steps, expected and actual behaviour and caveats
+
+  Scenario: "Where it stands" is collapsible and short
+    # #285: walked through a real report; the old table was crowded and its tags wrapped.
+    Then "Where it stands" is a fold, open by default, titled with how many areas it has
+    And each area has its approach and oracle, its coverage as a level tag (L1, L2, L3) with what it was of and what wasn't tested, and one status tag such as "OK so far · medium"
+    And the "Why" column is only in each checkpoint's own story
+    And each obstacle shows who could help: the engine, the map, test data or the product
+
+  Scenario: What came of the oracle's ideas
+    Given the Driver was given ranked oracle ideas
+    Then a folded section lists each idea, the tests that cited it, how many came out as predicted, and the final observations those tests support
+    And its title says how many of the ideas were tested at all
+
+  Scenario: A glossary explains the tags the report uses
+    Then the report ends with a folded glossary of only the tags that appear in this run: kinds, statuses, coverage levels, what's been seen, confidence, the Skeptic's questions, the debrief's stances, judgements and outcomes, and replay verdicts
+    And the meanings come from the same definitions the engine and its prompts use
 
   Scenario: A report can be rebuilt from a saved run folder
     Given a run folder with output.json and no bugs.json

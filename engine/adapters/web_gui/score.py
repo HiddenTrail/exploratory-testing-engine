@@ -73,6 +73,26 @@ def score(known: dict, output: dict) -> dict:
             "out_of_reach": [p["id"] for p in known.get("out_of_reach", [])]}
 
 
+def known_problems_path() -> Path | None:
+    """The known-problems list for this run: WEB_GUI_KNOWN_PROBLEMS, else the one named
+    after WEB_GUI_PRODUCT in test-targets/known-problems/, if there is one."""
+    import os
+    explicit = os.environ.get("WEB_GUI_KNOWN_PROBLEMS", "").strip()
+    if explicit:
+        return Path(explicit)
+    product = os.environ.get("WEB_GUI_PRODUCT", "").strip()
+    guess = Path(__file__).resolve().parents[3] / "test-targets" / "known-problems" / f"{product}.json"
+    return guess if product and guess.exists() else None
+
+
+def score_run(output: dict) -> dict | None:
+    """The adapter's score_run hook: the run scored against its known-problems list."""
+    path = known_problems_path()
+    if path is None:
+        return None
+    return score(json.loads(path.read_text(encoding="utf-8")), output)
+
+
 def summary(result: dict) -> str:
     """The score as Markdown, for the run summary on a CI page."""
     def labels(f):

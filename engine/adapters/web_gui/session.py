@@ -880,6 +880,27 @@ def join_earlier_discoveries(session: "Session", discoveries: list[dict]) -> dic
     return {k: v for k, v in outcome.items() if v}
 
 
+def _route_name(url: str) -> str:
+    """'http://h/#/privacy-security/privacy-policy' as 'privacy security / privacy policy'."""
+    parts = urlsplit(url or "")
+    route = (parts.fragment or parts.path or "/").strip("/")
+    return " / ".join(p.replace("-", " ") for p in route.split("/") if p) or "start page"
+
+
+def product_areas(reference, product: str = "") -> list[str]:
+    """The names the Driver's testing story uses for areas (#285): each screen of the map
+    by route, and the product's screens from the wiki when there is one."""
+    names = []
+    if product:
+        try:
+            from engine.ontology.product import load_product
+            names += [e["title"] for e in (load_product(product) or {}).get("entities", [])]
+        except Exception:      # a product without a readable wiki still gets the map's names
+            pass
+    names += [_route_name(s.get("url", "")) for s in reference.states]
+    return list(dict.fromkeys(names))
+
+
 def has_session() -> bool:
     """Whether this run starts from a saved session, so a new tab differs from the same tab."""
     return bool(_SESSION is not None and _SESSION.session_file)
@@ -985,9 +1006,16 @@ def check_ready(adapter) -> None:
     if earlier:
         joined = join_earlier_discoveries(session, earlier)
         adapter.onboarding_extra["earlier_discoveries"] = joined
+        # Their routes, so a reader (and the Driver) can tell the ids apart (#285).
+        adapter.onboarding_extra["earlier_discovery_routes"] = {
+            d["id"]: urlsplit(d.get("url", "")).fragment or urlsplit(d.get("url", "")).path for d in earlier}
         print("Screens from earlier runs: " + ", ".join(f"{len(v)} {k.replace('_', ' ')}" for k, v in joined.items()))
     else:
         adapter.onboarding_extra.pop("earlier_discoveries", None)
+
+    # The parts of the product the testing story names its areas after (#285): every
+    # screen in the map by route, plus the wiki's screens when there's a product.
+    adapter.onboarding_extra["product_areas"] = product_areas(reference, product)
 
     # onboarding_extra is merged into the Driver's evidence (engine/loop._base_evidence) and
     # rendered in the report, so the carried map - the action space - is filled in here, the

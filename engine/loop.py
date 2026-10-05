@@ -52,11 +52,10 @@ def _redact(adapter: SUTAdapter, casting_log: list[dict]) -> list[dict]:
 
 
 def _base_evidence(adapter: SUTAdapter, happy_day_example: dict, skeptic_history: dict | None = None) -> dict:
-    evidence = {
-        "api_schema": adapter.api_schema_doc,
-        **adapter.onboarding_extra,
-        "happy_day_example": happy_day_example,
-    }
+    evidence = {"api_schema": adapter.api_schema_doc, **adapter.onboarding_extra}
+    # An adapter with nothing to show (web_gui since #285) leaves it out of the evidence.
+    if (happy_day_example or {}).get("request") or (happy_day_example or {}).get("response"):
+        evidence["happy_day_example"] = happy_day_example
     # The Driver learns from earlier runs' objections (#258). Never from the current
     # run's Skeptic beyond the review it's already given, so the Skeptic stays cold.
     if skeptic_history:
