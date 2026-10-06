@@ -21,6 +21,7 @@ import json
 import os
 import re
 import shutil
+from collections import Counter
 import sys
 import tempfile
 import time
@@ -38,6 +39,7 @@ from identity import appearance, control_keys, impersonal, signature   # noqa: E
 from perceive import _ELEMENTS_JS as ELEMENTS_JS   # noqa: E402
 from perceive import Collector, capture, visual_diff  # noqa: E402
 from safety import SEARCH_PROBE, TEXT_ROLES        # noqa: E402
+from safety import plan as gate_plan                # noqa: E402
 from safety import safe_actions                    # noqa: E402
 
 from engine.adapters.web_gui import reference as ref_mod  # noqa: E402
@@ -68,6 +70,12 @@ _SESSION_CHECK_ENV = "WEB_GUI_SESSION_CHECK"
 # localStorage but empty sessionStorage. A logged-in Juice Shop user's new tab lost the
 # basket, and only a person found it, because every test started as the same tab.
 START_AS = ("same_tab", "new_tab")
+# What one step of a test does on the live page (#310). A test starts from a route on the
+# site or a screen the map knows, then runs up to MAX_STEPS of these on whatever is there.
+STEP_KINDS = ("click", "fill", "select", "goto", "back")
+MAX_STEPS = 6
+# How many of the page's controls a result lists, so the Driver can act on what it sees.
+_PAGE_CONTROLS_SHOWN = 40
 
 
 def load_session_file(path) -> str:
@@ -438,6 +446,27 @@ def off_site_target(url: str, status: int, location: str | None, site: str) -> s
     return None
 
 
+def _step_label(step: dict) -> str:
+    """How a step reads in an action's label: "button:Next page", "textbox:Search = 'x'",
+    "goto /#/basket", "back"."""
+    kind = step.get("do", "click")
+    if kind == "back":
+        return "back"
+    if kind == "goto":
+        return f"goto {step.get('value', '')}"
+    label = f"{step.get('role', '')}:{step.get('name', '')}" + (f" #{step['nth']}" if int(step.get("nth") or 1) > 1 else "")
+    return label + (f" = {step['value']!r}" if kind in ("fill", "select") and step.get("value") else "")
+
+
+def _replay_step(step: dict, done: dict, session) -> dict:
+    """A step that ran, as a replayable path step (what _actuate takes)."""
+    if step.get("do") == "goto":
+        return {"goto": session.route_url(step.get("value") or "/")}
+    if step.get("do") == "back":
+        return {"back": True}
+    return {k: step[k] for k in ("role", "name", "value", "locator", "nth") if step.get(k)}
+
+
 class Session:
     def __init__(self, reference: ref_mod.Reference, base_url: str, headed: bool, session_file: str | None = None,
                  record_video: bool = False):
@@ -573,11 +602,19 @@ class Session:
         self.blocked_off_site.append(target[:300])
         cdp.send("Fetch.failRequest", {"requestId": event["requestId"], "errorReason": "BlockedByClient"})
 
-    def _reboot(self) -> None:
-        """Back to the start as a first-time visitor: a fresh session, then the base URL."""
+    def _reboot(self, url: str = "") -> None:
+        """Back to the start as a first-time visitor: a fresh session, then the base URL,
+        or `url` on the site (a test that starts from a route, #310)."""
         self._open_fresh_page()
-        self.page.goto(self.base_url, wait_until="domcontentloaded")
+        self.page.goto(url or self.base_url, wait_until="domcontentloaded")
         self.last_rest = self._rest()
+
+    def route_url(self, route: str) -> str:
+        """A route on the site ("/#/basket", "#/basket", "/profile") as a full URL."""
+        route = route.strip()
+        if route.startswith("#"):
+            route = "/" + route
+        return self.base_url.rstrip("/") + "/" + route.lstrip("/")
 
     def _on_request(self, r) -> None:
         self._inflight.add(id(r))
@@ -672,10 +709,22 @@ class Session:
         marks any other text field committing, so it never enters the action space), and
         everything else is *clicked*. Clicking a search box instead of filling it merely
         focuses it and looks like a dead control - the false reading this exists to avoid."""
+        if step.get("goto"):                    # a route, in a replayed path (#310)
+            try:
+                self.page.goto(step["goto"], wait_until="domcontentloaded", timeout=15000)
+                return True
+            except Exception:
+                return False
+        if step.get("back"):
+            try:
+                self.page.go_back(wait_until="domcontentloaded", timeout=8000)
+                return True
+            except Exception:
+                return False
         role, name, css = step.get("role", ""), step.get("name", ""), step.get("locator", "")
         self.last_covered_by = ""
         if role in TEXT_ROLES:
-            return self._fill(role, name, css)
+            return self._fill(role, name, css, step.get("value") or SEARCH_PROBE)
         # Something on top of the control. A part of the control itself (a styled
         # radio's circle): a forced click lands on it, which presses the control. Anything
         # else gets up to a second to go away (a dismissed notice fades out); if it's
@@ -742,6 +791,63 @@ class Session:
         refuse_unless_ignored(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         return save_state(self._context, path)
+
+    def _find_live(self, role: str, name: str, nth: int = 1) -> dict | None:
+        """The element on the page now with this role and name: an exact name first, then
+        the same name in any case, then one whose name contains it if only one does. An
+        empty name is a name too: product images and icon buttons often have none, and
+        `nth` picks among several (the first by default, in page order)."""
+        try:
+            same_role = [e for e in self.page.evaluate(ELEMENTS_JS) if e.get("role") == role]
+        except Exception:
+            return None
+        wanted = (name or "").strip().lower()
+        for matches in ([e for e in same_role if (e.get("name") or "") == (name or "")],
+                        [e for e in same_role if (e.get("name") or "").strip().lower() == wanted]):
+            if matches:
+                return matches[nth - 1] if 0 < nth <= len(matches) else None
+        contains = [e for e in same_role if wanted and wanted in (e.get("name") or "").lower()]
+        return contains[0] if len(contains) == 1 and nth == 1 else None
+
+    def _do_step(self, step: dict) -> dict:
+        """One step of a test on the live page (#310): done, not_found, refused or failed,
+        with why. The read-only safety gate still decides what may be pressed or typed,
+        judged on the element as it is on the page, never on the map, until careful tags
+        take over that job (#299)."""
+        kind = step.get("do")
+        record = {k: step[k] for k in ("do", "role", "name", "value", "nth") if step.get(k) not in (None, "")}
+        refused = lambda why: {**record, "status": "refused", "detail": f"the read-only safety gate refuses it: {why}"}
+        if kind == "back":
+            ok = self._actuate({"back": True})
+            return {**record, "status": "done" if ok else "failed"}
+        if kind == "goto":
+            url = self.route_url(step.get("value") or "/")
+            gate = gate_plan({"role": "link", "name": step.get("value", ""), "href": url, "tag": "a"}, self._site)
+            if gate.kind is None:
+                return refused(gate.reason)
+            ok = self._actuate({"goto": url}) and not self.blocked_off_site
+            return {**record, "status": "done" if ok else "failed"}
+        element = self._find_live(step.get("role", ""), step.get("name", ""), int(step.get("nth") or 1))
+        if element is None and step.get("locator"):     # the map's saved selector (the sweep)
+            element = {"role": step.get("role", ""), "name": step.get("name", ""), "locator": step["locator"]}
+        if element is None:
+            return {**record, "status": "not_found",
+                    "detail": "nothing on the page has that role and name (or not that many); page_controls lists what's there"}
+        gate = gate_plan(element, self._site)
+        allowed = {"click": ("click",), "fill": ("fill",), "select": ("select",)}.get(kind, ())
+        if gate.kind not in allowed:
+            return refused(gate.reason if gate.kind is None else f"it can only be {gate.kind}ed")
+        target = {"role": element["role"], "name": element["name"], "locator": element.get("locator", ""),
+                  **({"value": step["value"]} if step.get("value") else {})}
+        if kind == "select":
+            try:
+                self.page.select_option(target["locator"], label=step.get("value", ""), timeout=4000)
+                ok = True
+            except Exception:
+                ok = False
+        else:
+            ok = self._actuate(target)
+        return {**record, "status": "done" if ok else "failed"}
 
     def _cover(self, css: str) -> dict:
         if not css:
@@ -818,15 +924,23 @@ class Session:
         return self.entry_signature
 
     def act(self, state_id: str, control_key: str, start_as: str = "same_tab", test_number=None) -> dict:
-        """Reach `state_id` by replaying its carried path, actuate `control_key`, and report
-        the whole transition classified against the carried map. Recovery (a reboot) is part
-        of the operation when the action lands somewhere new, so the next test starts clean.
-        `start_as` "new_tab" starts every reboot of this test as a new tab (START_AS).
-        With a test_number, the video of the context the action ran in is kept under it."""
+        """One control on one mapped screen: the one-step test the sweep runs. The map's
+        saved selector goes along as a fallback, in case the live lookup misses."""
+        target = self.reference.plan_for(state_id, control_key)["target"]
+        step = {"do": "fill" if target["role"] in TEXT_ROLES else "click", "role": target["role"],
+                "name": target["name"], "locator": target.get("locator", "")}
+        return self.act_steps(state_id, [step], start_as, test_number)
+
+    def act_steps(self, start: str, steps: list[dict], start_as: str = "same_tab", test_number=None) -> dict:
+        """Reach `start` (a route on the site, or a screen the map knows by id), run `steps`
+        on the live page (#310), and report the whole transition classified against the map.
+        Recovery (a reboot) is part of the operation when it lands somewhere new, so the next
+        test starts clean. `start_as` "new_tab" starts every reboot of this test as a new tab
+        (START_AS). With a test_number, the video of the context it ran in is kept under it."""
         self._start_as = start_as
         self.last_video = None
         try:
-            result = self._act(state_id, control_key)
+            result = self._act(start, steps)
         finally:
             self._start_as = "same_tab"
             if test_number is not None and self.last_video is not None:
@@ -835,16 +949,31 @@ class Session:
             result["started_as"] = start_as
         return result
 
-    def _act(self, state_id: str, control_key: str) -> dict:
-        plan = self.reference.plan_for(state_id, control_key)
+    def is_start(self, start: str) -> bool:
+        """Whether a test can start there: a route on the site, or a screen this run knows."""
+        return start.startswith(("/", "#")) or start in self.reference._paths
+
+    def _reach(self, start: str):
+        """A fresh start, then `start`: (reached, the capture there, its expected signature,
+        the replayable path to it). A route is opened directly; a screen is reached by
+        replaying how the map or this run got there."""
+        if start.startswith(("/", "#")):
+            url = self.route_url(start)
+            self.blocked_off_site = []
+            self._reboot(url)
+            return not self.blocked_off_site, self._capture_expecting(""), "", [{"goto": url}]
+        path = self.reference._paths[start]
+        self._reboot()
+        replayed = self._replay(path)
+        expected = self.reference._by_id.get(start, {}).get("signature", "")
+        before = self._capture_expecting(expected)
+        return replayed and expected == signature(before), before, expected, list(path)
+
+    def _act(self, start: str, steps: list[dict]) -> dict:
         # A new tab's page can sit differently while idle (it may fail requests a same-tab
         # page doesn't), so its background is learned on its own.
-        noise_key = state_id if self._start_as == "same_tab" else f"{state_id}@{self._start_as}"
-        self._reboot()
-        replayed = self._replay(plan["path"])
-        expected = self.reference._by_id.get(state_id, {}).get("signature", "")
-        before = self._capture_expecting(expected)
-        reached = replayed and expected == signature(before)
+        noise_key = start if self._start_as == "same_tab" else f"{start}@{self._start_as}"
+        reached, before, expected, path = self._reach(start)
         # Learn this state's background once per run, but only once the replay is
         # verified to have reached it: a drifted first replay would otherwise attach
         # another page's noise to this state for the rest of the run. The watch moves
@@ -854,10 +983,7 @@ class Session:
             # The watch moves the page on: PrestaShop's slider turns about 5 s after each
             # load, so a read after the watch no longer matched the state (#146 audit
             # rerun). Reach the state afresh instead, as every later act does.
-            self._reboot()
-            replayed = self._replay(plan["path"])
-            before = self._capture_expecting(expected)
-            reached = replayed and expected == signature(before)
+            reached, before, expected, path = self._reach(start)
         settled_before = self.last_rest
         storage_before = self._storage()
         before_sig = signature(before)
@@ -868,7 +994,14 @@ class Session:
         # retries look like a slow app (issue #122).
         t0 = time.time()
         self.blocked_off_site = []
-        sent = reached and self._actuate(plan["target"])
+        done = []                                   # what each step did, in order
+        for i, step in enumerate(steps if reached else []):
+            done.append(self._do_step(step))
+            if done[-1]["status"] != "done":
+                break                               # later steps build on this one
+            if i < len(steps) - 1:
+                self.last_rest = self._rest()
+        sent = any(d["status"] == "done" for d in done)
         t1 = time.time()
         settled_after = self._rest()
         click = round(t1 - t0, 2)
@@ -890,12 +1023,13 @@ class Session:
                  or (vd is not None and vd > _VISUAL_CHANGE_THRESHOLD))
 
         result = {
-            "action": f"{state_id} :: {control_key}",
+            "action": f"{start} :: " + " > ".join(_step_label(s) for s in steps),
             "reached_target_state": reached,
             "screen_before": before_sig,
             # The stored fingerprint of the state this test was cast against, so the
             # engine can tell "started where it meant to" from "landed elsewhere".
-            "intended_before": self.reference._by_id.get(state_id, {}).get("signature", ""),
+            # Empty for a test that starts from a route: there's no fingerprint to expect.
+            "intended_before": expected,
             "screen_after": after_sig,
             "screen_was": screen_was,
             "same_appearance": (screen_was == "same_screen" and not moved),
@@ -904,7 +1038,18 @@ class Session:
             "settle": settle,
             "click": click,
             "verdict": "sent" if sent else "not_actuated",
+            # Each step and what came of it: done, not_found, refused or failed (#310).
+            "steps": done,
         }
+        if sent:
+            # What's on the page now, so the next round can act on it (#310).
+            counted = Counter(f"{e['role']}:{e['name']}" for e in after.elements
+                              if e.get("role") not in ("generic", "") and not e.get("transient"))
+            # "link: (x12)": twelve unnamed links, picked with nth.
+            keys = [k if n == 1 else f"{k} (x{n})" for k, n in counted.items()]
+            result["page_controls"] = keys[:_PAGE_CONTROLS_SHOWN]
+            if len(keys) > _PAGE_CONTROLS_SHOWN:
+                result["page_controls_more"] = len(keys) - _PAGE_CONTROLS_SHOWN
         if sent and self.last_covered_by:
             result["covered_by"] = self.last_covered_by
         if self.blocked_off_site:
@@ -927,8 +1072,9 @@ class Session:
         if (sent and not self.blocked_off_site and after_sig not in self.reference.carried_signatures
                 and self._start_as == "same_tab"):
             origin = "{0.scheme}://{0.netloc}".format(urlsplit(self.base_url))
-            result["discovered"] = discovery(after, after_sig, plan["path"] + [plan["target"]], state_id,
-                                             control_key, origin)
+            ran = [_replay_step(s, d, self) for s, d in zip(steps, done) if d["status"] == "done"]
+            result["discovered"] = discovery(after, after_sig, path + ran, start,
+                                             " > ".join(_step_label(s) for s in steps), origin)
             result["discovered"]["in_run_map"] = bool(self.reference.add_discovery(result["discovered"],
                                                                                   _MAX_DISCOVERY_STEPS))
         self.seen_signatures.add(after_sig)
@@ -1035,12 +1181,6 @@ def product_areas(reference, product: str = "") -> list[str]:
 def has_session() -> bool:
     """Whether this run starts from a saved session, so a new tab differs from the same tab."""
     return bool(_SESSION is not None and _SESSION.session_file)
-
-
-def valid_pairs() -> set:
-    """The (state, control) pairs the Driver may name, from the live reference - empty
-    before the session is ready, so validation degrades to shape-only rather than raising."""
-    return _SESSION.reference.pairs() if _SESSION is not None else set()
 
 
 def _described(name: str) -> str:

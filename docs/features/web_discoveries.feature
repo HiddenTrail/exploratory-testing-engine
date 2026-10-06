@@ -28,8 +28,8 @@ Feature: Screens beyond the map are recorded and join the run's map
       | id               | "d" followed by 8 hex characters from the signature         |
       | signature        | the signature after the click                               |
       | url, title       | the page's URL and title                                    |
-      | from_state, via  | "st01" and "button:A"                                       |
-      | path             | the path to "st01" plus the step for "button:A"             |
+      | from_state, via  | "st01" and "button:A" (the test's start and its steps)      |
+      | path             | the path to "st01" plus the steps that ran (#310)           |
       | elements         | every control on the screen, each with "committing"         |
       | controls_offered | how many controls the safety gate would let the crawl press |
       | in_run_map       | whether it joined this run's map                            |
@@ -59,12 +59,11 @@ Feature: Screens beyond the map are recorded and join the run's map
       | 6     | it becomes a state with its id, and "in_run_map" is true       |
       | 7     | it is left out, and "in_run_map" is false                      |
 
-  Scenario: A joined screen is acted on like any mapped state
-    Given a discovered screen "d1a2b3c4" joined the run's map with "button:Go" (not committing) and "button:Buy" (committing)
+  Scenario: A joined screen is a start like any mapped state
+    Given a discovered screen "d1a2b3c4" joined the run's map
     When the Driver casts the next round
-    Then "d1a2b3c4 :: button:Go" is a pair the validator and execute_test accept
-    And "d1a2b3c4 :: button:Buy" is not a pair
-    And the plan for "d1a2b3c4 :: button:Go" replays the steps that found the screen
+    Then a test can start from "d1a2b3c4", and reaching it replays the start and steps that found it
+    And its steps act on whatever is on that screen, like any test (see web_action_space.feature)
     And its signature now counts as known, so reaching it again is "known_screen"
     But it is still not in the carried signatures, so reaching it again is still recorded as "discovered"
 

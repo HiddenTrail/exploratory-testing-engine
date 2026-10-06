@@ -45,14 +45,24 @@ state signature. There is no API response body to read: a "state" is a view of t
 identified by its URL route, the set of interactive controls on it, and its landmark
 headings - body text and map position are treated as the same state, a variant.
 
-THE ACTION SPACE. You may ask for exactly one named action per test: a (state, control)
-pair drawn from the carried map, which is given to you as `carried_map` in the onboarding
-evidence, or from a screen discovered earlier in this run (see DISCOVERED SCREENS). Each line there reads `<state_id> :: <role>:<name>` - that pair, verbatim, is a
-valid action. You cannot supply a CSS selector, a coordinate, or a control not on that map:
-the map is the whole action space, and it holds only controls an earlier read-only recon
-pass found and cleared as non-committing (nothing that deletes, buys, submits or sends).
-An action first navigates to its state by replaying the recon's path, then actuates the
-control.
+WHAT A TEST IS. A test starts somewhere and then does up to 6 steps on the live page, in
+order, the way a person would. `start` is a route on the site, like "/#/basket" or "/", or
+the id of a screen from `carried_map` or one discovered this run (like "st05"); a screen
+id is reached by replaying how it was found. Each step is one of:
+  click   an element, by its role and name ("button", "Add to Basket")
+  fill    a field, by role and name, with the value you choose
+  select  an option in a list, by the list's role and name and the option as value
+  goto    a route on the site, as value
+  back    the browser's back button
+Name elements the way `carried_map` and a result's `page_controls` list them, "role:name":
+the role is what comes before the first colon. An element can have an empty name ("link:",
+an image or an icon); when several share a role and name, page_controls shows "(x12)" and
+`nth` picks which, in page order. `carried_map` is a guide to the product's
+screens, their routes and what's on them, from an earlier recon; it is not a limit. You can
+act on anything that is on the page when the step runs. A step whose element isn't there
+comes back "not_found", and the steps after it don't run. Every test starts from a fresh
+browser, so a test is a sequence, not a step in a longer one: put what builds on what in
+the same test.
 
 SCREENS FROM EARLIER RUNS. carried_map can include screens earlier runs discovered, marked
 "found by an earlier run". Each was replayed once at the start of this run and landed where
@@ -60,22 +70,19 @@ it did before, so it's as valid a state as any other. earlier_discoveries lists 
 and which no longer replay.
 
 DISCOVERED SCREENS. When a test reaches a screen the carried map doesn't have, its result
-carries `discovered`: the screen's id (e.g. "d85f2417e") and, the first time, the controls
-on it the safety gate cleared. From the next round on, (that id, one of those controls) is
-a valid action too: put the id in state_id and the control in control_key. The harness
-reaches the screen by replaying the steps that found it, from a fresh session, so it's as
-reproducible as the map. This is how a run goes deeper than the map it was given; a test
-on a discovered screen that reaches yet another screen discovers that one too.
+carries `discovered`: the screen's id (e.g. "d85f2417e"). From the next round on, that id
+works as a start: the harness reaches it by replaying the start and steps that found it,
+from a fresh session.
 
 NEW TAB. With a saved session, a test may set start_as to "new_tab": it then starts the
 way a new tab of the same logged-in browser would. Cookies and localStorage are shared with
 the saved tab, sessionStorage starts empty. Apps that keep part of a user's state per tab
 (a basket, a wizard's step, a selection) can lose it or break here. To use it, run the same
-(state, control) once as usual and once as a new tab, and compare. The result then carries
+test once as usual and once as a new tab, and compare. The result then carries
 started_as: "new_tab".
 
 WHAT YOU GET BACK, per test:
-  screen_before / screen_after: the state signature before and after the control was actuated.
+  screen_before / screen_after: the state signature before the first step and after the last.
   screen_was: "same_screen" (the signature did not change), "known_screen" (it changed to a
     state already in the carried map or already seen this run), or "new_screen" (somewhere
     neither applies to - a state the recon never mapped).
@@ -83,8 +90,12 @@ WHAT YOU GET BACK, per test:
     either - i.e. the control did nothing observable at all (a candidate dead control).
   was_measured_before: true if the state landed on was in the carried map.
   first_sight_this_run: true the first time this run reaches that state.
-  reached_target_state: whether replaying the path actually arrived at the state you named
-    before the control was actuated - false means the app drifted and the reading is suspect.
+  reached_target_state: whether the test got to its start before the first step - false means
+    the app drifted (or the route didn't open) and the reading is suspect.
+  steps: each step and what came of it: "done", "not_found" (nothing on the page had that
+    role and name), "refused" (see SAFETY) or "failed" (it was there but didn't respond).
+  page_controls: what's on the page after the last step, as "role:name", so a next test can
+    act on it.
   settle: seconds the page took to go quiet after the action (the app's own timing).
   click: seconds the click itself took. A long click means the harness needed a
          fallback to press the control (it was not uniquely found), not that the
@@ -111,25 +122,25 @@ WHAT YOU GET BACK, per test:
          directly or through a redirect: where it would have gone. The browser was stopped,
          because tests never leave the product's site. A control that leads off the site,
          especially through the product's own redirect, can be worth reporting.
-  verdict: "sent" normally, or "not_actuated" if the control could not be actuated at all.
+  verdict: "sent" when at least one step ran, "not_actuated" when none did.
   recovered_to: the signature the run rebooted to after an action that reached a new state,
     so the next test starts clean; recovered_ok says whether that matched the start state.
 
-WHAT COUNTS AS AN ANOMALY HERE. Claims the exploration can actually check: a control that
-changes nothing (same_screen with same_appearance), a control that reaches a new state the
-way back does not restore (recovered_ok false), two controls that land on the same state, a
-state whose identity is unstable across visits, or a control the recon mapped that no longer
-actuates. A control landing on new_screen reached somewhere the recon did not map, which is
-worth saying; a carried state you can no longer reach is drift in the app since it was
-mapped - a real finding, but about the map, so label it as such."""
+WHAT COUNTS AS A PROBLEM HERE. Anything the product does that a user, or the oracle's ideas,
+wouldn't expect: an error in the console or a failed request on the site while doing
+something ordinary, a form that accepts a value it shouldn't or refuses one it should, a
+number that doesn't add up, a step that changes nothing (same_screen with same_appearance),
+a state that's lost (a basket, a login, a choice) when it shouldn't be, a place you can't
+get back from (recovered_ok false). A carried screen you can no longer reach is drift since
+the recon: a real finding, but about the map, so label it as such."""
 
 
-SAFETY_NOTE = """This run is read-only. The action space is the set of (state, control) pairs
-an earlier recon pass cleared as non-committing; the Driver can only pick from that map, so
-there is no way to name a control that submits a form, deletes, buys or sends. After any
-action that reaches a new state the run reboots to the start, so a stray navigation never
-compounds. If a control unexpectedly leaves the app or opens something committing, the
-correct reading is to report it, not to explore it."""
+SAFETY_NOTE = """SAFETY. The browser never leaves the product's site: a step that would go to
+another site, directly or through a redirect, is stopped and the result says so in
+blocked_off_site. Until careful tags arrive, the read-only safety gate also judges each
+step on the live page: a step that would submit a form, buy, delete, log out, or type into
+anything but a search box comes back "refused", and costs nothing but that step. After any
+test that reaches a new state the run reboots to the start."""
 
 
 def outcome_for(result: dict) -> outcome.Outcome:
@@ -203,31 +214,39 @@ def redact_history_for_model(casting_log: list[dict]) -> list[dict]:
     return redacted
 
 
+def _start_and_steps(test: dict) -> tuple[str, list[dict]]:
+    """A test's start and steps. A test cast before #310 named one (state, control) pair."""
+    if "start" in test:
+        return test["start"], test.get("steps") or []
+    role, _, name = test.get("control_key", "").partition(":")
+    return test.get("state_id", ""), [{"do": "fill" if role in live_session.TEXT_ROLES else "click",
+                                       "role": role, "name": name}]
+
+
 def execute_test(test: dict, test_number: int) -> dict:
-    """Actuate one (state, control) at the live app and report the whole transition."""
-    state_id = test["state_id"]
-    control_key = test["control_key"]
+    """Run one test on the live app, its start then its steps (#310), and report the
+    whole transition."""
+    start, steps = _start_and_steps(test)
     predicted = test["predicted_screen"]
     session = live_session.live()
 
-    if (state_id, control_key) not in session.reference.pairs():
-        # Unreachable through validation, and kept anyway: a pair not in the carried map has
-        # no vetted path or control behind it, so a refused test the Driver can read beats a
-        # KeyError mid-run.
+    if not session.is_start(start):
+        # A start that's neither a route nor a screen this run knows: a result the Driver
+        # can read, not a retry.
         return outcome.attach({
             "test_number": test_number,
-            "request": {"state": state_id, "control": control_key},
+            "request": {"start": start, "steps": steps},
             "predicted_outcome": test["predicted_outcome"],
             "predicted_screen": predicted,
             "skipped": True,
-            "skip_reason": f"{state_id} :: {control_key} is not a pair in this run's map (carried or discovered).",
+            "skip_reason": (f"'{start}' is neither a route on the site (starting with '/' or '#') nor a screen "
+                            "this run knows. Start from a route, or a screen id from carried_map."),
             "prediction_matched": False,
-        }, outcome.Outcome(action_id=f"{state_id} :: {control_key}",
-                           effect=outcome.UNKNOWN, accepted=False))
+        }, outcome.Outcome(action_id=_test_label(test), effect=outcome.UNKNOWN, accepted=False))
 
     start_as = test.get("start_as") or "same_tab"
-    result = session.act(state_id, control_key, start_as, test_number=test_number)
-    request = {"state": state_id, "control": control_key}
+    result = session.act_steps(start, steps, start_as, test_number=test_number)
+    request = {"start": start, "steps": steps}
     if start_as != "same_tab":
         request["start_as"] = start_as
     return outcome.attach({
@@ -319,9 +338,15 @@ def fetch_happy_day_example(adapter: SUTAdapter) -> dict:
     return {"request": {}, "response": {}}
 
 
+def _test_label(test: dict) -> str:
+    """'st05 :: button:Checkout > textbox:Coupon = '-1'': where a test starts and its steps."""
+    start, steps = _start_and_steps(test)
+    return f"{start} :: " + " > ".join(live_session._step_label(s) for s in steps)
+
+
 def describe_test_for_log(test: dict) -> str:
     tab = " (as a new tab)" if test.get("start_as") == "new_tab" else ""
-    return f"{test['state_id']} :: {test['control_key']}{tab} -> predicting {test['predicted_screen']}"
+    return f"{_test_label(test)}{tab} -> predicting {test['predicted_screen']}"
 
 
 def describe_result_for_log(result: dict) -> str:
@@ -329,7 +354,10 @@ def describe_result_for_log(result: dict) -> str:
         return f"SKIPPED - {result['skip_reason']}"
     detail = result["result"]
     if detail.get("verdict") != "sent":
-        return f"NOT ACTUATED - the control could not be clicked"
+        steps = detail.get("steps") or []
+        why = "; ".join(f"{live_session._step_label(s)}: {s['status'].replace('_', ' ')}" for s in steps
+                        if s.get("status") != "done")
+        return f"NOT RUN - {why or 'the test never reached its start'}"
     line = f"{detail['screen_was']} (click {detail.get('click', '?')}s, settled {detail['settle']}s)"
     if detail.get("covered_by"):
         line += f", clicked through {detail['covered_by']} on top of it"
@@ -370,7 +398,7 @@ ORACLE_ENABLED = os.environ.get("WEB_GUI_ORACLE", "").strip().lower() != "off"
 
 CASTING_TOOL = {
     "name": "submit_casting_round",
-    "description": "Propose a batch of (state, control) actions against the live web app.",
+    "description": "Propose a batch of tests against the live web app: each a start and a few steps.",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -393,26 +421,46 @@ CASTING_TOOL = {
                                 "Otherwise an empty string. Never put a gap or observation id here."
                             ),
                         },
-                        "state_id": {"type": "string",
-                                     "description": "The state to act on - a state id from carried_map (e.g. 'st01'), "
-                                                    "or the id of a screen discovered earlier this run (e.g. 'd85f2417e')."},
-                        "control_key": {"type": "string",
-                                        "description": "The control to actuate on that state - a 'role:name' key "
-                                                       "listed under that state in carried_map, or under a "
-                                                       "discovered screen's controls."},
+                        "start": {"type": "string",
+                                  "description": "Where the test starts: a route on the site (e.g. '/#/basket', "
+                                                 "'/'), or a screen id from carried_map or discovered this run "
+                                                 "(e.g. 'st05')."},
+                        "steps": {
+                            "type": "array",
+                            "description": f"What to do there, in order, 1 to {live_session.MAX_STEPS} steps.",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "do": {"type": "string", "enum": list(live_session.STEP_KINDS)},
+                                    "role": {"type": "string",
+                                             "description": "The element's role, for click, fill and select "
+                                                            "(the part before the first colon in 'role:name')."},
+                                    "name": {"type": "string",
+                                             "description": "The element's name, for click, fill and select. "
+                                                            "Empty for an element without one (an image, an icon)."},
+                                    "nth": {"type": "integer",
+                                            "description": "Which one, when several elements on the page have this "
+                                                           "role and name (page_controls shows '(x12)'). 1 if left out."},
+                                    "value": {"type": "string",
+                                              "description": "What to type (fill), the option (select), or the "
+                                                             "route (goto). Empty otherwise."},
+                                },
+                                "required": ["do"],
+                            },
+                        },
                         "start_as": {"type": "string", "enum": list(live_session.START_AS),
                                      "description": "Optional, 'same_tab' if left out. 'new_tab' starts the test "
                                                     "as a new tab of the logged-in browser (see NEW TAB). Only "
                                                     "with a saved session."},
                         "predicted_screen": {"type": "string", "enum": list(PREDICTIONS),
-                                             "description": "'same_screen' - nothing changes; 'known_screen' - it "
-                                                            "goes to a state already in the map or seen this run; "
-                                                            "'new_screen' - somewhere not mapped yet."},
+                                             "description": "Where the last step leaves you: 'same_screen' - the "
+                                                            "screen you started on; 'known_screen' - a state "
+                                                            "already in the map or seen this run; 'new_screen' - "
+                                                            "somewhere not mapped yet."},
                         "predicted_outcome": {"type": "string",
-                                              "description": "What you predict happens and why, in words, including "
-                                                             "whether you expect to get back."},
+                                              "description": "What you predict happens and why, in words."},
                     },
-                    "required": ["linked_hypothesis", "oracle_claim_id", "state_id", "control_key",
+                    "required": ["linked_hypothesis", "oracle_claim_id", "start", "steps",
                                  "predicted_screen", "predicted_outcome"],
                 },
             },
@@ -424,91 +472,92 @@ CASTING_TOOL = {
 
 def casting_system_prompt(test_budget: int, is_first_round: bool) -> str:
     if is_first_round:
-        context = """You have not acted on this app yet. You have been given a carried map of its
-states and the controls on each (carried_map), from an earlier read-only recon pass, plus one
-real action already executed. Before proposing anything, think about what a web app of this shape
-normally does and what goes wrong in that category (a control that silently does nothing, a view
-you cannot get back from, two controls to one place, a tab whose content depends on state you have
-not set). Use the map to decide what is worth checking first. State this reasoning explicitly."""
+        context = """You have not acted on this app yet. You have a guide to its screens, their
+routes and what's on them (carried_map), from an earlier recon, and the oracle's ideas of what
+should hold (oracle_ranked). Before proposing anything, think about what a product of this kind
+normally does and what goes wrong in it: wrong numbers, inputs it shouldn't accept, state that
+gets lost, errors behind an ordinary action, a place you can't get back from. Use the oracle's
+ideas and the guide to decide what is worth checking first. State this reasoning explicitly."""
     else:
         context = f"""You now have real transitions. {PRIOR_FEEDBACK_GUIDE}
 Remember that repeating an action is a real experiment: the same control landing somewhere different on a second visit, or a state
 registered as new twice, are both findings. Briefly state what this app has shown you so far."""
 
-    return f"""You are exploring a live web application to build a falsifiable model of its
-navigation and to notice anything that does not behave the way its interface implies. You have
-been shown what can be observed, the carried map of states and the controls you may act on, and
-one real action already executed against the live app.
+    return f"""You are testing a live web application the way a tester does: use it, push on it,
+and notice anything that doesn't behave the way it should. Each test starts from a route or a
+screen and does a few steps on the live page (see WHAT A TEST IS).
 
 {context}
 
-In one round, propose a BATCH of actions - up to {test_budget} total:
-1. Candidate hypotheses: specific, falsifiable theories about what a control does or fails to do.
-   For each, propose 1-2 actions that would check it, with a predicted_screen and a
+In one round, propose a BATCH of tests - up to {test_budget} total:
+1. Candidate hypotheses: specific, falsifiable theories about what the product does or fails to
+   do. For each, propose 1-2 tests that would check it, with a predicted_screen and a
    predicted_outcome. Set linked_hypothesis to the full theory text.
-2. Pure probes: actions not tied to any theory. Predict what you honestly think happens and set
+2. Pure probes: tests not tied to any theory. Predict what you honestly think happens and set
    linked_hypothesis to an empty string.
 
-Every action is executed before you see any result, and after any action that reaches a new state
-the run reboots to the start - so make each an independent check, not a step in a sequence. To
-reach somewhere two navigations deep, that is the recon's job, not yours: you may only name a
-(state, control) pair from the carried map. Propose fewer, sharper actions rather than filling the
-budget, and set give_up to true if you have no good ideas left.
+Every test runs before you see any result, each from a fresh browser, so a test is a sequence of
+its own: what builds on what goes in one test. Propose fewer, sharper tests rather than filling
+the budget, and set give_up to true if you have no good ideas left.
 
 {SAFETY_NOTE}
 
 Call submit_casting_round with your answer."""
 
 
-# How many of a state's controls a rejection lists. Juice Shop's busiest screen in the
-# map has 17; the cap keeps a retry message from growing with a bigger product.
-_MAX_LISTED_CONTROLS = 30
-
-
-def _not_in_map(i: int, state_id: str, control_key: str, pairs: set) -> str:
-    """The rejection for a pair outside the map, with the controls that state does have
-    (#288). The Driver had guessed keys from what earlier tests showed ("button to
-    deposit", "textbox:") and couldn't find the real ones far back in a long prompt, so
-    it got them wrong three times and the run ended."""
-    controls = sorted(c for s, c in pairs if s == state_id)
-    if not controls:
-        return (f"candidate_tests[{i}] names state {state_id}, which is not in the carried map. "
-                f"Pick a state listed in carried_map.")
-    listed = ", ".join(controls[:_MAX_LISTED_CONTROLS]) + (" ..." if len(controls) > _MAX_LISTED_CONTROLS else "")
-    return (f"candidate_tests[{i}] names {state_id} :: {control_key}, which is not a (state, control) pair "
-            f"in the carried map. The controls of {state_id} are exactly: {listed}. Copy one as written, "
-            f"or drop this test.")
+def _step_errors(where: str, step) -> list[str]:
+    if not isinstance(step, dict):
+        return [f"{where} must be an object"]
+    kind = step.get("do")
+    if kind not in live_session.STEP_KINDS:
+        return [f"{where}.do must be one of: {', '.join(live_session.STEP_KINDS)}"]
+    errors = []
+    if kind in ("click", "fill", "select"):
+        if not isinstance(step.get("role"), str) or not step["role"].strip():
+            errors.append(f"{where} ({kind}) needs a 'role'")
+        if not isinstance(step.get("name", ""), str):
+            errors.append(f"{where}.name must be text (empty for an element without a name)")
+        if "nth" in step and (not isinstance(step["nth"], int) or isinstance(step["nth"], bool) or step["nth"] < 1):
+            errors.append(f"{where}.nth must be a whole number from 1")
+    if kind in ("fill", "select", "goto") and not isinstance(step.get("value"), str):
+        errors.append(f"{where} ({kind}) needs a 'value'")
+    if kind == "goto" and not str(step.get("value", "")).startswith(("/", "#")):
+        errors.append(f"{where} (goto) needs a route on the site as its value, starting with '/' or '#'")
+    return errors
 
 
 def validate_casting_response(data) -> list[str]:
+    """The shape only (#310). Where a test starts and what it touches aren't checked
+    against the map: the map is a guide, and a step on something that isn't on the page
+    comes back as a result, not a retry."""
     errors, tests = casting_envelope_errors(data)
     if not isinstance(tests, list) or not tests:
         return errors
-    else:
-        pairs = live_session.valid_pairs()   # empty before the session is ready -> shape-only
-        for i, test in enumerate(tests or []):
-            if not isinstance(test, dict):
-                errors.append(f"candidate_tests[{i}] must be an object")
-                continue
-            for key in ("linked_hypothesis", "oracle_claim_id", "state_id", "control_key",
-                        "predicted_screen", "predicted_outcome"):
-                if key not in test:
-                    errors.append(f"candidate_tests[{i}] missing '{key}'")
-                elif not isinstance(test[key], str):
-                    errors.append(f"candidate_tests[{i}].{key} must be a string")
-            if test.get("predicted_screen") not in PREDICTIONS:
-                errors.append(f"candidate_tests[{i}].predicted_screen must be one of: {', '.join(PREDICTIONS)}")
-            start_as = test.get("start_as", "same_tab")
-            if start_as not in live_session.START_AS:
-                errors.append(f"candidate_tests[{i}].start_as must be one of: {', '.join(live_session.START_AS)}")
-            elif start_as == "new_tab" and pairs and not live_session.has_session():
-                errors.append(f"candidate_tests[{i}].start_as is 'new_tab', but this run has no saved session, "
-                              "so a new tab is the same as any test. Leave start_as out.")
-            # The safety enforcement: a pair outside the carried map has no vetted path or
-            # control, so it is rejected and resubmitted rather than actuated.
-            if pairs and "state_id" in test and "control_key" in test:
-                if (test["state_id"], test["control_key"]) not in pairs:
-                    errors.append(_not_in_map(i, test["state_id"], test["control_key"], pairs))
+    for i, test in enumerate(tests):
+        if not isinstance(test, dict):
+            errors.append(f"candidate_tests[{i}] must be an object")
+            continue
+        for key in ("linked_hypothesis", "oracle_claim_id", "start", "predicted_screen", "predicted_outcome"):
+            if key not in test:
+                errors.append(f"candidate_tests[{i}] missing '{key}'")
+            elif not isinstance(test[key], str):
+                errors.append(f"candidate_tests[{i}].{key} must be a string")
+        if isinstance(test.get("start"), str) and not test["start"].strip():
+            errors.append(f"candidate_tests[{i}].start must name a route or a screen")
+        steps = test.get("steps")
+        if not isinstance(steps, list) or not 1 <= len(steps) <= live_session.MAX_STEPS:
+            errors.append(f"candidate_tests[{i}].steps must be a list of 1 to {live_session.MAX_STEPS} steps")
+        else:
+            for j, step in enumerate(steps):
+                errors.extend(_step_errors(f"candidate_tests[{i}].steps[{j}]", step))
+        if test.get("predicted_screen") not in PREDICTIONS:
+            errors.append(f"candidate_tests[{i}].predicted_screen must be one of: {', '.join(PREDICTIONS)}")
+        start_as = test.get("start_as", "same_tab")
+        if start_as not in live_session.START_AS:
+            errors.append(f"candidate_tests[{i}].start_as must be one of: {', '.join(live_session.START_AS)}")
+        elif start_as == "new_tab" and live_session._SESSION is not None and not live_session.has_session():
+            errors.append(f"candidate_tests[{i}].start_as is 'new_tab', but this run has no saved session, "
+                          "so a new tab is the same as any test. Leave start_as out.")
     return errors
 
 
@@ -556,7 +605,9 @@ def render_test_entry(entry) -> str:
     number_html = (f'<span class="test-number">Test #{esc(entry.get("test_number"))}</span>'
                    if entry.get("test_number") is not None else "")
     tab = " (as a new tab)" if request.get("start_as") == "new_tab" else ""
-    action_html = f'<span class="test-number">{esc(request.get("state"))} :: {esc(request.get("control"))}{tab}</span>'
+    label = (_test_label(request) if "start" in request
+             else f"{request.get('state')} :: {request.get('control')}")   # a run from before #310
+    action_html = f'<span class="test-number">{esc(label)}{tab}</span>'
 
     if entry.get("skipped"):
         return f"""
@@ -588,7 +639,7 @@ def render_test_entry(entry) -> str:
     return f"""
     <article class="test">
       <div class="test-hypothesis">{number_html}{action_html}{linked_html}</div>
-      {render_json_block({"state": request.get("state"), "control": request.get("control")})}
+      {_steps_html(result.get("steps"))}
       <div class="test-predicted">Predicted: {inline_markdown(entry.get('predicted_outcome'))}
         {_screen_badge(entry.get('predicted_screen'))}</div>
       <div class="test-outcome">
@@ -602,6 +653,16 @@ def render_test_entry(entry) -> str:
       {_video_html(entry)}
     </article>
     """
+
+
+def _steps_html(steps) -> str:
+    """Each step and what came of it (#310), when one didn't simply get done."""
+    if not steps or all(s.get("status") == "done" for s in steps):
+        return ""
+    kinds = {"done": "good", "not_found": "warn", "refused": "warn", "failed": "bad"}
+    rows = "".join(f"<li>{esc(live_session._step_label(s))} {badge(s.get('status', '?').replace('_', ' '), kinds.get(s.get('status'), 'neutral'))}"
+                   f"{(' ' + esc(s['detail'])) if s.get('detail') else ''}</li>" for s in steps)
+    return f'<ul class="line-list">{rows}</ul>'
 
 
 def render_onboarding_section(api_schema, onboarding_extra, happy_day_example) -> str:
@@ -622,7 +683,7 @@ def render_onboarding_section(api_schema, onboarding_extra, happy_day_example) -
     if extra.get("carried_map"):
         map_html = f"""
     <details class="fold exhibit">
-      <summary>Carried map (the action space)</summary>
+      <summary>Carried map (a guide to the screens)</summary>
       <pre class="schema-doc">{esc(extra['carried_map'])}</pre>
     </details>
     """

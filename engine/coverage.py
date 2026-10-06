@@ -13,6 +13,8 @@ adapter code. It summarises inputs only, never results, so the Skeptic stays col
 
 from __future__ import annotations
 
+import json
+
 # Fields a test carries that aren't inputs to the system under test.
 _NOT_INPUTS = ("linked_hypothesis", "oracle_claim_id")
 MAX_VALUES = 10
@@ -29,6 +31,8 @@ def input_fields(casting_tool_schema: dict) -> dict[str, dict]:
 
 
 def _shown(value):
+    if isinstance(value, (list, dict)):        # a test's steps (#310): compact, and cut like text
+        value = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
     if isinstance(value, str) and len(value) > MAX_VALUE_CHARS:
         return value[:MAX_VALUE_CHARS] + "..."
     return value
