@@ -6,14 +6,15 @@ and it names controls from the accessibility tree. So this converter is *live*: 
 replays Spoor's paths in a fresh browser session, captures each page the way
 web-recon does, and writes web-recon's shape from what it saw. No LLM call.
 
-Safety, fail closed:
-- A control enters web_gui's action space only if web-recon's gate (`safety.plan`),
-  run on the element as captured live (real href, type, disabled state), would let the
-  read-only crawl act on it. Everything else is written with committing=True.
-- A Spoor step is only replayed, and only becomes a path step, if its control passes
-  that gate as a plain click. Spoor's own `skipped` list is not trusted as a destructive
-  filter: Spoor treats 127.0.0.1 as a sandbox, where it fires destructive actions.
-- A page that doesn't replay to the same signature twice is dropped.
+What it keeps (#310): Spoor feeds the context, so the converted map keeps everything
+Spoor reached. Testing fully (#299), every Spoor step whose control is found live is
+replayed and becomes a path step, Add to Basket and Checkout included, so the screens
+behind them reach the map. Two steps are refused: logging out, and on a part of the
+target tagged careful, anything web-recon's read-only gate (`safety.plan`) wouldn't
+click. Each control keeps the gate's verdict as `committing` (it changes data), and
+`spoor_reached: false` when Spoor couldn't reach it (behind a dialog, #121); the sweep
+leaves both out, the Driver's guide shows both. A page that doesn't replay to the same
+signature twice is dropped.
 
 States Spoor splits but web-recon's signature doesn't are merged, and edges that
 become self-loops are dropped. Pages that only appear after a filled-in scaffold
@@ -26,12 +27,14 @@ become self-loops are dropped. Pages that only appear after a filled-in scaffold
 
 import argparse
 import json
+import os
 import sys
 from collections import deque
 from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
 
+from engine.adapters.web_gui import careful
 from engine.adapters.web_gui import session as live_session  # puts web-recon on sys.path
 
 import safety  # noqa: E402  (web-recon, on the path via session)
@@ -45,8 +48,9 @@ def _norm(name: str) -> str:
     return " ".join((name or "").split()).lower()
 
 
-def _find_click(obs, role: str, name: str, origin: str) -> dict | None:
-    """The live element for a Spoor action, if the gate lets the crawl *click* it.
+def _find_element(obs, role: str, name: str) -> dict | None:
+    """The live element for a Spoor action; {} when no element in the DOM capture has
+    that name (it may still have it in the accessibility tree); None when several do.
 
     Spoor names controls from the accessibility tree and web-recon from the DOM, so the
     names can differ: Juice Shop's "Help getting started" is "school Help getting
@@ -58,10 +62,28 @@ def _find_click(obs, role: str, name: str, origin: str) -> dict | None:
     matches = [e for e in same_role if _norm(e.get("name", "")) == wanted]
     if not matches and wanted:
         matches = [e for e in same_role if wanted in _norm(e.get("name", ""))]
-    if len(matches) != 1:
-        return None
-    element = matches[0]
-    return element if safety.plan(element, origin).kind == "click" else None
+    if not matches:
+        return {}
+    return matches[0] if len(matches) == 1 else None
+
+
+def _why_not_follow(element: dict | None, name: str, obs, origin: str, tags: dict) -> str:
+    """Why a Spoor step isn't replayed, or "" if it is. A step whose element isn't in the
+    DOM capture by that name is followed by its accessible name, Spoor's own (#310): the
+    replay finds it with Playwright's role lookup, and a page that doesn't replay twice
+    is dropped as unstable anyway."""
+    if element is None:
+        return "more than one on the live page"
+    if careful.logs_out(name):
+        return "it logs out"
+    parsed = urlparse(obs.url)
+    route = (parsed.path or "/") + (f"#{parsed.fragment}" if parsed.fragment else "")
+    if careful.applies(tags, route, name):
+        if not element:
+            return "tagged careful, and not in the page capture for the read-only gate to judge"
+        if safety.plan(element, origin).kind != "click":
+            return "tagged careful, and the read-only gate wouldn't click it"
+    return ""
 
 
 def _spoor_offers(element: dict, actions: list[tuple[str, str]]) -> bool:
@@ -103,10 +125,13 @@ def map_errors(exploration) -> list[str]:
     return errors
 
 
-def convert(exploration: dict, url: str, observe: Callable[[list[dict]], object | None]) -> tuple[dict, dict]:
+def convert(exploration: dict, url: str, observe: Callable[[list[dict]], object | None],
+            tags: dict | None = None) -> tuple[dict, dict]:
     """exploration: Spoor's saved `exploration` block. observe(path) replays a list of
     click steps from a fresh session and returns the captured Observation, or None if
-    the replay failed or didn't reproduce. Returns (ontology, report)."""
+    the replay failed or didn't reproduce. tags: the target's careful tags (#299),
+    none by default. Returns (ontology, report)."""
+    tags = tags if tags is not None else careful.NOTHING
     parsed = urlparse(url)
     origin = f"{parsed.scheme}://{parsed.netloc}"
     spoor_states = [s["id"] for s in exploration.get("states", [])]
@@ -156,14 +181,15 @@ def convert(exploration: dict, url: str, observe: Callable[[list[dict]], object 
         by_signature[sig]["_spoor_ids"].append(spoor_id)
         state_of[spoor_id] = by_signature[sig]["id"]
         for t in outgoing.get(spoor_id, []):
-            element = _find_click(obs, t["action"]["role"], t["action"]["name"], origin)
-            if element is None:
+            element = _find_element(obs, t["action"]["role"], t["action"]["name"])
+            why = _why_not_follow(element, t["action"]["name"], obs, origin, tags)
+            if why:
                 report["refused_steps"] += 1
-                report["refused"].append(f"{t['action']['role']}:{t['action']['name']}")
+                report["refused"].append(f"{t['action']['role']}:{t['action']['name']} ({why})")
                 continue
-            step = {"role": t["action"]["role"], "name": t["action"]["name"], "locator": element["locator"]}
-            transitions.append({"spoor_from": spoor_id, "spoor_to": t["to"], "step": step,
-                                "element_key": f"{element['role']}:{element['name']}"})
+            step = {"role": t["action"]["role"], "name": t["action"]["name"], "locator": element.get("locator", "")}
+            key = f"{element['role']}:{element['name']}" if element else f"{t['action']['role']}:{t['action']['name']}"
+            transitions.append({"spoor_from": spoor_id, "spoor_to": t["to"], "step": step, "element_key": key})
             queue.append((t["to"], path + [step]))
 
     edges, seen_edges = [], set()
@@ -176,16 +202,17 @@ def convert(exploration: dict, url: str, observe: Callable[[list[dict]], object 
                       "changed": True,
                       "action": {"kind": "click", "element_key": t["element_key"], "target": t["step"]["locator"]}})
 
-    # A control web-recon's gate cleared is still only offered if Spoor found it on that
-    # page (any of the Spoor states merged into it) and didn't skip it there.
+    # A control Spoor didn't find on that page (any of the Spoor states merged into it),
+    # or skipped there, is marked: it's often behind a dialog, where a click lands on the
+    # backdrop (#121). The sweep leaves it out; the Driver's guide says so.
     hidden = 0
     for state in by_signature.values():
         ids = state["_spoor_ids"]
         offered = [a for sid in ids for a in spoor_actions.get(sid, [])
                    if (sid, a[0], a[1]) not in spoor_skipped]
         for element in state["elements"]:
-            if not element["committing"] and not _spoor_offers(element, offered):
-                element["committing"] = True
+            if not _spoor_offers(element, offered):
+                element["spoor_reached"] = False
                 hidden += 1
     report["hidden_controls"] = hidden
 
@@ -229,6 +256,8 @@ def main() -> None:
     ap.add_argument("--headed", action="store_true")
     ap.add_argument("--session", default=None,
                     help="a saved session file to replay with (#154); use the one Spoor mapped with (--session)")
+    ap.add_argument("--product", default=None,
+                    help="the product whose careful tags apply (default: WEB_GUI_PRODUCT)")
     args = ap.parse_args()
 
     saved = json.loads(Path(args.map).read_text(encoding="utf-8"))
@@ -241,7 +270,8 @@ def main() -> None:
     session_file = live_session.load_session_file(args.session) if args.session else None
     observe, sess = live_observer(args.url, args.headed, session_file)
     try:
-        ontology, report = convert(entry["exploration"], args.url, observe)
+        tags = careful.load(args.product if args.product is not None else os.environ.get("WEB_GUI_PRODUCT", ""))
+        ontology, report = convert(entry["exploration"], args.url, observe, tags)
     finally:
         sess.close()
     # Recorded so a run started from a different session warns (Session check_ready).
@@ -263,8 +293,8 @@ def print_summary(report: dict, out: str, stream=None) -> None:
         pass
     print(f"converted {report['spoor_states']} Spoor states into {report['states']} states and "
           f"{report['transitions']} transitions; {len(report['dropped_unstable'])} dropped as unstable, "
-          f"{report['refused_steps']} steps refused by the safety gate, {report['hidden_controls']} controls "
-          f"left out because Spoor couldn't reach them -> {out}", file=stream)
+          f"{report['refused_steps']} steps not followed, {report['hidden_controls']} controls "
+          f"Spoor couldn't reach (kept, marked) -> {out}", file=stream)
     if report["refused"]:
         print("  refused:", ", ".join(report["refused"]), file=stream)
 

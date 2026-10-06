@@ -223,8 +223,11 @@ jobs:
           mkdir -p runs/spoor
           cd runs/spoor
           # Spoor's own cap, then a hard kill two minutes after it in case Spoor hangs.
+          # --sandbox: this Juice Shop is a throwaway container on 127.0.0.1, so Spoor may
+          # buy, delete and submit there, and the map reaches what's behind them (#310).
+          # Spoor only honours it for a local address.
           timeout --kill-after=30 "$((SPOOR_SECONDS + 120))" spoor explore "$URL" --session "$GITHUB_WORKSPACE/.sessions/$PRODUCT/logged-in.json" \
-            --max-depth 2 --max-seconds "$SPOOR_SECONDS"
+            --sandbox --max-depth 2 --max-seconds "$SPOOR_SECONDS"
 
       - name: Convert the map for the engine
         timeout-minutes: 15

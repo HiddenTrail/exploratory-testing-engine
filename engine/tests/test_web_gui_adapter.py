@@ -61,7 +61,7 @@ def test_reference_briefing_is_a_guide_with_routes():
     briefing = ref_mod.Reference(_ontology()).driver_briefing()
     assert "  st01 (Home) - route / - the start screen\n      button:A\n" in briefing
     assert "  st02 (Page 2) - route /p2 - 1 navigation(s) from the start\n      button:Back" in briefing
-    assert "button:Buy" not in briefing     # until #299, the read-only gate still refuses it
+    assert "      button:Buy (changes data)" in briefing     # shown, with what the gate knows (#310)
 
 
 def test_reference_fails_closed_on_a_missing_committing_flag():
@@ -1283,10 +1283,36 @@ def test_an_element_without_a_name_can_be_picked_by_its_place(monkeypatch):
     sess = live_session.Session.__new__(live_session.Session)
     page = [{"role": "link", "name": "", "locator": f"#img{i}"} for i in range(1, 5)] + \
            [{"role": "link", "name": "About", "locator": "#about"}]
-    sess.page = type("P", (), {"evaluate": lambda self, js: page})()
+    sess.page = type("P", (), {"evaluate": lambda self, js: page,
+                               "get_by_role": lambda self, role, name, exact: type("L", (), {"count": lambda s: 0})()})()
     assert sess._find_live("link", "", 3)["locator"] == "#img3"
     assert sess._find_live("link", "")["locator"] == "#img1"
     assert sess._find_live("link", "", 9) is None
     assert sess._find_live("link", "about")["locator"] == "#about"
     assert live_session._step_label({"do": "click", "role": "link", "name": "", "nth": 3}) == "link: #3"
+
+
+def test_an_element_named_only_in_the_accessibility_tree_is_found_there(monkeypatch):
+    # #310: a product card's accessible name is "Apple Juice (1000ml)"; the DOM capture has none.
+    clicked = []
+
+    class Found:
+        def __init__(self, n):
+            self.n = n
+
+        def count(self):
+            return 2
+
+        def nth(self, i):
+            return type("E", (), {"click": lambda s, timeout: clicked.append(i)})()
+    sess = live_session.Session.__new__(live_session.Session)
+    sess._site, sess.base_url, sess.blocked_off_site = "http://app.example", "http://app.example/", []
+    sess.careful = dict(careful_mod.NOTHING)
+    sess.page = type("P", (), {"evaluate": lambda self, js: [{"role": "button", "name": "", "locator": "#c"}],
+                               "get_by_role": lambda self, role, name, exact: Found(2), "url": "http://app.example/#/"})()
+    assert sess._find_live("button", "Apple Juice (1000ml)", 2) == {
+        "role": "button", "name": "Apple Juice (1000ml)", "locator": "", "a11y_nth": 2}
+    assert sess._find_live("button", "Apple Juice (1000ml)", 3) is None
+    step = {"do": "click", "role": "button", "name": "Apple Juice (1000ml)", "nth": 2}
+    assert sess._do_step(step)["status"] == "done" and clicked == [1]
 

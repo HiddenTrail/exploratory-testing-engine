@@ -811,7 +811,16 @@ class Session:
             if matches:
                 return matches[nth - 1] if 0 < nth <= len(matches) else None
         contains = [e for e in same_role if wanted and wanted in (e.get("name") or "").lower()]
-        return contains[0] if len(contains) == 1 and nth == 1 else None
+        if len(contains) == 1 and nth == 1:
+            return contains[0]
+        # The browser's accessibility tree, where Spoor's names come from: a Juice Shop
+        # product card is "button:Apple Juice (1000ml)" there, but an unnamed button in
+        # the DOM capture (#310).
+        try:
+            found = self.page.get_by_role(role, name=name, exact=True).count() if name else 0
+        except Exception:
+            found = 0
+        return {"role": role, "name": name, "locator": "", "a11y_nth": nth} if 0 < nth <= found else None
 
     def _page_route(self) -> str:
         try:
@@ -862,6 +871,20 @@ class Session:
                 return gated(gate.reason if gate.kind is None else f"it can only be {gate.kind}ed")
         target = {"role": element["role"], "name": element["name"], "locator": element.get("locator", ""),
                   **({"value": step["value"]} if step.get("value") else {})}
+        if element.get("a11y_nth"):
+            # Found only by its accessible name: act on it there.
+            try:
+                found = self.page.get_by_role(element["role"], name=element["name"], exact=True).nth(element["a11y_nth"] - 1)
+                if kind == "fill":
+                    found.fill(step.get("value", ""), timeout=4000)
+                elif kind == "select":
+                    found.select_option(label=step.get("value", ""), timeout=4000)
+                else:
+                    found.click(timeout=4000)
+                ok = True
+            except Exception:
+                ok = False
+            return {**record, "status": "done" if ok else "failed"}
         if kind == "fill":
             ok = self._fill(element["role"], element["name"], element.get("locator", ""), step.get("value", ""))
             return {**record, "status": "done" if ok else "failed"}

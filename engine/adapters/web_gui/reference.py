@@ -98,7 +98,7 @@ class Reference:
                 # action space. A missing/misspelled 'committing' key (a foreign or
                 # hand-edited ontology) defaults to committing=True and is excluded, rather
                 # than silently offering an unvetted - possibly destructive - control.
-                if e.get("committing", True) or not e.get("name"):
+                if e.get("committing", True) or not e.get("name") or e.get("spoor_reached") is False:
                     continue
                 cat[(s["id"], e["key"])] = {
                     "path": path,
@@ -149,7 +149,7 @@ class Reference:
                                                                  "target": (record["path"][-1].get("locator")
                                                                             or record["path"][-1].get("goto", ""))}})
         for e in record["elements"]:
-            if e.get("committing", True) or not e.get("name"):   # the same fail-closed rule as the map
+            if e.get("committing", True) or not e.get("name") or e.get("spoor_reached") is False:   # the same fail-closed rule as the map
                 continue
             self._catalogue[(sid, e["key"])] = {
                 "path": self._paths[sid],
@@ -191,20 +191,39 @@ class Reference:
 
     def driver_briefing(self) -> str:
         """The map, as text the Driver is onboarded with: each screen a test can start from,
-        its route, and what the recon found on it. A guide, not a limit (#310): a test can
-        start from any route and act on anything on the live page."""
+        its route, and every control the recon found on it, counted when several share a
+        role and name, with what it knows about each. A guide, not a limit (#310): a test
+        can start from any route and act on anything on the live page."""
         lines = []
         for s in self.states:
             if s["id"] not in self._paths:
                 continue
-            controls = sorted(k for (sid, k) in self._catalogue if sid == s["id"])
             depth = len(self._paths[s["id"]])
             reach = "the start screen" if depth == 0 else f"{depth} navigation(s) from the start"
             url = urlsplit(s.get("url") or "")
             route = (url.path or "/") + (f"#{url.fragment}" if url.fragment else "")
             lines.append(f"  {self.state_label(s['id'])} - route {route} - {reach}")
-            lines.extend(f"      {c}" for c in controls)
+            lines.extend(f"      {line}" for line in _control_lines(s.get("elements", [])))
         return "\n".join(lines) or "  (the map has no screens; start from a route)"
+
+
+def _control_lines(elements: list[dict]) -> list[str]:
+    """'button:Add to Basket (x12, changes data)': each control once, in page order."""
+    seen: dict[str, dict] = {}
+    for e in elements:
+        if e.get("role") in (None, "", "generic"):
+            continue
+        key = f"{e['role']}:{e.get('name', '')}"
+        entry = seen.setdefault(key, {"n": 0, "changes": False, "unreached": False})
+        entry["n"] += 1
+        entry["changes"] |= bool(e.get("committing"))
+        entry["unreached"] |= e.get("spoor_reached") is False
+    lines = []
+    for key, entry in seen.items():
+        notes = ([f"x{entry['n']}"] if entry["n"] > 1 else []) + (["changes data"] if entry["changes"] else []) \
+            + (["behind a dialog, or not reached by the recon"] if entry["unreached"] else [])
+        lines.append(key + (f" ({', '.join(notes)})" if notes else ""))
+    return lines
 
 
 def load(path: str | Path) -> Reference:

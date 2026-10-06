@@ -57,6 +57,7 @@ Feature: A web test is a start and a few steps on the live page
     Then the exact name is tried first, then the same name in any case, then a name that contains it if only one does
     And an empty name is a name too ("link:" for a product image), and "nth" picks among several in page order
     And a step whose "nth" is past the last match is "not_found"
+    And when the page capture has no element by that name, the browser's accessibility tree is asked, where Spoor's names come from: a Juice Shop product card is "button:Apple Juice (1000ml)" there and an unnamed button in the capture
 
   Scenario: What a test's result tells the Driver
     Then the result has "steps", each with its status and why

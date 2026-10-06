@@ -44,11 +44,14 @@ python -m engine.cli --adapter web_gui
 ```
 
 **Or map the app with Spoor instead** (the default crawler, see CLAUDE.md). It gets past
-overlays like cookie banners, which web-recon can't. The converter replays Spoor's paths
-live and writes the same `ontology.json` shape, with no LLM call:
+overlays like cookie banners, which web-recon can't. On a local throwaway target, pass
+`--sandbox` so Spoor also buys, deletes and submits, and the map reaches what's behind
+those (#310). The converter replays Spoor's paths live and writes the same `ontology.json`
+shape, with no LLM call. It keeps everything stable it reaches; only logging out, and on
+a part tagged careful anything the read-only gate wouldn't click, isn't followed:
 
 ```bash
-../ht-spoor/.venv/Scripts/spoor explore http://127.0.0.1:3000 --max-depth 2 --max-seconds 300
+../ht-spoor/.venv/Scripts/spoor explore http://127.0.0.1:3000 --sandbox --max-depth 2 --max-seconds 300
 python -m engine.adapters.web_gui.from_spoor     --map .spoor-cache/maps/127.0.0.1_3000.json --url http://127.0.0.1:3000     --out .experiments/web-recon/out/juice-shop-from-spoor.json
 export WEB_GUI_ONTOLOGY="$PWD/.experiments/web-recon/out/juice-shop-from-spoor.json"
 ```
@@ -131,5 +134,5 @@ canvas pan/zoom from being mistaken for dead), a control you cannot get back fro
 | `save_session.py` | saves a browser session (cookies, localStorage, and sessionStorage, which Playwright leaves out and web_gui puts back with an init script) for `WEB_GUI_SESSION` and Spoor's `--session`: a person logs in, or a condition (`--until`) decides when. Writes only where git ignores, prints only names. |
 | *(discoveries)* | when an action reaches a screen the carried map doesn't have, its result records it (`discovered`): an id from its signature, the path that reached it, and its controls through the safety gate, in a map state's shape. It also joins the run's map (#158): from the next round, the Driver may act on its cleared controls by naming the screen's id as the state, and the harness reaches it by replaying the steps that found it. The Driver sees the controls once, then just the id; a screen more than 6 steps from the start doesn't join. `python -m engine.ontology.feedback --sut web_gui --product <slug> --run <output.json>`, or `--learn <slug>` on the run command, writes them into `context_<slug>.json` (#157). With `WEB_GUI_PRODUCT` set, the next run's preflight replays each one once, the most reached first, up to 20, and the ones that land where they did join the map the Driver starts with, labelled "found by an earlier run" (#159). |
 | `signal_audit.py` | runs `act()` many times against one site (fresh sessions, every pair repeated) and reports weak spots in signal handling: trusted signals that don't reproduce, screen classes that flip, why signals went weak, unsettled reads, unstable idle noise. No model calls. |
-| `from_spoor.py` | turns a Spoor exploration map into this `ontology.json`, by replaying Spoor's paths live and capturing each page the way web-recon does. Safety fails closed (see "Running it"). `map_errors` is the contract with Spoor's map format: the `spoor contract` CI job checks a real, pinned Spoor's output with it (`engine/requirements-spoor.txt`, #144), logged out and from a saved session, and converts the session map end to end (#156). |
+| `from_spoor.py` | turns a Spoor exploration map into this `ontology.json`, by replaying Spoor's paths live and captures each page the way web-recon does. It keeps everything stable Spoor reached, marking each control's gate verdict (`committing`) and whether Spoor reached it (`spoor_reached`); see "Running it". `map_errors` is the contract with Spoor's map format: the `spoor contract` CI job checks a real, pinned Spoor's output with it (`engine/requirements-spoor.txt`, #144), logged out and from a saved session, and converts the session map end to end (#156). |
 | `adapter.py` | the `SUTAdapter`: casting tool schema/prompt/validation (a pair outside the carried map is refused before actuation), `execute_test`, the typed `outcome_for` envelope, and report rendering. |
