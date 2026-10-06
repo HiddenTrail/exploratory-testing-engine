@@ -23,6 +23,7 @@ Feature: Adapters describe each test result in a typed outcome envelope
     And "action_id", "state_before", "state_after" and "start_intended" are ""
     And "accepted", "reset_ok", "latency" and "matched_prior" are null
     And "reset_attempted" is false
+    And "problems" is an empty list (#312: the trusted problems a test recorded, as tokens the engine only compares)
 
   Scenario: An envelope is attached to and read back from a result under the key "outcome"
     Given a result dict from execute_test

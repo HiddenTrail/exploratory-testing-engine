@@ -23,6 +23,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | [`skeptic_review.feature`](skeptic_review.feature) | A cold Skeptic reviews each checkpoint hypothesis |
 | [`gaps.feature`](gaps.feature) | Gaps carry a next test and must be answered at the next checkpoint |
 | [`new_ground_and_parking.feature`](new_ground_and_parking.feature) | Later rounds explore new ground, and claims the tests can't settle are parked |
+| [`oracle_and_errors.feature`](oracle_and_errors.feature) | The Driver tests from the oracle and answers for every idea and every error |
 | [`ids.feature`](ids.feature) | The engine stamps ids on observations and gaps |
 | [`word_limits.feature`](word_limits.feature) | Short fields have word limits that only reject far-too-long answers |
 

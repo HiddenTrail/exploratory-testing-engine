@@ -618,7 +618,17 @@ def _render_standing_section(checkpoints) -> str:
     """
 
 
-def _render_oracle_outcomes(ranked, casting_log, observations) -> str:
+def _idea_answers(checkpoints) -> dict[str, str]:
+    """Each idea's latest answer in the hypotheses (#312): held, broke or cannot_tell."""
+    answers = {}
+    for cp in checkpoints or []:
+        for a in (cp.get("hypothesis") or {}).get("ideas") or []:
+            if isinstance(a, dict) and a.get("id"):
+                answers[a["id"]] = a.get("verdict", "")
+    return answers
+
+
+def _render_oracle_outcomes(ranked, casting_log, observations, checkpoints=None) -> str:
     """What came of each idea the oracle gave the Driver (#285): the tests that cited it,
     how many came out as predicted, and the observations those tests support. It's the
     "how problems were recognized" strand of the story; the raw list stays folded with
@@ -638,15 +648,20 @@ def _render_oracle_outcomes(ranked, casting_log, observations) -> str:
         rows.append(f"<tr><td>{inline_markdown(idea['claim'])}</td><td>{len(tests) or '-'}</td>"
                     f"<td>{f'{held} of {len(tests)}' if tests else '-'}</td><td>{esc(', '.join(supported)) or '-'}</td></tr>")
     used = sum(1 for idea in ranked if cited_by.get(idea["id"]))
+    answers = _idea_answers(checkpoints)
+    kinds = {"held": "good", "broke": "bad", "cannot_tell": "neutral"}
+    rows = [row.replace("</tr>", f"<td>{badge(answers[i['id']].replace('_', ' '), kinds.get(answers[i['id']], 'neutral')) if answers.get(i['id']) else '-'}</td></tr>")
+            for row, i in zip(rows, ranked)]
     return f"""
     <section id="oracle-outcomes">
       <p class="eyebrow">How problems were looked for</p>
       <details class="fold">
         <summary>The oracle's ideas: {used} of {len(ranked)} tested</summary>
         <p class="prose-muted">Each idea the oracle gave the Driver, the tests that cited it, how many came out as
-          the Driver predicted, and the final observations those tests support.</p>
+          the Driver predicted, the final observations those tests support, and whether the Driver said it held,
+          broke, or couldn't tell.</p>
         <div class="table-scroll"><table class="data-table"><thead><tr><th>Idea</th><th>Tests</th>
-          <th>Predictions held</th><th>Observations</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>
+          <th>Predictions held</th><th>Observations</th><th>The Driver's answer</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>
       </details>
     </section>
     """
@@ -980,7 +995,7 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
 
   {_render_standing_section(checkpoints)}
 
-  {_render_oracle_outcomes(onboarding_extra.get("oracle_ranked"), casting_log, observations)}
+  {_render_oracle_outcomes(onboarding_extra.get("oracle_ranked"), casting_log, observations, checkpoints)}
 
   <section id="schema">
     <p class="eyebrow">Onboarding</p>

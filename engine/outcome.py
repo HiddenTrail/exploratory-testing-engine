@@ -38,7 +38,7 @@ nothing wrong.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 
 # The reserved key `execute_test` results carry this under. One place, so an
 # adapter and the engine cannot disagree about the spelling.
@@ -98,6 +98,12 @@ class Outcome:
     # nothing is running blind in a way its own report should say out loud.
     matched_prior: bool | None = None
 
+    # The trusted problems the test recorded (#312): an error in the console, a request
+    # on the product's own site that failed. Opaque tokens again, compared and never
+    # parsed, the same problem giving the same token every time, so the engine can make
+    # sure each one is accounted for. Empty where the adapter can't observe any.
+    problems: list[str] = field(default_factory=list)
+
     def as_dict(self) -> dict:
         return asdict(self)
 
@@ -155,6 +161,9 @@ def validate_outcome(data) -> list[str]:
         errors.append("'reset_attempted' must be a boolean")
     if data.get("latency") is not None and not isinstance(data.get("latency"), (int, float)):
         errors.append("'latency' must be a number or null")
+    problems = data.get("problems", [])
+    if not isinstance(problems, list) or not all(isinstance(p, str) for p in problems):
+        errors.append("'problems' must be a list of strings")
     if data.get("reset_ok") is not None and not data.get("reset_attempted"):
         errors.append("'reset_ok' is set but 'reset_attempted' is false")
     return errors

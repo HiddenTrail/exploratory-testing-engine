@@ -12,7 +12,7 @@ import json
 
 from anthropic import Anthropic
 
-from engine import coverage, diagnostics, lean, steering
+from engine import coverage, diagnostics, lean, ledger, steering
 from engine.adapter import SUTAdapter
 from engine.client import call_tool_with_retry
 from engine.config import RunConfig
@@ -112,9 +112,12 @@ def get_casting_round(
     run_diagnostics: dict | None = None,
     follow_up_ids=frozenset(),
     parked: list[dict] | None = None,
+    idea_ids=frozenset(),
+    oracle_progress: dict | None = None,
 ) -> dict:
     """follow_up_ids: the earlier observation and question ids a test may follow up
-    (#305). parked: what the Driver is told about parked claims."""
+    (#305). parked: what the Driver is told about parked claims. idea_ids: the oracle's
+    ideas a test may cite, empty for a run without an oracle (#312)."""
     # Known and unavoidable: the casting system prompt varies with test_budget
     # and is_first_round, and system renders BEFORE the messages, so checkpoint 2
     # can't read checkpoint 1's cache however stable the evidence blocks are.
@@ -132,13 +135,17 @@ def get_casting_round(
         fresh_evidence["run_diagnostics"] = run_diagnostics
     if parked:
         fresh_evidence["parked"] = parked
+    if oracle_progress:
+        fresh_evidence["oracle_progress"] = oracle_progress
     validate = lambda data: (adapter.validate_casting_response(data)
-                             + steering.follow_up_errors(data, follow_up_ids))
+                             + steering.follow_up_errors(data, follow_up_ids)
+                             + (steering.oracle_id_errors(data, idea_ids) if idea_ids else []))
     return call_tool_with_retry(
         client,
         model=run_config.model,
         system=(adapter.casting_system_prompt(test_budget, is_first_round)
-                + steering.casting_note(steering.follow_up_cap(test_budget), is_first_round)
+                + steering.casting_note(steering.follow_up_cap(test_budget), is_first_round,
+                                        steering.free_cap(test_budget) if idea_ids else None)
                 + (lean.CASTING_NOTE if run_config.lean else "")),
         tools=[steering.with_follow_up_field(adapter.casting_tool_schema)],
         tool_name="submit_casting_round",
@@ -164,11 +171,17 @@ def get_checkpoint_hypothesis(
     run_diagnostics: dict | None = None,
     earlier_observations: list[dict] | None = None,
     parked: list[dict] | None = None,
+    ideas_to_answer: dict | None = None,
+    errors_to_account: dict | None = None,
+    test_problems: dict | None = None,
 ) -> dict:
     """earlier_observations: every earlier checkpoint's observations, shown to the
     Driver as id, kind and claim so a new observation can 'continues' one of them
     instead of restating it under a new id. They are the only ids 'continues' may
-    name. parked: the claims parked so far (#305)."""
+    name. parked: the claims parked so far (#305). ideas_to_answer, errors_to_account:
+    what this hypothesis must answer (#312), each with its tests; test_problems: each
+    test's trusted problems."""
+    ideas_to_answer, errors_to_account = ideas_to_answer or {}, errors_to_account or {}
     earlier_observations = earlier_observations or []
     cached_segments = _cacheable_evidence_segments(
         adapter, happy_day_example, "ALL TESTS THIS SESSION", history_segments,
@@ -190,6 +203,12 @@ def get_checkpoint_hypothesis(
         fresh_evidence["run_diagnostics"] = run_diagnostics
     if parked:
         fresh_evidence["parked"] = parked
+    if ideas_to_answer:
+        claims = {i.get("id"): i.get("claim", "") for i in adapter.onboarding_extra.get("oracle_ranked") or []}
+        fresh_evidence["ideas_to_answer"] = [{"id": i, "claim": claims.get(i, ""), "tests": t}
+                                             for i, t in ideas_to_answer.items()]
+    if errors_to_account:
+        fresh_evidence["errors_to_account_for"] = [{"error": e, "tests": t} for e, t in errors_to_account.items()]
     known_observation_ids = tuple(o["id"] for o in earlier_observations)
     hypothesis = call_tool_with_retry(
         client,
@@ -201,6 +220,7 @@ def get_checkpoint_hypothesis(
         user_message=json.dumps(fresh_evidence, indent=2),
         validate_fn=lambda data: validate_hypothesis_response(
             data, known_observation_ids=known_observation_ids, open_gap_ids=open_gap_ids, lean=run_config.lean,
+            ideas_to_answer=tuple(ideas_to_answer), errors_to_account=errors_to_account, test_problems=test_problems,
         ),
         # Room to spare: when the hypothesis carried the testing story (#265), answers ran
         # 2,000 to 2,560 tokens and were cut off at the old 2,560. The limit costs nothing
@@ -425,6 +445,9 @@ def run_checkpoint_loop(
     # and question ids on them.
     parked: dict[str, int] = {}
     parked_ids: set[str] = set()
+    # The oracle's ideas a test may cite (#312); empty for a run without an oracle.
+    ranked = list((getattr(adapter, "onboarding_extra", None) or {}).get("oracle_ranked") or [])
+    idea_ids = frozenset(i.get("id") for i in ranked if i.get("id"))
 
     for checkpoint_num in range(1, run_config.max_checkpoints + 1):
         is_first_checkpoint = checkpoint_num == 1
@@ -444,12 +467,15 @@ def run_checkpoint_loop(
             follow_up_ids=frozenset({o["id"] for o in earlier_observations}
                                     | {g["id"] for cp in checkpoints for g in cp["skeptic_review"]["gaps"]}),
             parked=steering.for_driver(checkpoints, parked),
+            idea_ids=idea_ids,
+            oracle_progress=steering.oracle_progress(ranked, casting_log, checkpoints) if ranked else None,
         )
 
         entries_before = len(casting_log)
         # Most of a round goes to new ground, and parked claims get no more tests (#305).
         to_run, over_limit = steering.limit(casting.get("candidate_tests") or [],
-                                            steering.follow_up_cap(test_budget), parked_ids)
+                                            steering.follow_up_cap(test_budget), parked_ids,
+                                            steering.free_cap(test_budget) if idea_ids else None)
         dropped_tests = casting.get("dropped_tests", []) + over_limit
         for dropped in dropped_tests:
             print(f"  dropped a test that couldn't be fixed in time: {dropped['errors']}")
@@ -504,10 +530,16 @@ def run_checkpoint_loop(
                 print(line)
 
         print(f"Checkpoint {checkpoint_num}: forming a hypothesis...")
+        # What this hypothesis owes (#312): an answer per oracle idea this checkpoint's
+        # tests checked, and per trusted error no earlier checkpoint answered.
+        test_problems = ledger.problems_by_test(casting_log)
+        errors_to_account = ledger.open_errors(test_problems, ledger.accounted(checkpoints, test_problems))
         hypothesis = get_checkpoint_hypothesis(
             client, adapter, run_config, happy_day_example, history_segments, prior_skeptic_review,
             usage_sink=usage_sink, run_diagnostics=diagnostics.for_model(findings),
             earlier_observations=list(earlier_observations), parked=steering.for_driver(checkpoints, parked),
+            ideas_to_answer=ledger.ideas_checked(casting_log, checkpoint_num),
+            errors_to_account=errors_to_account, test_problems=test_problems,
         )
         # The testing story is asked for on its own (#271) and becomes part of the
         # hypothesis, so everything after this (Skeptic, report, summary) reads it there.
@@ -537,7 +569,7 @@ def run_checkpoint_loop(
             previous_story=checkpoints[-1]["hypothesis"].get("areas") if checkpoints else None,
         )
         stamp_gap_ids(checkpoint_num, skeptic_review)
-        reconcile_kinds(hypothesis, skeptic_review)
+        reconcile_kinds(hypothesis, skeptic_review, test_problems)
         print(f"  skeptic verdict: {skeptic_review['verdict']} - {skeptic_review['verdict_reason']}")
 
         # The debrief (#266): the Driver answers the Skeptic's questions with argument and

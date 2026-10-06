@@ -51,12 +51,39 @@ def follow_up_cap(test_budget: int) -> int:
     return max(1, test_budget // FOLLOW_UP_SHARE)
 
 
-def casting_note(cap: int, first_round: bool) -> str:
+# Tests that check no oracle idea and follow up nothing (#312): at most this share of a
+# round, so most of the testing follows the oracle.
+FREE_SHARE = 3
+
+
+def free_cap(test_budget: int) -> int:
+    return max(1, test_budget // FREE_SHARE)
+
+
+def casting_note(cap: int, first_round: bool, free: int | None = None) -> str:
+    oracle = ("" if free is None else
+              f"\n\nMost tests should check an idea from 'oracle_ranked': put its id in oracle_claim_id; its "
+              f"'where' says where to start. 'oracle_progress' shows which ideas no test has checked yet. At most "
+              f"{free} test(s) may check something no idea covers and follow up nothing; more are dropped "
+              f"without running.")
     if first_round:
-        return "\n\nThis is the first round: leave 'follows_up' empty on every test."
+        return "\n\nThis is the first round: leave 'follows_up' empty on every test." + oracle
     return (f"\n\nAt most {cap} of this round's tests may follow up an earlier observation or question: set "
             f"'follows_up' to its id. Leave it empty on the rest and use them on something not tested yet. A "
-            f"follow-up over the limit, or on a claim in 'parked', is dropped without running.")
+            f"follow-up over the limit, or on a claim in 'parked', is dropped without running." + oracle)
+
+
+def oracle_id_errors(data, idea_ids) -> list[str]:
+    """An oracle_claim_id that isn't one of the ranked ideas is sent back (#312): a made-up
+    id can't be answered or learned from (#107)."""
+    tests = data.get("candidate_tests") if isinstance(data, dict) else None
+    errors = []
+    for i, test in enumerate(tests if isinstance(tests, list) else []):
+        claim = test.get("oracle_claim_id") if isinstance(test, dict) else None
+        if isinstance(claim, str) and claim and claim not in idea_ids:
+            errors.append(f"candidate_tests[{i}].oracle_claim_id is '{claim}', which isn't an idea in "
+                          "'oracle_ranked'. Copy an id exactly as shown there, or leave it empty.")
+    return errors
 
 
 def follow_up_errors(data, known_ids) -> list[str]:
@@ -77,20 +104,40 @@ def follow_up_errors(data, known_ids) -> list[str]:
     return errors
 
 
-def limit(tests: list[dict], cap: int, parked_ids) -> tuple[list[dict], list[dict]]:
-    """The tests to run, and the ones dropped with why, in the dropped_tests shape (#288)."""
-    kept, dropped, follow_ups = [], [], 0
+def limit(tests: list[dict], cap: int, parked_ids, free: int | None = None) -> tuple[list[dict], list[dict]]:
+    """The tests to run, and the ones dropped with why, in the dropped_tests shape (#288).
+    free: how many tests may check no oracle idea and follow up nothing (#312); None for
+    a run without an oracle."""
+    kept, dropped, follow_ups, frees = [], [], 0, 0
     for test in tests:
         follows = test.get("follows_up") or ""
+        unguided = not follows and not test.get("oracle_claim_id")
         if follows in parked_ids:
             dropped.append({"test": test, "errors": [f"follows up {follows}, which is parked: the tests couldn't "
                                                     "settle it, so it gets no more of them"]})
         elif follows and follow_ups >= cap:
             dropped.append({"test": test, "errors": [f"over the limit of {cap} follow-up test(s) a round"]})
+        elif unguided and free is not None and frees >= free:
+            dropped.append({"test": test, "errors": [f"over the limit of {free} test(s) a round that check no "
+                                                    "oracle idea"]})
         else:
             follow_ups += bool(follows)
+            frees += unguided
             kept.append(test)
     return kept, dropped
+
+
+def oracle_progress(ranked: list[dict], casting_log: list[dict], checkpoints: list[dict]) -> dict:
+    """What the Driver is told about the oracle so far (#312): the ideas no test has
+    checked yet, and the latest answer for each one that was."""
+    cited = {e.get("oracle_claim_id") for e in casting_log if e.get("oracle_claim_id")}
+    answers: dict[str, str] = {}
+    for cp in checkpoints:
+        for a in (cp.get("hypothesis") or {}).get("ideas") or []:
+            if isinstance(a, dict) and a.get("id"):
+                answers[a["id"]] = a.get("verdict", "")
+    return {"not_checked_yet": [i["id"] for i in ranked if i.get("id") not in cited],
+            "answered": [{"id": k, "verdict": v} for k, v in answers.items()]}
 
 
 def repeats(casting_log: list[dict], checkpoint: int) -> int:

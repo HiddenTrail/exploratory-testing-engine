@@ -97,6 +97,7 @@ engine/
   diagnostics.py # domain-free detectors over those envelopes: facts about the RUN, not the SUT
   interplay.py  # how well the Driver answered the Skeptic: gaps, answers, objections that came back
   steering.py   # most of each later round goes to new ground; claims the tests can't settle are parked
+  ledger.py     # every oracle idea a checkpoint's tests checked, and every recorded error, gets an answer
   coverage.py   # what the tests have sent so far, per input field, for the Skeptic
   report.py     # generic HTML rendering (prose, badges, CSS, page/checkpoint structure)
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output

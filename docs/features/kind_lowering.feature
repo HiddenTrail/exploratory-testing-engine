@@ -57,6 +57,13 @@ Feature: The engine lowers a kind the evidence doesn't support
       | anomaly | bug     | anomaly | has no "driver_kind"                                                             |
       | bug     | bug     | bug     | has no "driver_kind"                                                             |
 
+  Scenario: A bug on an error more than one test recorded isn't lowered
+    # #312: the error happened whatever caused it (see oracle_and_errors.feature).
+    Given the Driver's "bug" "C1.O1" cites tests 17 and 19, which both recorded "request: PUT /api/BasketItems/# -> 400"
+    And the Skeptic's check of "C1.O1" has kind "anomaly"
+    When the engine runs reconcile_kinds with the tests' problems
+    Then the kind stays "bug", with "kept_as_bug_because"
+
   Scenario: A bug lowered twice keeps the Driver's original kind
     Given the engine lowered a Driver "bug" to "anomaly" because it names no violated fact
     And the Skeptic's check gives it kind "finding"
