@@ -1,7 +1,7 @@
 # web_gui report and log: what each click did, at a glance.
 #
 # The web_gui adapter renders its own test entries and onboarding section in the
-# HTML report, and its own lines in the console log. Each test shows the pair it
+# HTML report, and its own lines in the console log. Each test shows the start and steps it
 # acted on, the predicted and actual screen class as badges, whether the prediction
 # matched, whether the path drifted, and whether recovery got back to the start. The
 # signals sit in a folded section, with the trusted ones and the weak ones apart, so
@@ -31,7 +31,8 @@ Feature: The web report and log show each move and its signals
   Scenario: A sent test shows its prediction, outcome and timings
     Given a sent test that reached its state
     When the report renders it
-    Then it shows "Test #3", the pair "st01 :: button:A", and the hypothesis or "Probe"
+    Then it shows "Test #3", the test as "st01 :: button:A" (its start and steps), and the hypothesis or "Probe"
+    And each step that wasn't simply done, with its status badge and why (#310)
     And the predicted outcome with the predicted screen badge
     And "reached" with the actual screen badge and "prediction" with "matched" or "missed"
     And "click took Xs, settled in Ys"
@@ -65,11 +66,11 @@ Feature: The web report and log show each move and its signals
 
   Scenario: The onboarding section shows what the Driver was told
     When the report renders the onboarding section
-    Then it shows "What the Driver was told", "Carried map (the action space)" and "Where the run started" (the last two when check_ready filled them), and a "Happy-day example" only for runs made before #285
+    Then it shows "What the Driver was told", "Carried map (a guide to the screens)" and "Where the run started" (the last two when check_ready filled them), and a "Happy-day example" only for runs made before #285
     And "Where the run started" says "the start page matches the map", or "the start page differs from the map"
     And the ranked oracle ideas when the evidence has them
     # Each runs to hundreds of lines and pushed the checkpoints far down the page (#251).
-    And "What the Driver was told" and "Carried map (the action space)" are folded sections, closed until opened
+    And "What the Driver was told" and "Carried map (a guide to the screens)" are folded sections, closed until opened
 
   Scenario Outline: The log has one line for the test and one for its result
     Given <case>

@@ -1,21 +1,25 @@
-# web_gui action space: the Driver can only name (state, control) pairs from the map.
+# web_gui tests: a start and steps on the live page; the map is a guide, not a limit.
 #
-# The carried map is a web-recon ontology.json: states, the controls on each, and the
-# transitions the recon saw. Its read-only safety gate marks each control committing
-# or not. The adapter turns that into the whole action space. There is no free CSS
-# selector and no coordinate, so the Driver can't name anything that submits, deletes,
-# buys or sends. The check fails closed: a control is only offered when it says
-# "committing": false outright, so a hand-edited or foreign map with a missing flag
-# offers less, never more. A pair outside the map is refused by the casting validator,
-# and refused again in execute_test in case one slips through.
+# Until #310 the map was the whole action space: the Driver could only name a (state,
+# control) pair the recon had reached and the read-only gate had cleared, so a webshop's
+# basket, checkout, login and forms were out of reach, and the oracle's top ideas with
+# them. That was a design error. Spoor feeds the context; it never decides what the
+# Driver may do. Now a test starts from a route on the site or a screen the map knows,
+# then runs up to 6 steps on whatever is on the page. Safety lives in the engine: the
+# browser never leaves the site (#308), careful tags (#299), the spending limits. Until
+# #299, the read-only gate still judges each step, on the live element, never on the map.
 #
-# Code: engine/adapters/web_gui/reference.py (Reference), engine/adapters/web_gui/adapter.py
-# (validate_casting_response, execute_test), engine/adapters/web_gui/session.py (valid_pairs)
+# The map still gives the screens a test can start from by id (their paths), and the
+# sweep its pairs.
+#
+# Code: engine/adapters/web_gui/adapter.py (CASTING_TOOL, validate_casting_response,
+# execute_test, API_SCHEMA_DOC, SAFETY_NOTE), session.py (act_steps, _do_step, _find_live,
+# _reach, STEP_KINDS, MAX_STEPS), reference.py (Reference, driver_briefing)
 
-Feature: The Driver can only act on controls the map cleared as safe
-  As someone testing a real environment
-  I want the action space to be the map's cleared (state, control) pairs and nothing else
-  So that nothing the Driver can name changes data in the app
+Feature: A web test is a start and a few steps on the live page
+  As someone testing a web product
+  I want the Driver to act on whatever is on the page, the way a person would
+  So that the product's forms, basket and flows can be tested, not only what a recon reached
 
   Background:
     Given a map with states "st01" (first_seen 0) and "st02"
@@ -23,64 +27,63 @@ Feature: The Driver can only act on controls the map cleared as safe
     And "st01" has controls "button:A" and "button:Dead" with "committing": false
     And "st02" has "button:Back" with "committing": false and "button:Buy" with "committing": true
 
-  Scenario: The action space is the named, non-committing controls on reachable states
-    When the map is loaded
-    Then the entry state is "st01", the state seen first
-    And the pairs are "st01 :: button:A", "st01 :: button:Dead" and "st02 :: button:Back"
-    And "st02 :: button:Buy" is not a pair
+  Scenario: A test has a start and up to 6 steps
+    Then a cast test has "start": a route on the site like "/#/basket", or a screen id like "st02"
+    And "steps": 1 to 6 of "click", "fill", "select" (each with "role" and "name"), "goto" (a route as "value") and "back"
+    And "fill" and "select" have the "value" to type or choose, and a step can have "nth" (from 1)
 
-  Scenario Outline: A control is left out unless every rule lets it in
-    Given "st01" also has a control <case>
-    When the map is loaded
-    Then that control is not a pair
+  Scenario: The validator checks the shape, never the map
+    When the Driver casts a test on a control the map doesn't have, or from a route it doesn't have
+    Then validate_casting_response returns no errors
+    But a step without what its kind needs is sent back, for example "steps[1] (click) needs a 'name'"
+    And a "goto" that isn't a route on the site is sent back
+
+  Scenario Outline: Each step is judged on the page when it runs
+    Given the test reached its start
+    When a step <does>
+    Then the step's status is "<status>", and the steps after a step that isn't done don't run
 
     Examples:
-      | case                                     |
-      | with no "committing" key at all          |
-      | with "committing": true                  |
-      | with an empty name                       |
-      | on a state no navigate edge reaches      |
+      | does                                                           | status    |
+      | clicks an element that is on the page                          | done      |
+      | clicks an element nothing on the page has the role and name of | not_found |
+      | clicks "Checkout" (the read-only gate refuses it until #299)   | refused   |
+      | fills a search box with the Driver's value                     | done      |
+      | fills a field that isn't a search box (until #299)             | refused   |
+      | goes to "/logout" (the gate refuses it until #299)             | refused   |
+      | goes back                                                      | done      |
 
-  Scenario: Each state is reached by its shortest path of navigate edges from the entry
-    # Breadth-first over "navigate" edges only. Edges back to the same state, to
-    # "external", or to a state not in the map don't count.
-    When the map is loaded
-    Then the plan for "st01 :: button:A" has an empty path
-    And the plan for "st02 :: button:Back" has the path of one step: role "button", name "A", locator "#a"
-    And its target is role "button", name "Back", locator "#back"
+  Scenario: An element is found by role and name on the live page
+    Then the exact name is tried first, then the same name in any case, then a name that contains it if only one does
+    And an empty name is a name too ("link:" for a product image), and "nth" picks among several in page order
+    And a step whose "nth" is past the last match is "not_found"
 
-  Scenario: The Driver is briefed with exactly the action space
+  Scenario: What a test's result tells the Driver
+    Then the result has "steps", each with its status and why
+    And "page_controls": what's on the page after the last step as "role:name", with a count like "button: (x13)" when several share it, at most 40, with "page_controls_more" past that
+    And "action" reads like "st02 :: button:Back" or "/ :: button:Open Sidenav > goto /#/contact"
+    And the log line of a test where nothing ran says why, like "NOT RUN - button:Checkout: refused"
+
+  Scenario: A start the run doesn't know is a result, not a retry
+    When a test starts from "basket", which is neither a route nor a screen this run knows
+    Then nothing runs, and the result has "skipped": true and a skip_reason saying to start from a route or a screen id
+
+  Scenario: A screen a test reaches is reached again the same way
+    When a test reaches a screen the map doesn't have
+    Then its discovery's path is the start (a route, or the screen's own path) and the steps that ran, with what was typed
+    And a later test can start from its id
+
+  Scenario: The map is a guide with routes
     When the map's Driver briefing is written
-    Then each reachable state gets a line with its id, a short label and "the start screen" or "N navigation(s) from the start"
-    And under it one line per pair, written "st01 :: button:A"
-    And a state with no pairs shows "(no safe controls found here)"
-    And "button:Buy" does not appear anywhere in the briefing
+    Then each reachable screen gets a line with its id, a short label, "route <route>" and how far it is from the start
+    And under it the controls the recon found, one per line as "role:name"
 
-  Scenario: The casting validator refuses a pair outside the map once the session is live
-    Given the session is ready
-    When the Driver casts a test on "st01 :: button:Ghost"
-    Then validate_casting_response returns an error saying it "is not a (state, control) pair in the carried map"
-    And the error lists that state's controls: "The controls of st01 are exactly: button:A, ...", at most 30
-    And the round is sent back to the Driver instead of run
-    # #288: the Driver guessed keys like "button to deposit" from earlier results and
-    # couldn't find the real ones far back in the prompt, three times in a row.
+  Scenario: The map still gives the sweep its pairs and each screen its path
+    When the map is loaded
+    Then the entry state is "st01", the state seen first
+    And the pairs are "st01 :: button:A", "st01 :: button:Dead" and "st02 :: button:Back", and not "st02 :: button:Buy"
+    And "st02" is reached by its shortest path of navigate edges: one step, role "button", name "A", locator "#a"
 
-  Scenario: A test on a state the map doesn't have says so
-    Given the session is ready
-    When the Driver casts a test on "st99 :: button:A"
-    Then the error says "names state st99, which is not in the carried map"
-
-  Scenario: Before the session is ready the validator only checks the shape
-    # valid_pairs() is empty until check_ready has run, so validation degrades to
-    # shape checks rather than raising.
-    Given no session is ready
-    When the Driver casts a well-formed test on "st01 :: button:Ghost"
-    Then validate_casting_response returns no errors
-
-  Scenario: execute_test refuses a pair outside the map again
-    Given a test on "st01 :: button:Ghost" reaches execute_test
-    When it runs
-    Then nothing is clicked
-    And the result has "skipped": true and "prediction_matched": false
-    And its "skip_reason" says "st01 :: button:Ghost is not a pair in this run's map (carried or discovered)."
-    And its outcome has effect "unknown" and accepted false
+  Scenario: A test cast before #310 still runs
+    When a test with "state_id" and "control_key" runs, as an older run's replay does
+    Then it runs as a start at that screen and one click, or a fill for a text box

@@ -77,7 +77,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | File | Feature |
 |---|---|
 | [`web_readiness.feature`](web_readiness.feature) | The web_gui adapter checks its map and the live app before a run starts |
-| [`web_action_space.feature`](web_action_space.feature) | The Driver can only act on controls the map cleared as safe |
+| [`web_action_space.feature`](web_action_space.feature) | A web test is a start and a few steps on the live page |
 | [`web_path_replay.feature`](web_path_replay.feature) | Each test reaches its state by replaying the mapped path |
 | [`web_settling.feature`](web_settling.feature) | Reads wait for a settled page |
 | [`web_actuation.feature`](web_actuation.feature) | Controls are pressed by role and name, and a cover is reported |

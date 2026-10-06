@@ -54,10 +54,13 @@ def test_reference_paths_and_actuation_plan():
     assert ref.plan_for("st02", "button:Buy") is None      # committing -> not in the catalogue
 
 
-def test_reference_briefing_lists_the_action_space_only():
+def test_reference_briefing_is_a_guide_with_routes():
+    # #310: each screen with its route, then what the recon found on it, without the
+    # screen id repeated on every line.
     briefing = ref_mod.Reference(_ontology()).driver_briefing()
-    assert "st01 :: button:A" in briefing and "st02 :: button:Back" in briefing
-    assert "button:Buy" not in briefing                    # the committing control is never offered
+    assert "  st01 (Home) - route / - the start screen\n      button:A\n" in briefing
+    assert "  st02 (Page 2) - route /p2 - 1 navigation(s) from the start\n      button:Back" in briefing
+    assert "button:Buy" not in briefing     # until #299, the read-only gate still refuses it
 
 
 def test_reference_fails_closed_on_a_missing_committing_flag():
@@ -258,21 +261,21 @@ def test_outcome_not_actuated_is_unknown_and_unaccepted():
 # ---- casting validation --------------------------------------------------------------
 
 def _good_test(**kw):
-    base = {"linked_hypothesis": "", "oracle_claim_id": "", "state_id": "st01", "control_key": "button:A",
+    base = {"linked_hypothesis": "", "oracle_claim_id": "", "start": "st01",
+            "steps": [{"do": "click", "role": "button", "name": "A"}],
             "predicted_screen": "known_screen", "predicted_outcome": "goes to page 2"}
     base.update(kw)
     return base
 
 
 def test_validate_accepts_a_good_round_shape_only():
-    # No live session -> pairs check is skipped, shape must still pass.
     assert adp.validate_casting_response({"give_up": False, "reasoning": "r",
                                           "candidate_tests": [_good_test()]}) == []
 
 
 def test_validate_rejects_bad_prediction_and_missing_fields():
     errs = adp.validate_casting_response({"give_up": False, "reasoning": "r", "candidate_tests": [
-        _good_test(predicted_screen="teleport"), {"state_id": "st01"}]})
+        _good_test(predicted_screen="teleport"), {"start": "st01"}]})
     assert any("predicted_screen" in e for e in errs)
     assert any("missing" in e for e in errs)
 
@@ -281,14 +284,26 @@ def test_validate_allows_give_up_with_no_tests():
     assert adp.validate_casting_response({"give_up": True, "reasoning": "done", "candidate_tests": []}) == []
 
 
-def test_validate_enforces_the_carried_map_when_a_session_is_live(monkeypatch):
-    monkeypatch.setattr(live_session, "valid_pairs", lambda: {("st01", "button:A")})
-    ok = adp.validate_casting_response({"give_up": False, "reasoning": "r",
-                                        "candidate_tests": [_good_test()]})
-    assert ok == []
-    bad = adp.validate_casting_response({"give_up": False, "reasoning": "r",
-                                         "candidate_tests": [_good_test(control_key="button:Ghost")]})
-    assert any("not a (state, control) pair" in e for e in bad)
+def test_the_map_doesnt_limit_what_a_test_may_touch():
+    # #310: the map is a guide. A step on something the map doesn't have is a valid test;
+    # if it isn't on the page, the result says so.
+    tests = [_good_test(start="/#/basket", steps=[{"do": "click", "role": "button", "name": "Checkout"},
+                                                  {"do": "fill", "role": "textbox", "name": "Coupon", "value": "-1"},
+                                                  {"do": "goto", "value": "/#/profile"}, {"do": "back"}])]
+    assert adp.validate_casting_response({"give_up": False, "reasoning": "r", "candidate_tests": tests}) == []
+
+
+def test_each_step_has_what_its_kind_needs():
+    batch = lambda *steps: {"give_up": False, "reasoning": "r", "candidate_tests": [_good_test(steps=list(steps))]}
+    errors = adp.validate_casting_response(batch({"do": "teleport"}, {"do": "click", "name": "Go"},
+                                                 {"do": "fill", "role": "textbox", "name": "Q"},
+                                                 {"do": "goto", "value": "https://elsewhere.example"}))
+    assert errors == [
+        "candidate_tests[0].steps[0].do must be one of: click, fill, select, goto, back",
+        "candidate_tests[0].steps[1] (click) needs a 'role'",
+        "candidate_tests[0].steps[2] (fill) needs a 'value'",
+        "candidate_tests[0].steps[3] (goto) needs a route on the site as its value, starting with '/' or '#'"]
+    assert "1 to 6 steps" in adp.validate_casting_response(batch())[0]
 
 
 class _SessionPage:
@@ -616,7 +631,7 @@ def test_after_learning_a_baseline_the_state_is_reached_afresh(monkeypatch):
     ref = ref_mod.Reference(_ontology())
     ref._by_id["st02"]["signature"] = "/p2|button:back|"   # what the fake page below reads as
     sess = live_session.Session.__new__(live_session.Session)
-    sess.reference, sess.base_url, sess._noise = ref, "http://app.example/", {}
+    sess.reference, sess.base_url, sess._noise, sess._site = ref, "http://app.example/", {}, "http://app.example"
     sess.seen_signatures, sess.entry_signature, sess.last_covered_by, sess.last_rest = set(), "", "", True
     sess.page, sess.col, sess._requests = None, None, {}
     reboots = []
@@ -728,7 +743,7 @@ def test_a_discovered_screen_is_a_map_state_with_its_controls_through_the_safety
 def _acting_session(monkeypatch, after):
     ref = ref_mod.Reference(_ontology())
     sess = live_session.Session.__new__(live_session.Session)
-    sess.reference, sess.base_url, sess._noise = ref, "http://app.example/", {"st01": {}}
+    sess.reference, sess.base_url, sess._noise, sess._site = ref, "http://app.example/", {"st01": {}}, "http://app.example"
     sess.seen_signatures, sess.entry_signature, sess.last_covered_by, sess.last_rest = set(), "", "", True
     sess.page, sess.col, sess._requests = None, None, {}
     for name, fn in (("_reboot", lambda: None), ("_actuate", lambda step: True), ("_rest", lambda: True),
@@ -806,9 +821,9 @@ def test_a_test_on_a_discovered_screen_is_valid_once_it_joined(monkeypatch):
     sess.reference = ref
     monkeypatch.setattr(live_session, "_SESSION", sess)
     data = {"give_up": False, "reasoning": "go deeper", "candidate_tests": [
-        {"linked_hypothesis": "", "oracle_claim_id": "", "state_id": sid, "control_key": "button:Go",
-         "predicted_screen": "new_screen", "predicted_outcome": "a page past the new screen"}]}
+        _good_test(start=sid, steps=[{"do": "click", "role": "button", "name": "Go"}], predicted_screen="new_screen")]}
     assert adp.validate_casting_response(data) == []
+    assert sess.is_start(sid) and sess.is_start("/#/anything") and not sess.is_start("nowhere")
 
 
 # ---- starting from earlier runs' discoveries (issue #159) ----------------------------------
@@ -990,7 +1005,7 @@ def test_a_session_check_that_isnt_a_product_path_is_refused(monkeypatch):
 # ---- starting a test as a new tab (issue #249) ---------------------------------------------
 
 def test_validate_checks_start_as(monkeypatch):
-    monkeypatch.setattr(live_session, "valid_pairs", lambda: {("st01", "button:A")})
+    monkeypatch.setattr(live_session, "_SESSION", object())     # a session is live
     monkeypatch.setattr(live_session, "has_session", lambda: True)
     batch = lambda **kw: {"give_up": False, "reasoning": "r", "candidate_tests": [_good_test(**kw)]}
     assert adp.validate_casting_response(batch(start_as="new_tab")) == []
@@ -1015,19 +1030,22 @@ def test_a_new_tab_context_gets_no_sessionstorage_but_the_same_tab_does():
 def test_act_marks_a_new_tab_test_and_goes_back_to_the_same_tab_after(monkeypatch):
     session = object.__new__(live_session.Session)
     seen = []
-    def fake_act(state_id, control_key):
+    def fake_act(start, steps):
         seen.append(session._start_as)
-        return {"action": f"{state_id} :: {control_key}", "verdict": "sent"}
+        return {"action": f"{start} :: {steps[0]['role']}:{steps[0]['name']}", "verdict": "sent"}
     session._act = fake_act
-    assert session.act("st01", "button:A", "new_tab")["started_as"] == "new_tab"
-    assert "started_as" not in session.act("st01", "button:A")
+    step = [{"do": "click", "role": "button", "name": "A"}]
+    assert session.act_steps("st01", step, "new_tab")["started_as"] == "new_tab"
+    assert "started_as" not in session.act_steps("st01", step)
     assert seen == ["new_tab", "same_tab"] and session._start_as == "same_tab"
 
 
 def test_a_new_tab_test_is_its_own_action_and_says_so(monkeypatch):
     class Live:
-        reference = type("R", (), {"pairs": lambda self: {("st01", "button:A")}})()
-        def act(self, state_id, control_key, start_as, test_number=None):
+        def is_start(self, start):
+            return True
+
+        def act_steps(self, start, steps, start_as, test_number=None):
             r = _result()
             return {**r, "started_as": start_as} if start_as != "same_tab" else r
     monkeypatch.setattr(live_session, "live", lambda: Live())
@@ -1038,11 +1056,34 @@ def test_a_new_tab_test_is_its_own_action_and_says_so(monkeypatch):
     assert "(as a new tab)" in adp.describe_test_for_log({**_good_test(), "start_as": "new_tab"})
 
 
+def test_a_start_the_run_doesnt_know_is_a_result_not_a_retry(monkeypatch):
+    monkeypatch.setattr(live_session, "live", lambda: type("L", (), {"is_start": lambda self, s: False})())
+    entry = adp.execute_test(_good_test(start="basket"), 3)
+    assert entry["skipped"] and "neither a route on the site" in entry["skip_reason"]
+    assert entry["request"] == {"start": "basket", "steps": [{"do": "click", "role": "button", "name": "A"}]}
+
+
+def test_a_test_cast_before_310_still_runs_as_one_step(monkeypatch):
+    seen = {}
+
+    class Live:
+        def is_start(self, start):
+            return True
+
+        def act_steps(self, start, steps, start_as, test_number=None):
+            seen.update(start=start, steps=steps)
+            return _result()
+    monkeypatch.setattr(live_session, "live", lambda: Live())
+    adp.execute_test({"state_id": "st01", "control_key": "textbox:Search", "predicted_screen": "same_screen",
+                      "predicted_outcome": "x"}, 1)
+    assert seen == {"start": "st01", "steps": [{"do": "fill", "role": "textbox", "name": "Search"}]}
+
+
 def test_the_schema_doc_and_the_carried_map_are_folded_in_the_report():
     # #251: each runs to hundreds of lines and pushed the checkpoints far down the page.
     import re
     html = adp.render_onboarding_section("SCHEMA", {"carried_map": "st01 :: button:A", "baseline": "ok"}, {})
-    for title in ("What the Driver was told", "Carried map (the action space)"):
+    for title in ("What the Driver was told", "Carried map (a guide to the screens)"):
         assert re.search(r'<details class="fold exhibit">\s*<summary>' + re.escape(title) + "</summary>", html)
     assert "<details open" not in html
 
@@ -1143,3 +1184,80 @@ def test_a_request_our_guard_stopped_is_not_the_product_failing():
     session._on_request_failed(real)
     assert id(blocked) not in session._requests and session._requests[id(real)]["status"] == 0
     assert session._inflight == set()
+
+
+# ---- a test is a start and steps on the live page (#310) ----------------------------------
+
+def _stepping_session(monkeypatch, on_page):
+    """A session whose page has the elements in `on_page`; records what was pressed."""
+    sess = live_session.Session.__new__(live_session.Session)
+    sess._site, sess.base_url, sess.blocked_off_site = "http://app.example", "http://app.example/", []
+    pressed = []
+    monkeypatch.setattr(sess, "_find_live", lambda role, name, nth=1: next(
+        (e for e in on_page if e["role"] == role and e["name"] == name), None))
+    monkeypatch.setattr(sess, "_actuate", lambda step: pressed.append(step) or True)
+    return sess, pressed
+
+
+def test_each_step_is_judged_on_the_live_page(monkeypatch):
+    on_page = [{"role": "button", "name": "Next page", "locator": "#n"},
+               {"role": "button", "name": "Checkout", "locator": "#c"},
+               {"role": "searchbox", "name": "Search", "locator": "#s"},
+               {"role": "textbox", "name": "Quantity", "locator": "#q"}]
+    sess, pressed = _stepping_session(monkeypatch, on_page)
+    assert sess._do_step({"do": "click", "role": "button", "name": "Next page"})["status"] == "done"
+    assert sess._do_step({"do": "click", "role": "button", "name": "Ghost"})["status"] == "not_found"
+    refused = sess._do_step({"do": "click", "role": "button", "name": "Checkout"})
+    assert refused["status"] == "refused" and "mutating verb" in refused["detail"]
+    assert sess._do_step({"do": "fill", "role": "searchbox", "name": "Search", "value": "apple"})["status"] == "done"
+    assert pressed[-1]["value"] == "apple"                       # the Driver's value, not "test"
+    assert sess._do_step({"do": "fill", "role": "textbox", "name": "Quantity", "value": "-1"})["status"] == "refused"
+    assert sess._do_step({"do": "goto", "value": "/#/basket"})["status"] == "done"
+    assert pressed[-1] == {"goto": "http://app.example/#/basket"}
+    assert sess._do_step({"do": "goto", "value": "/logout"})["status"] == "refused"
+    assert sess._do_step({"do": "back"})["status"] == "done" and pressed[-1] == {"back": True}
+
+
+def test_steps_read_as_labels_and_replay_as_path_steps():
+    label = live_session._step_label
+    assert label({"do": "click", "role": "button", "name": "Next"}) == "button:Next"
+    assert label({"do": "fill", "role": "textbox", "name": "Coupon", "value": "-1"}) == "textbox:Coupon = '-1'"
+    assert label({"do": "goto", "value": "/#/basket"}) == "goto /#/basket" and label({"do": "back"}) == "back"
+    sess = live_session.Session.__new__(live_session.Session)
+    sess.base_url = "http://app.example/"
+    assert live_session._replay_step({"do": "goto", "value": "#/basket"}, {}, sess) == {"goto": "http://app.example/#/basket"}
+    assert live_session._replay_step({"do": "fill", "role": "textbox", "name": "Q", "value": "2"}, {}, sess) == \
+        {"role": "textbox", "name": "Q", "value": "2"}
+
+
+def test_a_screen_reached_by_a_route_and_back_joins_the_map_too():
+    # #310: a path can start with a route and end with "back", so its last step has no locator.
+    ref = ref_mod.Reference(_ontology())
+    record = {**_record(), "from_state": "/#/about", "via": "back",
+              "path": [{"goto": "http://app.example/#/about"}, {"back": True}]}
+    sid = ref.add_discovery(record, max_steps=6)
+    assert sid and ref._paths[sid] == record["path"]
+    assert ref.transitions[-1]["action"]["target"] == ""
+
+
+def test_the_log_says_why_nothing_ran():
+    entry = {"result": {"verdict": "not_actuated", "steps": [
+        {"do": "click", "role": "button", "name": "Checkout", "status": "refused"}]}}
+    assert adp.describe_result_for_log(entry) == "NOT RUN - button:Checkout: refused"
+    assert "never reached its start" in adp.describe_result_for_log({"result": {"verdict": "not_actuated"}})
+
+
+def test_an_element_without_a_name_can_be_picked_by_its_place(monkeypatch):
+    # #310's run: the Driver wanted "link:" (a product image), and an empty name was refused.
+    assert adp.validate_casting_response({"give_up": False, "reasoning": "r", "candidate_tests": [
+        _good_test(steps=[{"do": "click", "role": "link", "name": "", "nth": 3}])]}) == []
+    sess = live_session.Session.__new__(live_session.Session)
+    page = [{"role": "link", "name": "", "locator": f"#img{i}"} for i in range(1, 5)] + \
+           [{"role": "link", "name": "About", "locator": "#about"}]
+    sess.page = type("P", (), {"evaluate": lambda self, js: page})()
+    assert sess._find_live("link", "", 3)["locator"] == "#img3"
+    assert sess._find_live("link", "")["locator"] == "#img1"
+    assert sess._find_live("link", "", 9) is None
+    assert sess._find_live("link", "about")["locator"] == "#about"
+    assert live_session._step_label({"do": "click", "role": "link", "name": "", "nth": 3}) == "link: #3"
+

@@ -107,6 +107,12 @@ and wiki pages.
   `engine/adapters/registry.py`, which loads adapters lazily through
   `importlib`. `engine/bootstrap/` also depends only on `engine/`, never on a
   specific adapter.
+- **Spoor feeds the context; it never limits the Driver.** Spoor's map tells the
+  engine about the product: screens, routes, controls, fields. It goes to the context
+  layer and the oracle, and to the Driver as a guide. Never add a check that only lets
+  the Driver act on what Spoor mapped (#310). Safety lives in the engine: the browser
+  never leaves the site, careful tags restrict where needed (#299), and the spending
+  limits stay.
 - **`engine/tools.py` is shared.** The hypothesis, Skeptic and bug-report
   schemas are the same for every SUT, and adapters can't override them.
   Anything SUT-specific goes in the adapter.

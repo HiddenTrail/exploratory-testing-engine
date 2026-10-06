@@ -145,7 +145,9 @@ class Reference:
         self._paths[sid] = list(record["path"])
         self.transitions.append({"source": record["from_state"], "dest": sid, "effect": "navigate",
                                  "discovered": True, "action": {"kind": "click", "element_key": record["via"],
-                                                                 "target": record["path"][-1]["locator"]}})
+                                                                 # A path can end in a route or "back" (#310).
+                                                                 "target": (record["path"][-1].get("locator")
+                                                                            or record["path"][-1].get("goto", ""))}})
         for e in record["elements"]:
             if e.get("committing", True) or not e.get("name"):   # the same fail-closed rule as the map
                 continue
@@ -188,8 +190,9 @@ class Reference:
         return sig in self.known_signatures
 
     def driver_briefing(self) -> str:
-        """The map, as text the Driver is onboarded with: each reachable state and the
-        controls it may test there. This is the action space - there is no other."""
+        """The map, as text the Driver is onboarded with: each screen a test can start from,
+        its route, and what the recon found on it. A guide, not a limit (#310): a test can
+        start from any route and act on anything on the live page."""
         lines = []
         for s in self.states:
             if s["id"] not in self._paths:
@@ -197,12 +200,11 @@ class Reference:
             controls = sorted(k for (sid, k) in self._catalogue if sid == s["id"])
             depth = len(self._paths[s["id"]])
             reach = "the start screen" if depth == 0 else f"{depth} navigation(s) from the start"
-            lines.append(f"  {self.state_label(s['id'])} - {reach}")
-            for c in controls:
-                lines.append(f"      {s['id']} :: {c}")
-            if not controls:
-                lines.append("      (no safe controls found here)")
-        return "\n".join(lines) or "  (the carried map has no reachable controls)"
+            url = urlsplit(s.get("url") or "")
+            route = (url.path or "/") + (f"#{url.fragment}" if url.fragment else "")
+            lines.append(f"  {self.state_label(s['id'])} - route {route} - {reach}")
+            lines.extend(f"      {c}" for c in controls)
+        return "\n".join(lines) or "  (the map has no screens; start from a route)"
 
 
 def load(path: str | Path) -> Reference:
