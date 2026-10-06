@@ -15,9 +15,11 @@ divide cleanly:
 - **This adapter** takes that ontology as its **carried reference**: a guide to the
   product's screens, their routes and what's on them, never a limit (#310). A test starts
   from a route on the site or a screen the map knows, and runs up to 6 steps (click, fill,
-  select, goto, back) on whatever is on the page. Safety lives in the engine: the browser
-  never leaves the site, and until careful tags arrive (#299) the read-only gate judges
-  each step on the live element.
+  select, goto, back) on whatever is on the page. It tests fully by default: clicks,
+  types, submits, buys (#299). Safety lives in the engine: the browser never leaves the
+  site, logging out is refused, and on parts of a target tagged careful
+  (`test-targets/careful/<product>.json`, `WEB_GUI_CAREFUL`) the read-only gate decides
+  each step.
 
 ## Running it
 
@@ -31,6 +33,7 @@ cd ../..
 export WEB_GUI_ONTOLOGY="$PWD/.experiments/web-recon/out/ontology.json"
 export WEB_GUI_URL="http://localhost:5173"   # optional; defaults to the ontology's target.url
 export WEB_GUI_HEADED=1                        # optional; headless by default
+export WEB_GUI_CAREFUL="/#/payment,Delete account"  # optional; parts where the Driver only looks, "*" for all (#299)
 export WEB_GUI_VIDEO=off                       # optional; by default the cited tests' videos are kept in <out-dir>/videos (#286)
 export WEB_GUI_SESSION=.sessions/juice-shop/logged-in.json  # optional; every test starts from this saved session (#154)
 export WEB_GUI_SESSION_CHECK=/profile         # optional; a path that answers below 400 only while the server accepts the session (#227)

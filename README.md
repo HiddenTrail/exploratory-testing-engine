@@ -217,6 +217,8 @@ clash-royale-kit/ # game-ontology and android-bot packaged as one command for so
 test-targets/     # docker-compose.yml with real web apps to test against: Juice Shop (3000),
                   #   Sauce Demo (3001), PrestaShop (8080).
                   #   docker compose -f test-targets/docker-compose.yml up -d
+                  #   Per product: login-recipes/, known-problems/, and careful/ (where a run
+                  #   only looks; everything else is tested fully, #299).
 docs/
   exploratory-testing-engine-concept.md  # the original, broader vision
   ontology-todo.md                        # ontology layer status and backlog

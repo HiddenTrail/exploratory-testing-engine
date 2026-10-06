@@ -42,6 +42,7 @@ from safety import SEARCH_PROBE, TEXT_ROLES        # noqa: E402
 from safety import plan as gate_plan                # noqa: E402
 from safety import safe_actions                    # noqa: E402
 
+from engine.adapters.web_gui import careful as careful_mod  # noqa: E402
 from engine.adapters.web_gui import reference as ref_mod  # noqa: E402
 from engine.ontology.oracle_creator import load_context  # noqa: E402
 
@@ -487,6 +488,9 @@ class Session:
         # The browser never leaves the site (#308): where it was stopped from going.
         self._site = origin_of(base_url)
         self.blocked_off_site: list[str] = []
+        # Careful everywhere until check_ready loads the target's tags (#299): a session
+        # nobody set up fails closed.
+        self.careful = dict(careful_mod.EVERYTHING)
         self._open_fresh_page()
         self.seen_signatures: set[str] = set()   # signatures first sighted this run
         self.last_covered_by = ""                  # what was on top of the last control clicked
@@ -809,22 +813,38 @@ class Session:
         contains = [e for e in same_role if wanted and wanted in (e.get("name") or "").lower()]
         return contains[0] if len(contains) == 1 and nth == 1 else None
 
+    def _page_route(self) -> str:
+        try:
+            url = urlsplit(self.page.url)
+        except Exception:
+            return ""
+        return (url.path or "/") + (f"#{url.fragment}" if url.fragment else "")
+
     def _do_step(self, step: dict) -> dict:
         """One step of a test on the live page (#310): done, not_found, refused or failed,
-        with why. The read-only safety gate still decides what may be pressed or typed,
-        judged on the element as it is on the page, never on the map, until careful tags
-        take over that job (#299)."""
+        with why. Testing fully by default (#299): any element may be clicked, any field
+        typed into, any route opened. On a part of the target tagged careful, the read-only
+        safety gate decides instead, judged on the element as it is on the page. Logging
+        out is refused everywhere: every test starts from the logged-in session."""
         kind = step.get("do")
         record = {k: step[k] for k in ("do", "role", "name", "value", "nth") if step.get(k) not in (None, "")}
-        refused = lambda why: {**record, "status": "refused", "detail": f"the read-only safety gate refuses it: {why}"}
+        tags = getattr(self, "careful", careful_mod.EVERYTHING)
+        gated = lambda why: {**record, "status": "refused",
+                             "detail": f"tagged careful, and the read-only safety gate refuses it: {why}"}
+        logs_out = {**record, "status": "refused",
+                    "detail": "it would log out, which ends the session every test starts from"}
         if kind == "back":
             ok = self._actuate({"back": True})
             return {**record, "status": "done" if ok else "failed"}
         if kind == "goto":
-            url = self.route_url(step.get("value") or "/")
-            gate = gate_plan({"role": "link", "name": step.get("value", ""), "href": url, "tag": "a"}, self._site)
-            if gate.kind is None:
-                return refused(gate.reason)
+            route = step.get("value") or "/"
+            url = self.route_url(route)
+            if careful_mod.logs_out(route):
+                return logs_out
+            if careful_mod.applies(tags, route):
+                gate = gate_plan({"role": "link", "name": route, "href": url, "tag": "a"}, self._site)
+                if gate.kind is None:
+                    return gated(gate.reason)
             ok = self._actuate({"goto": url}) and not self.blocked_off_site
             return {**record, "status": "done" if ok else "failed"}
         element = self._find_live(step.get("role", ""), step.get("name", ""), int(step.get("nth") or 1))
@@ -833,12 +853,18 @@ class Session:
         if element is None:
             return {**record, "status": "not_found",
                     "detail": "nothing on the page has that role and name (or not that many); page_controls lists what's there"}
-        gate = gate_plan(element, self._site)
-        allowed = {"click": ("click",), "fill": ("fill",), "select": ("select",)}.get(kind, ())
-        if gate.kind not in allowed:
-            return refused(gate.reason if gate.kind is None else f"it can only be {gate.kind}ed")
+        if careful_mod.logs_out(element.get("name", "")):
+            return logs_out
+        if careful_mod.applies(tags, self._page_route(), element.get("name", "")):
+            gate = gate_plan(element, self._site)
+            allowed = {"click": ("click",), "fill": ("fill",), "select": ("select",)}.get(kind, ())
+            if gate.kind not in allowed:
+                return gated(gate.reason if gate.kind is None else f"it can only be {gate.kind}ed")
         target = {"role": element["role"], "name": element["name"], "locator": element.get("locator", ""),
                   **({"value": step["value"]} if step.get("value") else {})}
+        if kind == "fill":
+            ok = self._fill(element["role"], element["name"], element.get("locator", ""), step.get("value", ""))
+            return {**record, "status": "done" if ok else "failed"}
         if kind == "select":
             try:
                 self.page.select_option(target["locator"], label=step.get("value", ""), timeout=4000)
@@ -1298,6 +1324,11 @@ def check_ready(adapter) -> None:
     # frozen); same pattern as clash_royale's preflight/baseline.
     adapter.onboarding_extra["carried_map"] = reference.driver_briefing()
     adapter.onboarding_extra["baseline"] = baseline_note
+    # Testing fully unless tagged careful (#299). Said plainly, because it's what catches a
+    # run pointed at the wrong system.
+    session.careful = careful_mod.load(product)
+    adapter.onboarding_extra["testing_mode"] = careful_mod.describe(session.careful)
+    print(adapter.onboarding_extra["testing_mode"])
     if session_file:
         adapter.onboarding_extra["session"] = (
             f"Every test starts from the saved session '{session_name(session_file)}' (for example logged in), "
