@@ -81,6 +81,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | [`web_path_replay.feature`](web_path_replay.feature) | Each test reaches its state by replaying the mapped path |
 | [`web_settling.feature`](web_settling.feature) | Reads wait for a settled page |
 | [`web_actuation.feature`](web_actuation.feature) | Controls are pressed by role and name, and a cover is reported |
+| [`web_stays_on_site.feature`](web_stays_on_site.feature) | The test browser never leaves the product's site |
 | [`web_transition_classification.feature`](web_transition_classification.feature) | Tests predict the kind of move, and each move is classified against the map |
 | [`web_dead_controls.feature`](web_dead_controls.feature) | Dead controls are told apart from visual changes |
 | [`web_recovery.feature`](web_recovery.feature) | The browser recovers after reaching a new screen |

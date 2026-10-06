@@ -313,9 +313,30 @@ class _SessionContext:
         self.page = _SessionPage()
         self.closed = False
         self.init_scripts = []
+        self.guarded = []
+        self.handlers = {}
 
     def add_init_script(self, script):
         self.init_scripts.append(script)
+
+    def on(self, event, handler):
+        self.handlers[event] = handler
+
+    def new_cdp_session(self, page):
+        context = self
+
+        class _Cdp:
+            sent = []
+
+            def send(self, method, params=None):
+                self.sent.append((method, params))
+                if method == "Fetch.enable":
+                    context.guarded.append(params)
+                return {"frameTree": {"frame": {"id": "main"}}}
+
+            def on(self, event, handler):
+                pass
+        return _Cdp()
 
     def new_page(self):
         return self.page
@@ -1036,3 +1057,89 @@ def test_a_map_saved_with_a_users_email_matches_any_user_once_loaded():
     assert ref.is_known("/|button:checkout|your basket (<email>)")
     assert "/|button:checkout|your basket (<email>)" in ref.carried_signatures
     assert not any("@" in s for s in ref.known_signatures)
+
+
+def test_the_browser_never_leaves_the_site_even_through_a_redirect():
+    # #308: "./redirect?to=https://github.com/..." is on the site, so the safety gate let
+    # it through, and Juice Shop sent the logged-in test browser to GitHub.
+    site = "http://127.0.0.1:3000"
+    go = live_session.off_site_target
+    assert go("https://github.com/x", 0, None, site) == "https://github.com/x"
+    assert go(f"{site}/redirect?to=https://github.com/x", 302, "https://github.com/x", site) == "https://github.com/x"
+    assert go(f"{site}/a", 302, "/b", site) is None                     # a redirect on the site is fine
+    assert go(f"{site}/#/about", 200, None, site) is None
+    assert go("http://localhost:3000/", 0, None, site) == "http://localhost:3000/"   # another origin is another site
+
+
+class _Cdp:
+    def __init__(self):
+        self.sent = []
+
+    def send(self, method, params):
+        self.sent.append((method, params["requestId"]))
+
+
+def _paused(url, frame="main", status=None, location=None):
+    event = {"requestId": url, "request": {"url": url}, "frameId": frame}
+    if status is not None:
+        event["responseStatusCode"] = status
+        event["responseHeaders"] = [{"name": "Location", "value": location}] if location else []
+    return event
+
+
+def test_the_guard_stops_the_main_frame_leaving_the_site_and_lets_the_rest_through():
+    session = object.__new__(live_session.Session)
+    session._site, session.blocked_off_site = "http://127.0.0.1:3000", []
+    cdp = _Cdp()
+    for event in (_paused("http://127.0.0.1:3000/"), _paused("http://127.0.0.1:3000/", status=200),
+                  _paused("http://127.0.0.1:3000/redirect?to=https://github.com/j", status=302,
+                          location="https://github.com/j"),
+                  _paused("https://github.com/k"),
+                  _paused("https://www.youtube.com/embed/x", frame="an-embed")):
+        session._on_document(cdp, "main", event)
+    assert [m for m, _ in cdp.sent] == ["Fetch.continueRequest", "Fetch.continueRequest", "Fetch.failRequest",
+                                         "Fetch.failRequest", "Fetch.continueRequest"]
+    assert session.blocked_off_site == ["https://github.com/j", "https://github.com/k"]
+
+
+def test_every_page_of_every_fresh_context_is_guarded():
+    session = object.__new__(live_session.Session)
+    session.base_url = "http://127.0.0.1:3000"
+    session._browser = _SessionBrowser()
+    session._context = None
+    session._open_fresh_page()
+    context = session._browser.contexts[0]
+    [patterns] = context.guarded
+    assert [p["requestStage"] for p in patterns["patterns"]] == ["Request", "Response"]
+    assert all(p["resourceType"] == "Document" for p in patterns["patterns"])
+    assert context.handlers["page"] == session._guard_page      # a tab a click opens is guarded too
+    context.handlers["page"](session.page)                       # the event fires for this page too
+    assert len(context.guarded) == 1, "guarded once"
+
+
+def test_a_blocked_trip_off_the_site_shows_in_the_log_and_the_report():
+    entry = {"test_number": 4, "request": {"state": "st07", "control": "link:GitHub"}, "predicted_outcome": "p",
+             "predicted_screen": "new_screen", "actual_screen": "new_screen", "prediction_matched": True,
+             "result": {"verdict": "sent", "reached_target_state": True, "screen_was": "new_screen", "settle": 1,
+                        "blocked_off_site": ["https://github.com/juice-shop/juice-shop"]}}
+    assert "stopped from leaving the site for https://github.com/juice-shop/juice-shop" in \
+        adp.describe_result_for_log(entry)
+    assert "stopped from leaving the site</span> https://github.com/juice-shop/juice-shop" in adp.render_test_entry(entry)
+
+
+def test_the_log_line_counts_weak_signals_that_were_cut_short():
+    # A cut list carries an int "<key>_more" beside it; counting it with len() crashed (#308's check).
+    entry = {"result": {"verdict": "sent", "screen_was": "new_screen", "settle": 1,
+                        "signals_weak": {"controls_added": ["a", "b"], "controls_added_more": 263}}}
+    assert "2 weak signal(s)" in adp.describe_result_for_log(entry)
+
+
+def test_a_request_our_guard_stopped_is_not_the_product_failing():
+    session = object.__new__(live_session.Session)
+    blocked = type("R", (), {"failure": "net::ERR_BLOCKED_BY_CLIENT"})()
+    real = type("R", (), {"failure": "net::ERR_CONNECTION_REFUSED"})()
+    session._inflight, session._requests = {id(blocked), id(real)}, {id(blocked): {"url": "a"}, id(real): {"url": "b"}}
+    session._on_request_failed(blocked)
+    session._on_request_failed(real)
+    assert id(blocked) not in session._requests and session._requests[id(real)]["status"] == 0
+    assert session._inflight == set()
