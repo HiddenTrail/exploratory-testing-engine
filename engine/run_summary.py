@@ -14,7 +14,7 @@ import json
 import sys
 from pathlib import Path
 
-from engine import budget, interplay
+from engine import budget, ledger, interplay
 
 
 _KIND_ORDER = {"bug": 0, "anomaly": 1, "finding": 2}
@@ -30,6 +30,31 @@ def estimated_cost(usage_summary: dict) -> float:
 
 def count_retries(log_text: str) -> int:
     return log_text.count("produced malformed output") + log_text.count("produced no tool call")
+
+
+def _oracle_and_errors(output: dict) -> list[str]:
+    """How the run used the oracle, and whether every recorded error got an answer (#312)."""
+    ranked = (output.get("onboarding_extra") or {}).get("oracle_ranked") or []
+    checkpoints = output.get("checkpoints") or []
+    lines = []
+    if ranked:
+        answers = {}
+        for cp in checkpoints:
+            for a in (cp.get("hypothesis") or {}).get("ideas") or []:
+                if isinstance(a, dict) and a.get("id"):
+                    answers[a["id"]] = a.get("verdict", "")
+        counts = {v: list(answers.values()).count(v) for v in ("held", "broke", "cannot_tell")}
+        lines.append(f"**The oracle:** {len(answers)} of {len(ranked)} ideas checked: {counts['held']} held, "
+                     f"{counts['broke']} broke, {counts['cannot_tell']} couldn't tell.")
+    test_problems = ledger.problems_by_test(output.get("casting_log") or [])
+    if test_problems:
+        recorded = {p for ps in test_problems.values() for p in ps}
+        unanswered = ledger.open_errors(test_problems, ledger.accounted(checkpoints, test_problems))
+        dismissed = sum(len((cp.get("hypothesis") or {}).get("dismissed_errors") or []) for cp in checkpoints)
+        lines.append(f"**Errors the tests recorded:** {len(recorded)}, "
+                     + ("every one answered" if not unanswered else f"{len(unanswered)} without an answer")
+                     + f" ({dismissed} dismissed with a reason).")
+    return lines + ([""] if lines else [])
 
 
 def count_dropped_tests(output: dict) -> int:
@@ -88,6 +113,7 @@ def summarize(output: dict, log_text: str | None = None, bugs: list | None = Non
     measured = interplay.measure(output.get("checkpoints") or [])
     if measured:
         lines += ["**The Driver and the Skeptic:** " + " ".join(interplay.summary_lines(measured)), ""]
+    lines += _oracle_and_errors(output)
     parked = [p for c in output.get("checkpoints") or [] for p in c.get("parked") or []]
     if parked:
         lines += ["**Parked** (the tests couldn't settle them, so they got no more, #305): " + ", ".join(

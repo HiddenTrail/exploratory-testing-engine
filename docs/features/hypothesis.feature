@@ -26,6 +26,7 @@ Feature: The Driver forms one structured hypothesis per checkpoint
     And each behaviour has a "claim" and the "tests" it rests on
     And each untested entry has an "area"
     And "observations" may be an empty list, because the system may have no problems at all
+    And it may have "ideas" (an answer per oracle idea its tests checked) and "dismissed_errors", which must cover what the evidence asks (see oracle_and_errors.feature)
 
   Scenario: Every observation cites tests, a mechanism and a rival explanation
     Given an observation in the hypothesis

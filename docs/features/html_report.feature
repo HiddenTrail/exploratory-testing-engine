@@ -91,7 +91,7 @@ Feature: The HTML report puts the conclusion first and folds the details
 
   Scenario: What came of the oracle's ideas
     Given the Driver was given ranked oracle ideas
-    Then a folded section lists each idea, the tests that cited it, how many came out as predicted, and the final observations those tests support
+    Then a folded section lists each idea, the tests that cited it, how many came out as predicted, the final observations those tests support, and the Driver's answer: held, broke or cannot tell (#312)
     And its title says how many of the ideas were tested at all
 
   Scenario: A glossary explains the tags the report uses

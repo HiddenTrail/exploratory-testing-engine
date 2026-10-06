@@ -13,6 +13,8 @@ has to follow from the objections it raises. BUG_REPORT_TOOL below was ported fr
 token-purchase-poc's most-evolved version.
 """
 
+from engine import ledger
+
 OBSERVATION_KINDS = ("finding", "anomaly", "bug")
 REPRODUCED = ("consistent", "inconsistent", "once")
 # The kind of question a Skeptic gap asks about the testing (issue #258). The Skeptic
@@ -217,6 +219,39 @@ HYPOTHESIS_TOOL = {
                     "required": ["gap_id", "status", "tests", "reason"],
                 },
             },
+            "ideas": {
+                "type": "array",
+                "description": (
+                    "One entry for each idea in 'ideas_to_answer', if your evidence has it: the oracle's ideas "
+                    "this checkpoint's tests checked. Empty otherwise."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string", "description": "The idea's id, as in 'ideas_to_answer'."},
+                        "verdict": {"type": "string", "enum": ["held", "broke", "cannot_tell"],
+                                    "description": "held: the product did what the idea expects. broke: it didn't. "
+                                                   "cannot_tell: the tests couldn't show it either way."},
+                        "tests": _TESTS,
+                    },
+                    "required": ["id", "verdict", "tests"],
+                },
+            },
+            "dismissed_errors": {
+                "type": "array",
+                "description": (
+                    "For an error in 'errors_to_account_for' that isn't a problem: the error exactly as listed, "
+                    "and why. Every other one there needs an observation citing a test that shows it."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "error": {"type": "string"},
+                        "reason": {"type": "string", "description": _limit("prior_gap.reason")},
+                    },
+                    "required": ["error", "reason"],
+                },
+            },
         },
         "required": ["summary", "behaviors", "observations", "untested", "prior_gaps"],
     },
@@ -411,6 +446,16 @@ the identical observation, and the second is one cause instead of many, so it is
 explanation until something distinguishes them. A test that could tell them apart is worth more than another test that
 reproduces the same silence.
 
+If your evidence includes 'ideas_to_answer', those are the oracle's ideas your tests checked this
+checkpoint. Answer each one in 'ideas': held, broke, or cannot_tell, citing the tests.
+
+If your evidence includes 'errors_to_account_for', those are errors your tests recorded that passed every
+trust check: an error in the console, or a request on the product's own site that failed. Every one needs
+an answer: an observation that cites a test showing it, or a line in 'dismissed_errors' saying why it isn't
+a problem. A test that recorded one isn't normal behaviour. An error like this that reproduces is a bug,
+whatever caused it: quote it in the claim, and name what it violates (the product's own requests should
+succeed in ordinary use; a page shouldn't throw while you use it).
+
 If your evidence includes 'prior_skeptic_review', its gaps have ids like 'C1.G2'. Answer EACH one in
 prior_gaps: tested (cite the test), untestable with the current scenario data (say exactly why),
 already resolved by existing evidence (say why no further test would change anything), or
@@ -432,7 +477,8 @@ def _check_text(errors: list[str], where: str, value, key: str, *, required: boo
         errors.append(f"{where} is far too long ({len(value.split())} words, limit {WORD_LIMITS[key]})")
 
 
-def validate_hypothesis_response(data, *, known_observation_ids=(), open_gap_ids=(), lean=False) -> list[str]:
+def validate_hypothesis_response(data, *, known_observation_ids=(), open_gap_ids=(), lean=False,
+                                 ideas_to_answer=(), errors_to_account=None, test_problems=None) -> list[str]:
     """known_observation_ids: ids a 'continues' may point at (every earlier
     checkpoint's observations). open_gap_ids: the prior Skeptic review's gap ids,
     each of which prior_gaps must answer exactly once. lean: a lean run (#295), which
@@ -490,6 +536,9 @@ def validate_hypothesis_response(data, *, known_observation_ids=(), open_gap_ids
         errors.append("'prior_gaps' must be a list (empty on the first checkpoint)")
     else:
         errors.extend(_prior_gaps_errors(prior_gaps, open_gap_ids, lean=lean))
+    # Every idea checked and every error recorded gets an answer (#312).
+    errors.extend(ledger.errors(data, ideas_to_answer=ideas_to_answer, errors_to_account=errors_to_account,
+                                test_problems=test_problems))
     return errors
 
 
@@ -812,7 +861,10 @@ just of the outcome.
 
 Check each observation's kind too. A bug must contradict a known fact (it names which in 'violates') and
 reproduce consistently. If you'd call it something more cautious, say so in 'kind'; the engine keeps the
-more cautious of the two.
+more cautious of the two. Except: a bug that rests on a recorded error (a console error, a failed request
+on the product's own site) that more than one test showed stays a bug, because the error happened
+whatever caused it. Question its cause or its impact instead, and ask for the test that would show the
+impact (for example: reload and check whether the data was really saved).
 
 Your verdict follows from your objections. There are four kinds of objection:
 - an observation check with discriminates_from_rival=false
@@ -975,13 +1027,22 @@ def _once_each(field: str, what: str, given: list, expected) -> list[str]:
     return errors
 
 
-def reconcile_kinds(hypothesis: dict, skeptic_review: dict) -> None:
+def reconcile_kinds(hypothesis: dict, skeptic_review: dict, test_problems: dict | None = None) -> None:
     """Where the Skeptic's view of an observation's kind is more cautious than the
     Driver's, keep the Skeptic's, and record the Driver's as 'driver_kind'. The
-    Skeptic can't upgrade a kind, only lower it: a bug needs both to agree."""
+    Skeptic can't upgrade a kind, only lower it: a bug needs both to agree.
+
+    Except a bug that rests on a trusted error more than one of its tests recorded
+    (#312): the error is in the recording whatever caused it, so a rival explanation
+    can't make it less of a bug. The Skeptic questions its cause and impact instead."""
     skeptic_kinds = {c["observation_id"]: c["kind"] for c in skeptic_review["observation_checks"]}
     for observation in hypothesis["observations"]:
         skeptic_kind = skeptic_kinds.get(observation["id"])
+        if (observation["kind"] == "bug" and test_problems
+                and ledger.rests_on_reproduced_error(observation, test_problems)):
+            if skeptic_kind and skeptic_kind != "bug":
+                observation["kept_as_bug_because"] = "it rests on a trusted error that more than one test recorded"
+            continue
         if skeptic_kind and _KIND_CAUTION[skeptic_kind] < _KIND_CAUTION[observation["kind"]]:
             observation.setdefault("driver_kind", observation["kind"])
             observation["kind"] = skeptic_kind

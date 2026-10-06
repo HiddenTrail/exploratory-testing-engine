@@ -27,6 +27,7 @@ So this run looks and navigates only; nothing it can name mutates the app.
 """
 
 import os
+import re
 from pathlib import Path
 
 from engine import outcome
@@ -186,7 +187,31 @@ def outcome_for(result: dict) -> outcome.Outcome:
         reset_ok=result.get("recovered_ok") if recovered else None,
         latency=result.get("settle"),
         matched_prior=result.get("was_measured_before"),
+        problems=problems_of(result),
     )
+
+
+def _token(text: str) -> str:
+    """The same problem as the same token: the first line, without the site's origin, a
+    query string or an id in a path ("/api/BasketItems/13" is "/api/BasketItems/#").
+    Status codes and the message stay."""
+    text = (text or "").splitlines()[0] if text else ""
+    text = re.sub(r"https?://[^/\s]+", "", text)
+    text = re.sub(r"\?[^\s]*", "", text)
+    text = re.sub(r"/\d+(?=[/\s]|$)", "/#", text)
+    return " ".join(text.split())[:120]
+
+
+def problems_of(result: dict) -> list[str]:
+    """The test's trusted problems as tokens (#312): each console error and each failed
+    request on the product's own site, from `signals` (the trusted tier, never the weak
+    one). A test whose action wasn't sent, or that was stopped leaving the site, has none."""
+    if result.get("verdict") != "sent" or result.get("blocked_off_site"):
+        return []
+    signals = result.get("signals") or {}
+    found = [f"console: {_token(e)}" for e in signals.get("console_errors") or []]
+    found += [f"request: {_token(r)}" for r in signals.get("failed_requests") or []]
+    return list(dict.fromkeys(found))
 
 
 # How many of a discovered screen's controls the Driver is shown by name (issue #158).
