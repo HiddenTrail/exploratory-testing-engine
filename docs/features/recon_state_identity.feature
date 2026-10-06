@@ -9,10 +9,14 @@
 # DOM: on EcoEstate, a Leaflet canvas app, the accessibility snapshot was empty.
 # Controls inside a live region are left out, because Juice Shop's "Force page reload"
 # toast shows for about 3.5 seconds after load and made one page two states depending
-# on how long the path took (issue #123). web_gui uses the same signature.
+# on how long the path took (issue #123). Text that says who is logged in is replaced
+# by a placeholder, because Juice Shop's basket heading holds the user's email and a map
+# made as one throwaway user never matched a run as another (issue #303). web_gui uses
+# the same signature.
 #
 # Code: .experiments/web-recon/identity.py (signature, control_keys, landmark_keys,
-# appearance), perceive.py (capture, visual_diff)
+# impersonal, appearance), perceive.py (capture, visual_diff),
+# engine/adapters/web_gui/reference.py (rewrite_signatures), session.py
 
 Feature: Screens are identified by a signature
   As someone mapping an app
@@ -40,6 +44,7 @@ Feature: Screens are identified by a signature
       | an element with role "generic" (the page container whose name is all its text) |
       | a button inside an "aria-live", "role=alert" or "role=status" region (a toast) |
       | a fourth or later heading                                                      |
+      | who is logged in, such as "Your Basket (qes-147eb336@example.test)"            |
 
   Scenario Outline: What makes two captures different states
     Given two captures that differ in <difference>
@@ -59,6 +64,19 @@ Feature: Screens are identified by a signature
     When the signature is computed
     Then the control appears as "button:open sidenav"
     And the heading appears as its first 60 characters, lowercased
+
+  Scenario: Emails and generated ids are replaced before the signature is made
+    Given a heading "Your Basket (qes-147eb336@example.test)" and a control "Signed in as a.b@x.co.uk"
+    When the signature is computed
+    Then the heading appears as "your basket (<email>)" and the control as "menuitem:signed in as <email>"
+    And a UUID or a run of 16 or more hex characters appears as "<id>"
+    And short numbers, like "page 2 of 37" or "order #1234", stay as they are
+    And this happens before a heading is cut to 60 characters, so an email isn't cut in half first
+
+  Scenario: A map or discovery saved before #303 still matches
+    Given a map or an earlier run's discovery whose signature still holds an email
+    When web_gui loads it
+    Then its signatures are made impersonal the same way, which gives the signature made now
 
   Scenario: The appearance tells variants of one state apart
     Given two captures with the same signature
