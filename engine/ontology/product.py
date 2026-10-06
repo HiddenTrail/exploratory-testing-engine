@@ -104,3 +104,20 @@ def product_errors(product: str, wiki_dir: Path = WIKI_DIR) -> list[str]:
                 errors.append(f"{where}: {fact['id']} is used twice")
             seen.add(fact["id"])
     return errors
+
+
+def context_screens(product: str) -> list[dict[str, Any]]:
+    """The product's screens from its context (#311): what Spoor's map showed, written by
+    the web adapter's to_context, shaped like the wiki's entities so the seeder reads
+    both. Each carries its route; a fact's global id is `<product>.<slug>.<id>`."""
+    from engine.ontology.oracle_creator import load_context   # it imports this module's callers
+    screens = []
+    for s in load_context(product).get("screens", []):
+        screens.append({
+            "slug": s["slug"], "title": s["title"], "page": "", "features": list(s.get("features", [])),
+            "route": s.get("route", ""), "generated": True,
+            "facts": [{"local_id": f["id"], "id": f"{product}.{s['slug']}.{f['id']}", "kind": f["kind"],
+                       "text": f["text"], "source": f.get("source", "")} for f in s.get("facts", [])],
+        })
+    return screens
+

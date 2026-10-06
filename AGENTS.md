@@ -117,6 +117,12 @@ show.
 
 ## The product layer: what the oracle reads
 
+Two things feed it: this wiki, and the screens Spoor's map showed. Those screens are
+written into the product's context (`context_<product>.json`, by
+`engine/adapters/web_gui/to_context.py`, #311), in the same shape as an Entity page, and
+the seeder reads both. They go to the context, not here: this wiki is the curated layer,
+a page someone wrote is never overwritten, and generated screens change with every map.
+
 The engine builds each product's oracle from this wiki (issue #138, see
 `engine/ontology/product.py` and `seeder.py`), so a product's pages carry three
 extra frontmatter fields:

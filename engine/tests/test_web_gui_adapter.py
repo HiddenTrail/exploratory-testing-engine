@@ -22,7 +22,8 @@ def _ontology() -> dict:
             {"id": "st02", "url": "http://app.example/p2", "signature": "/p2|button:Back|",
              "title": "Page 2", "first_seen": 1, "elements": [
                  {"key": "button:Back", "role": "button", "name": "Back", "locator": "#back", "committing": False},
-                 {"key": "button:Buy", "role": "button", "name": "Buy", "locator": "#buy", "committing": True}]},
+                 {"key": "button:Buy", "role": "button", "name": "Buy", "locator": "#buy", "committing": True,
+                  "changes_data": True}]},
         ],
         "transitions": [
             {"source": "st01", "dest": "st02", "effect": "navigate",

@@ -92,6 +92,7 @@ Feature: A product's oracle is built from its wiki through the FEW HICCUPPS seed
     And every seed has at least one expectation
     And the oracle can be written as plain JSON
     And an invalid product layer raises an error starting "invalid product layer:"
+    And the product's screens from its context (Spoor's map, see spoor_context.feature) are read with the wiki's entities, so a product with screens but no overview still gets an oracle
     And "python -m engine.ontology.seeder --product juice-shop" prints the number of expectations and the count per seed
     And with "--out <file>" it also writes the oracle there as JSON
 

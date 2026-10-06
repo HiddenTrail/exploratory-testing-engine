@@ -1219,8 +1219,9 @@ def product_areas(reference, product: str = "") -> list[str]:
     names = []
     if product:
         try:
-            from engine.ontology.product import load_product
+            from engine.ontology.product import context_screens, load_product
             names += [e["title"] for e in (load_product(product) or {}).get("entities", [])]
+            names += [s["title"] for s in context_screens(product)]          # from Spoor's map (#311)
         except Exception:      # a product without a readable wiki still gets the map's names
             pass
     names += [_route_name(s.get("url", "")) for s in reference.states]

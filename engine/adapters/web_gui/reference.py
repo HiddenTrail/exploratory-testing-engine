@@ -216,7 +216,7 @@ def _control_lines(elements: list[dict]) -> list[str]:
         key = f"{e['role']}:{e.get('name', '')}"
         entry = seen.setdefault(key, {"n": 0, "changes": False, "unreached": False})
         entry["n"] += 1
-        entry["changes"] |= bool(e.get("committing"))
+        entry["changes"] |= bool(e.get("changes_data"))      # a map from before #311 has none
         entry["unreached"] |= e.get("spoor_reached") is False
     lines = []
     for key, entry in seen.items():
