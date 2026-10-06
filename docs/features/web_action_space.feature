@@ -6,8 +6,8 @@
 # them. That was a design error. Spoor feeds the context; it never decides what the
 # Driver may do. Now a test starts from a route on the site or a screen the map knows,
 # then runs up to 6 steps on whatever is on the page. Safety lives in the engine: the
-# browser never leaves the site (#308), careful tags (#299), the spending limits. Until
-# #299, the read-only gate still judges each step, on the live element, never on the map.
+# browser never leaves the site (#308), careful tags (#299, see web_careful.feature), the
+# spending limits.
 #
 # The map still gives the screens a test can start from by id (their paths), and the
 # sweep its pairs.
@@ -47,10 +47,10 @@ Feature: A web test is a start and a few steps on the live page
       | does                                                           | status    |
       | clicks an element that is on the page                          | done      |
       | clicks an element nothing on the page has the role and name of | not_found |
-      | clicks "Checkout" (the read-only gate refuses it until #299)   | refused   |
+      | clicks "Checkout" on a part tagged careful (see web_careful)    | refused   |
       | fills a search box with the Driver's value                     | done      |
-      | fills a field that isn't a search box (until #299)             | refused   |
-      | goes to "/logout" (the gate refuses it until #299)             | refused   |
+      | fills any field with the Driver's value, testing fully         | done      |
+      | goes to "/logout" (refused everywhere, see web_careful)        | refused   |
       | goes back                                                      | done      |
 
   Scenario: An element is found by role and name on the live page

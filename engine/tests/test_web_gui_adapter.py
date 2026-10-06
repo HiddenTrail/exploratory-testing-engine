@@ -4,6 +4,7 @@ exercised only behind a real run."""
 
 from engine import outcome
 from engine.adapters.web_gui import adapter as adp
+from engine.adapters.web_gui import careful as careful_mod
 from engine.adapters.web_gui import reference as ref_mod
 from engine.adapters.web_gui import session as live_session
 
@@ -1188,34 +1189,62 @@ def test_a_request_our_guard_stopped_is_not_the_product_failing():
 
 # ---- a test is a start and steps on the live page (#310) ----------------------------------
 
-def _stepping_session(monkeypatch, on_page):
-    """A session whose page has the elements in `on_page`; records what was pressed."""
+def _stepping_session(monkeypatch, on_page, tags=None, route="/#/"):
+    """A session whose page has the elements in `on_page`, at `route`; records what was
+    pressed and typed."""
     sess = live_session.Session.__new__(live_session.Session)
     sess._site, sess.base_url, sess.blocked_off_site = "http://app.example", "http://app.example/", []
+    sess.careful = tags if tags is not None else dict(careful_mod.NOTHING)
     pressed = []
     monkeypatch.setattr(sess, "_find_live", lambda role, name, nth=1: next(
         (e for e in on_page if e["role"] == role and e["name"] == name), None))
     monkeypatch.setattr(sess, "_actuate", lambda step: pressed.append(step) or True)
+    monkeypatch.setattr(sess, "_fill", lambda role, name, css, value: pressed.append({"filled": name, "value": value}) or True)
+    monkeypatch.setattr(sess, "_page_route", lambda: route)
     return sess, pressed
 
 
-def test_each_step_is_judged_on_the_live_page(monkeypatch):
-    on_page = [{"role": "button", "name": "Next page", "locator": "#n"},
-               {"role": "button", "name": "Checkout", "locator": "#c"},
-               {"role": "searchbox", "name": "Search", "locator": "#s"},
-               {"role": "textbox", "name": "Quantity", "locator": "#q"}]
-    sess, pressed = _stepping_session(monkeypatch, on_page)
-    assert sess._do_step({"do": "click", "role": "button", "name": "Next page"})["status"] == "done"
+_ON_PAGE = [{"role": "button", "name": "Next page", "locator": "#n"},
+            {"role": "button", "name": "Checkout", "locator": "#c"},
+            {"role": "button", "name": "Logout", "locator": "#out"},
+            {"role": "searchbox", "name": "Search", "locator": "#s"},
+            {"role": "textbox", "name": "Quantity", "locator": "#q"}]
+
+
+def test_testing_fully_any_step_may_run_except_logging_out(monkeypatch):
+    # #299: the default. Checkout, typing -1 into a quantity, any route.
+    sess, pressed = _stepping_session(monkeypatch, _ON_PAGE)
+    assert sess._do_step({"do": "click", "role": "button", "name": "Checkout"})["status"] == "done"
+    assert sess._do_step({"do": "fill", "role": "textbox", "name": "Quantity", "value": "-1"})["status"] == "done"
+    assert pressed[-1] == {"filled": "Quantity", "value": "-1"}
+    assert sess._do_step({"do": "goto", "value": "/#/payment"})["status"] == "done"
     assert sess._do_step({"do": "click", "role": "button", "name": "Ghost"})["status"] == "not_found"
-    refused = sess._do_step({"do": "click", "role": "button", "name": "Checkout"})
-    assert refused["status"] == "refused" and "mutating verb" in refused["detail"]
-    assert sess._do_step({"do": "fill", "role": "searchbox", "name": "Search", "value": "apple"})["status"] == "done"
-    assert pressed[-1]["value"] == "apple"                       # the Driver's value, not "test"
-    assert sess._do_step({"do": "fill", "role": "textbox", "name": "Quantity", "value": "-1"})["status"] == "refused"
-    assert sess._do_step({"do": "goto", "value": "/#/basket"})["status"] == "done"
-    assert pressed[-1] == {"goto": "http://app.example/#/basket"}
-    assert sess._do_step({"do": "goto", "value": "/logout"})["status"] == "refused"
+    for step in ({"do": "click", "role": "button", "name": "Logout"}, {"do": "goto", "value": "/logout"}):
+        refused = sess._do_step(step)
+        assert refused["status"] == "refused" and "ends the session" in refused["detail"]
     assert sess._do_step({"do": "back"})["status"] == "done" and pressed[-1] == {"back": True}
+
+
+def test_where_tagged_careful_the_read_only_gate_decides(monkeypatch):
+    sess, pressed = _stepping_session(monkeypatch, _ON_PAGE, tags=dict(careful_mod.EVERYTHING))
+    assert sess._do_step({"do": "click", "role": "button", "name": "Next page"})["status"] == "done"
+    refused = sess._do_step({"do": "click", "role": "button", "name": "Checkout"})
+    assert refused["status"] == "refused" and "tagged careful" in refused["detail"] and "mutating verb" in refused["detail"]
+    assert sess._do_step({"do": "fill", "role": "searchbox", "name": "Search", "value": "apple"})["status"] == "done"
+    assert pressed[-1] == {"filled": "Search", "value": "apple"}        # the Driver's value, not "test"
+    assert sess._do_step({"do": "fill", "role": "textbox", "name": "Quantity", "value": "-1"})["status"] == "refused"
+    # Careful only on one route: the same click runs elsewhere.
+    tags = {"everything": False, "routes": ["/#/basket"], "controls": []}
+    on_basket, _ = _stepping_session(monkeypatch, _ON_PAGE, tags=tags, route="/#/basket")
+    assert on_basket._do_step({"do": "click", "role": "button", "name": "Checkout"})["status"] == "refused"
+    elsewhere, _ = _stepping_session(monkeypatch, _ON_PAGE, tags=tags, route="/#/search")
+    assert elsewhere._do_step({"do": "click", "role": "button", "name": "Checkout"})["status"] == "done"
+    assert elsewhere._do_step({"do": "goto", "value": "/#/basket"})["status"] == "done"   # a GET, read-only
+
+
+def test_a_session_nobody_set_up_is_careful_everywhere():
+    sess = live_session.Session.__new__(live_session.Session)
+    assert getattr(sess, "careful", careful_mod.EVERYTHING)["everything"]
 
 
 def test_steps_read_as_labels_and_replay_as_path_steps():

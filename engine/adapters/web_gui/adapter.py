@@ -93,7 +93,8 @@ WHAT YOU GET BACK, per test:
   reached_target_state: whether the test got to its start before the first step - false means
     the app drifted (or the route didn't open) and the reading is suspect.
   steps: each step and what came of it: "done", "not_found" (nothing on the page had that
-    role and name), "refused" (see SAFETY) or "failed" (it was there but didn't respond).
+    role and name), "refused" (see HOW FAR YOU MAY GO) or "failed" (it was there but didn't
+    respond).
   page_controls: what's on the page after the last step, as "role:name", so a next test can
     act on it.
   settle: seconds the page took to go quiet after the action (the app's own timing).
@@ -135,12 +136,14 @@ get back from (recovered_ok false). A carried screen you can no longer reach is 
 the recon: a real finding, but about the map, so label it as such."""
 
 
-SAFETY_NOTE = """SAFETY. The browser never leaves the product's site: a step that would go to
-another site, directly or through a redirect, is stopped and the result says so in
-blocked_off_site. Until careful tags arrive, the read-only safety gate also judges each
-step on the live page: a step that would submit a form, buy, delete, log out, or type into
-anything but a search box comes back "refused", and costs nothing but that step. After any
-test that reaches a new state the run reboots to the start."""
+SAFETY_NOTE = """HOW FAR YOU MAY GO. This run tests fully: you may click anything, type any value
+into any field, choose options, submit forms, add to the basket and check out, and change
+settings, on a copy of the product nobody depends on. 'testing_mode' in your evidence says if
+any part of it is tagged careful; there you only look, and a step that would submit, buy,
+delete or type into anything but a search box comes back "refused". Two things are refused
+everywhere: logging out, which ends the session every test starts from, and leaving the
+product's site (blocked_off_site). After any test that reaches a new state the run reboots
+to the start."""
 
 
 def outcome_for(result: dict) -> outcome.Outcome:
@@ -711,6 +714,10 @@ def render_onboarding_section(api_schema, onboarding_extra, happy_day_example) -
       <pre class="schema-doc">{esc(extra['baseline'])}</pre>
     </div>
     """
+    if extra.get("testing_mode"):
+        # How far the run was allowed to go (#299), first, so nobody misses it.
+        baseline_html = (f'<p class="prose"><strong>{esc(extra["testing_mode"])}</strong></p>'
+                         + baseline_html)
     # The schema doc and the map are folded, like the oracle list: background the Driver
     # was given, each hundreds of lines, which pushed the checkpoints far down (#251).
     return f"""
