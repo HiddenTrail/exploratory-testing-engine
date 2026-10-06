@@ -78,3 +78,8 @@ wiki-html/
 # Saved browser sessions (web_gui WEB_GUI_SESSION, issue #154). They hold live auth
 # cookies: never commit them, and they never go into a prompt or a report.
 .sessions/
+
+# Product contexts are generated: by runs (--learn) and from Spoor maps (#311). CI keeps
+# them as an artifact. The token_purchase one is a committed example.
+engine/ontology/context_*.json
+!engine/ontology/context_token_purchase.json

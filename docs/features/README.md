@@ -136,6 +136,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | [`heuristic_library.feature`](heuristic_library.feature) | A tagged library of testing heuristics, one file per source |
 | [`heuristic_selection.feature`](heuristic_selection.feature) | Heuristics are picked by surface and feature |
 | [`oracle_ranking.feature`](oracle_ranking.feature) | Test ideas are ranked by what's already known about them |
+| [`spoor_context.feature`](spoor_context.feature) | A Spoor map becomes the product's screens, and the oracle builds on them |
 | [`oracle_feedback.feature`](oracle_feedback.feature) | A run's results feed back into the next ranking |
 | [`discovery_memory.feature`](discovery_memory.feature) | Screens found beyond the map are remembered across runs |
 | [`product_layer.feature`](product_layer.feature) | A product's surfaces, features and facts are read from its wiki |

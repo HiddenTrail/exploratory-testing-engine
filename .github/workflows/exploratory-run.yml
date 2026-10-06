@@ -235,6 +235,9 @@ jobs:
           mkdir -p runs/ci
           python -m engine.adapters.web_gui.from_spoor --map runs/spoor/.spoor-cache/maps/127.0.0.1_3000.json \
             --url "$URL" --session ".sessions/$PRODUCT/logged-in.json" --out runs/ci/map.json
+          # Spoor feeds the context (#311): the map's screens go into the product's context,
+          # and the oracle the engine builds next starts from them.
+          python -m engine.adapters.web_gui.to_context --map runs/ci/map.json --product "$PRODUCT"
 
       - name: Run the engine and learn from it
         timeout-minutes: 30

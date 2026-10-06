@@ -40,6 +40,9 @@ GROUNDED_BASE_SCORE = 5.0
 # A heuristic tagged with one of the SUT's features. Base weights are 1 to 3, so
 # even with this a heuristic stays below every grounded claim.
 FEATURE_MATCH_BONUS = 1.0
+# An idea about a screen the engine knows how to reach (#311) is worth more than one about
+# a place it may not get to: the oracle's top ideas were about screens no test reached.
+REACHABLE_BONUS = 1.5
 # A heuristic written for the SUT's surface (tagged "gui" for a GUI SUT) beats an
 # equally weighted one that fits any surface. Without it a GUI run's top slice was
 # all field-level checks, and ones like overlay_blocking never made the cut.
@@ -180,16 +183,21 @@ def build_product_ideas(product: str, limit: int | None = None, focus: tuple = (
     heuristic reached the Driver."""
     from engine.ontology.seeder import build_oracle, pick_across_seeds  # it imports this module
 
+    from engine.ontology.product import context_screens
     context = load_context(product)
     tags_of = {h["id"]: set(h["tags"]) for h in load_heuristics()}
+    route_of = {s["slug"]: s["route"] for s in context_screens(product) if s.get("route")}
     ideas = []
     for e in build_oracle(product)["expectations"]:
         delta, status = _context_delta(e["id"], context)
         heuristic = next((s.split(":", 1)[1] for s in e["sources"] if s.startswith("heuristic:")), None)
         focused = sorted(set(focus) & tags_of.get(heuristic, set()))
+        where = route_of.get(e["entity"], "")
         ideas.append({
-            "id": e["id"], "tier": e["tier"], "score": e["score"] + delta, "status": status,
-            "category": e["seed"], "entity": e["entity"], "claim": e["claim"],
+            "id": e["id"], "tier": e["tier"], "score": e["score"] + delta + (REACHABLE_BONUS if where else 0.0),
+            "status": status, "category": e["seed"], "entity": e["entity"], "claim": e["claim"],
+            # Where to start testing it (#311): the screen's route, from Spoor's map.
+            **({"where": where} if where else {}),
             # The expectation's sources stay in the built oracle; the Driver doesn't need them.
             "rationale": f"{e['seed_name']}. Check: {e['check']}"
                          + (f" (this run's focus: {', '.join(focused)})" if focused else ""),

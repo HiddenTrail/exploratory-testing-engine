@@ -26,6 +26,7 @@ from engine.ontology.oracle_creator import (FEATURE_MATCH_BONUS, GROUNDED_BASE_S
                                             load_heuristics, load_vocabulary)
 
 SEEDS_DIR = Path(__file__).parent / "seeds"
+GENERATED_FACT_PENALTY = 2.0
 
 
 def load_seeds() -> list[dict[str, Any]]:
@@ -53,12 +54,19 @@ def _owner(seeds: list[dict], heuristic: dict) -> dict | None:
 def build_oracle(product: str, wiki_dir: Path = product_layer.WIKI_DIR) -> dict[str, Any]:
     """{"product", "seeds", "expectations": [...]}, every expectation with an id, its
     seed, tier, entity, claim, how to check it, its sources and a score."""
-    errors = product_layer.product_errors(product, wiki_dir)
+    # The screens Spoor's map showed, from the product's context (#311), next to what the
+    # wiki says. A product nobody has written about yet still gets an oracle from them.
+    screens = product_layer.context_screens(product)
+    errors = [e for e in product_layer.product_errors(product, wiki_dir)
+              if not (screens and e.startswith("no Product Overview"))]
     if errors:
         raise ValueError("invalid product layer:\n" + "\n".join(errors))
     prod = product_layer.load_product(product, wiki_dir)
+    if prod is None and screens:
+        prod = {"product": product, "surfaces": ["gui"], "entities": []}
     if prod is None:
-        raise ValueError(f"the wiki has no Product Overview for '{product}'")
+        raise ValueError(f"the wiki has no Product Overview for '{product}', and its context has no screens")
+    prod = {**prod, "entities": prod["entities"] + screens}
     vocabulary = load_vocabulary()
     surface_tags, feature_tags = set(vocabulary["tags"]["surface"]), set(vocabulary["tags"]["feature"])
     surfaces = set(prod["surfaces"])
@@ -87,7 +95,10 @@ def build_oracle(product: str, wiki_dir: Path = product_layer.WIKI_DIR) -> dict[
                     "tier": "fact", "entity": entity["slug"],
                     "claim": seed["fact_template"].format(fact=fact["text"].rstrip("."), entity=entity["title"]),
                     "check": f"Compare what the product does with fact {fact['id']}.",
-                    "sources": [fact["id"], fact["source"], entity["page"]], "score": GROUNDED_BASE_SCORE,
+                    "sources": [fact["id"], fact["source"], entity["page"]],
+                    # A fact generated from Spoor's map only describes a screen (#311): it
+                    # shouldn't outrank the heuristics aimed at what that screen has.
+                    "score": GROUNDED_BASE_SCORE - (GENERATED_FACT_PENALTY if entity.get("generated") else 0.0),
                 })
         for h in heuristics:
             if owner[h["id"]] is not seed:

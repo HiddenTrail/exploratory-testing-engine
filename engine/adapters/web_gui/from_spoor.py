@@ -67,6 +67,13 @@ def _find_element(obs, role: str, name: str) -> dict | None:
     return matches[0] if len(matches) == 1 else None
 
 
+def changes_data(element: dict, origin: str) -> bool:
+    """Whether the read-only gate holds this control back because using it would change
+    data (a submit, or a name like "Add to Basket"), not for another reason."""
+    reason = safety.plan(element, origin).reason
+    return "mutating verb" in reason or "commits a form" in reason
+
+
 def _why_not_follow(element: dict | None, name: str, obs, origin: str, tags: dict) -> str:
     """Why a Spoor step isn't replayed, or "" if it is. A step whose element isn't in the
     DOM capture by that name is followed by its accessible name, Spoor's own (#310): the
@@ -174,7 +181,10 @@ def convert(exploration: dict, url: str, observe: Callable[[list[dict]], object 
                 "title": obs.title, "first_seen": len(by_signature),
                 "elements": [{"key": f"{e['role']}:{e['name']}", "role": e["role"], "name": e["name"],
                               "kind": e.get("tag", ""), "locator": e["locator"],
-                              "committing": e["locator"] not in safe_locators, "href": e.get("href", "")}
+                              "committing": e["locator"] not in safe_locators, "href": e.get("href", ""),
+                              # What the Driver is told (#311): the gate also holds back a
+                              # dropdown or a disabled button, which change nothing.
+                              "changes_data": changes_data(e, origin)}
                              for e in obs.elements],
                 "_spoor_ids": [],
             }
