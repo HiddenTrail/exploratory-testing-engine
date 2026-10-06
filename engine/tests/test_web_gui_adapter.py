@@ -1024,3 +1024,15 @@ def test_the_schema_doc_and_the_carried_map_are_folded_in_the_report():
     for title in ("What the Driver was told", "Carried map (the action space)"):
         assert re.search(r'<details class="fold exhibit">\s*<summary>' + re.escape(title) + "</summary>", html)
     assert "<details open" not in html
+
+
+def test_a_map_saved_with_a_users_email_matches_any_user_once_loaded():
+    # #303: the basket's signature held the user's email, so a map made as one throwaway
+    # user never matched a run logged in as another. The session rewrites a loaded map's signatures.
+    data = _ontology()
+    data["states"][1]["signature"] = "/|button:checkout|your basket (qes-147eb336@example.test)"
+    ref = ref_mod.Reference(data)
+    ref.rewrite_signatures(live_session.impersonal)
+    assert ref.is_known("/|button:checkout|your basket (<email>)")
+    assert "/|button:checkout|your basket (<email>)" in ref.carried_signatures
+    assert not any("@" in s for s in ref.known_signatures)

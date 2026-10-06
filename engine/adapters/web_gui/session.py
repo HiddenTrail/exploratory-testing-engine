@@ -34,7 +34,7 @@ _WEB_RECON = Path(__file__).resolve().parents[3] / ".experiments" / "web-recon"
 if str(_WEB_RECON) not in sys.path:
     sys.path.insert(0, str(_WEB_RECON))
 
-from identity import appearance, control_keys, signature   # noqa: E402
+from identity import appearance, control_keys, impersonal, signature   # noqa: E402
 from perceive import _ELEMENTS_JS as ELEMENTS_JS   # noqa: E402
 from perceive import Collector, capture, visual_diff  # noqa: E402
 from safety import SEARCH_PROBE, TEXT_ROLES        # noqa: E402
@@ -1007,6 +1007,8 @@ def check_ready(adapter) -> None:
     calls to discover otherwise."""
     global _SESSION
     reference = ref_mod.load(_resolve_ontology_path())
+    # A map saved before #303 still has the user's email in some signatures.
+    reference.rewrite_signatures(impersonal)
     # Fail closed on a file that is not a web-recon ontology: its elements would lack the
     # 'committing' safety flag, and while the catalogue now defaults such elements to
     # committing (excluded), rejecting a foreign file up front is clearer than a run that
@@ -1066,6 +1068,8 @@ def check_ready(adapter) -> None:
     # Screens earlier runs discovered join the map before the Driver is briefed (#159).
     product = os.environ.get(_PRODUCT_ENV, "").strip()
     earlier = load_context(product).get("discoveries", []) if product else []
+    # Saved before #303, a discovery's signature can still hold the user's email.
+    earlier = [{**d, "signature": impersonal(d.get("signature", ""))} for d in earlier]
     if earlier:
         joined = join_earlier_discoveries(session, earlier)
         adapter.onboarding_extra["earlier_discoveries"] = joined

@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from identity import appearance, control_keys, same_state, signature  # noqa: E402
+from identity import appearance, control_keys, impersonal, same_state, signature  # noqa: E402
 from perceive import Observation  # noqa: E402
 
 FIX = Path(__file__).resolve().parent.parent / "fixtures"
@@ -120,3 +120,29 @@ def test_a_toast_does_not_mint_a_new_state():
         {"role": "button", "name": "Force page reload", "transient": True}]}
     assert same_state(page, toast)
     assert not same_state(page, {**page, "elements": page["elements"] + [{"role": "button", "name": "Force page reload"}]})
+
+
+def _basket(email):
+    return {"url": "http://h/#/basket", "headings": [f"Your Basket ({email})"],
+            "elements": [{"role": "button", "name": "Checkout"}, {"role": "menuitem", "name": f"Signed in as {email}"}]}
+
+
+def test_who_is_logged_in_doesnt_change_the_state():
+    # Engine issue #303: a map made as one throwaway user never matched a run as another.
+    first, second = signature(_basket("qes-147eb336@example.test")), signature(_basket("qes-dd982cfe@example.test"))
+    assert first == second
+    assert "your basket (<email>)" in first and "menuitem:signed in as <email>" in first
+
+
+def test_impersonal_takes_out_emails_and_generated_ids_and_is_idempotent():
+    text = "order 3f2504e0-4f89-11d3-9a0c-0305e82c3301 for a.b+c@x.co.uk, token 0123456789abcdef01"
+    assert impersonal(text) == "order <id> for <email>, token <id>"
+    assert impersonal(impersonal(text)) == impersonal(text)
+    assert impersonal("page 2 of 37, order #1234") == "page 2 of 37, order #1234"   # short numbers stay
+
+
+def test_a_signature_saved_before_the_change_matches_once_made_impersonal():
+    old = "/|button:checkout|your basket (qes-147eb336@example.test)"
+    assert impersonal(old) == signature({"url": "http://h/", "headings": ["Your Basket (qes-9@example.test)"],
+                                          "elements": [{"role": "button", "name": "Checkout"}]})
+

@@ -106,6 +106,15 @@ class Reference:
                 }
         return cat
 
+    def rewrite_signatures(self, fn) -> None:
+        """Each carried state's signature rewritten by fn, for a map saved before the
+        signature changed (#303: fn takes the logged-in user's email out). Pure: the
+        caller passes the function, so this module still needs no web-recon import."""
+        for state in self.states:
+            state["signature"] = fn(state.get("signature", ""))
+        self.known_signatures = {s["signature"] for s in self.states}
+        self.carried_signatures = set(self.known_signatures)
+
     # ---- growing during a run (issue #158) -------------------------------------------
 
     def add_discovery(self, record: dict, max_steps: int, earlier_run: bool = False) -> str | None:

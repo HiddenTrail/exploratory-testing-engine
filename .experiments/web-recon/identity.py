@@ -36,6 +36,24 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "")).strip().lower()
 
 
+# Text that says who is logged in, not where they are (engine issue #303). Juice Shop's
+# basket heading is "Your Basket (<the user's email>)", so a map made as one throwaway
+# user never matched a run logged in as another. Run on normalised (lowercase) text.
+_PERSONAL = (
+    (re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"), "<email>"),
+    (re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"), "<id>"),
+    (re.compile(r"\b[0-9a-f]{16,}\b"), "<id>"),
+)
+
+
+def impersonal(text: str) -> str:
+    """Emails and long generated ids replaced by placeholders. Idempotent, so it can be
+    run over a signature saved before it existed and give the signature made now."""
+    for pattern, placeholder in _PERSONAL:
+        text = pattern.sub(placeholder, text)
+    return text
+
+
 def _route(url: str) -> str:
     """URL path without the query/fragment. The query often carries transient state
     (a year, a filter) that is a variant of one view, not a different view."""
@@ -56,7 +74,7 @@ def control_keys(obs) -> list[str]:
     keys = set()
     for e in elements:
         if e.get("role") in CONTROL_ROLES and not e.get("transient"):
-            keys.add(f"{e['role']}:{_norm(e.get('name', ''))}")
+            keys.add(f"{e['role']}:{impersonal(_norm(e.get('name', '')))}")
     return sorted(keys)
 
 
@@ -68,7 +86,8 @@ def landmark_keys(obs) -> list[str]:
     page provides it.
     """
     headings = obs.get("headings", []) if isinstance(obs, dict) else getattr(obs, "headings", [])
-    return [_norm(h)[:60] for h in (headings or [])[:3]]
+    # Personal text out before the cut, so an email isn't cut in half first.
+    return [impersonal(_norm(h))[:60] for h in (headings or [])[:3]]
 
 
 def signature(obs) -> str:
