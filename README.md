@@ -161,6 +161,7 @@ engine/
                 #   a state whose actions are all inert, a batch that didn't start from one place, a
                 #   baseline reset that stopped working, a prior that matched nothing
   interplay.py  # how well the Driver answered the Skeptic: gaps, answers, objections that came back
+  steering.py   # most of each later round goes to new ground; claims the tests can't settle are parked
   coverage.py   # what the tests have sent so far, per input field, worked out from the casting schema
                 #   and given to the Skeptic so it doesn't guess coverage from the Driver's prose
   report.py     # generic HTML rendering (prose, badges, CSS, page/checkpoint structure)

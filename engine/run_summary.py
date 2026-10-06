@@ -88,12 +88,16 @@ def summarize(output: dict, log_text: str | None = None, bugs: list | None = Non
     measured = interplay.measure(output.get("checkpoints") or [])
     if measured:
         lines += ["**The Driver and the Skeptic:** " + " ".join(interplay.summary_lines(measured)), ""]
+    parked = [p for c in output.get("checkpoints") or [] for p in c.get("parked") or []]
+    if parked:
+        lines += ["**Parked** (the tests couldn't settle them, so they got no more, #305): " + ", ".join(
+            f"{p['claim']} ({p['checkpoints_in_a_row']} checkpoints in a row)" for p in parked), ""]
     usage = output.get("usage_summary") or {}
     if usage:
         calls = sum(c.get("calls", 0) for c in usage.values())
         retries = f", {count_retries(log_text)} retried" if log_text is not None else ""
         dropped = count_dropped_tests(output)
-        retries += f", {dropped} cast test(s) dropped as unusable" if dropped else ""
+        retries += f", {dropped} cast test(s) dropped without running" if dropped else ""
         lines.append(f"{calls} model call(s){retries}. Estimated cost about ${estimated_cost(usage):.2f} "
                      f"(list prices for a Sonnet-class model; the provider's console has the real bill).")
     return "\n".join(lines) + "\n"

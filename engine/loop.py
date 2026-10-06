@@ -12,7 +12,7 @@ import json
 
 from anthropic import Anthropic
 
-from engine import coverage, diagnostics, lean
+from engine import coverage, diagnostics, lean, steering
 from engine.adapter import SUTAdapter
 from engine.client import call_tool_with_retry
 from engine.config import RunConfig
@@ -110,7 +110,11 @@ def get_casting_round(
     is_first_round: bool,
     usage_sink: list[dict] | None = None,
     run_diagnostics: dict | None = None,
+    follow_up_ids=frozenset(),
+    parked: list[dict] | None = None,
 ) -> dict:
+    """follow_up_ids: the earlier observation and question ids a test may follow up
+    (#305). parked: what the Driver is told about parked claims."""
     # Known and unavoidable: the casting system prompt varies with test_budget
     # and is_first_round, and system renders BEFORE the messages, so checkpoint 2
     # can't read checkpoint 1's cache however stable the evidence blocks are.
@@ -126,16 +130,22 @@ def get_casting_round(
         fresh_evidence["prior_checkpoint_feedback"] = prior_checkpoint_feedback
     if run_diagnostics:
         fresh_evidence["run_diagnostics"] = run_diagnostics
+    if parked:
+        fresh_evidence["parked"] = parked
+    validate = lambda data: (adapter.validate_casting_response(data)
+                             + steering.follow_up_errors(data, follow_up_ids))
     return call_tool_with_retry(
         client,
         model=run_config.model,
-        system=adapter.casting_system_prompt(test_budget, is_first_round) + (lean.CASTING_NOTE if run_config.lean else ""),
-        tools=[adapter.casting_tool_schema],
+        system=(adapter.casting_system_prompt(test_budget, is_first_round)
+                + steering.casting_note(steering.follow_up_cap(test_budget), is_first_round)
+                + (lean.CASTING_NOTE if run_config.lean else "")),
+        tools=[steering.with_follow_up_field(adapter.casting_tool_schema)],
         tool_name="submit_casting_round",
         cached_segments=cached_segments,
         user_message=json.dumps(fresh_evidence, indent=2),
-        validate_fn=adapter.validate_casting_response,
-        salvage_fn=salvage_casting(adapter.validate_casting_response),
+        validate_fn=validate,
+        salvage_fn=salvage_casting(validate),
         max_tokens=adapter.casting_max_tokens(test_budget),
         max_attempts=run_config.max_attempts,
         cache_static_content=True,
@@ -153,11 +163,12 @@ def get_checkpoint_hypothesis(
     usage_sink: list[dict] | None = None,
     run_diagnostics: dict | None = None,
     earlier_observations: list[dict] | None = None,
+    parked: list[dict] | None = None,
 ) -> dict:
     """earlier_observations: every earlier checkpoint's observations, shown to the
     Driver as id, kind and claim so a new observation can 'continues' one of them
     instead of restating it under a new id. They are the only ids 'continues' may
-    name."""
+    name. parked: the claims parked so far (#305)."""
     earlier_observations = earlier_observations or []
     cached_segments = _cacheable_evidence_segments(
         adapter, happy_day_example, "ALL TESTS THIS SESSION", history_segments,
@@ -177,6 +188,8 @@ def get_checkpoint_hypothesis(
         fresh_evidence["prior_skeptic_review"] = prior_skeptic_review
     if run_diagnostics:
         fresh_evidence["run_diagnostics"] = run_diagnostics
+    if parked:
+        fresh_evidence["parked"] = parked
     known_observation_ids = tuple(o["id"] for o in earlier_observations)
     hypothesis = call_tool_with_retry(
         client,
@@ -210,6 +223,7 @@ def get_testing_story(
     history_segments: list[str],
     hypothesis: dict,
     usage_sink: list[dict] | None = None,
+    parked: list[dict] | None = None,
 ) -> dict:
     """The testing story behind the hypothesis just formed (#265, #271): areas and
     obstacles. Its own call, because inside the hypothesis the answer grew big enough to
@@ -221,6 +235,8 @@ def get_testing_story(
     )
     fresh_evidence = {"your_hypothesis": {key: hypothesis[key] for key in ("summary", "behaviors", "observations",
                                                                           "untested") if key in hypothesis}}
+    if parked:
+        fresh_evidence["parked"] = parked
     return call_tool_with_retry(
         client,
         model=run_config.model,
@@ -405,6 +421,10 @@ def run_checkpoint_loop(
     earlier_observations: list[dict] = []
     # Every test that ran, as the Driver cast it: what engine/coverage.py summarises.
     tests_run: list[dict] = []
+    # Claims the Skeptic objected to in checkpoints in a row (#305), and the observation
+    # and question ids on them.
+    parked: dict[str, int] = {}
+    parked_ids: set[str] = set()
 
     for checkpoint_num in range(1, run_config.max_checkpoints + 1):
         is_first_checkpoint = checkpoint_num == 1
@@ -421,17 +441,23 @@ def run_checkpoint_loop(
             is_first_round=is_first_checkpoint,
             usage_sink=usage_sink,
             run_diagnostics=run_diagnostics,
+            follow_up_ids=frozenset({o["id"] for o in earlier_observations}
+                                    | {g["id"] for cp in checkpoints for g in cp["skeptic_review"]["gaps"]}),
+            parked=steering.for_driver(checkpoints, parked),
         )
 
         entries_before = len(casting_log)
-        dropped_tests = casting.get("dropped_tests", [])
+        # Most of a round goes to new ground, and parked claims get no more tests (#305).
+        to_run, over_limit = steering.limit(casting.get("candidate_tests") or [],
+                                            steering.follow_up_cap(test_budget), parked_ids)
+        dropped_tests = casting.get("dropped_tests", []) + over_limit
         for dropped in dropped_tests:
             print(f"  dropped a test that couldn't be fixed in time: {dropped['errors']}")
         if casting.get("give_up", False):
             print(f"  Claude gave up casting: {casting['reasoning']}")
         else:
             print(f"  round reasoning: {casting['reasoning']}")
-            for test in casting["candidate_tests"]:
+            for test in to_run:
                 linked = test["linked_hypothesis"]
                 label = f"hypothesis: {linked}" if linked else "edge case"
                 test_number = next(test_counter)
@@ -481,7 +507,7 @@ def run_checkpoint_loop(
         hypothesis = get_checkpoint_hypothesis(
             client, adapter, run_config, happy_day_example, history_segments, prior_skeptic_review,
             usage_sink=usage_sink, run_diagnostics=diagnostics.for_model(findings),
-            earlier_observations=list(earlier_observations),
+            earlier_observations=list(earlier_observations), parked=steering.for_driver(checkpoints, parked),
         )
         # The testing story is asked for on its own (#271) and becomes part of the
         # hypothesis, so everything after this (Skeptic, report, summary) reads it there.
@@ -490,6 +516,7 @@ def run_checkpoint_loop(
             print("  telling the testing story...")
             hypothesis.update(get_testing_story(
                 client, adapter, run_config, happy_day_example, history_segments, hypothesis, usage_sink=usage_sink,
+                parked=steering.for_driver(checkpoints, parked),
             ))
             print("  story: " + "; ".join(
                 f"{a['area']}: {a['coverage'].replace('_', ' ')}, {a['quality'].replace('_', ' ')}" for a in hypothesis["areas"]))
@@ -538,9 +565,21 @@ def run_checkpoint_loop(
             "test_coverage": test_coverage,
             "diagnostics": diagnostics.as_dicts(findings),
             "debrief": debrief,
-            # Tests the last casting attempt still got wrong, left out so the run could go on (#288).
+            # Tests the last casting attempt still got wrong (#288), or over the follow-up
+            # limit or on a parked claim (#305), left out so the run could go on.
             "dropped_tests": dropped_tests,
+            # How much of the round went back over earlier ground (#305): declared, and
+            # measured from the actions themselves.
+            "follow_ups": sum(1 for t in to_run if t.get("follows_up")),
+            "repeats": steering.repeats(casting_log, checkpoint_num),
         })
+        now_parked = steering.parked_claims(checkpoints)
+        checkpoints[-1]["parked"] = [{"claim": claim, "checkpoints_in_a_row": n}
+                                     for claim, n in now_parked.items() if claim not in parked]
+        for p in checkpoints[-1]["parked"]:
+            print(f"  parked {p['claim']}: objected to in {p['checkpoints_in_a_row']} checkpoints in a row")
+        parked = now_parked
+        parked_ids = steering.parked_ids(checkpoints, parked)
 
         if on_checkpoint is not None:
             on_checkpoint(list(casting_log), list(checkpoints))
@@ -561,7 +600,8 @@ def run_checkpoint_loop(
             stopped_reason = f"diagnostics_{blocker.code}"
             break
 
-        prior_feedback = {"hypothesis": hypothesis, "skeptic_review": skeptic_review}
+        # Without the questions about parked claims (#305).
+        prior_feedback = {"hypothesis": hypothesis, "skeptic_review": steering.without_parked(skeptic_review, parked_ids)}
         # A separate key rather than nested inside prior_checkpoint_feedback, whose
         # contents every adapter's casting prompt describes through the shared
         # PRIOR_FEEDBACK_GUIDE (engine/tools.py) as the previous checkpoint's
