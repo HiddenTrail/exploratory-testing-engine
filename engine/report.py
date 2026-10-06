@@ -915,6 +915,10 @@ def render_report(output: dict, bug_reports: list | None, adapter: SUTAdapter) -
             _stat(len(casting_log), "tests executed"),
             _stat(reason.replace("_", " "), "stopped because"),
         ]
+    if "lean" in output:
+        # A lean run (#295) leaves parts out on purpose; say so before anyone misses them.
+        kept = output["lean"].get("with") or []
+        eyebrow += " · lean run" + (f" with {', '.join(p.replace('_', ' ') for p in kept)}" if kept else "")
 
     nav_items = []
     # The testing story first (Bolton: the bug list alone is one strand of three, #271).

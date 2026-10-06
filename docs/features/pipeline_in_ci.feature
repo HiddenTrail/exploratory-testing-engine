@@ -24,7 +24,7 @@ Feature: The whole pipeline runs in GitHub Actions and reports as an artifact
 
     Examples:
       | event                                                      | result                                                          |
-      | someone starts it from the Actions tab (workflow_dispatch) | runs, with the checkpoints, budgets, model, Spoor time and focus given |
+      | someone starts it from the Actions tab (workflow_dispatch) | runs, with the checkpoints, budgets, model, Spoor time, focus and lean given |
       | a pull request gets the label "run-exploration"            | runs with the defaults                                          |
       | a pull request gets any other label                        | is skipped                                                      |
       | someone pushes                                             | doesn't start                                                   |

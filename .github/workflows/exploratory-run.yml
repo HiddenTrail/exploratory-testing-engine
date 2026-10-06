@@ -46,6 +46,9 @@ name: exploratory run
       focus:
         description: "Library tags this run looks at first, e.g. security (empty for none)"
         default: ""
+      lean:
+        description: "Lean run for experiments (#295): empty for a full run, on, or parts to keep, e.g. story,debrief"
+        default: ""
   pull_request:
     types: [labeled]
 
@@ -81,6 +84,7 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-1' }}
       SPOOR_SECONDS: ${{ inputs.spoor_seconds || '300' }}
       FOCUS: ${{ inputs.focus || '' }}
+      LEAN: ${{ inputs.lean || '' }}
     services:
       juice-shop:
         image: bkimminich/juice-shop:v17.1.1   # the same pin as test-targets/docker-compose.yml
@@ -111,6 +115,10 @@ jobs:
           check "spoor_seconds" "$SPOOR_SECONDS" 30 600
           if ! [[ "$FOCUS" =~ ^[a-z,-]*$ ]]; then
             echo "::error::focus is '$FOCUS'; it must be library tags like security or login,search."
+            exit 1
+          fi
+          if ! [[ "$LEAN" =~ ^(on|[a-z_,]*)$ ]]; then
+            echo "::error::lean is '$LEAN'; it must be empty, on, or parts like story,debrief."
             exit 1
           fi
           if ! [[ "$MODEL" =~ ^anthropic\.claude-[a-z0-9.-]+$ ]]; then
@@ -239,9 +247,11 @@ jobs:
           ENGINE_MAX_MODEL_CALLS: "40"
         run: |
           set -o pipefail
+          lean_args=()
+          if [ "$LEAN" = "on" ]; then lean_args=(--lean); elif [ -n "$LEAN" ]; then lean_args=(--lean --with "$LEAN"); fi
           python -m engine.cli --adapter web_gui --out-dir runs/ci --model "$MODEL" \
             --max-checkpoints "$MAX_CHECKPOINTS" --first-round-budget "$FIRST_ROUND_BUDGET" \
-            --default-budget "$DEFAULT_BUDGET" --learn "$PRODUCT" 2>&1 | tee runs/ci/run.log
+            --default-budget "$DEFAULT_BUDGET" "${lean_args[@]}" --learn "$PRODUCT" 2>&1 | tee runs/ci/run.log
 
       - name: Write the summary
         if: always()
