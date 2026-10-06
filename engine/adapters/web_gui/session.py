@@ -24,7 +24,7 @@ import shutil
 import sys
 import tempfile
 import time
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 from pathlib import Path
 
 # web-recon is the source of truth for perception, identity and the safety gate; reuse it
@@ -422,6 +422,22 @@ def discovery(obs, sig: str, path: list[dict], from_state: str, via: str, origin
     }
 
 
+def origin_of(url: str) -> str:
+    parts = urlsplit(url or "")
+    return f"{parts.scheme}://{parts.netloc}"
+
+
+def off_site_target(url: str, status: int, location: str | None, site: str) -> str | None:
+    """Where a main-frame navigation would take the browser off the site, or None (#308).
+    A link on the site can still leave it through a redirect: Juice Shop's
+    ./redirect?to=https://github.com/... passed the safety gate, which only sees the href."""
+    if origin_of(url) != site:
+        return url
+    if 300 <= status < 400 and location and origin_of(urljoin(url, location)) != site:
+        return urljoin(url, location)
+    return None
+
+
 class Session:
     def __init__(self, reference: ref_mod.Reference, base_url: str, headed: bool, session_file: str | None = None,
                  record_video: bool = False):
@@ -439,6 +455,9 @@ class Session:
         self._video_dir = tempfile.mkdtemp(prefix="qes-video-") if record_video else None
         self._videos: dict = {}                    # test number -> its Playwright Video
         self.last_video = None
+        # The browser never leaves the site (#308): where it was stopped from going.
+        self._site = origin_of(base_url)
+        self.blocked_off_site: list[str] = []
         self._open_fresh_page()
         self.seen_signatures: set[str] = set()   # signatures first sighted this run
         self.last_covered_by = ""                  # what was on top of the last control clicked
@@ -496,6 +515,8 @@ class Session:
         if getattr(self, "session_file", None):
             options["storage_state"] = self.session_file
         self._context = self._browser.new_context(**options)
+        # The browser never leaves the site (#308), in this tab or any a click opens.
+        self._context.on("page", self._guard_page)
         try:
             self._context.add_init_script(_MUTATION_COUNTER_JS)
         except Exception:
@@ -503,6 +524,7 @@ class Session:
         if getattr(self, "_session_storage_js", None) and getattr(self, "_start_as", "same_tab") != "new_tab":
             self._context.add_init_script(self._session_storage_js)
         self.page = self._context.new_page()
+        self._guard_page(self.page)
         self.col = Collector().attach(self.page)
         self._inflight: set = set()
         # Every request with the time it started, so an action is only blamed for the
@@ -518,6 +540,39 @@ class Session:
             except Exception:
                 pass
 
+    def _guard_page(self, page) -> None:
+        """Stops this page's main frame from leaving the site, directly or by a redirect
+        (#308). Chrome's own interception (CDP Fetch), limited to page documents: it
+        pauses each one before it's sent and again when its response arrives, so a
+        redirect's Location is seen before the browser follows it. Not Playwright's
+        route(): that sees every request and not the redirect hops, and routing Juice
+        Shop's socket.io poll kept it open, so no page ever counted as rested.
+        Once per page: the context's "page" event also fires for pages opened here."""
+        if getattr(page, "_qes_guarded", False):
+            return
+        page._qes_guarded = True
+        try:
+            cdp = self._context.new_cdp_session(page)
+            main_frame = cdp.send("Page.getFrameTree")["frameTree"]["frame"]["id"]
+            cdp.on("Fetch.requestPaused", lambda event: self._on_document(cdp, main_frame, event))
+            cdp.send("Fetch.enable", {"patterns": [{"urlPattern": "*", "resourceType": "Document", "requestStage": stage}
+                                                   for stage in ("Request", "Response")]})
+        except Exception as e:      # never silently unguarded: say so
+            print(f"WARNING: couldn't guard the browser against leaving the site ({type(e).__name__}: {e})")
+
+    def _on_document(self, cdp, main_frame: str, event: dict) -> None:
+        """One paused page document: stopped if it takes the main frame off the site.
+        A frame inside the page (an embed) may load from another site."""
+        location = next((h["value"] for h in event.get("responseHeaders") or [] if h["name"].lower() == "location"), None)
+        target = None
+        if event.get("frameId") == main_frame:
+            target = off_site_target(event["request"]["url"], event.get("responseStatusCode") or 0, location, self._site)
+        if target is None:
+            cdp.send("Fetch.continueRequest", {"requestId": event["requestId"]})
+            return
+        self.blocked_off_site.append(target[:300])
+        cdp.send("Fetch.failRequest", {"requestId": event["requestId"], "errorReason": "BlockedByClient"})
+
     def _reboot(self) -> None:
         """Back to the start as a first-time visitor: a fresh session, then the base URL."""
         self._open_fresh_page()
@@ -530,6 +585,10 @@ class Session:
 
     def _on_request_failed(self, r) -> None:
         self._inflight.discard(id(r))
+        if "ERR_BLOCKED_BY_CLIENT" in (r.failure or ""):
+            # Our own guard stopped it (#308), not the product failing.
+            self._requests.pop(id(r), None)
+            return
         self._requests.get(id(r), {}).update(status=0, failure=(r.failure or "")[:120])
 
     def _requests_since(self, t: float) -> list[dict]:
@@ -588,7 +647,9 @@ class Session:
         except Exception:
             keys = {}
         try:
-            keys.update({f"cookie:{c['name']}": hash(c.get("value", "")) for c in self._context.cookies()})
+            # Only the site's own cookies (#308): another site's are none of its storage.
+            keys.update({f"cookie:{c['name']}": hash(c.get("value", ""))
+                         for c in self._context.cookies(self.base_url)})
         except Exception:
             pass
         return keys
@@ -806,6 +867,7 @@ class Session:
         # take seconds on their own, and counting them as the page's settle time made our
         # retries look like a slow app (issue #122).
         t0 = time.time()
+        self.blocked_off_site = []
         sent = reached and self._actuate(plan["target"])
         t1 = time.time()
         settled_after = self._rest()
@@ -845,10 +907,15 @@ class Session:
         }
         if sent and self.last_covered_by:
             result["covered_by"] = self.last_covered_by
+        if self.blocked_off_site:
+            # The control leads off the site; the browser was stopped (#308).
+            result["blocked_off_site"] = list(dict.fromkeys(self.blocked_off_site))
         origin = "{0.scheme}://{0.netloc}".format(urlsplit(self.base_url))
         result["signals"], weak = _signal_diff(before, after, self._requests_since(t0), storage_before, self._storage(),
                                                settled_before, settled_after, self._noise.get(noise_key, {}), origin,
-                                               sent=sent)
+                                               # After a stopped trip off the site (#308) the page is the
+                                               # browser's error page, not the product: hints only.
+                                               sent=sent and not self.blocked_off_site)
         if weak:
             result["signals_weak"] = weak
         # A screen the carried map doesn't have, however many times this run has seen it,
@@ -857,7 +924,8 @@ class Session:
         # later tests can act on it (#158).
         # Not from a new-tab test: the screen's path only replays from a new tab, and
         # the run's map is replayed from the saved session as it was.
-        if sent and after_sig not in self.reference.carried_signatures and self._start_as == "same_tab":
+        if (sent and not self.blocked_off_site and after_sig not in self.reference.carried_signatures
+                and self._start_as == "same_tab"):
             origin = "{0.scheme}://{0.netloc}".format(urlsplit(self.base_url))
             result["discovered"] = discovery(after, after_sig, plan["path"] + [plan["target"]], state_id,
                                              control_key, origin)

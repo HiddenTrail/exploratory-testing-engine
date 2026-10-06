@@ -107,6 +107,10 @@ WHAT YOU GET BACK, per test:
   covered_by: present when something else was on top of the control, for example
          "dialog 'cookieconsent'". The harness sent the click to the control anyway,
          which a real user couldn't do without moving the cover first.
+  blocked_off_site: present when the action tried to take the browser to another site,
+         directly or through a redirect: where it would have gone. The browser was stopped,
+         because tests never leave the product's site. A control that leads off the site,
+         especially through the product's own redirect, can be worth reporting.
   verdict: "sent" normally, or "not_actuated" if the control could not be actuated at all.
   recovered_to: the signature the run rebooted to after an action that reached a new state,
     so the next test starts clean; recovered_ok says whether that matched the start state.
@@ -329,12 +333,14 @@ def describe_result_for_log(result: dict) -> str:
     line = f"{detail['screen_was']} (click {detail.get('click', '?')}s, settled {detail['settle']}s)"
     if detail.get("covered_by"):
         line += f", clicked through {detail['covered_by']} on top of it"
+    if detail.get("blocked_off_site"):
+        line += f", stopped from leaving the site for {detail['blocked_off_site'][0]}"
     signals = detail.get("signals") or {}
     noted = [f"{len(signals['console_errors'])} console error(s)" if signals.get("console_errors") else "",
              f"{len(signals['failed_requests'])} failed request(s)" if signals.get("failed_requests") else "",
              "storage changed" if any(k in signals for k in ("storage_added", "storage_removed", "storage_changed")) else "",
              "UNSETTLED" if signals and not (signals.get("settled_before", True) and signals.get("settled_after", True)) else "",
-             f"{sum(len(v) for v in detail['signals_weak'].values())} weak signal(s)" if detail.get("signals_weak") else ""]
+             f"{sum(len(v) for v in detail['signals_weak'].values() if isinstance(v, list))} weak signal(s)" if detail.get("signals_weak") else ""]
     if any(noted):
         line += ", " + ", ".join(n for n in noted if n)
     if not detail.get("reached_target_state"):
@@ -591,6 +597,7 @@ def render_test_entry(entry) -> str:
         {recovered_html}
       </div>
       <div class="test-outcome prose-muted">click took <span class="num">{esc(result.get('click', '?'))}s</span>, settled in <span class="num">{esc(result.get('settle'))}s</span>{f", clicked through {esc(result['covered_by'])} on top of it" if result.get('covered_by') else ""}</div>
+      {f'<div class="test-outcome">{badge("stopped from leaving the site", "warn")} {esc(", ".join(result["blocked_off_site"]))}</div>' if result.get("blocked_off_site") else ""}
       {_signals_html(result)}
       {_video_html(entry)}
     </article>
