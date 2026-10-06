@@ -169,6 +169,8 @@ engine/
   run_summary.py # a run's outcome as Markdown, for a CI job's summary page
   budget.py     # the hard spending limit: stops a run at ENGINE_MAX_MODEL_CALLS calls or about ENGINE_MAX_COST_USD
   cli.py        # python -m engine.cli --adapter <name>
+  lean.py       # lean runs for experiments: the fields and calls a lean run skips (#295)
+  ask.py        # python -m engine.ask <run>: asks a saved run for a part it didn't write
   adapters/
     registry.py           # name -> adapter module, resolved lazily at run time
     token_purchase/        # first adapter: single request/response, decline-reason logic
@@ -257,7 +259,9 @@ the same IDs `aws bedrock list-inference-profiles` reports.
 Writes `runs/<adapter>/output.json`, `runs/<adapter>/bugs.json` (if any
 bugs were found), and `runs/<adapter>/report.html`. Override run
 parameters with `--model`, `--max-checkpoints`, `--first-round-budget`,
-`--default-budget`, `--out-dir`.
+`--default-budget`, `--out-dir`. `--lean` makes a cheaper run for experiments,
+and `python -m engine.ask` asks a saved run for what it skipped (see
+[`engine/README.md`](engine/README.md)).
 
 See [`engine/README.md`](engine/README.md) for adding a new adapter by hand,
 and the CI/testing setup. To drive a web app in a browser, see
@@ -308,7 +312,8 @@ starts Juice Shop on the runner, logs in from
 pinned Spoor from that session, converts the map, runs the engine with `--learn`, and
 uploads `report.html`, `output.json` and `bugs.json` as the `exploratory-run`
 artifact, with a summary on the run's page. Each run starts from the context file the
-last successful run left (`context-juice-shop` artifact). It calls a model (about
+last successful run left (`context-juice-shop` artifact). Its `lean` input makes a
+lean run for experiments: `on`, or the parts to keep, like `story,debrief` (#295). It calls a model (about
 $0.60 a run), so it never runs on a push: start it from the Actions tab, or label a
 PR `run-exploration`. It reaches the model through Bedrock with no stored key (see
 "Setting up AWS for the pipeline" below). It can't misfire or loop: only a person

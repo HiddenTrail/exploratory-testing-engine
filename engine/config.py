@@ -7,6 +7,7 @@ from pathlib import Path
 
 from engine.adapter import SUTAdapter
 from engine.client import DEFAULT_MAX_ATTEMPTS, default_model
+from engine.lean import PARTS as LEAN_PARTS
 
 
 @dataclass(frozen=True)
@@ -23,8 +24,21 @@ class RunConfig:
     # What earlier runs' Skeptic objected to most (engine/ontology/feedback.py,
     # driver_history, #258), given to the Driver; None when there's no history.
     skeptic_history: dict | None = None
+    # A lean run, for experiments (#295): the model writes only what decides a finding.
+    # lean_with switches skipped parts back on (engine/lean.py's PARTS).
+    lean: bool = False
+    lean_with: frozenset = frozenset()
+
+    def wants(self, part: str) -> bool:
+        """Whether this run makes the call for `part` (one of engine/lean.py's PARTS)."""
+        return not self.lean or part in self.lean_with
 
     def __post_init__(self):
+        unknown = set(self.lean_with) - set(LEAN_PARTS)
+        if unknown:
+            raise ValueError(f"unknown lean part(s) {', '.join(sorted(unknown))}; choose from {', '.join(LEAN_PARTS)}")
+        if self.lean_with and not self.lean:
+            raise ValueError("lean_with only means something in a lean run")
         # max_checkpoints <= 0 makes run_checkpoint_loop's range() empty, so
         # `checkpoints` stays [] and runner.py's checkpoints[-1] raises
         # IndexError instead of failing with a clear, actionable message.
@@ -44,6 +58,8 @@ class RunConfig:
         default_test_budget: int | None = None,
         out_dir: Path | None = None,
         skeptic_history: dict | None = None,
+        lean: bool = False,
+        lean_with=(),
     ) -> "RunConfig":
         return RunConfig(
             model=model or default_model(),
@@ -53,4 +69,6 @@ class RunConfig:
             default_test_budget=default_test_budget or adapter.default_test_budget,
             out_dir=out_dir or Path("runs") / adapter.name,
             skeptic_history=skeptic_history,
+            lean=lean,
+            lean_with=frozenset(lean_with),
         )

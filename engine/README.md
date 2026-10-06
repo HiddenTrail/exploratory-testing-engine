@@ -103,6 +103,8 @@ engine/
   run_summary.py # a run's outcome as Markdown, for a CI job's summary page
   budget.py     # the hard spending limit: stops a run at ENGINE_MAX_MODEL_CALLS calls or about ENGINE_MAX_COST_USD
   cli.py        # python -m engine.cli --adapter <name>
+  lean.py       # lean runs for experiments: the fields and calls a lean run skips (#295)
+  ask.py        # python -m engine.ask <run>: asks a saved run for a part it didn't write
   config.py     # RunConfig: model, checkpoint and test budgets, output folder
   http.py, redact.py, util.py  # small shared helpers
   adapters/
@@ -146,6 +148,18 @@ discovered screens and the Skeptic's objections (by kind) into the context layer
 when it ends, so the next run starts from them (#159, #258). Each run's Driver is
 told the kinds of objection the Skeptic raised most before. `ENGINE_CONTEXT_DIR`
 moves the context files to another folder, for benchmarks.
+
+`--lean` makes a lean run, for experiments (#295): the model writes only what
+decides a finding, and the testing story, the debrief and the bug report
+write-ups are skipped. `--with story,debrief,bug_reports` switches parts back on.
+Compare a lean run only with lean runs. To get a skipped part after reading a
+run, ask the saved run for it, one call each, written to `<run>/asked/`:
+
+```
+python -m engine.ask runs/<run> --adapter web_gui --story [N]
+python -m engine.ask runs/<run> --adapter web_gui --bug-reports
+python -m engine.ask runs/<run> --adapter web_gui --question "Why was C3.O1 doubted?"
+```
 
 ### Authenticating through Bedrock instead of an API key
 

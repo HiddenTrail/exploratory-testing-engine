@@ -10,6 +10,7 @@ import traceback
 from engine.adapter import SUTAdapter, validate_adapter
 from engine.client import build_client, summarize_usage
 from engine.config import RunConfig
+from engine.lean import PARTS as LEAN_PARTS
 from engine.http import default_check_sut_ready
 from engine.loop import get_bug_reports, get_happy_day_example, run_checkpoint_loop
 from engine.tools import final_observations
@@ -62,11 +63,21 @@ def keep_test_media(adapter: SUTAdapter, output: dict, out_dir) -> None:
         print(f"Kept the videos of {len(kept)} cited test(s), e.g. {out_dir / next(iter(kept.values()))}")
 
 
+def lean_line(run_config: RunConfig) -> str:
+    skipped = [p.replace("_", " ") for p in LEAN_PARTS if not run_config.wants(p)]
+    kept = sorted(run_config.lean_with)
+    return ("Lean run, for experiments: the model writes only what decides a finding"
+            + (f"; skipped: {', '.join(skipped)}" if skipped else "")
+            + (f"; switched back on: {', '.join(kept)}" if kept else "") + ".")
+
+
 def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
     validate_adapter(adapter)
     # Before anything that could spend: a bad limit stops the run here, at no cost.
     limits = start_run()
     print(f"Spending limit: about ${limits.max_cost_usd:.2f} or {limits.max_calls} model calls, whichever comes first.")
+    if run_config.lean:
+        print(lean_line(run_config))
     client = build_client()
 
     (adapter.check_sut_ready or default_check_sut_ready)(adapter)
@@ -85,6 +96,9 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
         "onboarding_extra": adapter.onboarding_extra,
         "happy_day_example": happy_day_example,
     }
+    if run_config.lean:
+        # So a lean run is only ever compared with lean runs (#295).
+        output["lean"] = {"with": sorted(run_config.lean_with)}
     bug_reports = []
     test_counter = itertools.count(1)
     usage_log: list[dict] = []
@@ -135,7 +149,10 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
         # Only bugs get a written report. Findings and anomalies are already complete
         # in output["observations"], so they need no LLM call.
         bugs = [o for o in observations if o["kind"] == "bug"]
-        if bugs:
+        if bugs and not run_config.wants("bug_reports"):
+            print(f"Lean run: no bug reports written for {len(bugs)} bug(s). Ask for them afterwards with "
+                  f"python -m engine.ask {out_dir} --adapter {adapter.name} --bug-reports")
+        elif bugs:
             plural = "" if len(bugs) == 1 else "s"
             print(f"Writing bug report{plural} for {len(bugs)} bug{plural}...")
             # Isolated from the run's verdict: the checkpoint loop has already concluded

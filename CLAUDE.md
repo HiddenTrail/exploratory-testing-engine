@@ -194,6 +194,11 @@ python -m engine.cli --adapter <sut> --out-dir runs/<name>/<sut>_<n> \
   --max-checkpoints 3 --first-round-budget 10 --default-budget 6
 ```
 
+Experiments run lean: add `--lean`, and `--with <parts>` when the experiment is
+about the story, the debrief or bug reports (#295). Compare lean runs only with
+lean runs. When a lean run leaves you wanting a part, ask the saved run with
+`python -m engine.ask` instead of running again.
+
 A run costs about $0.50 at these settings. Checkpoints are the expensive part
 (each is three model calls, about $0.12 to $0.16), and tests are cheap (about
 half a cent each), so raise test budgets before adding checkpoints. A run the

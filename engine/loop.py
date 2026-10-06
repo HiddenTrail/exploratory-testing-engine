@@ -12,7 +12,7 @@ import json
 
 from anthropic import Anthropic
 
-from engine import coverage, diagnostics
+from engine import coverage, diagnostics, lean
 from engine.adapter import SUTAdapter
 from engine.client import call_tool_with_retry
 from engine.config import RunConfig
@@ -129,7 +129,7 @@ def get_casting_round(
     return call_tool_with_retry(
         client,
         model=run_config.model,
-        system=adapter.casting_system_prompt(test_budget, is_first_round),
+        system=adapter.casting_system_prompt(test_budget, is_first_round) + (lean.CASTING_NOTE if run_config.lean else ""),
         tools=[adapter.casting_tool_schema],
         tool_name="submit_casting_round",
         cached_segments=cached_segments,
@@ -178,16 +178,16 @@ def get_checkpoint_hypothesis(
     if run_diagnostics:
         fresh_evidence["run_diagnostics"] = run_diagnostics
     known_observation_ids = tuple(o["id"] for o in earlier_observations)
-    return call_tool_with_retry(
+    hypothesis = call_tool_with_retry(
         client,
         model=run_config.model,
-        system=HYPOTHESIS_SYSTEM_PROMPT,
-        tools=[HYPOTHESIS_TOOL],
+        system=HYPOTHESIS_SYSTEM_PROMPT + (lean.HYPOTHESIS_NOTE if run_config.lean else ""),
+        tools=[lean.strip_schema(HYPOTHESIS_TOOL, lean.HYPOTHESIS_DROPS) if run_config.lean else HYPOTHESIS_TOOL],
         tool_name="submit_checkpoint_hypothesis",
         cached_segments=cached_segments,
         user_message=json.dumps(fresh_evidence, indent=2),
         validate_fn=lambda data: validate_hypothesis_response(
-            data, known_observation_ids=known_observation_ids, open_gap_ids=open_gap_ids,
+            data, known_observation_ids=known_observation_ids, open_gap_ids=open_gap_ids, lean=run_config.lean,
         ),
         # Room to spare: when the hypothesis carried the testing story (#265), answers ran
         # 2,000 to 2,560 tokens and were cut off at the old 2,560. The limit costs nothing
@@ -197,6 +197,9 @@ def get_checkpoint_hypothesis(
         cache_static_content=True,
         usage_sink=usage_sink,
     )
+    # A lean run's dropped fields come back as empty values, so nothing after this
+    # needs to know the run was lean.
+    return lean.fill(hypothesis, HYPOTHESIS_TOOL, lean.HYPOTHESIS_DROPS) if run_config.lean else hypothesis
 
 
 def get_testing_story(
@@ -311,9 +314,12 @@ def get_skeptic_review(
 ) -> dict:
     # The testing story is part of what the Skeptic reviews (#265). It was left off this
     # list once, so the Skeptic was told to question a story it never received (#271).
+    # A lean run (#295) has no behaviors or untested list to send. Its story is there
+    # only when it was switched back on.
+    skipped = {"behaviors", "untested"} if run_config.lean else set()
     evidence = {key: hypothesis[key] for key in
                 ("summary", "behaviors", "observations", "areas", "obstacles", "untested", "prior_gaps")
-                if key in hypothesis}
+                if key in hypothesis and key not in skipped}
     # The previous checkpoint's story, so the Skeptic can see whether anything moved.
     if previous_story:
         evidence["previous_story"] = previous_story
@@ -322,15 +328,15 @@ def get_skeptic_review(
     if prior_skeptic_review is not None:
         evidence["your_own_prior_review"] = prior_skeptic_review
     open_gap_ids = tuple(gap["id"] for gap in prior_skeptic_review["gaps"]) if prior_skeptic_review else ()
-    return call_tool_with_retry(
+    review = call_tool_with_retry(
         client,
         model=run_config.model,
-        system=SKEPTIC_SYSTEM_PROMPT,
-        tools=[SKEPTIC_TOOL],
+        system=SKEPTIC_SYSTEM_PROMPT + (lean.SKEPTIC_NOTE if run_config.lean else ""),
+        tools=[lean.strip_schema(SKEPTIC_TOOL, lean.SKEPTIC_DROPS) if run_config.lean else SKEPTIC_TOOL],
         tool_name="submit_skeptic_review",
         user_message=json.dumps(evidence, indent=2),
         validate_fn=lambda data: validate_skeptic_response(
-            data, observations=hypothesis["observations"], open_gap_ids=open_gap_ids,
+            data, observations=hypothesis["observations"], open_gap_ids=open_gap_ids, lean=run_config.lean,
         ),
         max_tokens=3072,
         max_attempts=run_config.max_attempts,
@@ -341,6 +347,7 @@ def get_skeptic_review(
         cache_static_content=True,
         usage_sink=usage_sink,
     )
+    return lean.fill(review, SKEPTIC_TOOL, lean.SKEPTIC_DROPS) if run_config.lean else review
 
 
 def run_checkpoint_loop(
@@ -478,12 +485,14 @@ def run_checkpoint_loop(
         )
         # The testing story is asked for on its own (#271) and becomes part of the
         # hypothesis, so everything after this (Skeptic, report, summary) reads it there.
-        print("  telling the testing story...")
-        hypothesis.update(get_testing_story(
-            client, adapter, run_config, happy_day_example, history_segments, hypothesis, usage_sink=usage_sink,
-        ))
-        print("  story: " + "; ".join(
-            f"{a['area']}: {a['coverage'].replace('_', ' ')}, {a['quality'].replace('_', ' ')}" for a in hypothesis["areas"]))
+        # A lean run (#295) skips it unless asked to.
+        if run_config.wants("story"):
+            print("  telling the testing story...")
+            hypothesis.update(get_testing_story(
+                client, adapter, run_config, happy_day_example, history_segments, hypothesis, usage_sink=usage_sink,
+            ))
+            print("  story: " + "; ".join(
+                f"{a['area']}: {a['coverage'].replace('_', ' ')}, {a['quality'].replace('_', ' ')}" for a in hypothesis["areas"]))
         # Ids go on before the Skeptic sees the hypothesis, so its review can name them.
         lower_unsupported_bugs(hypothesis)
         stamp_observation_ids(checkpoint_num, hypothesis)
@@ -508,7 +517,7 @@ def run_checkpoint_loop(
         # evidence, and the Skeptic reconsiders, before the next round of tests.
         debrief = []
         questions = skeptic_review["gaps"]
-        if skeptic_review["verdict"] == "weak" and questions:
+        if skeptic_review["verdict"] == "weak" and questions and run_config.wants("debrief"):
             print(f"  debrief: the Driver answers {len(questions)} question(s)...")
             answers = get_debrief_answers(client, adapter, run_config, happy_day_example, history_segments,
                                           hypothesis, questions, usage_sink=usage_sink)

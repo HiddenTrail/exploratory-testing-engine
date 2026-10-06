@@ -431,22 +431,24 @@ def _check_text(errors: list[str], where: str, value, key: str, *, required: boo
         errors.append(f"{where} is far too long ({len(value.split())} words, limit {WORD_LIMITS[key]})")
 
 
-def validate_hypothesis_response(data, *, known_observation_ids=(), open_gap_ids=()) -> list[str]:
+def validate_hypothesis_response(data, *, known_observation_ids=(), open_gap_ids=(), lean=False) -> list[str]:
     """known_observation_ids: ids a 'continues' may point at (every earlier
     checkpoint's observations). open_gap_ids: the prior Skeptic review's gap ids,
-    each of which prior_gaps must answer exactly once."""
+    each of which prior_gaps must answer exactly once. lean: a lean run (#295), which
+    doesn't ask for the fields in engine/lean.py's HYPOTHESIS_DROPS."""
     if not isinstance(data, dict):
         return [f"expected an object, got {type(data).__name__}"]
     errors = []
+    lean_skips = {"behaviors", "untested"} if lean else set()
     for key in HYPOTHESIS_TOOL["input_schema"]["required"]:
-        if key not in data:
+        if key not in data and key not in lean_skips:
             errors.append(f"missing required field '{key}'")
     if errors:
         return errors
 
     _check_text(errors, "'summary'", data["summary"], "summary")
 
-    behaviors = data["behaviors"]
+    behaviors = data.get("behaviors", [])
     if not isinstance(behaviors, list):
         errors.append("'behaviors' must be a list")
     else:
@@ -468,9 +470,9 @@ def validate_hypothesis_response(data, *, known_observation_ids=(), open_gap_ids
             if not isinstance(o, dict):
                 errors.append(f"observations[{i}] must be an object")
                 continue
-            errors.extend(_observation_errors(i, o, known_observation_ids))
+            errors.extend(_observation_errors(i, o, known_observation_ids, lean=lean))
 
-    untested = data["untested"]
+    untested = data.get("untested", [])
     if not isinstance(untested, list):
         errors.append("'untested' must be a list")
     else:
@@ -486,11 +488,11 @@ def validate_hypothesis_response(data, *, known_observation_ids=(), open_gap_ids
     if not isinstance(prior_gaps, list):
         errors.append("'prior_gaps' must be a list (empty on the first checkpoint)")
     else:
-        errors.extend(_prior_gaps_errors(prior_gaps, open_gap_ids))
+        errors.extend(_prior_gaps_errors(prior_gaps, open_gap_ids, lean=lean))
     return errors
 
 
-def _observation_errors(i: int, o: dict, known_observation_ids) -> list[str]:
+def _observation_errors(i: int, o: dict, known_observation_ids, *, lean=False) -> list[str]:
     errors = []
     where = f"observations[{i}]"
     kind = o.get("kind")
@@ -511,7 +513,7 @@ def _observation_errors(i: int, o: dict, known_observation_ids) -> list[str]:
     _check_text(errors, f"{where}.violates", o.get("violates"), "observation.violates", required=False)
     # A bug without a violated fact, or not reproduced consistently, isn't rejected
     # here: lower_unsupported_bugs turns it into an anomaly without a retry.
-    for field in ("mechanism", "rival", "why"):
+    for field in ("rival",) if lean else ("mechanism", "rival", "why"):
         _check_text(errors, f"{where}.{field}", o.get(field), f"observation.{field}")
     if not isinstance(o.get("rival_ruled_out"), bool):
         errors.append(f"{where}.rival_ruled_out must be a boolean")
@@ -520,7 +522,7 @@ def _observation_errors(i: int, o: dict, known_observation_ids) -> list[str]:
     return errors
 
 
-def _prior_gaps_errors(prior_gaps: list, open_gap_ids) -> list[str]:
+def _prior_gaps_errors(prior_gaps: list, open_gap_ids, *, lean=False) -> list[str]:
     errors = []
     answered = []
     for i, g in enumerate(prior_gaps):
@@ -540,7 +542,8 @@ def _prior_gaps_errors(prior_gaps: list, open_gap_ids) -> list[str]:
             errors.append(f"{where}.tests must be a list of test numbers")
         elif status == "tested" and not g["tests"]:
             errors.append(f"{where} says tested, so 'tests' must cite the test numbers")
-        _check_text(errors, f"{where}.reason", g.get("reason"), "prior_gap.reason", required=status != "tested")
+        if not lean:
+            _check_text(errors, f"{where}.reason", g.get("reason"), "prior_gap.reason", required=status != "tested")
     missing = [gap_id for gap_id in open_gap_ids if gap_id not in answered]
     if missing:
         errors.append(f"'prior_gaps' doesn't answer {', '.join(missing)}: answer every gap from the prior review")
@@ -833,10 +836,11 @@ rubber-stamp a thin absence of problems, or a thin slice of the interface as if 
 Call submit_skeptic_review with your answer."""
 
 
-def validate_skeptic_response(data, *, observations=(), open_gap_ids=()) -> list[str]:
+def validate_skeptic_response(data, *, observations=(), open_gap_ids=(), lean=False) -> list[str]:
     """observations: this checkpoint's observations (with ids), each of which needs
     exactly one check. open_gap_ids: the gaps from the Skeptic's own prior review,
-    each of which prior_gaps_check must answer exactly once."""
+    each of which prior_gaps_check must answer exactly once. lean: a lean run (#295),
+    which doesn't ask for the notes or the untouched list (engine/lean.py's SKEPTIC_DROPS)."""
     if not isinstance(data, dict):
         return [f"expected an object, got {type(data).__name__}"]
     errors = []
@@ -873,7 +877,8 @@ def validate_skeptic_response(data, *, observations=(), open_gap_ids=()) -> list
                 errors.append(f"{where}.{field} must be a boolean")
         if check.get("kind") not in OBSERVATION_KINDS:
             errors.append(f"{where}.kind must be one of {', '.join(OBSERVATION_KINDS)}")
-        _check_text(errors, f"{where}.note", check.get("note"), "check.note")
+        if not lean:
+            _check_text(errors, f"{where}.note", check.get("note"), "check.note")
         if check.get("discriminates_from_rival") is False:
             objections += 1
     errors.extend(_once_each("observation_checks", "observation", checked, observation_ids))
@@ -884,13 +889,14 @@ def validate_skeptic_response(data, *, observations=(), open_gap_ids=()) -> list
     else:
         if not isinstance(coverage.get("material"), bool):
             errors.append("coverage.material must be a boolean")
-        untouched = coverage.get("untouched")
-        if not isinstance(untouched, list):
-            errors.append("coverage.untouched must be a list")
-        else:
-            for i, area in enumerate(untouched):
-                _check_text(errors, f"coverage.untouched[{i}]", area, "coverage.area")
-        _check_text(errors, "coverage.note", coverage.get("note"), "coverage.note")
+        if not lean:
+            untouched = coverage.get("untouched")
+            if not isinstance(untouched, list):
+                errors.append("coverage.untouched must be a list")
+            else:
+                for i, area in enumerate(untouched):
+                    _check_text(errors, f"coverage.untouched[{i}]", area, "coverage.area")
+            _check_text(errors, "coverage.note", coverage.get("note"), "coverage.note")
         if coverage.get("material") is True:
             objections += 1
 
@@ -938,7 +944,8 @@ def validate_skeptic_response(data, *, observations=(), open_gap_ids=()) -> list
         answered.append(gap_id)
         if not isinstance(check.get("accepted"), bool):
             errors.append(f"{where}.accepted must be a boolean")
-        _check_text(errors, f"{where}.note", check.get("note"), "prior_gap_check.note")
+        if not lean:
+            _check_text(errors, f"{where}.note", check.get("note"), "prior_gap_check.note")
         if check.get("accepted") is False:
             objections += 1
     errors.extend(_once_each("prior_gaps_check", "gap from your prior review", answered, open_gap_ids))
@@ -1431,3 +1438,40 @@ def casting_envelope_errors(data) -> tuple[list[str], object]:
     elif len(reasoning.split()) > 2 * CASTING_REASONING_WORDS:
         errors.append(f"'reasoning' is far too long ({len(reasoning.split())} words, limit {CASTING_REASONING_WORDS})")
     return errors, tests
+
+
+# Asking a finished run for something it didn't write (#295): a lean run skips the
+# story and the debrief, and this answers one question about it afterwards.
+ASK_TOOL = {
+    "name": "submit_answer",
+    "description": "Answer one question about a finished test run, from its record.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "answer": {
+                "type": "string",
+                "description": "The answer in a few plain sentences. If the record can't tell, say so.",
+            },
+            "tests": _TESTS,
+        },
+        "required": ["answer", "tests"],
+    },
+}
+
+ASK_SYSTEM_PROMPT = """You are answering a question about a finished exploratory test run. Your evidence is its
+record: every test it ran, and 'run', what the Driver and the Skeptic wrote at each checkpoint. Answer only from
+that record, and cite the tests your answer rests on. If the record can't tell, say so instead of guessing. Keep
+it short.
+
+Call submit_answer with your answer."""
+
+
+def validate_answer(data) -> list[str]:
+    if not isinstance(data, dict):
+        return [f"expected an object, got {type(data).__name__}"]
+    errors = []
+    if not isinstance(data.get("answer"), str) or not data["answer"].strip():
+        errors.append("'answer' must be non-empty text")
+    if not _is_test_list(data.get("tests")):
+        errors.append("'tests' must be a list of test numbers (empty if none)")
+    return errors

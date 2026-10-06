@@ -44,6 +44,10 @@ def summarize(output: dict, log_text: str | None = None, bugs: list | None = Non
     observations = sorted(output.get("observations", []), key=lambda o: _KIND_ORDER.get(o.get("kind"), 9))
     counts = {k: sum(1 for o in observations if o.get("kind") == k) for k in ("bug", "anomaly", "finding")}
     lines = ["## Exploratory run", ""]
+    if "lean" in output:
+        kept = output["lean"].get("with") or []
+        lines += ["**Lean run, for experiments** (#295): compare it only with lean runs"
+                  + (f" with the same parts on ({', '.join(kept)})" if kept else "") + ".", ""]
     if output.get("stopped_reason") == "budget_exceeded":
         lines += [f"**The spending limit stopped the run:** {_cell(output.get('error', ''))}", ""]
     elif output.get("error"):

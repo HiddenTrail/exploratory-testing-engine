@@ -60,6 +60,6 @@ def test_the_skeptic_gets_the_summary_as_evidence(monkeypatch):
     seen = {}
     monkeypatch.setattr(loop, "call_tool_with_retry", lambda client, **kw: seen.update(kw) or {})
     hypothesis = {"summary": "s", "behaviors": [], "observations": [], "untested": [], "prior_gaps": []}
-    run_config = type("RC", (), {"model": "m", "max_attempts": 1})()
+    run_config = type("RC", (), {"model": "m", "max_attempts": 1, "lean": False})()
     loop.get_skeptic_review(None, run_config, hypothesis, test_coverage={"tests_run": 0, "fields": []})
     assert '"test_coverage"' in seen["user_message"]

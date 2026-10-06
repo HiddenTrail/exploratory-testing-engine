@@ -27,6 +27,7 @@ Feature: A run writes a JSON result, a bug list when there are bugs, and an HTML
     And each checkpoint has "debrief", the recorded exchange after the Skeptic's review (see checkpoint_debrief.feature)
     And each checkpoint has "dropped_tests", the cast tests the last attempt still got wrong and their errors, usually empty (see tool_call_retry.feature)
     And it has "score" when the adapter scores the run against the target's known problems (see run_score.feature)
+    And it has "lean", with the parts switched back on, when it was a lean run (see lean_runs.feature)
     And a casting_log entry has "video", a path inside the run's folder, when its test is cited and the adapter kept a video of it (see test_videos.feature)
 
   Scenario Outline: stopped_reason says why the run ended
