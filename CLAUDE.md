@@ -271,7 +271,9 @@ them by name.
   set in its own `fixtures/`. They use the same ports, so run only one of them.
 - Only use `--sandbox` against those local targets or another throwaway system
   you control. Without it, Spoor skips destructive actions like buy, delete
-  and log out. Keep it that way.
+  and log out. Keep it that way. The pipeline does map the local targets and
+  CI's throwaway Juice Shop with `--sandbox`, so the map reaches what's behind
+  those actions (#310).
 - Spoor writes a `.spoor-cache/` in the folder you run it from. That cache holds
   raw captures with secrets left in, so it is gitignored. Never commit it.
 - If Spoor can't do something a task needs, don't patch around it here. Tell

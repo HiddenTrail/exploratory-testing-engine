@@ -312,7 +312,7 @@ that the safety layers are checked before any frame is scored, and that
 [`.github/workflows/exploratory-run.yml`](.github/workflows/exploratory-run.yml)
 starts Juice Shop on the runner, logs in from
 `test-targets/login-recipes/juice-shop.json` with no person, maps the site with the
-pinned Spoor from that session, converts the map, runs the engine with `--learn`, and
+pinned Spoor from that session (with `--sandbox`: it's a throwaway container, #310), converts the map, runs the engine with `--learn`, and
 uploads `report.html`, `output.json` and `bugs.json` as the `exploratory-run`
 artifact, with a summary on the run's page. Each run starts from the context file the
 last successful run left (`context-juice-shop` artifact). Its `lean` input makes a

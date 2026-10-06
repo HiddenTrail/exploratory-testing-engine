@@ -1,8 +1,10 @@
 """The Spoor-map converter (issue #113), with fake page captures in place of a live
-browser: replay paths, merging, dropping unstable pages, name matching, and the
-safety gate. No browser, no LLM."""
+browser: replay paths, merging, dropping unstable pages, name matching, and what it
+follows and keeps (#310). No browser, no LLM."""
 
+from engine.adapters.web_gui import careful
 from engine.adapters.web_gui.from_spoor import convert
+from engine.adapters.web_gui.reference import Reference
 from perceive import Observation  # web-recon, on the path via engine.adapters.web_gui.session
 
 URL = "http://127.0.0.1:3000"
@@ -61,13 +63,26 @@ def test_a_spoor_name_can_match_a_longer_dom_name():
     assert step["target"] == "#help"
 
 
-def test_a_destructive_step_is_refused_and_its_control_marked_committing():
-    ontology, report = convert(_exploration(), URL, _observe)
-    assert "button:Delete account" in report["refused"]
+def test_testing_fully_a_step_that_changes_data_is_followed_and_its_control_marked():
+    # #310: Spoor feeds the context; the screens behind Add to Basket or Delete reach the map.
+    followed = []
+    ontology, report = convert(_exploration(), URL, lambda path: followed.append(path) or _observe(path))
+    assert report["refused"] == [] and [s["name"] for s in followed[-1]] == ["Delete account"]
     delete = next(e for e in ontology["states"][0]["elements"] if e["name"] == "Delete account")
-    assert delete["committing"] is True
+    assert delete["committing"] is True                       # the gate's verdict, kept as information
     help_button = next(e for e in ontology["states"][0]["elements"] if e["name"] == "school Help getting started")
     assert help_button["committing"] is False
+
+
+def test_on_a_careful_part_or_to_log_out_a_step_isnt_followed():
+    tags = {"everything": False, "routes": ["/"], "controls": []}
+    _, report = convert(_exploration(), URL, _observe, tags)
+    assert report["refused"] == ["button:Delete account (tagged careful, and the read-only gate wouldn't click it)"]
+    pages = {(): Observation(url=URL + "/", title="Shop", headings=["x"], elements=[_button("Logout", "#out")])}
+    exploration = {"states": [{"id": "S0"}, {"id": "S1"}],
+                   "transitions": [{"from": "S0", "to": "S1", "action": {"role": "button", "name": "Logout"}}]}
+    _, report = convert(exploration, URL, lambda path: pages.get(tuple(s["name"] for s in path)), careful.NOTHING)
+    assert report["refused"] == ["button:Logout (it logs out)"]
 
 
 def test_an_ambiguous_name_is_refused():
@@ -77,7 +92,28 @@ def test_an_ambiguous_name_is_refused():
     exploration = {"states": [{"id": "S0"}, {"id": "S1"}],
                    "transitions": [{"from": "S0", "to": "S1", "action": {"role": "button", "name": "Juice"}}]}
     ontology, report = convert(exploration, URL, lambda path: pages.get(tuple(s["name"] for s in path)))
-    assert report["refused"] == ["button:Juice"] and ontology["transitions"] == []
+    assert report["refused"] == ["button:Juice (more than one on the live page)"]
+    assert ontology["transitions"] == []
+
+
+def test_a_name_only_the_accessibility_tree_has_is_followed_by_that_name():
+    # #310: a Juice Shop product card is "button:Apple Juice (1000ml)" to Spoor, but an
+    # unnamed button in the DOM capture. It's followed with no locator, so the replay
+    # finds it by its accessible name.
+    pages = {(): Observation(url=URL + "/", title="Shop", headings=["x"], elements=[_button("", "#card")]),
+             ("Apple Juice (1000ml)",): Observation(url=URL + "/", title="Shop", headings=["apple juice"],
+                                                    elements=[_button("Close Dialog", "#close")])}
+    exploration = {"states": [{"id": "S0"}, {"id": "S1"}],
+                   "transitions": [{"from": "S0", "to": "S1",
+                                    "action": {"role": "button", "name": "Apple Juice (1000ml)"}}]}
+    ontology, report = convert(exploration, URL, lambda path: pages.get(tuple(s["name"] for s in path)))
+    assert report["refused"] == [] and len(ontology["states"]) == 2
+    assert ontology["transitions"][0]["action"] == {"kind": "click", "element_key": "button:Apple Juice (1000ml)",
+                                                    "target": ""}
+    _, careful_report = convert(exploration, URL, lambda path: pages.get(tuple(s["name"] for s in path)),
+                                careful.EVERYTHING)
+    assert careful_report["refused"] == [
+        "button:Apple Juice (1000ml) (tagged careful, and not in the page capture for the read-only gate to judge)"]
 
 
 def test_a_page_that_doesnt_replay_is_dropped():
@@ -85,21 +121,25 @@ def test_a_page_that_doesnt_replay_is_dropped():
         return None if path else PAGES[()]
     ontology, report = convert(_exploration(), URL, observe)
     assert [s["id"] for s in ontology["states"]] == ["st01"]
-    assert set(report["dropped_unstable"]) == {"S1", "S2"}
+    assert set(report["dropped_unstable"]) == {"S1", "S2", "S3"}
 
 
-def test_a_control_spoor_couldnt_reach_is_left_out():
+def test_a_control_spoor_couldnt_reach_is_kept_and_marked():
     # Issue #121: a modal dialog hides the page behind it from Spoor, but web-recon's DOM
-    # capture still lists those controls. Offering them meant clicking the backdrop.
+    # capture still lists those controls. The sweep leaves them out (clicking them hit the
+    # backdrop); the Driver's guide shows them, marked (#310).
     pages = dict(PAGES)
     pages[()] = Observation(url=URL + "/", title="Shop", headings=["welcome"],
                             elements=[_button("Close Banner", "#close"), _button("Open Sidenav", "#nav")])
     exploration = {"states": [{"id": "S0", "actions": [{"role": "button", "name": "Close Banner"}]}],
                    "transitions": []}
     ontology, report = convert(exploration, URL, lambda path: pages.get(tuple(s["name"] for s in path)))
-    by_name = {e["name"]: e["committing"] for e in ontology["states"][0]["elements"]}
-    assert by_name == {"Close Banner": False, "Open Sidenav": True}
+    by_name = {e["name"]: e.get("spoor_reached", True) for e in ontology["states"][0]["elements"]}
+    assert by_name == {"Close Banner": True, "Open Sidenav": False}
     assert report["hidden_controls"] == 1
+    reference = Reference({**ontology, "schema": "web-recon/1"})
+    assert ("st01", "button:Open Sidenav") not in reference.pairs()
+    assert "button:Open Sidenav (behind a dialog, or not reached by the recon)" in reference.driver_briefing()
 
 
 def test_a_control_spoor_skipped_is_left_out():
@@ -109,7 +149,7 @@ def test_a_control_spoor_skipped_is_left_out():
                    "skipped": [{"from": "S0", "action": {"role": "button", "name": "Next page"},
                                 "reason": "blocked by an unresolved layer: div"}]}
     ontology, _ = convert(exploration, URL, lambda path: pages.get(tuple(s["name"] for s in path)))
-    assert ontology["states"][0]["elements"][0]["committing"] is True
+    assert ontology["states"][0]["elements"][0]["spoor_reached"] is False
 
 
 def test_map_errors_accepts_the_format_and_names_what_changed():
