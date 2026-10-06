@@ -361,6 +361,7 @@ def _render_checkpoint(checkpoint_num, checkpoint_entry, rounds, render_test_ent
       <p class="skeptic-line"><strong>Skeptic:</strong> {inline_markdown(skeptic['verdict_reason'])}{_verdict_change(skeptic)}</p>
       {observations_html}
       {gaps_html}
+      {_steering_line(checkpoint_entry, test_count)}
       {_debrief_html(checkpoint_entry.get("debrief"))}
       {_prior_gaps_line(hypothesis['prior_gaps'], skeptic['prior_gaps_check'])}
       <details class="fold">
@@ -370,6 +371,20 @@ def _render_checkpoint(checkpoint_num, checkpoint_entry, rounds, render_test_ent
       {tests_fold}
     </div>
     """
+
+
+def _steering_line(checkpoint_entry, test_count) -> str:
+    """How much of the round went back over earlier ground, and what got parked (#305).
+    Runs before #305 have neither."""
+    if "follow_ups" not in checkpoint_entry:
+        return ""
+    parts = [f"{checkpoint_entry['follow_ups']} of {test_count} test(s) followed up earlier questions, "
+             f"{checkpoint_entry.get('repeats', 0)} repeated an earlier action."]
+    parked = checkpoint_entry.get("parked") or []
+    if parked:
+        parts.append("Parked, because the tests couldn't settle them: " + ", ".join(
+            f"{p['claim']} ({p['checkpoints_in_a_row']} checkpoints in a row)" for p in parked) + ".")
+    return f'<p class="prose-muted">{esc(" ".join(parts))}</p>'
 
 
 def _render_rounds(rounds, render_test_entry) -> str:
@@ -666,7 +681,7 @@ def _render_conclusion_section(observations) -> str:
         <li>
           <span class="idtag">{esc(o['id'])}</span> {esc(o['kind'])} ({esc(o['severity'])})
           {badge(o['status'], 'good' if o['status'] == 'corroborated' else 'warn')}
-          {_replay_badge(o)}{inline_markdown(o['claim'])} {_tests_label(o['tests'])}{_lowered_label(o)}
+          {_replay_badge(o)}{badge("parked", "warn") + " " if o.get("parked") else ""}{inline_markdown(o['claim'])} {_tests_label(o['tests'])}{_lowered_label(o)}
           <div class="prose-muted">{inline_markdown(o['skeptic_note'])}</div>
         </li>
         """ for o in observations)

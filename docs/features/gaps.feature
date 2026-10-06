@@ -38,6 +38,7 @@ Feature: Gaps carry a next test and must be answered at the next checkpoint
       | skipped       | []    | ran out of time                   | rejected: status must be one of the four            |
 
   Scenario: Every open gap is answered exactly once
+    # Except the questions only about a parked claim (#305): they drop out (see new_ground_and_parking.feature).
     Given the prior Skeptic review raised gaps "C1.G1" and "C1.G2"
     When the next hypothesis's "prior_gaps" answers only "C1.G1"
     Then it is rejected with "'prior_gaps' doesn't answer C1.G2"

@@ -41,11 +41,12 @@ Feature: The engine decides whether each final observation is corroborated
     Then "C3.O1" keeps all its own fields
     And it gains "status" and "skeptic_note" "a cumulative cap predicts the same declines"
 
-  Scenario: Only the final checkpoint's observations make up the conclusion
+  Scenario: Only the final checkpoint's observations make up the conclusion, and parked claims
     Given checkpoint 1 had observation "C1.O1" and checkpoint 2 had observation "C2.O1"
     When the run ends after checkpoint 2
     Then output.json "observations" holds "C2.O1" only
     And "C1.O1" is still in checkpoint 1's record under "checkpoints"
+    But a parked claim the final checkpoint didn't continue is kept too, inconclusive and marked parked (#305, see new_ground_and_parking.feature)
 
   Scenario Outline: anomaly_found counts anomalies and bugs, not findings
     Given the final observations have the kinds <kinds>

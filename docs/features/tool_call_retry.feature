@@ -84,7 +84,7 @@ Feature: Every model call is a forced tool call, checked and retried with feedba
     And after the third the round goes on with the 2 tests that pass the validator on their own
     And the log shows "attempt 3 was not all usable: ... - keeping the usable part"
     And the checkpoint records the dropped test and its errors in "dropped_tests"
-    And the report's "Tests this checkpoint (N, 1 dropped)" fold lists it, and the run summary says "1 cast test(s) dropped as unusable"
+    And the report's "Tests this checkpoint (N, 1 dropped)" fold lists it, and the run summary says "1 cast test(s) dropped without running"
 
   Scenario Outline: A salvage only keeps a round that is mostly right
     Given the last casting attempt has <good> good tests of <total>

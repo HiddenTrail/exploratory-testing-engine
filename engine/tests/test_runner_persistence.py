@@ -38,11 +38,11 @@ def _stub_sut_io(monkeypatch):
     monkeypatch.setattr(runner, "build_client", lambda: object())
 
 
-def _fake_casting_round(client, adapter, run_config, happy_day_example, casting_log, prior_feedback, *, test_budget, is_first_round, usage_sink=None, run_diagnostics=None):
+def _fake_casting_round(client, adapter, run_config, happy_day_example, casting_log, prior_feedback, *, test_budget, is_first_round, usage_sink=None, run_diagnostics=None, **_):
     return {"give_up": False, "reasoning": "r", "candidate_tests": [{"linked_hypothesis": "", "predicted_outcome": "x"}]}
 
 
-def _fake_hypothesis(client, adapter, run_config, happy_day_example, casting_log, prior_skeptic_review=None, run_diagnostics=None, usage_sink=None, earlier_observations=None):
+def _fake_hypothesis(client, adapter, run_config, happy_day_example, casting_log, prior_skeptic_review=None, run_diagnostics=None, usage_sink=None, earlier_observations=None, **_):
     return {"summary": "b", "behaviors": [], "observations": [], "untested": [{"area": "u"}], "prior_gaps": []}
 
 
@@ -86,7 +86,7 @@ def _casting_round_billing(tokens):
     """A casting stub that also reports what the call cost, the way
     call_tool_with_retry's usage_sink does for a real one."""
     def fake(client, adapter, run_config, happy_day_example, history_segments, prior_feedback,
-             *, test_budget, is_first_round, usage_sink=None, run_diagnostics=None):
+             *, test_budget, is_first_round, usage_sink=None, run_diagnostics=None, **_):
         usage_sink.append({
             "call": "submit_casting_round", "at": "2026-08-26T09:00:00+00:00",
             "input_tokens": tokens, "output_tokens": 1,

@@ -315,7 +315,8 @@ TESTING_STORY_TOOL = {
 TESTING_STORY_SYSTEM_PROMPT = """You just formed this checkpoint's hypothesis about the system (it's in
 your evidence). An area is a part of the product a user would recognize (a page, a feature, a flow), not a
 control you clicked or an overlay that got in the way: if 'product_areas' is in your evidence, name each area
-after one of them. Unrelated parts are separate areas, even if you tested them the same way. Now tell the testing story behind it, the way a tester reports to a test lead: three strands,
+after one of them. Unrelated parts are separate areas, even if you tested them the same way. If 'parked' is
+in your evidence, list each parked claim as an obstacle: a question the tests couldn't settle. Now tell the testing story behind it, the way a tester reports to a test lead: three strands,
 braided together. What you've seen of each area so far. How you tested it, how you'd recognize a problem,
 how deep that went and what it was of, and what you didn't test. And how good your testing could be: what
 got in the way. These are assessments, not counts, and each rests on the tests you cite: the Skeptic will

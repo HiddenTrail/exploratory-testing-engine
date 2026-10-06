@@ -71,7 +71,7 @@ def test_a_salvage_that_returns_a_broken_answer_is_not_used():
 def test_the_summary_counts_dropped_tests():
     output = {"usage_summary": {"submit_casting_round": {"calls": 3}},
               "checkpoints": [{"dropped_tests": [{"test": {}, "errors": ["e"]}]}, {"dropped_tests": []}]}
-    assert "1 cast test(s) dropped as unusable" in summarize(output, log_text="")
+    assert "1 cast test(s) dropped without running" in summarize(output, log_text="")
 
 
 def test_the_report_shows_dropped_tests():

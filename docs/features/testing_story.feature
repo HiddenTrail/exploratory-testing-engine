@@ -43,6 +43,7 @@ Feature: The Driver tells its testing story, and the Skeptic debriefs it
     Then it has "areas", up to 5, each with "area", "approach", "coverage", "coverage_of", "oracle", "not_tested", "tests", "quality", "confidence" and "why"
     And each area cites the tests behind it
     And it has "obstacles", up to 3, each with "obstacle", "would_help" and "help_from" (engine, map, test_data or product), empty if nothing got in the way
+    And when "parked" is in its evidence, the Driver is told to list each parked claim as an obstacle (#305)
     And "coverage_of" lists one or more of inputs, states, sequences, timing, data, users (#285: free text came back as prose about method)
 
   Scenario: Areas are parts of the product, not controls

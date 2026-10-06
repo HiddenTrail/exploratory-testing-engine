@@ -20,12 +20,13 @@ Feature: A run writes a JSON result, a bug list when there are bugs, and an HTML
     When a run finishes without an error
     Then output.json has "api_schema", "onboarding_extra" and "happy_day_example"
     And it has "casting_log", "checkpoints" and "stopped_reason"
-    And it has "observations", the final checkpoint's observations, each with the status the engine gave it
+    And it has "observations", the final checkpoint's observations, each with the status the engine gave it, plus any parked claim the final checkpoint didn't continue
     And it has "anomaly_found", "usage_log" and "usage_summary"
     And it has "replays" and "replay_log", the bug replays (see bug_replay.feature)
     And it has "interplay", how well the Driver answered the Skeptic (see driver_skeptic_interplay.feature)
     And each checkpoint has "debrief", the recorded exchange after the Skeptic's review (see checkpoint_debrief.feature)
-    And each checkpoint has "dropped_tests", the cast tests the last attempt still got wrong and their errors, usually empty (see tool_call_retry.feature)
+    And each checkpoint has "dropped_tests", the cast tests the last attempt still got wrong (see tool_call_retry.feature) or that went over the follow-up limit or followed up a parked claim, each with why, usually empty
+    And each checkpoint has "follow_ups", "repeats" and "parked" (see new_ground_and_parking.feature)
     And it has "score" when the adapter scores the run against the target's known problems (see run_score.feature)
     And it has "lean", with the parts switched back on, when it was a lean run (see lean_runs.feature)
     And a casting_log entry has "video", a path inside the run's folder, when its test is cited and the adapter kept a video of it (see test_videos.feature)

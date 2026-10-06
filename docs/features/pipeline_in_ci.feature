@@ -109,7 +109,7 @@ Feature: The whole pipeline runs in GitHub Actions and reports as an artifact
   Scenario: The report is an artifact and a summary, never the credentials
     When the job ends, whether the run succeeded or not
     Then runs/ci is uploaded as the artifact "exploratory-run" (report.html, output.json, bugs.json, run.log, map.json)
-    And "python -m engine.run_summary" writes the summary on the run's page: counts, where it stands (the Driver's last testing story), a table of observations worst first with their replay verdicts, how the Driver and the Skeptic got on, model calls, retries, cast tests dropped as unusable (#288) and an estimated cost, then the score against the known problems (see run_score.feature)
+    And "python -m engine.run_summary" writes the summary on the run's page: counts, where it stands (the Driver's last testing story), a table of observations worst first with their replay verdicts, how the Driver and the Skeptic got on, model calls, retries, cast tests dropped without running (#288, #305) and an estimated cost, then the score against the known problems (see run_score.feature)
     And .sessions and .spoor-cache are never uploaded
     And the context file is uploaded as "context-juice-shop" only when the job succeeded
 

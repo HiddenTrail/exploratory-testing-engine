@@ -17,7 +17,7 @@ from engine.tools import final_observations
 from engine.report import render_report
 from engine.verify import replay_bugs
 from engine.budget import BudgetExceeded, start_run
-from engine import interplay
+from engine import interplay, steering
 
 
 def _one_line(half: dict) -> str:
@@ -134,6 +134,8 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
         final_hypothesis = checkpoints[-1]["hypothesis"]
         final_skeptic_review = checkpoints[-1]["skeptic_review"]
         observations = final_observations(final_hypothesis, final_skeptic_review)
+        # A parked claim stays in the conclusion even if the Driver stopped repeating it (#305).
+        observations = steering.keep_parked(observations, checkpoints, steering.parked_claims(checkpoints))
         # Every bug's tests run again before anything is written up (#177). One that
         # doesn't reproduce is lowered to an anomaly here, so it never gets a bug report.
         output["replays"], output["replay_log"] = replay_bugs(adapter, observations, casting_log, test_counter)

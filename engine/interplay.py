@@ -23,7 +23,7 @@ from engine.tools import PRIOR_GAP_STATUSES
 SATISFIED = "strong_enough"
 
 
-def _lineages(checkpoints: list[dict]) -> dict[str, str]:
+def lineages(checkpoints: list[dict]) -> dict[str, str]:
     """Each observation id mapped to the first id of its claim, by following 'continues'."""
     root: dict[str, str] = {}
     for cp in checkpoints:
@@ -33,7 +33,7 @@ def _lineages(checkpoints: list[dict]) -> dict[str, str]:
     return root
 
 
-def _objected(cp: dict, root: dict[str, str]) -> set[str]:
+def objected(cp: dict, root: dict[str, str]) -> set[str]:
     """The claims (by lineage) the Skeptic objected to in this checkpoint."""
     review = cp.get("skeptic_review") or {}
     ids = {oid for g in review.get("gaps", []) if g.get("blocks_verdict") for oid in g.get("about", [])}
@@ -61,7 +61,7 @@ def measure(checkpoints: list[dict]) -> dict:
     checkpoint missing its hypothesis or review (a run cut short) counts as empty."""
     if not checkpoints:
         return {}
-    root = _lineages(checkpoints)
+    root = lineages(checkpoints)
     rows, streak, longest = [], {}, {}
     previous_blocking: set[str] = set()
     previous_objected: set[str] = set()
@@ -71,8 +71,8 @@ def measure(checkpoints: list[dict]) -> dict:
         answers = hypothesis.get("prior_gaps", [])
         statuses = {s: sum(1 for a in answers if a.get("status") == s) for s in PRIOR_GAP_STATUSES}
         checks = review.get("prior_gaps_check", [])
-        objected = _objected(cp, root)
-        for claim in objected:
+        objected_now = objected(cp, root)
+        for claim in objected_now:
             streak[claim] = streak.get(claim, 0) + 1 if claim in previous_objected else 1
             longest[claim] = max(longest.get(claim, 0), streak[claim])
         rows.append({
@@ -85,12 +85,12 @@ def measure(checkpoints: list[dict]) -> dict:
                                           and a.get("gap_id") in previous_blocking),
             "answers_accepted": sum(1 for c in checks if c.get("accepted")),
             "answers_judged": len(checks),
-            "objections": len(objected),
-            "objections_again": len(objected & previous_objected),
+            "objections": len(objected_now),
+            "objections_again": len(objected_now & previous_objected),
             "debrief": _debrief_counts(cp.get("debrief") or []),
         })
         previous_blocking = {g.get("id") for g in gaps if g.get("blocks_verdict")}
-        previous_objected = objected
+        previous_objected = objected_now
 
     satisfied_at = next((r["checkpoint"] for r in rows if r["verdict"] == SATISFIED), None)
     debrief = {key: sum(r["debrief"][key] for r in rows) for key in rows[0]["debrief"]}
