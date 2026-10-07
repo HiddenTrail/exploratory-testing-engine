@@ -6,4 +6,4 @@
 # this commit and checks its saved map against what from_spoor reads, and a weekly
 # run checks Spoor's latest code the same way, without blocking anyone.
 # Once Spoor tags releases (HiddenTrail/ht-spoor#171), pin a release instead.
-ht-spoor @ git+https://github.com/HiddenTrail/ht-spoor@b012c98b26f93866f0620638be2e447913edecfd
+ht-spoor @ git+https://github.com/HiddenTrail/ht-spoor@d77d53a3ef0a96ab056f4211e631bf8ff408ce18
