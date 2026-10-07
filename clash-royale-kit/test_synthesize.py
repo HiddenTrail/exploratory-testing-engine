@@ -185,7 +185,7 @@ def test_exactly_three_calls_are_made_and_no_more(facts, tmp_path, monkeypatch):
 def test_no_credentials_costs_three_pages_not_the_run(facts, tmp_path, monkeypatch):
     """By this point the deterministic wiki is complete, and it is not worth failing over."""
     def refuse():
-        raise SystemExit("ENGINE_USE_BEDROCK is set but no region is configured")
+        raise SystemExit("TRAILHOUND_USE_BEDROCK is set but no region is configured")
 
     monkeypatch.setattr(engine_client, "build_client", refuse)
     result = synthesize.run(facts, tmp_path, "recon-1", generated_by="process:cr-kit@test",

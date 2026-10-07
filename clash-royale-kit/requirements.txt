@@ -19,7 +19,7 @@
 # Pillow>=10.0
 
 # The model client. The [bedrock] extra pulls boto3/botocore and is what makes
-# ENGINE_USE_BEDROCK=1 work; the 1.0 floor is required by
+# TRAILHOUND_USE_BEDROCK=1 work; the 1.0 floor is required by
 # AnthropicBedrockMantle, which does not exist on 0.x.
 anthropic[bedrock]>=1.0
 

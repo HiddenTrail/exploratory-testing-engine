@@ -56,19 +56,21 @@ def test_the_run_stops_once_the_estimated_cost_reaches_the_limit():
 
 
 def test_limits_come_from_the_environment_and_cant_be_switched_off(monkeypatch):
-    monkeypatch.setenv("ENGINE_MAX_COST_USD", "1.5")
-    monkeypatch.setenv("ENGINE_MAX_MODEL_CALLS", "40")
+    for name in ("ENGINE_MAX_COST_USD", "ENGINE_MAX_MODEL_CALLS"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("TRAILHOUND_MAX_COST_USD", "1.5")
+    monkeypatch.setenv("TRAILHOUND_MAX_MODEL_CALLS", "40")
     guard = budget.start_run()
     assert (guard.max_cost_usd, guard.max_calls, guard.calls) == (1.5, 40, 0)
     for bad in ("0", "-1"):
-        monkeypatch.setenv("ENGINE_MAX_COST_USD", bad)
+        monkeypatch.setenv("TRAILHOUND_MAX_COST_USD", bad)
         with pytest.raises(SystemExit, match="can be raised, not switched off"):
             budget.start_run()
-    monkeypatch.setenv("ENGINE_MAX_COST_USD", "lots")
+    monkeypatch.setenv("TRAILHOUND_MAX_COST_USD", "lots")
     with pytest.raises(SystemExit, match="isn't a number"):
         budget.start_run()
-    monkeypatch.delenv("ENGINE_MAX_COST_USD")
-    monkeypatch.delenv("ENGINE_MAX_MODEL_CALLS")
+    monkeypatch.delenv("TRAILHOUND_MAX_COST_USD")
+    monkeypatch.delenv("TRAILHOUND_MAX_MODEL_CALLS")
     assert (budget.start_run().max_cost_usd, budget.guard().max_calls) == (3.0, 80)
 
 
@@ -79,7 +81,7 @@ def test_a_run_stopped_by_the_limit_keeps_what_it_has_and_says_why(monkeypatch, 
     from engine.adapter import SUTAdapter
     from engine.config import RunConfig
 
-    monkeypatch.setenv("ENGINE_MAX_MODEL_CALLS", "1")
+    monkeypatch.setenv("TRAILHOUND_MAX_MODEL_CALLS", "1")
     monkeypatch.setattr(httpx, "get", lambda url, timeout=None: httpx.Response(200))
     monkeypatch.setattr(runner, "get_happy_day_example", lambda a: {"request": {"body": {}}, "response": {"body": {}}})
     monkeypatch.setattr(runner, "build_client", lambda: _Client(_usage(10, 10)))

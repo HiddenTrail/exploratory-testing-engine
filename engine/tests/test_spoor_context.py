@@ -77,7 +77,7 @@ def test_names_lose_emails_and_get_short():
 
 @pytest.fixture
 def context_dir(tmp_path, monkeypatch):
-    monkeypatch.setenv("ENGINE_CONTEXT_DIR", str(tmp_path))
+    monkeypatch.setenv("TRAILHOUND_CONTEXT_DIR", str(tmp_path))
     return tmp_path
 
 

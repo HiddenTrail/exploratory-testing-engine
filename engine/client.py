@@ -11,7 +11,7 @@ import anthropic
 from anthropic import Anthropic, AnthropicBedrockMantle
 from dotenv import load_dotenv
 
-from engine import budget
+from engine import budget, settings
 
 DEFAULT_MODEL = "claude-sonnet-4-6"
 # Bedrock's Messages-API endpoint does NOT carry claude-sonnet-4-6, so a
@@ -61,7 +61,7 @@ def use_bedrock() -> bool:
     happen to talk to the same models.
     """
     load_dotenv()
-    return os.environ.get("ENGINE_USE_BEDROCK", "").strip().lower() in ("1", "true", "yes")
+    return settings.get("USE_BEDROCK").lower() in ("1", "true", "yes")
 
 
 def default_model() -> str:
@@ -83,7 +83,7 @@ def build_client() -> Anthropic | AnthropicBedrockMantle:
         region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
         if not region:
             raise SystemExit(
-                "ENGINE_USE_BEDROCK is set but no region is configured - "
+                "TRAILHOUND_USE_BEDROCK is set but no region is configured - "
                 "set AWS_REGION (e.g. eu-west-1) in .env or your shell (see .env.example)"
             )
         profile = os.environ.get("AWS_PROFILE")
@@ -92,7 +92,7 @@ def build_client() -> Anthropic | AnthropicBedrockMantle:
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise SystemExit(
-            "Set ANTHROPIC_API_KEY in .env, or set ENGINE_USE_BEDROCK=1 to "
+            "Set ANTHROPIC_API_KEY in .env, or set TRAILHOUND_USE_BEDROCK=1 to "
             "authenticate through Bedrock instead (see .env.example)"
         )
     return Anthropic(api_key=api_key)

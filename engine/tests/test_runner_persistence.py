@@ -260,7 +260,7 @@ def test_the_run_command_gives_the_driver_the_skeptics_history(monkeypatch, tmp_
     seen = []
     (tmp_path / "context_shop.json").write_text(json.dumps({"skeptic_objections": {
         "method_in_doubt": {"times": 3, "blocking": 2, "runs": ["r1"], "example": "e"}}}), encoding="utf-8")
-    monkeypatch.setenv("ENGINE_CONTEXT_DIR", str(tmp_path))
+    monkeypatch.setenv("TRAILHOUND_CONTEXT_DIR", str(tmp_path))
     monkeypatch.setattr(cli, "run", lambda adapter, config: seen.append(config.skeptic_history) or {"stopped_reason": "x"})
     monkeypatch.setattr("engine.ontology.feedback.learn", lambda *a: [])
     monkeypatch.setattr(sys, "argv", ["cli", "--adapter", "token_purchase", "--out-dir", str(tmp_path), "--learn", "shop"])

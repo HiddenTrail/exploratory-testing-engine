@@ -60,5 +60,5 @@ Feature: The Driver is told what the Skeptic objected to most in earlier runs
 
   Scenario: A benchmark can learn into a scratch folder
     # So a benchmark doesn't change a committed context file such as context_token_purchase.json.
-    Given ENGINE_CONTEXT_DIR is set to a folder
+    Given TRAILHOUND_CONTEXT_DIR is set to a folder
     Then context files are read from and written to that folder instead of engine/ontology

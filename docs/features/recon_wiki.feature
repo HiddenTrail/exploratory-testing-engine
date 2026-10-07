@@ -63,7 +63,7 @@ Feature: The crawler writes an HTML wiki of the map
 
   Scenario: --llm adds a model synthesis with cited, calibrated claims
     # One tool-forced "submit_review" call over a digest of states, transitions,
-    # findings and observations, using the engine's client (ENGINE_USE_BEDROCK and so on,
+    # findings and observations, using the engine's client (TRAILHOUND_USE_BEDROCK and so on,
     # read from the repo's .env).
     When I run "python wiki.py out/ontology.json --llm"
     Then the "Model synthesis" section shows a summary and a table of claims

@@ -110,7 +110,7 @@ def test_learn_counts_a_screen_reached_again_at_the_start_and_says_what_was_new(
     # Issue #159: a run checks earlier discoveries at its start; one that replays counts as
     # one more reach, so a screen seen once becomes reproduced without a test hitting it.
     import json
-    monkeypatch.setenv("ENGINE_CONTEXT_DIR", str(tmp_path))
+    monkeypatch.setenv("TRAILHOUND_CONTEXT_DIR", str(tmp_path))
     monkeypatch.setattr(feedback, "known_ids", lambda sut, product=None: set())
     old = {"id": "d1", "signature": "/old|", "url": "u", "title": "Old", "from_state": "st01", "via": "button:A",
            "path": [], "elements": [], "controls_offered": 0}
@@ -135,7 +135,7 @@ def test_learn_counts_a_screen_reached_again_at_the_start_and_says_what_was_new(
 def test_learn_counts_the_skeptics_objections_by_kind_and_tells_the_next_driver(tmp_path, monkeypatch):
     # Issue #258: the Driver learns what the Skeptic keeps objecting to, between runs.
     import json
-    monkeypatch.setenv("ENGINE_CONTEXT_DIR", str(tmp_path))
+    monkeypatch.setenv("TRAILHOUND_CONTEXT_DIR", str(tmp_path))
     monkeypatch.setattr(feedback, "known_ids", lambda sut, product=None: set())
     def review(*gaps):
         return {"skeptic_review": {"gaps": [{"gap": text, "blocks_verdict": b, "kind": k} for k, b, text in gaps]}}

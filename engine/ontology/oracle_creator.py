@@ -21,10 +21,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from engine import settings
 
 ONTOLOGY_DIR = Path(__file__).parent
 ADAPTERS_DIR = ONTOLOGY_DIR.parent / "adapters"
@@ -116,9 +117,9 @@ def load_domain_claims(sut: str) -> list[dict[str, Any]]:
 
 def context_path(key: str) -> Path:
     """Where a SUT's or product's context file lives: next to this module, or in
-    ENGINE_CONTEXT_DIR when that's set, so a benchmark can learn into a scratch folder
+    TRAILHOUND_CONTEXT_DIR when that's set, so a benchmark can learn into a scratch folder
     instead of changing a committed context file."""
-    folder = os.environ.get("ENGINE_CONTEXT_DIR", "").strip()
+    folder = settings.get("CONTEXT_DIR")
     return (Path(folder) if folder else ONTOLOGY_DIR) / f"context_{key}.json"
 
 

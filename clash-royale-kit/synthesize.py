@@ -62,7 +62,7 @@ MAX_PARAGRAPH = 900
 MAX_SUMMARY = 300
 
 # `SystemExit` is in here, and it is not paranoia. `engine.client.build_client` raises
-# `SystemExit` - not a subclass of `Exception` - when `ENGINE_USE_BEDROCK` is set with no region
+# `SystemExit` - not a subclass of `Exception` - when `TRAILHOUND_USE_BEDROCK` is set with no region
 # configured, which is the single likeliest thing to go wrong on a machine this kit is new to.
 # An `except Exception` around it lets exactly that case take the whole build down after the
 # deterministic wiki was already written, which is the opposite of what soft failure means.
@@ -383,7 +383,7 @@ def run(facts: wikibuild.Facts, workspace: Path, run_rel: str, *, generated_by: 
         except SOFT_FAILURES as error:                                    # noqa: BLE001
             return SynthesisResult(pages=[], skipped=[
                 f"all three analysis pages: no model client could be built ({error}). The "
-                f"deterministic wiki is complete without them - set ENGINE_USE_BEDROCK=1 and "
+                f"deterministic wiki is complete without them - set TRAILHOUND_USE_BEDROCK=1 and "
                 f"AWS_REGION, or ANTHROPIC_API_KEY, and re-run with --synthesize to add them."])
 
     from engine.client import call_tool_with_retry

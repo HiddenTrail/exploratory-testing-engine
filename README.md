@@ -169,7 +169,8 @@ engine/
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output
   verify.py     # replays each bug's tests before it's reported, and lowers one that doesn't reproduce
   run_summary.py # a run's outcome as Markdown, for a CI job's summary page
-  budget.py     # the hard spending limit: stops a run at ENGINE_MAX_MODEL_CALLS calls or about ENGINE_MAX_COST_USD
+  budget.py     # the hard spending limit (TRAILHOUND_MAX_COST_USD, TRAILHOUND_MAX_MODEL_CALLS)
+  settings.py   # reads the TRAILHOUND_ settings, and the old ENGINE_ names with a warning (#335)
   cli.py        # python -m engine.cli --adapter <name>
   lean.py       # lean runs for experiments: the fields and calls a lean run skips (#295)
   ask.py        # python -m engine.ask <run>: asks a saved run for a part it didn't write
@@ -256,9 +257,14 @@ python -m engine.cli --adapter token_purchase
 ```
 
 To authenticate through Amazon Bedrock instead of an API key, set
-`ENGINE_USE_BEDROCK=1` and `AWS_REGION` (plus `AWS_PROFILE` if needed) - see
+`TRAILHOUND_USE_BEDROCK=1` and `AWS_REGION` (plus `AWS_PROFILE` if needed) - see
 [`engine/README.md`](engine/README.md) for the model-ID caveats, which are not
 the same IDs `aws bedrock list-inference-profiles` reports.
+
+The settings were called `ENGINE_...` before the rename to Trailhound (#335):
+`ENGINE_USE_BEDROCK`, `ENGINE_MAX_COST_USD`, `ENGINE_MAX_MODEL_CALLS` and
+`ENGINE_CONTEXT_DIR`. The old names still work for now, and a run says to rename
+them.
 
 Writes `runs/<adapter>/output.json`, `runs/<adapter>/bugs.json` (if any
 bugs were found), and `runs/<adapter>/report.html`. Override run
@@ -326,9 +332,9 @@ are at most 5 runs a day, every step has a time limit, the AWS credentials last 
 hour, and the engine stops itself at $1.50 or 40 model calls.
 
 Every run, anywhere, has a spending limit (`engine/budget.py`): it stops before the
-next model call once it has made `ENGINE_MAX_MODEL_CALLS` calls (default 80) or spent
-about `ENGINE_MAX_COST_USD` (default $3.00). A run it stops keeps its output, and the
-run command exits with code 2.
+next model call once it has made `TRAILHOUND_MAX_MODEL_CALLS` calls (default 80) or
+spent about `TRAILHOUND_MAX_COST_USD` (default $3.00). A run it stops keeps its
+output, and the run command exits with code 2.
 
 #### Setting up AWS for the pipeline
 

@@ -179,7 +179,7 @@ jobs:
       - name: Check Bedrock answers
         timeout-minutes: 2
         env:
-          ENGINE_USE_BEDROCK: "1"
+          TRAILHOUND_USE_BEDROCK: "1"
         run: |
           python - <<'PY'
           import os
@@ -242,15 +242,15 @@ jobs:
       - name: Run the engine and learn from it
         timeout-minutes: 30
         env:
-          ENGINE_USE_BEDROCK: "1"
+          TRAILHOUND_USE_BEDROCK: "1"
           WEB_GUI_ONTOLOGY: runs/ci/map.json
           WEB_GUI_URL: http://127.0.0.1:3000
           WEB_GUI_SESSION: .sessions/juice-shop/logged-in.json
           WEB_GUI_SESSION_CHECK: /profile
           WEB_GUI_PRODUCT: juice-shop
           WEB_GUI_FEATURES: ${{ env.FOCUS }}
-          ENGINE_MAX_COST_USD: "1.50"
-          ENGINE_MAX_MODEL_CALLS: "40"
+          TRAILHOUND_MAX_COST_USD: "1.50"
+          TRAILHOUND_MAX_MODEL_CALLS: "40"
         run: |
           set -o pipefail
           lean_args=()

@@ -59,6 +59,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | File | Feature |
 |---|---|
 | [`run_command.feature`](run_command.feature) | One command runs a session against an adapter |
+| [`setting_names.feature`](setting_names.feature) | Settings are named TRAILHOUND_, and the old ENGINE_ names still work |
 | [`lean_runs.feature`](lean_runs.feature) | A lean run asks the model only for what decides a finding |
 | [`readiness.feature`](readiness.feature) | The engine checks the SUT is up and fetches one real example before spending anything |
 | [`run_persistence.feature`](run_persistence.feature) | Progress is saved after every checkpoint |

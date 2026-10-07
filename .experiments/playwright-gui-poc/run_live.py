@@ -29,7 +29,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 # Authenticate the same way as the rest of the repo: the engine picks the direct
-# Anthropic API or Bedrock from ENGINE_USE_BEDROCK, and returns the right model id for
+# Anthropic API or Bedrock from TRAILHOUND_USE_BEDROCK, and returns the right model id for
 # whichever it built (Bedrock's Messages endpoint does not carry the direct-API model).
 # Reused rather than duplicated so this PoC cannot drift from how the engine authenticates.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -264,7 +264,7 @@ you've actually observed a real result in the browser."""
 
 
 async def main():
-    # Load the repo-root .env, which carries the Bedrock config (ENGINE_USE_BEDROCK,
+    # Load the repo-root .env, which carries the Bedrock config (TRAILHOUND_USE_BEDROCK,
     # AWS_REGION, AWS_PROFILE). The PoC's own .env only ever held a direct API key, so
     # loading it alone would send this down the direct-API path build_client falls back to.
     load_dotenv(_REPO_ROOT / ".env")

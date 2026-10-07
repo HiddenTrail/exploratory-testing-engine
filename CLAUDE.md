@@ -222,9 +222,9 @@ checkpoints and 6/4 tests, so don't compare against them.
   before starting the rest. A run should cost well under $1.
 - Only compare runs made with the same settings and the same model.
 - A change that learns between runs (like #258) is benchmarked as a pair per SUT:
-  run A learns, run B starts from what A learned. Point `ENGINE_CONTEXT_DIR` at a
-  scratch folder (with a copy of any committed context file) and use `--learn`, so
-  the benchmark doesn't change `engine/ontology/context_*.json`.
+  run A learns, run B starts from what A learned. Point `TRAILHOUND_CONTEXT_DIR`
+  at a scratch folder (with a copy of any committed context file) and use `--learn`,
+  so the benchmark doesn't change `engine/ontology/context_*.json`.
 - Say what you measured and what it cost, in the PR or the issue.
 - **Every time you run something, say where its files are**, so the user can
   check them by hand: the run folder and the files in it (`output.json`,
@@ -235,9 +235,9 @@ checkpoints and 6/4 tests, so don't compare against them.
   run too, about $0.60 each. Start it, or label a PR `run-exploration`, only when
   that's the point of the change. Never weaken its safety layers (triggers, input
   ranges, the daily cap, time limits, the spending limit) to make a run go through.
-- Every run stops at `ENGINE_MAX_COST_USD` (default $3) or `ENGINE_MAX_MODEL_CALLS`
-  (default 80). Raise them in the environment for a reason you can name; they can't
-  be switched off.
+- Every run stops at `TRAILHOUND_MAX_COST_USD` (default $3) or
+  `TRAILHOUND_MAX_MODEL_CALLS` (default 80). Raise them in the environment for a
+  reason you can name; they can't be switched off.
 
 ## Scraping and mapping websites: use Spoor
 
@@ -294,7 +294,7 @@ them by name.
   `.claude/settings.json`, tests or commit messages.
 - Create the LLM client with `engine.client.build_client()` and
   `default_model()`. They handle both the direct API and Bedrock
-  (`ENGINE_USE_BEDROCK=1`). Don't call `Anthropic(...)` directly anywhere else.
+  (`TRAILHOUND_USE_BEDROCK=1`). Don't call `Anthropic(...)` directly anywhere else.
   Bedrock model IDs aren't the ones `list-inference-profiles` shows; see
   [engine/README.md](engine/README.md).
 

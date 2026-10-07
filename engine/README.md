@@ -103,7 +103,8 @@ engine/
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output
   verify.py     # replays each bug's tests before it's reported, and lowers one that doesn't reproduce
   run_summary.py # a run's outcome as Markdown, for a CI job's summary page
-  budget.py     # the hard spending limit: stops a run at ENGINE_MAX_MODEL_CALLS calls or about ENGINE_MAX_COST_USD
+  budget.py     # the hard spending limit (TRAILHOUND_MAX_COST_USD, TRAILHOUND_MAX_MODEL_CALLS)
+  settings.py   # reads the TRAILHOUND_ settings, and the old ENGINE_ names with a warning (#335)
   cli.py        # python -m engine.cli --adapter <name>
   lean.py       # lean runs for experiments: the fields and calls a lean run skips (#295)
   ask.py        # python -m engine.ask <run>: asks a saved run for a part it didn't write
@@ -148,7 +149,7 @@ parameters with `--model`, `--max-checkpoints`, `--first-round-budget`,
 `--default-budget`, `--out-dir`. `--learn [product]` feeds the run's results,
 discovered screens and the Skeptic's objections (by kind) into the context layer
 when it ends, so the next run starts from them (#159, #258). Each run's Driver is
-told the kinds of objection the Skeptic raised most before. `ENGINE_CONTEXT_DIR`
+told the kinds of objection the Skeptic raised most before. `TRAILHOUND_CONTEXT_DIR`
 moves the context files to another folder, for benchmarks.
 
 `--lean` makes a lean run, for experiments (#295): the model writes only what
@@ -165,10 +166,11 @@ python -m engine.ask runs/<run> --adapter web_gui --question "Why was C3.O1 doub
 
 ### Authenticating through Bedrock instead of an API key
 
-Set `ENGINE_USE_BEDROCK=1` plus `AWS_REGION` (and `AWS_PROFILE`, if it isn't
+Set `TRAILHOUND_USE_BEDROCK=1` plus `AWS_REGION` (and `AWS_PROFILE`, if it isn't
 your default) instead of `ANTHROPIC_API_KEY`. Credentials then come from the
 normal AWS chain - SSO cache, profile, env vars, instance role - so there is no
-long-lived key in the repo or the environment.
+long-lived key in the repo or the environment. `ENGINE_USE_BEDROCK`, the name
+before the rename to Trailhound (#335), still works for now, with a warning.
 
 The default model changes with the provider, because Bedrock names models
 differently: `claude-sonnet-4-6` on the direct API and

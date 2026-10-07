@@ -66,7 +66,7 @@ Feature: The whole pipeline runs in GitHub Actions and reports as an artifact
     And Spoor is killed two minutes after its own --max-seconds if it hangs
 
   Scenario: The engine runs with a lower spending limit than the default
-    Then the engine step sets ENGINE_MAX_COST_USD "1.50" and ENGINE_MAX_MODEL_CALLS "40"
+    Then the engine step sets TRAILHOUND_MAX_COST_USD "1.50" and TRAILHOUND_MAX_MODEL_CALLS "40"
     And they're fixed in the workflow, not inputs
     And a run the limit stops fails the job, and its context isn't kept for the next run
 
@@ -80,7 +80,7 @@ Feature: The whole pipeline runs in GitHub Actions and reports as an artifact
     Given AWS_ROLE_ARN names a role whose trust policy allows only this repository
     When the job starts
     Then it takes the role for one hour, in AWS_REGION (eu-west-1 if unset)
-    And the engine runs with ENGINE_USE_BEDROCK "1" and the model "anthropic.claude-sonnet-5" unless one is given
+    And the engine runs with TRAILHOUND_USE_BEDROCK "1" and the model "anthropic.claude-sonnet-5" unless one is given
 
   Scenario: Bedrock is checked with one token before the long steps
     When the credentials are in place and the engine is installed

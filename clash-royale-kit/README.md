@@ -40,7 +40,7 @@ copy engine\.env.example .env
 Then edit `.env`. For Bedrock through SSO, which is what this was set up for:
 
 ```
-ENGINE_USE_BEDROCK=1
+TRAILHOUND_USE_BEDROCK=1
 AWS_REGION=eu-west-1
 AWS_PROFILE=your-profile
 ```
@@ -214,7 +214,7 @@ finding an artefact.
 **"the model could not be reached"** - usually an expired SSO token. `aws sso login` and run
 again. Refused rather than warned about, because that call is one of the two safety layers. If
 the error names `claude-sonnet-4-6` (the direct-API model) instead of the Bedrock one even with
-`ENGINE_USE_BEDROCK=1` set, see the shadowed-`.env` note under Install first - the venv is
+`TRAILHOUND_USE_BEDROCK=1` set, see the shadowed-`.env` note under Install first - the venv is
 probably reading a different `.env` than you think it is. If the error is
 `ModuleNotFoundError: No module named 'botocore'`, the venv predates `anthropic[bedrock]` being
 added to `requirements.txt`: re-run `.venv\Scripts\pip install -r clash-royale-kit\requirements.txt
