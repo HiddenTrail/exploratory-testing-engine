@@ -2,8 +2,8 @@
 
 > **Archive.** A finished experiment, kept for history. It isn't maintained.
 
-Tests the one genuinely uncertain piece of `docs/exploratory-testing-engine-concept.md`
-in isolation: given an anomaly (pre-flagged, not detected by the model), can Claude
+Tests the one genuinely uncertain piece of `docs/concept.md` in isolation:
+given an anomaly (pre-flagged, not detected by the model), can Claude
 produce a correct hypothesis and a confirm/disconfirm test pair that actually
 discriminates between explanations - rather than a test that looks rigorous but would
 pass either way?

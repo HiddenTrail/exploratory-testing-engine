@@ -1,6 +1,6 @@
 """
 Minimal test of the hypothesis-generation / disconfirmation-design step described in
-docs/exploratory-testing-engine-concept.md, section 3.6-3.7.
+docs/concept.md, section 3.6-3.7.
 
 For each hand-built case in cases.json, sends the request/response evidence (but NOT
 ground_truth) to Claude and asks it to produce a primary hypothesis, a competing

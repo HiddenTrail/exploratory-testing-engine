@@ -75,7 +75,7 @@ Full rules (frontmatter shape, timestamp format, trust/verification signals, lin
 convention) are in [templates/workspace/AGENTS.md](templates/workspace/AGENTS.md) — read
 that before writing your first page by hand.
 
-## How to adapt this to qes-exploration
+## How to adapt this to Trailhound
 
 QPF's version is wired for a **quality-consulting engagement** (raw sources =
 workshops/interviews/assessments; wiki feeds a Guidelines+Playbook generator). None of
@@ -83,7 +83,7 @@ that domain-specific framing is required — the wiki mechanics (raw → summary
 concept pages → derived index) are generic. To stand up a wiki for **this** repo:
 
 1. **Pick where raw sources live.** QPF uses `raw/{workshops,interviews,assessments,product,assets}`.
-   For `qes-exploration` that's probably something like `raw/{experiments,runs,notes}` —
+   For Trailhound that's probably something like `raw/{experiments,runs,notes}`:
    whatever matches what's actually in `.experiments/` and `runs/` today. Images and JSON
    files work fine as raw sources; an LLM with vision can summarize a screenshot the same
    way it summarizes a transcript, and JSON is just structured text to read faithfully.
@@ -93,7 +93,7 @@ concept pages → derived index) are generic. To stand up a wiki for **this** re
    containing:
    ```
    qpf:
-     customer: "qes-exploration"
+     customer: "Trailhound"
      language: en
    ```
    That's what `.experiments/wiki-generator-poc/generate.py` does. The wiki/log/
@@ -122,5 +122,5 @@ concept pages → derived index) are generic. To stand up a wiki for **this** re
 `/qpf-playbook` / `/qpf-lint` commands were left out — they're the Guidelines-and-Playbook
 generation layer built *on top of* the wiki, specific to Hidden Trail's consulting
 product. Nothing here needs them; they're only worth pulling in later if
-`qes-exploration` ends up wanting that same "tailored conventions doc per audience"
+Trailhound ends up wanting that same "tailored conventions doc per audience"
 output, not just a synthesized knowledge base.

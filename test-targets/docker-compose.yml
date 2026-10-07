@@ -15,7 +15,7 @@
 #                linked pages and state (cart, checkout). The opposite of the two
 #                single-page apps. Port 8080.
 #
-# Every target has the label qes.sandbox=true. It means the app is a throwaway
+# Every target has the label trailhound.sandbox=true. It means the app is a throwaway
 # test target, so exploration that changes data (adding to a cart, submitting
 # forms) is allowed against it. Nothing reads the label yet. It's there so the
 # file says which containers are safe to break.
@@ -32,7 +32,7 @@ services:
     ports:
       - "3000:3000"
     labels:
-      qes.sandbox: "true"
+      trailhound.sandbox: "true"
     # No healthcheck: the image has no shell, curl or node on PATH, so a check
     # inside the container is fragile. To see if it's ready, poll
     # http://127.0.0.1:3000 from outside.
@@ -47,7 +47,7 @@ services:
       # The container always serves on 80.
       - "${SAUCE_DEMO_PORT:-3001}:80"
     labels:
-      qes.sandbox: "true"
+      trailhound.sandbox: "true"
 
   prestashop:
     # The official image installs the shop into the database on first boot.
@@ -77,12 +77,14 @@ services:
       # credentials only; the container isn't meant to be reachable from outside.
       PS_FOLDER_ADMIN: admin-dev
       PS_FOLDER_INSTALL: install-dev
+      # These only apply on a fresh install, so they keep the project's old name:
+      # changing them here would make the file disagree with installs that exist (#335).
       ADMIN_MAIL: admin@qes.test
       ADMIN_PASSWD: qes-admin-pw
     volumes:
       - ps-data:/var/www/html
     labels:
-      qes.sandbox: "true"
+      trailhound.sandbox: "true"
 
   prestashop-db:
     # PrestaShop's database. Not a test target itself, so no sandbox label and

@@ -10,9 +10,10 @@ changes code here. It covers **how to work**. For **what the repo is**, read
 
 ## The repo in one paragraph
 
-This is an LLM-based **disconfirmation engine** for exploratory testing. A Driver
-runs real tests against a live system under test (SUT) and forms one claim about
-how it behaves. Then a separate Skeptic tries to knock that claim down.
+This is Trailhound, an LLM-based **disconfirmation engine** for exploratory
+testing. A Driver runs real tests against a live system under test (SUT) and
+forms one claim about how it behaves. Then a separate Skeptic tries to knock
+that claim down.
 `engine/` is the product: the checkpoint loop, one adapter per SUT, the pipeline
 that drafts new adapters, and the ontology layer that prioritizes test ideas.
 `clash-royale-kit/` packages the game-client exploration. `.experiments/` is

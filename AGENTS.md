@@ -1,4 +1,4 @@
-# qes-exploration — Wiki (AGENTS.md)
+# Trailhound's product wiki (AGENTS.md)
 
 This wiki's purpose is a **model of the product(s) under test** — not of this
 repo's own testing engine. It's built the way a new tester would actually be

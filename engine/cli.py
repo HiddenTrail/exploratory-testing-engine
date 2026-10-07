@@ -20,7 +20,7 @@ from engine.runner import run
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the AI exploratory-testing engine against a SUT adapter.")
+    parser = argparse.ArgumentParser(description="Run Trailhound against a SUT adapter.")
     parser.add_argument("--adapter", required=True, choices=available_adapters(), help="Which SUT adapter to run.")
     parser.add_argument("--model", default=None, help="Override the Anthropic model (default: engine default).")
     parser.add_argument("--max-checkpoints", type=int, default=None, dest="max_checkpoints")

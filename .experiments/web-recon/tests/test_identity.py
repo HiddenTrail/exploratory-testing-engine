@@ -129,7 +129,8 @@ def _basket(email):
 
 def test_who_is_logged_in_doesnt_change_the_state():
     # Engine issue #303: a map made as one throwaway user never matched a run as another.
-    first, second = signature(_basket("qes-147eb336@example.test")), signature(_basket("qes-dd982cfe@example.test"))
+    first = signature(_basket("trailhound-147eb336@example.test"))
+    second = signature(_basket("trailhound-dd982cfe@example.test"))
     assert first == second
     assert "your basket (<email>)" in first and "menuitem:signed in as <email>" in first
 
@@ -142,7 +143,7 @@ def test_impersonal_takes_out_emails_and_generated_ids_and_is_idempotent():
 
 
 def test_a_signature_saved_before_the_change_matches_once_made_impersonal():
-    old = "/|button:checkout|your basket (qes-147eb336@example.test)"
-    assert impersonal(old) == signature({"url": "http://h/", "headings": ["Your Basket (qes-9@example.test)"],
+    old = "/|button:checkout|your basket (trailhound-147eb336@example.test)"
+    assert impersonal(old) == signature({"url": "http://h/", "headings": ["Your Basket (trailhound-9@example.test)"],
                                           "elements": [{"role": "button", "name": "Checkout"}]})
 

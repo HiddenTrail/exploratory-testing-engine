@@ -51,7 +51,7 @@ Feature: Real web apps run locally as test targets
 
   Scenario: The test targets are labelled as safe to break
     When I look at the three targets in the compose file
-    Then each has the label "qes.sandbox" set to "true"
+    Then each has the label "trailhound.sandbox" set to "true"
     And "prestashop-db" doesn't have it, because it isn't a test target
     # Nothing reads the label yet. It marks which containers may have their data changed.
 

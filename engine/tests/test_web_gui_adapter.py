@@ -1094,7 +1094,7 @@ def test_a_map_saved_with_a_users_email_matches_any_user_once_loaded():
     # #303: the basket's signature held the user's email, so a map made as one throwaway
     # user never matched a run logged in as another. The session rewrites a loaded map's signatures.
     data = _ontology()
-    data["states"][1]["signature"] = "/|button:checkout|your basket (qes-147eb336@example.test)"
+    data["states"][1]["signature"] = "/|button:checkout|your basket (trailhound-147eb336@example.test)"
     ref = ref_mod.Reference(data)
     ref.rewrite_signatures(live_session.impersonal)
     assert ref.is_known("/|button:checkout|your basket (<email>)")

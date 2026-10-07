@@ -71,7 +71,7 @@ def test_facts_say_only_what_the_map_saw():
 
 
 def test_names_lose_emails_and_get_short():
-    assert to_context._name("account_circle qes-1@example.test Orders") == "account_circle Orders"
+    assert to_context._name("account_circle trailhound-1@example.test Orders") == "account_circle Orders"
     assert to_context._name("x " * 60).endswith("...") and len(to_context._name("x " * 60)) <= 43
 
 

@@ -7,7 +7,7 @@
   "steps": [
     {"request": {"method": "POST", "path": "/api/Users/", "json": {
       "email": "{email}", "password": "{password}", "passwordRepeat": "{password}",
-      "securityQuestion": {"id": 1}, "securityAnswer": "qes"}}},
+      "securityQuestion": {"id": 1}, "securityAnswer": "trailhound"}}},
     {"goto": "/#/login"},
     {"click_if_present": {"role": "button", "name": "Close Welcome Banner"}},
     {"click_if_present": {"role": "button", "name": "dismiss cookie message"}},

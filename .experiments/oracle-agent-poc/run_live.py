@@ -1,5 +1,5 @@
 """Oracle Agent PoC: a first, deliberately narrow slice of the "Oracle
-layer" described in docs/exploratory-testing-engine-concept.md §3.4 -
+layer" described in docs/concept.md §3.4 -
 distributing judgment across narrow, specialized heuristics instead of one
 model just deciding "is this weird" alone.
 

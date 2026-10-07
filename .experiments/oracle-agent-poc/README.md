@@ -3,7 +3,7 @@
 > **Archive.** A finished experiment, kept for history. `heuristics/catalog.json` is frozen: its entries moved into the engine's heuristic library, `engine/ontology/heuristics/htsm.json` (issue #128), and new heuristics go there.
 
 A first, deliberately narrow slice of the "Oracle layer" described in
-[`docs/exploratory-testing-engine-concept.md`](../../docs/exploratory-testing-engine-concept.md)
+[`docs/concept.md`](../../docs/concept.md)
 §3.4 - distributing judgment across narrow, specialized heuristics instead
 of one model just deciding "is this weird" alone. Never built until now.
 

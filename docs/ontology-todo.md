@@ -3,8 +3,8 @@
 Tracking plan for the 4-layer ontology stack under `engine/ontology/` — a
 prioritization layer sitting between the domain-grounded oracle claims and
 the Driver, plus a heuristic library and a context/results feed. See
-`docs/exploratory-testing-engine-concept.md` for the original vision. The backlog
-below is tracked in GitHub Issues; each item names its issue.
+`docs/concept.md` for the original vision. The backlog below is tracked in
+GitHub Issues; each item names its issue.
 
 ## Status: Phase 0 proven on `token_purchase`; claim-matching gap fixed
 

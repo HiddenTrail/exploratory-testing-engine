@@ -1,8 +1,8 @@
-# AI Exploratory Testing Engine
+# The Trailhound engine
 
 A reusable Driver+Skeptic checkpoint-loop harness, hardened from earlier
 experiments in `.experiments/` (most of them now an archive - this package is
-a port, not a rewrite). See `docs/exploratory-testing-engine-concept.md` for
+a port, not a rewrite). See `docs/concept.md` for
 the original vision this is one deliberately narrow slice of.
 
 The "archive" framing has exceptions. `adapters/clash_royale/session.py` puts

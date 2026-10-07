@@ -17,7 +17,7 @@ exactly RAG's problem shape:
 - Phase 3/4 of that same roadmap (mocked, then real, JIRA source) will pull in ticket
   descriptions *and comments* — a corpus that grows over time and benefits from
   incremental indexing rather than re-reading everything per run.
-- The oracle layer's spec-conformance oracle (`docs/exploratory-testing-engine-concept.md`
+- The oracle layer's spec-conformance oracle (`docs/concept.md`
   §3.4) needs to ground judgments in "documented behavior" — retrieval over indexed
   specs/docs is a more scalable version of hand-passing a schema string.
 - State memory / anomaly history (§3.3, §3.5) is itself a growing corpus that future

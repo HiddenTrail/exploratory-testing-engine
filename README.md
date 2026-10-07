@@ -1,15 +1,15 @@
-# qes-exploration
+# Trailhound
 
 [![engine tests](https://github.com/HiddenTrail/exploratory-testing-engine/actions/workflows/engine-tests.yml/badge.svg)](https://github.com/HiddenTrail/exploratory-testing-engine/actions/workflows/engine-tests.yml)
 
-An LLM-based **disconfirmation engine** for exploratory testing of live
-systems (HTTP APIs, web apps and a game client): instead of
-running a fixed, pre-scripted test plan, it drives a live system, forms a
+Trailhound is an LLM-based **disconfirmation engine** for exploratory testing
+of live systems (HTTP APIs, web apps and a game client): instead of running a
+fixed, pre-scripted test plan, it drives a live system, forms a
 falsifiable hypothesis about its behavior, and puts that hypothesis through a
 cold, adversarial review before trusting it - mirroring how real scientific
 method works rather than how most AI-testing tools work (which mostly confirm,
 rarely try hard to disprove themselves). See
-[`docs/exploratory-testing-engine-concept.md`](docs/exploratory-testing-engine-concept.md)
+[`docs/concept.md`](docs/concept.md)
 for the original vision this project is one deliberately narrow, implemented
 slice of.
 
@@ -221,7 +221,7 @@ test-targets/     # docker-compose.yml with real web apps to test against: Juice
                   #   Per product: login-recipes/, known-problems/, and careful/ (where a run
                   #   only looks; everything else is tested fully, #299).
 docs/
-  exploratory-testing-engine-concept.md  # the original, broader vision
+  concept.md                              # the original, broader vision
   ontology-todo.md                        # ontology layer status and backlog
   ontology-layer-reference.md             # how the four ontology layers fit together
   examples/bootstrap_demo/                # a real worked example of the bootstrap pipeline's output

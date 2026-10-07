@@ -1,4 +1,4 @@
-# AI Exploratory Testing Engine — Concept Document
+# Trailhound: the original concept
 
 ## 1. Core idea
 

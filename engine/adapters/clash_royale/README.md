@@ -45,7 +45,7 @@ python -m engine.adapters.clash_royale.generate_nav_map_html \
 
 ## Module Structure
 
-- `adapter.py` — Main adapter class integrating with the qes-exploration engine
+- `adapter.py`: the main adapter class, which plugs into the Trailhound engine
 - `actions.py` — Action space definition for Clash Royale
 - `reference.py` — Screen reference data and matching
 - `session.py`: the live client. Attaches to the window and identifies screens against the carried reference. It imports the harness from `.experiments/game-ontology`, `.experiments/android-bot` and `.experiments/game-screen-probe` at run time, so renaming anything there can break this adapter.

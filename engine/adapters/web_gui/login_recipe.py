@@ -80,7 +80,7 @@ def resolve_credentials(spec: dict, environ=os.environ) -> dict:
                 raise SystemExit(f"The login recipe needs the environment variable {arg} (for '{name}'), and it's unset.")
             values[name] = environ[arg]
         elif arg == "email":
-            values[name] = f"qes-{secrets.token_hex(4)}@example.test"
+            values[name] = f"trailhound-{secrets.token_hex(4)}@example.test"
         elif arg == "password":
             # Mixed case, a digit and a symbol, so common password rules accept it.
             values[name] = "Qs1!" + secrets.token_urlsafe(12)

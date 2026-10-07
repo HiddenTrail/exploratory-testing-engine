@@ -283,8 +283,8 @@ _REST_POLL_MS = 100
 
 # Counts DOM mutations on every document the page loads, for _rest.
 _MUTATION_COUNTER_JS = """
-window.__qesMutations = 0;
-new MutationObserver((records) => { window.__qesMutations += records.length; })
+window.__trailhoundMutations = 0;
+new MutationObserver((records) => { window.__trailhoundMutations += records.length; })
   .observe(document, {subtree: true, childList: true, attributes: true, characterData: true});
 """
 
@@ -482,7 +482,7 @@ class Session:
         # Every browser context records into a scratch folder. Only the recording each
         # test acted in is remembered, and save_videos keeps the ones asked for (#286).
         # Only a run records (check_ready); the sweep and the audits have no report to show it.
-        self._video_dir = tempfile.mkdtemp(prefix="qes-video-") if record_video else None
+        self._video_dir = tempfile.mkdtemp(prefix="trailhound-video-") if record_video else None
         self._videos: dict = {}                    # test number -> its Playwright Video
         self.last_video = None
         # The browser never leaves the site (#308): where it was stopped from going.
@@ -581,9 +581,9 @@ class Session:
         route(): that sees every request and not the redirect hops, and routing Juice
         Shop's socket.io poll kept it open, so no page ever counted as rested.
         Once per page: the context's "page" event also fires for pages opened here."""
-        if getattr(page, "_qes_guarded", False):
+        if getattr(page, "_trailhound_guarded", False):
             return
-        page._qes_guarded = True
+        page._trailhound_guarded = True
         try:
             cdp = self._context.new_cdp_session(page)
             main_frame = cdp.send("Page.getFrameTree")["frameTree"]["frame"]["id"]
@@ -670,7 +670,7 @@ class Session:
         quiet_since, last = start, None
         while True:
             try:
-                mutations = self.page.evaluate("window.__qesMutations ?? -1")
+                mutations = self.page.evaluate("window.__trailhoundMutations ?? -1")
             except Exception:
                 mutations = -1
             now = time.time()
