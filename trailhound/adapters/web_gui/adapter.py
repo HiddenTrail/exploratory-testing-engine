@@ -96,7 +96,11 @@ WHAT YOU GET BACK, per test:
     the app drifted (or the route didn't open) and the reading is suspect.
   steps: each step and what came of it: "done", "not_found" (nothing on the page had that
     role and name), "refused" (see HOW FAR YOU MAY GO) or "failed" (it was there but didn't
-    respond).
+    respond; "detail" says why). A step also says what it set off, so an error is tied to
+    the step that caused it: its own "signals" and "signals_weak" (console errors and failed
+    requests, the same trust checks as below), "server_said" (a failed request on the
+    product's own site with the start of the server's answer, often its own error message)
+    and "slow" (requests that took 2 s or more).
   page_controls: what's on the page after the last step, as "role:name", so a next test can
     act on it.
   settle: seconds the page took to go quiet after the action (the app's own timing).
@@ -114,7 +118,8 @@ WHAT YOU GET BACK, per test:
          happened while the page sat idle, and the page had rested. Treat them as facts.
   signals_weak: the same kinds of signal that failed a trust check (third-party, also
          seen with no action, read from an unsettled page, or the action wasn't sent).
-         A hint for a next test, never evidence for a claim on its own.
+         A hint for a next test, never evidence for a claim on its own. Console warnings are
+         only ever here.
   discovered: present when the action reached a screen the carried map doesn't have: its
          id (e.g. "d1a2b3c4") and how many controls on it the safety gate would allow.
          The same id again means the same screen, reached again.
@@ -280,6 +285,10 @@ def redact_history_for_model(casting_log: list[dict]) -> list[dict]:
                 short["controls_more"] = len(controls) - _DISCOVERY_CONTROLS_SHOWN
             listed.add(found["id"])
         entry["result"]["discovered"] = short
+    # The full request log stays in output.json and the report; the Driver gets each step's
+    # short form, the server's messages and the slow requests (#326).
+    for entry in redacted:
+        (entry.get("result") or {}).pop("request_log", None)
     return redacted
 
 
@@ -696,6 +705,7 @@ def render_test_entry(entry) -> str:
             {_screen_badge(entry.get('predicted_screen'))}</div>
           <div class="test-outcome">{badge('control could not be actuated', 'bad')}</div>
           {_signals_html(result)}
+          {_request_log_html(result)}
           {_video_html(entry)}
         </article>
         """
@@ -719,18 +729,45 @@ def render_test_entry(entry) -> str:
       <div class="test-outcome prose-muted">click took <span class="num">{esc(result.get('click', '?'))}s</span>, settled in <span class="num">{esc(result.get('settle'))}s</span>{f", clicked through {esc(result['covered_by'])} on top of it" if result.get('covered_by') else ""}</div>
       {f'<div class="test-outcome">{badge("stopped from leaving the site", "warn")} {esc(", ".join(result["blocked_off_site"]))}</div>' if result.get("blocked_off_site") else ""}
       {_signals_html(result)}
+      {_request_log_html(result)}
       {_video_html(entry)}
     </article>
     """
 
 
+def _step_signals_html(step) -> str:
+    """What one step set off (#326): its trusted errors, the server's messages, slow requests."""
+    parts = [f"{key.replace('_', ' ')}: {', '.join(map(str, value))}"
+             for key, value in (step.get("signals") or {}).items() if isinstance(value, list)]
+    parts += [f"the server said {m}" for m in step.get("server_said") or []]
+    parts += [f"slow: {s}" for s in step.get("slow") or []]
+    return f'<div class="prose-muted">{esc("; ".join(parts))}</div>' if parts else ""
+
+
+def _request_log_html(result) -> str:
+    """The test's requests to the product's own site, step by step (#326), folded."""
+    log = result.get("request_log") or {}
+    rows = "".join(
+        f"<tr><td>{esc(r.get('step'))}</td><td>{esc(r.get('method'))}</td><td><code>{esc(r.get('path'))}</code></td>"
+        f"<td>{esc(r.get('status'))}</td><td>{esc(r.get('ms', ''))}</td><td>{esc(r.get('message', ''))}</td></tr>"
+        for r in log.get("own_site") or [])
+    if not rows and not log.get("third_party"):
+        return ""
+    others = (f'<p class="prose-muted">And {esc(log["third_party"])} request(s) to other sites, counted only.</p>'
+              if log.get("third_party") else "")
+    table = (f"<table><thead><tr><th>Step</th><th>Method</th><th>Path</th><th>Status</th><th>ms</th>"
+             f"<th>What the server said</th></tr></thead><tbody>{rows}</tbody></table>" if rows else "")
+    return f'<details class="fold"><summary>Requests</summary>{table}{others}</details>'
+
+
 def _steps_html(steps) -> str:
-    """Each step and what came of it (#310), when one didn't simply get done."""
-    if not steps or all(s.get("status") == "done" for s in steps):
+    """Each step and what came of it (#310), when one didn't simply get done or set
+    something off (#326)."""
+    if not steps or all(s.get("status") == "done" and not _step_signals_html(s) for s in steps):
         return ""
     kinds = {"done": "good", "not_found": "warn", "refused": "warn", "failed": "bad"}
     rows = "".join(f"<li>{esc(live_session._step_label(s))} {badge(s.get('status', '?').replace('_', ' '), kinds.get(s.get('status'), 'neutral'))}"
-                   f"{(' ' + esc(s['detail'])) if s.get('detail') else ''}</li>" for s in steps)
+                   f"{(' ' + esc(s['detail'])) if s.get('detail') else ''}{_step_signals_html(s)}</li>" for s in steps)
     return f'<ul class="line-list">{rows}</ul>'
 
 
