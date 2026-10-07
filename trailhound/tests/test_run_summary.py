@@ -20,7 +20,7 @@ def test_the_summary_lists_what_was_found_worst_first_with_replays():
     text = summarize(_OUTPUT, log_text="attempt 1 produced malformed output: x\n", bugs=None)
     assert "0 bug(s), 1 anomaly(ies), 1 finding(s) from 3 tests and 2 checkpoint(s)" in text
     assert text.index("C2.O1") < text.index("C2.O2")
-    assert "| C2.O1 | anomaly (Driver said bug) | corroborated | high | not reproduced | Profile answers 500 |" in text
+    assert "| C2.O1 | anomaly (Driver said bug) | corroborated |  | high | not reproduced | Profile answers 500 |" in text
     assert "Next page \| odd" in text                          # a pipe in a claim doesn't break the table
     assert "2 model call(s), 1 retried. Estimated cost about $3.00" in text
 

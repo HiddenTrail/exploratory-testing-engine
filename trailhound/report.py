@@ -21,6 +21,7 @@ from pathlib import Path
 from trailhound import interplay, ledger
 from trailhound.glossary import LEVEL_TAGS, QUALITY_TAGS, glossary_for
 from trailhound.adapter import SUTAdapter
+from trailhound.tools import claim_results
 
 
 def esc(value) -> str:
@@ -192,12 +193,23 @@ def _replay_badge(observation) -> str:
     return badge(f"replay: {verdict}", kind) + " "
 
 
-def _observation_line(observation, check) -> str:
+def _observation_line(observation, check, result=None) -> str:
+    held_back = (result or {}).get("held_back") or []
+    held = (f' <span class="prose-muted">(held back: {esc("; ".join(held_back))})</span>' if held_back else "")
     return (
         f'<li><span class="idtag">{esc(observation["id"])}</span> {esc(observation["kind"])} '
         f'({esc(observation["severity"])}) {inline_markdown(observation["claim"])} '
-        f'{_tests_label(observation["tests"])} {_check_badge(check)}{_lowered_label(observation)}</li>'
+        f'{_tests_label(observation["tests"])} {_check_badge(check)}{_lowered_label(observation)}{held}</li>'
     )
+
+
+def claims_line(results: list[dict]) -> str:
+    """How a checkpoint's claims came out (#342): "2 of 4 claims hold up, 2 inconclusive"."""
+    if not results:
+        return "No claims"
+    held = sum(1 for r in results if r["status"] == "corroborated")
+    rest = len(results) - held
+    return f"{held} of {len(results)} claim(s) hold up" + (f", {rest} inconclusive" if rest else "")
 
 
 _OUTCOME_TONES = {"settled": "good", "conceded": "warn", "new_approach": "neutral", "open": "bad"}
@@ -298,9 +310,9 @@ def _verdict_change(skeptic) -> str:
 
 
 def _render_checkpoint(checkpoint_num, checkpoint_entry, rounds, render_test_entry) -> str:
-    """One checkpoint, conclusion first. What a reader needs is visible: the
-    verdict, the Driver's one-sentence summary, the Skeptic's one-sentence
-    reason, one line per observation and one line per gap. Everything else -
+    """One checkpoint, conclusion first. What a reader needs is visible: how its claims
+    came out (#342), the Driver's one-sentence summary, the Skeptic's verdict and its
+    one-sentence reason, one line per observation and one line per gap. Everything else -
     behaviors, each observation's mechanism and rival, coverage, the prior-gap
     answers, and the tests themselves - is folded underneath. Fully generic: the
     hypothesis/Skeptic schema is the same for every adapter."""
@@ -323,10 +335,13 @@ def _render_checkpoint(checkpoint_num, checkpoint_entry, rounds, render_test_ent
     skeptic = checkpoint_entry["skeptic_review"]
     observations = hypothesis["observations"]
     checks = {c["observation_id"]: c for c in skeptic["observation_checks"]}
+    results = claim_results(hypothesis, skeptic)
+    by_id = {r["id"]: r for r in results}
 
     if observations:
         observations_html = ('<ul class="line-list">'
-                             + "".join(_observation_line(o, checks.get(o["id"])) for o in observations) + "</ul>")
+                             + "".join(_observation_line(o, checks.get(o["id"]), by_id.get(o["id"]))
+                                       for o in observations) + "</ul>")
     else:
         observations_html = '<p class="prose-muted">Nothing looked wrong this checkpoint.</p>'
     gaps_html = ""
@@ -361,9 +376,9 @@ def _render_checkpoint(checkpoint_num, checkpoint_entry, rounds, render_test_ent
 
     return f"""
     <div class="checkpoint">
-      <h3>Checkpoint {checkpoint_num} {verdict_badge(skeptic['verdict'])}</h3>
+      <h3>Checkpoint {checkpoint_num}: {esc(claims_line(results))}</h3>
       <p class="summary">{inline_markdown(hypothesis['summary'])}</p>
-      <p class="skeptic-line"><strong>Skeptic:</strong> {inline_markdown(skeptic['verdict_reason'])}{_verdict_change(skeptic)}</p>
+      <p class="skeptic-line"><strong>Skeptic:</strong> {verdict_badge(skeptic['verdict'])} {inline_markdown(skeptic['verdict_reason'])}{_verdict_change(skeptic)}</p>
       {observations_html}
       {gaps_html}
       {_steering_line(checkpoint_entry, test_count)}

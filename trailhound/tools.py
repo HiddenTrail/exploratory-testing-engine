@@ -1408,17 +1408,31 @@ def final_observations(hypothesis: dict, skeptic_review: dict) -> list[dict]:
     'corroborated' when the Skeptic's last check says its evidence discriminates
     it from its rival and no blocking gap is about it; otherwise 'inconclusive'."""
     checks = {c["observation_id"]: c for c in skeptic_review["observation_checks"]}
-    blocked = {oid for gap in skeptic_review["gaps"] if gap["blocks_verdict"] for oid in gap["about"]}
-    concluded = []
+    held = {r["id"]: r for r in claim_results(hypothesis, skeptic_review)}
+    return [{**observation, "status": held[observation["id"]]["status"],
+             "skeptic_note": checks.get(observation["id"], {}).get("note", "")}
+            for observation in hypothesis["observations"]]
+
+
+def claim_results(hypothesis: dict, skeptic_review: dict) -> list[dict]:
+    """Each claim of a checkpoint with its status by final_observations' rule, and for an
+    inconclusive one what holds it back (#342): its tests don't tell it from its rival,
+    and each open blocking question about it. The checkpoint's verdict is all or nothing,
+    one blocking question on any claim makes it weak, so the claims say more."""
+    checks = {c["observation_id"]: c for c in skeptic_review["observation_checks"]}
+    blocking: dict[str, list[str]] = {}
+    for gap in skeptic_review["gaps"]:
+        if gap["blocks_verdict"]:
+            for oid in gap["about"]:
+                blocking.setdefault(oid, []).append(gap.get("id", ""))
+    results = []
     for observation in hypothesis["observations"]:
-        check = checks.get(observation["id"], {})
-        corroborated = check.get("discriminates_from_rival") is True and observation["id"] not in blocked
-        concluded.append({
-            **observation,
-            "status": "corroborated" if corroborated else "inconclusive",
-            "skeptic_note": check.get("note", ""),
-        })
-    return concluded
+        oid = observation["id"]
+        tells = checks.get(oid, {}).get("discriminates_from_rival") is True
+        held_back = ([] if tells else ["its tests don't tell it from its rival"]) + [
+            f"open blocking question {g}".rstrip() for g in blocking.get(oid, [])]
+        results.append({"id": oid, "status": "inconclusive" if held_back else "corroborated", "held_back": held_back})
+    return results
 
 
 # --- The casting round (issue #96) ---------------------------------------

@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 from trailhound import budget, ledger, interplay
+from trailhound.tools import claim_results
 
 
 _KIND_ORDER = {"bug": 0, "anomaly": 1, "finding": 2}
@@ -53,6 +54,76 @@ def _oracle_and_errors(output: dict) -> list[str]:
     return lines + ([""] if lines else [])
 
 
+# A claim parked by #305, kept in the conclusion but given no more tests.
+# A claim parked by #305 in an earlier checkpoint, kept in the conclusion with no more tests.
+_PARKED = "parked: objected to in checkpoints in a row, so it got no more tests"
+_QUESTION_CHARS = 60
+
+
+def _results(cp: dict) -> list[dict] | None:
+    """A checkpoint's claims by claim_results, or None when it has no hypothesis or review.
+    Read with defaults: a summary must not crash on an odd saved run."""
+    hypothesis, review = cp.get("hypothesis"), cp.get("skeptic_review")
+    if not hypothesis or not review:
+        return None
+    return claim_results({"observations": hypothesis.get("observations") or []},
+                         {"observation_checks": review.get("observation_checks") or [],
+                          "gaps": [g for g in review.get("gaps") or [] if isinstance(g.get("about"), list)]})
+
+
+def _held_back(output: dict) -> dict[str, list[str]]:
+    """What keeps each of the last checkpoint's claims inconclusive (#342), a blocking
+    question with its text, since the summary doesn't list the gaps."""
+    last = (output.get("checkpoints") or [{}])[-1]
+    results = _results(last)
+    if results is None:
+        return {}
+    text = {g.get("id"): " ".join((g.get("gap") or "").split()) for g in last["skeptic_review"].get("gaps") or []}
+
+    def said(reason: str) -> str:
+        gid = reason.rsplit(" ", 1)[-1]
+        if not reason.startswith("open blocking question") or not text.get(gid):
+            return reason
+        question = text[gid] if len(text[gid]) <= _QUESTION_CHARS else text[gid][:_QUESTION_CHARS - 3] + "..."
+        return f"{reason} ({question})"
+    return {r["id"]: [said(reason) for reason in r["held_back"]] for r in results}
+
+
+def _held_back_cell(o: dict, held_back: dict[str, list[str]]) -> str:
+    if o.get("status") == "corroborated":
+        return ""
+    if o.get("id") in held_back:
+        return "; ".join(held_back[o["id"]])
+    return _PARKED if o.get("parked") else ""
+
+
+def _claims(output: dict, observations: list[dict]) -> list[str]:
+    """How the claims came out (#342), before the table: the checkpoint verdict is all or
+    nothing, one blocking question on any claim makes it weak, so on its own it says little."""
+    checkpoints = output.get("checkpoints") or []
+    if not observations and not checkpoints:
+        return []
+    per, verdicts, last_ids = [], [], set()
+    for n, cp in enumerate(checkpoints, start=1):
+        results = _results(cp)
+        if results is None:
+            continue
+        per.append(f"C{n} {sum(1 for r in results if r['status'] == 'corroborated')} of {len(results)}")
+        verdicts.append((cp["skeptic_review"].get("verdict") or "?").replace("_", " "))
+        last_ids = {r["id"] for r in results}
+    if "observations" not in output:
+        line = "**Claims:** the run stopped before its conclusion"
+    else:
+        held = sum(1 for o in observations if o.get("status") == "corroborated")
+        carried = sum(1 for o in observations if o.get("id") not in last_ids)
+        line = (f"**Claims:** {held} of {len(observations)} claim(s) hold up at the end of the run"
+                + (f" (the last checkpoint's {len(observations) - carried}, plus {carried} parked earlier)"
+                   if carried and last_ids else ""))
+    if per:
+        line += f"; by checkpoint {', '.join(per)}. The Skeptic's verdicts: {', '.join(verdicts)}"
+    return [line + ".", ""]
+
+
 def count_dropped_tests(output: dict) -> int:
     return sum(len(c.get("dropped_tests") or []) for c in output.get("checkpoints", []))
 
@@ -79,6 +150,7 @@ def summarize(output: dict, log_text: str | None = None, bugs: list | None = Non
     if bugs:
         lines.append(f"{len(bugs)} bug report(s) written to bugs.json.")
     lines.append("")
+    lines += _claims(output, observations)
     areas = ((output.get("checkpoints") or [{}])[-1].get("hypothesis") or {}).get("areas") or []
     if areas:
         lines += ["**Where it stands** (the Driver's last testing story):", "",
@@ -92,12 +164,15 @@ def summarize(output: dict, log_text: str | None = None, bugs: list | None = Non
             lines += ["", "What got in the way: " + "; ".join(_cell(o["obstacle"]) for o in obstacles)]
         lines.append("")
     if observations:
-        lines += ["| Id | Kind | Status | Severity | Replay | Claim |", "|---|---|---|---|---|---|"]
+        held_back = _held_back(output)
+        lines += ["| Id | Kind | Status | Held back by | Severity | Replay | Claim |", "|---|---|---|---|---|---|---|"]
         for o in observations:
             kind = o.get("kind", "")
             if o.get("driver_kind") and o["driver_kind"] != kind:
                 kind += f" (Driver said {o['driver_kind']})"
-            lines.append(f"| {o.get('id', '')} | {kind} | {o.get('status', '')} | {o.get('severity', '')} | "
+            lines.append(f"| {o.get('id', '')} | {kind} | {o.get('status', '')} | "
+                         f"{_cell(_held_back_cell(o, held_back))} | "
+                         f"{o.get('severity', '')} | "
                          f"{o.get('replay', '')} | {_cell(o.get('claim', ''))} |")
         lines.append("")
     if output.get("score"):
