@@ -129,6 +129,18 @@ def test_the_most_important_places_the_map_lacks_get_ideas_with_a_route(shop):
 
 
 
+def test_a_state_at_a_mapped_route_is_a_variant_and_gets_no_ideas_of_its_own(shop):
+    # Found in the #330 benchmark: the basket after "Add to Basket" is a discovery at
+    # "/#/basket", which the map has. Tests that start at that route count for the mapped
+    # basket, so the variant looked untested for ever and kept 5 of the Driver's 15 ideas.
+    context = _context(shop)
+    _tested(context, "screen-start-page", ["r1"])
+    context["discoveries"] = [
+        {"id": "d1", "url": "http://shop/#/basket", "via": "button:Add to Basket", "features": ["cart", "text-field"]},
+        {"id": "d2", "url": "http://shop/profile", "via": "menuitem:Profile", "features": ["account"]}]
+    assert [d["id"] for d, _ in product_layer.new_areas(context)] == ["d2"]
+
+
 def test_a_place_the_map_lacks_gets_no_bonus_for_being_reachable(shop, monkeypatch):
     # It's reached by replaying how it was found, not by its route (a dialog's route is
     # its page's). With the area weighing off, its ideas score the seeder's score plus the

@@ -14,8 +14,13 @@
 # a full point, gave 6 of the 15 to places the run never touched. The check builds the next
 # run's oracle from the context a live run learned, which costs nothing (runs/check330).
 #
+# The first benchmark found two more: tests that started at "/#/login" weren't counted for
+# the login page the map lacked, so it looked never tested and took 5 of the 15 ideas; and
+# basket states at the mapped "/#/basket" route could never be counted at all. With both
+# fixed, the profile page (where three of Juice Shop's known problems are) gets them.
+#
 # Code: trailhound/ontology/oracle_creator.py (weigh_by_area, AREA_WEIGHT),
-# trailhound/ontology/areas.py ("untested"), trailhound/ontology/product.py (context_screens,
+# trailhound/ontology/areas.py ("untested", area_key, route_of), trailhound/ontology/product.py (context_screens,
 # new_areas, NEW_AREAS), trailhound/adapters/web_gui/session.py (a discovery's "features"),
 # trailhound/adapters/web_gui/to_context.py (common_controls), trailhound/report.py and
 # trailhound/ontology/report.py (an idea's area).
@@ -51,11 +56,18 @@ Feature: The oracle ranks ideas by how much of their area is still untested
   Scenario: The places the Driver reached beyond the map with the most untested get ideas
     Given the context has coverage, and discoveries recorded with "features"
     Then the 3 with the highest "untested" score (ties to the one reached most often) become screens for the seeder, with their route and no facts
+    But only at a route no mapped screen has: the basket after "Add to Basket" is a variant of the mapped basket, and stays context only
     And their ideas say "where" with the route, and "area" says "reached by the Driver, not mapped"
     But they get no REACHABLE_BONUS: a place beyond the map is reached by replaying how it was found
     And their titles lose any email, and they also name areas in the testing story (product_areas)
     But a discovery recorded before #330, with no features, gets no ideas and stays context only
     And with no coverage yet, no discovery gets ideas
+
+  Scenario: A test that started at a route counts for the place beyond the map at that route
+    Given no mapped screen has the route "/#/login", and the Driver reached a login page there
+    When a test starts at "/#/login"
+    Then its coverage goes to that discovery (the one reached most often, if several), so it doesn't look never tested
+    And coverage kept under "/#/login" before the discovery was learned moves onto it
 
   Scenario: A discovery's features leave out the toolbar
     Given a control is on 80% or more of the map's states

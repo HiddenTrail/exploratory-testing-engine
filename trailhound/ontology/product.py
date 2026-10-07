@@ -138,11 +138,16 @@ def context_screens(product: str) -> list[dict[str, Any]]:
 def new_areas(context: dict) -> list[tuple[dict, dict]]:
     """The places the Driver reached beyond the map with the most still untested (#330),
     each with its area, once runs have learned their coverage: only those whose features
-    are known (recorded since #330), so the seeder has something to draw on. Ties go to
-    the place reached most often."""
+    are known (recorded since #330), so the seeder has something to draw on, and only at
+    a route no mapped screen has. A state at a mapped route (the basket after adding
+    something) is a variant of that screen: tests that start at the route count for the
+    screen, so the variant would look untested for ever. Ties go to the place reached
+    most often."""
     if not context.get("coverage"):
         return []
-    by_id = {d["id"]: d for d in context.get("discoveries") or [] if d.get("features")}
+    mapped = {s.get("route") for s in context.get("screens") or []}
+    by_id = {d["id"]: d for d in context.get("discoveries") or []
+             if d.get("features") and areas.route_of(d.get("url", "")) not in mapped}
     ranked = [a for a in areas.rank(context) if a["key"] in by_id and not a["mapped"]]
     ranked.sort(key=lambda a: (-a["untested"], -by_id[a["key"]].get("times_reached", 0), a["key"]))
     return [(by_id[a["key"]], a) for a in ranked[:NEW_AREAS]]

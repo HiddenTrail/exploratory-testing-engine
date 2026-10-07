@@ -52,16 +52,30 @@ _MAX_TITLE = 70
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 
 
-def area_key(token: str, screens: list[dict]) -> str:
+def route_of(url: str) -> str:
+    """A url as a route: "http://shop/#/login?x=1" is "/#/login", the way the web adapter
+    names a test's start."""
+    parts = urlsplit(url or "")
+    return (parts.path or "/") + (f"#{parts.fragment.split('?', 1)[0]}" if parts.fragment else "")
+
+
+def area_key(token: str, screens: list[dict], discoveries: list[dict] = ()) -> str:
     """The context's key for where a test started: the screen whose map states include it,
     else the screen for that route with the shortest path to it (the one a route opens),
-    else the token itself."""
+    else the place the Driver reached beyond the map at that route (the one reached most
+    often), else the token itself. Without the discovery step a test that started at
+    "/#/login" was kept apart from the login page the map lacked, which then looked never
+    tested and pulled the next run's oracle back to it (#330 benchmark)."""
     for s in screens:
         if token in (s.get("states") or []):
             return s["slug"]
     on_route = [s for s in screens if s.get("route") == token]
     if on_route:
         return min(on_route, key=lambda s: len(s.get("path") or []))["slug"]
+    if token.startswith("/"):
+        reached = [d for d in discoveries if d.get("url") and route_of(d["url"]) == token]
+        if reached:
+            return max(reached, key=lambda d: (d.get("times_reached", 0), d["id"]))["id"]
     return token
 
 
@@ -117,7 +131,7 @@ def refold(context: dict) -> None:
     screens = context.get("screens") or []
     coverage = context.get("coverage") or {}
     for key in list(coverage):
-        target = area_key(key, screens)
+        target = area_key(key, screens, context.get("discoveries") or [])
         if target == key:
             continue
         old = coverage.pop(key)
@@ -141,7 +155,7 @@ def merge(context: dict, found: dict[str, dict], run: str, day: str | None = Non
     order = 1 + max((c.get("order", 0) for c in coverage.values()), default=0)
     tested: dict[str, bool] = {}
     for token, a in found.items():
-        key = area_key(token, screens)
+        key = area_key(token, screens, context.get("discoveries") or [])
         tested[key] = key not in before
         if key in learned:
             continue
@@ -234,8 +248,7 @@ def rank(context: dict, ideas: list[dict] | None = None) -> list[dict]:
     for d in context.get("discoveries") or []:
         if d["id"] in seen:
             continue
-        url = urlsplit(d.get("url", ""))
-        route = (url.path or "/") + (f"#{url.fragment}" if url.fragment else "")
+        route = route_of(d.get("url", ""))
         # A single-page app has one page title everywhere, so it's named by how it was reached.
         # Without emails: the account menu's name holds whoever is logged in.
         via = " ".join(_EMAIL.sub("", d.get("via") or "a test").split())
