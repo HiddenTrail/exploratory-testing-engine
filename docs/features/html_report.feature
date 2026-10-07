@@ -6,7 +6,7 @@
 # per-SUT parts, how to draw one test entry and the onboarding section, come from
 # the adapter's render_test_entry and render_onboarding_section.
 #
-# Each checkpoint shows its verdict and one line per observation and gap up front,
+# Each checkpoint shows how its claims came out (#342) and one line per observation and gap up front,
 # and folds the evidence and the tests underneath. Run diagnostics come from the
 # last checkpoint only, because each checkpoint's set already covers the whole log
 # up to that point. A report can be rebuilt from saved files, which is how a report
@@ -49,7 +49,8 @@ Feature: The HTML report puts the conclusion first and folds the details
   Scenario: Each checkpoint shows its conclusion and folds the rest
     Given a checkpoint with a hypothesis, a Skeptic review and 4 tests
     When the report is rendered
-    Then the checkpoint heading shows its number and the Skeptic's verdict as a badge
+    Then the checkpoint heading shows its number and how its claims came out, like "Checkpoint 2: 1 of 2 claim(s) hold up, 1 inconclusive" (see claim_results.feature)
+    And the Skeptic's verdict is a badge in the Skeptic's line
     And the Driver's summary, the Skeptic's reason, one line per observation and one line per gap are visible
     And a fold "Details: evidence, coverage and prior gaps" holds behaviours, observation details, untested areas, coverage and prior-gap answers
     And a fold "Tests this checkpoint (4)" holds the tests, drawn by the adapter's render_test_entry

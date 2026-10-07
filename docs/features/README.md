@@ -65,6 +65,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | [`run_persistence.feature`](run_persistence.feature) | Progress is saved after every checkpoint |
 | [`run_output.feature`](run_output.feature) | A run writes a JSON result, a bug list when there are bugs, and an HTML report |
 | [`html_report.feature`](html_report.feature) | The HTML report puts the conclusion first and folds the details |
+| [`claim_results.feature`](claim_results.feature) | The report and the summary lead with each claim's result |
 | [`history_redaction.feature`](history_redaction.feature) | The test history shown to the model is redacted |
 
 ## The adapter contract
