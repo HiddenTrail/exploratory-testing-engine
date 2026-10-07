@@ -11,10 +11,10 @@
 # The screens go into the context, not the wiki: the wiki is the curated layer, a page a
 # person wrote is never overwritten, and CI can't commit generated pages.
 #
-# Code: engine/adapters/web_gui/to_context.py (screens_from_map, features_of, write),
-# from_spoor.py (changes_data), engine/ontology/product.py (context_screens),
+# Code: trailhound/adapters/web_gui/to_context.py (screens_from_map, features_of, write),
+# from_spoor.py (changes_data), trailhound/ontology/product.py (context_screens),
 # seeder.py (build_oracle), oracle_creator.py (build_product_ideas, REACHABLE_BONUS).
-# Tests: engine/tests/test_spoor_context.py
+# Tests: trailhound/tests/test_spoor_context.py
 
 Feature: A Spoor map becomes the product's screens, and the oracle builds on them
   As someone testing a product Spoor has mapped
@@ -22,7 +22,7 @@ Feature: A Spoor map becomes the product's screens, and the oracle builds on the
   So that the Driver's ideas are about places it can reach
 
   Scenario: The map's states become screens
-    When python -m engine.adapters.web_gui.to_context --map <converted map> --product <product> runs
+    When python -m trailhound.adapters.web_gui.to_context --map <converted map> --product <product> runs
     Then states on one route whose controls mostly overlap (80%, numbers in names ignored) are one screen
     And Juice Shop's twelve product dialogs are one screen, "juice-shop apple juice (1000ml) and 11 more like it"
     And each screen has a slug, a title, its route, the path to reach it, and its headings as examples

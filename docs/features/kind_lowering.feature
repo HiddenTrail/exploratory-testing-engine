@@ -8,8 +8,8 @@
 # raise it, so a bug needs both to agree. Either way the Driver's original kind is
 # kept as "driver_kind" and the reason as "lowered_because".
 #
-# Code: engine/tools.py (lower_unsupported_bugs, reconcile_kinds),
-# engine/loop.py (run_checkpoint_loop)
+# Code: trailhound/tools.py (lower_unsupported_bugs, reconcile_kinds),
+# trailhound/loop.py (run_checkpoint_loop)
 
 Feature: The engine lowers a kind the evidence doesn't support
   As someone triaging results

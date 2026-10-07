@@ -7,7 +7,7 @@ but a *place in the game*. `ontology_source.py` does that regrouping and strips
 the harness's voice out; everything here is calls and rendering.
 
 Three passes, all tool-forced (the call->validate->retry shape from
-`engine/client.py`, so this authenticates the same way the exploration did -
+`trailhound/client.py`, so this authenticates the same way the exploration did -
 Bedrock or a key, whichever the .env says):
 
   1. One call per place -> wiki/entities/<place>.md (an Entity page, kind
@@ -24,7 +24,7 @@ certain - which routes lead out of a place, how you get in, which controls were
 never clicked - it is rendered from the map, not asked of the model. The model
 is asked only for prose and for judgement about what matters. Same
 "structured call, deterministic render" split as `generate.py` and
-`engine/report.py`, applied to the boundary between fact and interpretation as
+`trailhound/report.py`, applied to the boundary between fact and interpretation as
 well as to markdown.
 
 No page gets a `verified:` stamp. Nobody has confirmed any of this against the
@@ -51,7 +51,7 @@ REPO_ROOT = HERE.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from engine.client import build_client, call_tool_with_retry, default_model, summarize_usage  # noqa: E402
+from trailhound.client import build_client, call_tool_with_retry, default_model, summarize_usage  # noqa: E402
 
 # The wiki says a person wrote it only when a person did. These pages are
 # written by this script from a model's output, so the actor is the automation -

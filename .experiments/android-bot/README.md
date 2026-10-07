@@ -15,7 +15,7 @@ is not a Windows executable, has no accessibility tree, cannot be launched, and 
 somebody's actual account.
 
 It is also **live dependency of the engine**, not an archived prototype:
-`engine/adapters/clash_royale/session.py` (together with `game-ontology` and
+`trailhound/adapters/clash_royale/session.py` (together with `game-ontology` and
 `game-screen-probe`) and `clash-royale-kit/cr.py` and `preflight.py` put this directory on
 `sys.path` and import from it at call time, to drive the engine's first non-HTTP SUT. That
 import is a knowing debt - its own comment says so - taken because the controller here is

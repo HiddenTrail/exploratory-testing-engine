@@ -9,8 +9,8 @@
 # bonuses are small on purpose: base weights are 1 to 3, so a heuristic always
 # stays below a grounded claim's base score of 5.0.
 #
-# Code: engine/ontology/oracle_creator.py (select_heuristics, SURFACE_MATCH_BONUS,
-# FEATURE_MATCH_BONUS), engine/tests/test_heuristic_library.py
+# Code: trailhound/ontology/oracle_creator.py (select_heuristics, SURFACE_MATCH_BONUS,
+# FEATURE_MATCH_BONUS), trailhound/tests/test_heuristic_library.py
 
 Feature: Heuristics are picked by surface and feature
   As someone testing a particular kind of system

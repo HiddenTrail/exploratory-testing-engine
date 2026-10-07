@@ -48,9 +48,9 @@ Feature: A product wiki describes the product under test
   Scenario: Entity pages carry the fields the oracle reads
     Given an Entity page about "juice-shop"
     Then it has "product" "juice-shop"
-    And "features" with tags from engine/ontology/heuristics/vocabulary.json
+    And "features" with tags from trailhound/ontology/heuristics/vocabulary.json
     And "facts", each with an "id" unique on the page, a "kind", its "text" and a "source" from the page's "sources"
-    And engine/tests/test_seeded_oracle.py checks those fields
+    And trailhound/tests/test_seeded_oracle.py checks those fields
 
   Scenario: The index is generated from the pages
     When I run "node .wiki-source/scripts/rebuild-index.mjs --dir ."

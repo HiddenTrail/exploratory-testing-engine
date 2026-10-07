@@ -12,7 +12,7 @@
 # web_gui does, to cut a discovered screen down in the prompt while keeping the
 # full record in output.json.
 #
-# Code: engine/redact.py, engine/loop.py (_redact), engine/adapters/web_gui/adapter.py
+# Code: trailhound/redact.py, trailhound/loop.py (_redact), trailhound/adapters/web_gui/adapter.py
 
 Feature: The test history shown to the model is redacted
   As someone maintaining the engine

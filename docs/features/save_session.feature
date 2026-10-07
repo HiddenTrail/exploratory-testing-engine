@@ -15,8 +15,8 @@
 # it saved, never a value. A run can also save the session it reached with
 # Session.save, under the same rule.
 #
-# Code: engine/adapters/web_gui/save_session.py (save_state, summary),
-# engine/adapters/web_gui/session.py (Session.save). Tests: engine/tests/test_save_session.py
+# Code: trailhound/adapters/web_gui/save_session.py (save_state, summary),
+# trailhound/adapters/web_gui/session.py (Session.save). Tests: trailhound/tests/test_save_session.py
 
 Feature: A session is saved by logging in by hand, or when a condition holds
   As a tester of features behind a login
@@ -24,7 +24,7 @@ Feature: A session is saved by logging in by hand, or when a condition holds
   So that I can make a session file without the engine ever seeing my password
 
   Scenario: The session is saved under .sessions by product and name
-    When I run "python -m engine.adapters.web_gui.save_session --url http://127.0.0.1:3000 --product juice-shop --name logged-in"
+    When I run "python -m trailhound.adapters.web_gui.save_session --url http://127.0.0.1:3000 --product juice-shop --name logged-in"
     Then a visible browser opens at "http://127.0.0.1:3000"
     And the session is written to ".sessions/juice-shop/logged-in.json"
     And it prints the WEB_GUI_SESSION value and the spoor explore --session line to use it
@@ -77,7 +77,7 @@ Feature: A session is saved by logging in by hand, or when a condition holds
 
   Scenario: A session is only written where git ignores it
     # Checked with "git check-ignore". Without git, only a path inside .sessions/ counts.
-    When save_session or Session.save is asked to write to "engine/leaked-session.json"
+    When save_session or Session.save is asked to write to "trailhound/leaked-session.json"
     Then it stops with "git doesn't ignore it, so it could be committed"
     And nothing is written
     # save_session checks this before it starts a browser.

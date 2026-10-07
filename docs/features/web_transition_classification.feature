@@ -10,9 +10,9 @@
 # outcome_for, which never claims the app accepted a click it can't tell apart from a
 # control that does nothing.
 #
-# Code: engine/adapters/web_gui/session.py (Session._classify, Session.act),
-# engine/adapters/web_gui/adapter.py (execute_test, outcome_for),
-# engine/adapters/web_gui/reference.py (PREDICTIONS)
+# Code: trailhound/adapters/web_gui/session.py (Session._classify, Session.act),
+# trailhound/adapters/web_gui/adapter.py (execute_test, outcome_for),
+# trailhound/adapters/web_gui/reference.py (PREDICTIONS)
 
 Feature: Tests predict the kind of move, and each move is classified against the map
   As someone reading results

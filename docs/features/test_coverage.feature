@@ -10,7 +10,7 @@
 # It reads the adapter's own casting schema, so no adapter code is needed. It sums
 # up inputs only, never results, so the Skeptic stays cold.
 #
-# Code: engine/coverage.py, engine/loop.py (get_skeptic_review)
+# Code: trailhound/coverage.py, trailhound/loop.py (get_skeptic_review)
 
 Feature: The Skeptic gets the values each input field has been sent
   As someone who wants a fair review

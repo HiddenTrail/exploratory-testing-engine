@@ -9,7 +9,7 @@
 # shows how many more there were, or the report looks complete when it isn't
 # (Copilot on #152).
 #
-# Code: engine/adapters/web_gui/adapter.py (render_test_entry, _screen_badge,
+# Code: trailhound/adapters/web_gui/adapter.py (render_test_entry, _screen_badge,
 # _signals_html, render_onboarding_section, describe_test_for_log, describe_result_for_log)
 
 Feature: The web report and log show each move and its signals

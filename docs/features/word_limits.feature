@@ -11,7 +11,7 @@
 # The bug report fields and the casting reasoning use the same rule; see
 # bug_reports.feature and casting.feature.
 #
-# Code: engine/tools.py (WORD_LIMITS, SKEPTIC_WORD_LIMITS, is_far_too_long, _check_text)
+# Code: trailhound/tools.py (WORD_LIMITS, SKEPTIC_WORD_LIMITS, is_far_too_long, _check_text)
 
 Feature: Short fields have word limits that only reject far-too-long answers
   As someone paying for runs

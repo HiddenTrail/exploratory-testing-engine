@@ -11,7 +11,7 @@
 # and classes, so the Driver can tell covers apart (#150). A search box is filled with
 # "test" and Enter is never pressed, matching the read-only recon.
 #
-# Code: engine/adapters/web_gui/session.py (_actuate, _fill, _cover, _COVER_JS,
+# Code: trailhound/adapters/web_gui/session.py (_actuate, _fill, _cover, _COVER_JS,
 # _live_locator), .experiments/web-recon/safety.py (TEXT_ROLES, SEARCH_PROBE)
 
 Feature: Controls are pressed by role and name, and a cover is reported

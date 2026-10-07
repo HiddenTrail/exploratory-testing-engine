@@ -1,6 +1,6 @@
 # The adapter registry: a name-to-module map, loaded lazily, edited by a person.
 #
-# engine/ code never imports from engine/adapters/. The registry is the one place
+# trailhound/ code never imports from trailhound/adapters/. The registry is the one place
 # that crosses over, and it does so at run time through importlib, not at import
 # time. Loading an adapter starts nothing: the game client's window and the web
 # browser are only attached to or launched by check_sut_ready, which is also where
@@ -10,7 +10,7 @@
 # prints that line for a generated adapter and never registers or runs one by
 # itself, so nothing half-finished runs by accident.
 #
-# Code: engine/adapters/registry.py, engine/cli.py
+# Code: trailhound/adapters/registry.py, trailhound/cli.py
 
 Feature: Adapters are registered by a person and loaded by name, lazily
   As someone responsible for what runs against a SUT
@@ -25,7 +25,7 @@ Feature: Adapters are registered by a person and loaded by name, lazily
   Scenario: An adapter is imported only when it is loaded
     Given the engine has started and no adapter module is imported yet
     When the engine loads "complex_sut"
-    Then it imports "engine.adapters.complex_sut.adapter" with importlib
+    Then it imports "trailhound.adapters.complex_sut.adapter" with importlib
     And returns that module's ADAPTER
 
   Scenario: Loading an adapter starts nothing

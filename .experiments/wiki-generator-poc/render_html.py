@@ -1,7 +1,7 @@
 """Renders an OKF-format wiki/ directory (see repo-root AGENTS.md) as a set
 of static, self-contained HTML files you open directly in a browser - no
 server, no CI, no publish step. Same "just open the file" pattern as
-engine/report.py and engine/bootstrap/report.py, applied to a whole wiki
+trailhound/report.py and trailhound/bootstrap/report.py, applied to a whole wiki
 instead of one run's output.
 
 Deliberately decoupled from generate.py: this only reads whatever .md files
@@ -17,8 +17,8 @@ wikis here are more like 20-50 pages.
 Markdown->HTML is a small, deliberately narrow hand-rolled pass covering just
 what this project's wiki pages actually contain (headers, bold, inline code,
 links, bullet lists, pipe tables, footnote references) - not a general
-CommonMark parser. Same philosophy as engine/report.py's render_prose and
-engine/bootstrap/schema.py's narrow OpenAPI slice: match the real, bounded
+CommonMark parser. Same philosophy as trailhound/report.py's render_prose and
+trailhound/bootstrap/schema.py's narrow OpenAPI slice: match the real, bounded
 shape of the input instead of adding a dependency for arbitrary input this
 project never produces.
 

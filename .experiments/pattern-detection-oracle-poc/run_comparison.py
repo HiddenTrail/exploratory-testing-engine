@@ -8,7 +8,7 @@ Two arms, N trials each, evidence differing ONLY by whether oracle_library
 is present - the Driver's PATTERN_TOOL/SYSTEM_PROMPT are byte-identical to
 pattern-detection-poc/run.py in both arms, so the oracle library's presence
 is the sole manipulated variable. Each trial's hypothesis then gets a cold
-Skeptic review, which - mirroring engine.loop's Skeptic, which never sees
+Skeptic review, which - mirroring trailhound.loop's Skeptic, which never sees
 onboarding_extra either - never sees the oracle library, only the Driver's
 final structured claims.
 

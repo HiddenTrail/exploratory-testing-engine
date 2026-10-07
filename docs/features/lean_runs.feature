@@ -7,9 +7,9 @@
 # be switched back on for an experiment that is about it. A part we want after reading
 # a run is asked for afterwards, from the saved run, one call at a time.
 #
-# Code: engine/lean.py, engine/config.py (lean, lean_with, wants), engine/loop.py,
-# engine/runner.py, engine/ask.py, engine/tools.py (the validators' lean flag, ASK_TOOL).
-# Tests: engine/tests/test_lean.py
+# Code: trailhound/lean.py, trailhound/config.py (lean, lean_with, wants), trailhound/loop.py,
+# trailhound/runner.py, trailhound/ask.py, trailhound/tools.py (the validators' lean flag, ASK_TOOL).
+# Tests: trailhound/tests/test_lean.py
 
 Feature: A lean run asks the model only for what decides a finding
   As someone running experiments on the engine
@@ -66,7 +66,7 @@ Feature: A lean run asks the model only for what decides a finding
     And anything else is refused before anything is installed
 
   Scenario Outline: A saved run can be asked for a part afterwards
-    When someone runs python -m engine.ask <run folder> --adapter <adapter> <what>
+    When someone runs python -m trailhound.ask <run folder> --adapter <adapter> <what>
     Then one model call answers from the run's saved record: its schema, onboarding, test history and checkpoints
     And the answer is written to <run folder>/asked/<file>, never over an earlier one, and output.json isn't changed
     And the log says where it went and about what it cost

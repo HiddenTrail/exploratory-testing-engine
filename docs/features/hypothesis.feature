@@ -11,8 +11,8 @@
 #
 # The schema is shared and adapters can't override it.
 #
-# Code: engine/tools.py (HYPOTHESIS_TOOL, HYPOTHESIS_SYSTEM_PROMPT,
-# validate_hypothesis_response), engine/loop.py (get_checkpoint_hypothesis)
+# Code: trailhound/tools.py (HYPOTHESIS_TOOL, HYPOTHESIS_SYSTEM_PROMPT,
+# validate_hypothesis_response), trailhound/loop.py (get_checkpoint_hypothesis)
 
 Feature: The Driver forms one structured hypothesis per checkpoint
   As someone reading a run

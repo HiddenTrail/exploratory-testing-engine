@@ -1,7 +1,8 @@
 # Adapter-bootstrap demo: token_purchase
 
-A real, unedited run of the full 4-phase adapter-bootstrap pipeline against
-the `token_purchase` mock SUT (`engine/adapters/token_purchase/sut.py`),
+A real, unedited run (except that package paths were renamed from `engine` to
+`trailhound` in #335) of the full 4-phase adapter-bootstrap pipeline against
+the `token_purchase` mock SUT (`trailhound/adapters/token_purchase/sut.py`),
 followed by a real 3-checkpoint run of the Driver+Skeptic checkpoint loop
 against the generated adapter. Kept here as a worked example of what the
 pipeline actually produces - not part of the runnable engine.
@@ -16,24 +17,24 @@ feature.
 
 ```
 # in a separate terminal: the mock SUT on the port the demo used
-uvicorn engine.adapters.token_purchase.sut:app --port 8020
+uvicorn trailhound.adapters.token_purchase.sut:app --port 8020
 
-python -m engine.bootstrap.cli \
+python -m trailhound.bootstrap.cli \
   --name bootstrap_demo_purchase --display-name "Bootstrap Demo: Purchase" \
   --base-url http://127.0.0.1:8020 --max-probes 8
 
-# registered the printed line in engine/adapters/registry.py, then:
-python -m engine.cli --adapter bootstrap_demo_purchase --max-checkpoints 3
+# registered the printed line in trailhound/adapters/registry.py, then:
+python -m trailhound.cli --adapter bootstrap_demo_purchase --max-checkpoints 3
 ```
 
-The draft lands in `engine/adapters/bootstrap_demo_purchase/adapter.py`, which was
+The draft lands in `trailhound/adapters/bootstrap_demo_purchase/adapter.py`, which was
 copied here as `generated_adapter.py`. The run's `output.json`, `bugs.json` and
 `report.html` come from `runs/bootstrap_demo_purchase/`.
 
 ## Files
 
 - **`generated_adapter.py`** - the draft `adapter.py` written by
-  `engine.bootstrap.generate`, with zero hand edits. Bootstrap status came
+  `trailhound.bootstrap.generate`, with zero hand edits. Bootstrap status came
   back `inconclusive` (see the warning comment at the top) - the probing
   loop confirmed the request/response schema via real 422s, but never
   discovered a valid `auth_token` in 8 probes, since the mock SUT gates on

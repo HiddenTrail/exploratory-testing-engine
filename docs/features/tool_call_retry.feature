@@ -16,8 +16,8 @@
 # 37297715890 died after $1.07 because one test of four named a control the map doesn't
 # have, at every attempt (#288). So the last attempt can be salvaged.
 #
-# Code: engine/client.py (call_tool_with_retry, unstring_json_fields),
-# engine/tools.py (salvage_casting), engine/loop.py (get_casting_round)
+# Code: trailhound/client.py (call_tool_with_retry, unstring_json_fields),
+# trailhound/tools.py (salvage_casting), trailhound/loop.py (get_casting_round)
 
 Feature: Every model call is a forced tool call, checked and retried with feedback
   As someone paying for runs

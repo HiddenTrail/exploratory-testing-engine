@@ -7,8 +7,8 @@
 # back checkpoint after checkpoint. So a later round may spend only a third of its budget
 # on earlier questions, and a claim the tests can't settle is parked instead of chased.
 #
-# Code: engine/steering.py, engine/loop.py, engine/runner.py, engine/interplay.py
-# (lineages, objected). Tests: engine/tests/test_steering.py
+# Code: trailhound/steering.py, trailhound/loop.py, trailhound/runner.py, trailhound/interplay.py
+# (lineages, objected). Tests: trailhound/tests/test_steering.py
 
 Feature: Later rounds explore new ground, and claims the tests can't settle are parked
   As someone who wants the engine to find problems

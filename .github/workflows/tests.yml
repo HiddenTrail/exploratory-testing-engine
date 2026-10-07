@@ -1,0 +1,51 @@
+name: Trailhound tests
+
+"on":
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r trailhound/requirements.txt
+
+      - name: Compile-check trailhound/
+        run: python -m compileall -q trailhound
+
+      - name: Run the Trailhound test suite
+        run: python -m pytest trailhound/tests -v
+
+      # The Clash Royale kit's own suite. The kit drives a Windows client, but
+      # none of these tests does: the decisions are in checks.py and
+      # wikibuild.py, which import no Win32, and every module that does keeps
+      # those imports function-local so a stub can be put under the name. So
+      # unlike .experiments/game-ontology and .experiments/android-bot - which are
+      # genuinely Windows-only and stay out of CI - these run here, which is
+      # where the assertions that matter belong: that no frame is ever grabbed
+      # with verification, that the safety layers are checked before any frame
+      # is scored, and that --allow-battle is never constructed.
+      - name: Run Clash Royale kit test suite
+        run: python -m pytest clash-royale-kit -v
+
+      # web-recon is loaded by the web_gui adapter at run time, so a break in it
+      # breaks the engine. Its suite ran nowhere, and a one-line bug that dropped
+      # every LLM-nominated control went unnoticed for two weeks (#83). The tests
+      # fake the browser page, so only the Playwright package is needed, not the
+      # browsers.
+      - name: Install web-recon test dependencies
+        run: pip install -r .experiments/web-recon/requirements.txt
+
+      - name: Run web-recon test suite
+        working-directory: .experiments/web-recon
+        run: python -m pytest tests -v

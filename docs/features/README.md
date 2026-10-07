@@ -5,7 +5,7 @@ Gherkin. A comment at the top says why the capability exists and which code hold
 The scenarios say what it does, with the real field names, flags and numbers.
 
 These are documentation for now. Nothing runs them: there are no step definitions,
-and the unit tests in `engine/tests` are still what checks the behaviour.
+and the unit tests in `trailhound/tests` are still what checks the behaviour.
 
 Every change in behaviour adds or updates a file here in the same PR, the same way as
 a README ([CLAUDE.md](../../CLAUDE.md), workflow step 7). A new capability gets a new
@@ -59,6 +59,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | File | Feature |
 |---|---|
 | [`run_command.feature`](run_command.feature) | One command runs a session against an adapter |
+| [`setting_names.feature`](setting_names.feature) | Settings are named TRAILHOUND_, and the old ENGINE_ names still work |
 | [`lean_runs.feature`](lean_runs.feature) | A lean run asks the model only for what decides a finding |
 | [`readiness.feature`](readiness.feature) | The engine checks the SUT is up and fetches one real example before spending anything |
 | [`run_persistence.feature`](run_persistence.feature) | Progress is saved after every checkpoint |
@@ -170,4 +171,4 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | File | Feature |
 |---|---|
 | [`product_wiki.feature`](product_wiki.feature) | A product wiki describes the product under test |
-| [`engine_ci.feature`](engine_ci.feature) | CI checks the engine on every pull request |
+| [`ci.feature`](ci.feature) | CI checks Trailhound on every pull request |

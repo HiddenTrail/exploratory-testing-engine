@@ -13,11 +13,11 @@
 # never start a run. Earlier discoveries are read from the context file of
 # WEB_GUI_PRODUCT, so this needs a product with a wiki.
 #
-# Code: engine/adapters/web_gui/session.py (join_earlier_discoveries, Session.reaches,
-# check_ready), engine/adapters/web_gui/reference.py (add_discovery, state_label),
-# engine/adapters/web_gui/adapter.py (render_onboarding_section),
-# engine/ontology/feedback.py (learn, reached_at_start, merge_reached_again),
-# engine/cli.py (--learn)
+# Code: trailhound/adapters/web_gui/session.py (join_earlier_discoveries, Session.reaches,
+# check_ready), trailhound/adapters/web_gui/reference.py (add_discovery, state_label),
+# trailhound/adapters/web_gui/adapter.py (render_onboarding_section),
+# trailhound/ontology/feedback.py (learn, reached_at_start, merge_reached_again),
+# trailhound/cli.py (--learn)
 
 Feature: A run starts from the screens earlier runs discovered, and learns for the next one
   As someone running the engine against the same product again and again
@@ -65,7 +65,7 @@ Feature: A run starts from the screens earlier runs discovered, and learns for t
     And how many screens are known and how many are reproduced
 
   Scenario Outline: --learn runs the feedback step when the run ends
-    When I run "python -m engine.cli --adapter web_gui --out-dir runs/x <learn>"
+    When I run "python -m trailhound.cli --adapter web_gui --out-dir runs/x <learn>"
     Then <result>
 
     Examples:

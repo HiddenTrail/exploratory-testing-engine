@@ -11,7 +11,7 @@
 # (the notes, field descriptions, background context) goes in as comments or string literals, so it can't
 # become code.
 #
-# Code: engine/bootstrap/generate.py
+# Code: trailhound/bootstrap/generate.py
 # Example output: docs/examples/bootstrap_demo/generated_adapter.py
 
 Feature: A probing result is turned into a draft adapter
@@ -73,7 +73,7 @@ Feature: A probing result is turned into a draft adapter
       | there is no happy-day example        |
       | the schema has no endpoints          |
 
-  Scenario Outline: The adapter is only written inside engine/adapters/
+  Scenario Outline: The adapter is only written inside trailhound/adapters/
     When write_adapter_module is asked to write the adapter named "<name>"
     Then <result>
 

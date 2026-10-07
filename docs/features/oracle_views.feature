@@ -1,7 +1,7 @@
 # Three HTML views of the oracle.
 #
-# engine.ontology.report turns an oracle_ranked.json into one table, one row per idea.
-# engine.ontology.website shows the four layers stacked on one page (heuristics,
+# trailhound.ontology.report turns an oracle_ranked.json into one table, one row per idea.
+# trailhound.ontology.website shows the four layers stacked on one page (heuristics,
 # domain, context, ranking), each folded. It is a Phase 0 stacked view: it draws no
 # links between layers, and it always uses the token_purchase style ranking
 # (build_ranked_ideas), so it doesn't show a product's seeded oracle or the
@@ -10,8 +10,8 @@
 # The run report shows the oracle an adapter gave its Driver, folded in the
 # onboarding section, because it is background and runs to thousands of words.
 #
-# Code: engine/ontology/report.py, engine/ontology/website.py,
-# engine/report.py (render_oracle_ranked)
+# Code: trailhound/ontology/report.py, trailhound/ontology/website.py,
+# trailhound/report.py (render_oracle_ranked)
 
 Feature: The ranked oracle and its layers can be viewed in HTML
   As someone checking the oracle
@@ -20,7 +20,7 @@ Feature: The ranked oracle and its layers can be viewed in HTML
 
   Scenario: ontology.report renders the ranked list as a table
     Given "runs/ontology/token_purchase/oracle_ranked.json" exists
-    When I run "python -m engine.ontology.report --sut token_purchase"
+    When I run "python -m trailhound.ontology.report --sut token_purchase"
     Then it writes "runs/ontology/token_purchase/oracle_ranked.html"
     And the table has the columns "Rank", "Id", "Score", "Tier", "Status", "Category", "Claim" and "Rationale"
     And each score is shown with one decimal
@@ -43,7 +43,7 @@ Feature: The ranked oracle and its layers can be viewed in HTML
     # The status badge is chosen by the part before "+".
 
   Scenario: ontology.website shows the four layers on one page
-    When I run "python -m engine.ontology.website --sut token_purchase"
+    When I run "python -m trailhound.ontology.website --sut token_purchase"
     Then it writes "runs/ontology/token_purchase/ontology_website.html"
     And the page has the layers "1. Heuristic library (generic ontology)", "2. Business / domain layer", "3. Context / source layer" and "4. Oracle (prioritized test ideas)"
     And each layer shows a count in its header and folds its content under "Show details"

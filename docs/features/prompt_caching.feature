@@ -12,7 +12,7 @@
 # the system prompt (tools render before system, so it covers both) and up to 3
 # on the history segments.
 #
-# Code: engine/client.py (_cache_breakpoint, _breakpoint_indexes), engine/loop.py
+# Code: trailhound/client.py (_cache_breakpoint, _breakpoint_indexes), trailhound/loop.py
 
 Feature: The static prompt and the growing test history are cached
   As someone paying for runs

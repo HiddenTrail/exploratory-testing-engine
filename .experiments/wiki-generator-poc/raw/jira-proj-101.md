@@ -1,7 +1,7 @@
 # PROJ-101
 
 <!-- Transcribed verbatim from the mock ticket store in
-     engine/bootstrap/jira_mock.py - not rediscovered, not fabricated.
+     trailhound/bootstrap/jira_mock.py - not rediscovered, not fabricated.
      Stands in for a real fetched JIRA ticket. -->
 
 **Summary:** Exploratory testing needed for the credits-purchase API

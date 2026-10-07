@@ -9,8 +9,8 @@
 # and the run can still be useful, but every known/new reading is relative to the map.
 # What check_ready finds is written into the Driver's onboarding evidence.
 #
-# Code: engine/adapters/web_gui/session.py (check_ready, _resolve_ontology_path,
-# Session.baseline), engine/adapters/web_gui/adapter.py (fetch_happy_day_example)
+# Code: trailhound/adapters/web_gui/session.py (check_ready, _resolve_ontology_path,
+# Session.baseline), trailhound/adapters/web_gui/adapter.py (fetch_happy_day_example)
 
 Feature: The web_gui adapter checks its map and the live app before a run starts
   As someone about to spend money on a web run

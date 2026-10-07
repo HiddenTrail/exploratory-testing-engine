@@ -17,7 +17,7 @@ exactly RAG's problem shape:
 - Phase 3/4 of that same roadmap (mocked, then real, JIRA source) will pull in ticket
   descriptions *and comments* — a corpus that grows over time and benefits from
   incremental indexing rather than re-reading everything per run.
-- The oracle layer's spec-conformance oracle (`docs/exploratory-testing-engine-concept.md`
+- The oracle layer's spec-conformance oracle (`docs/concept.md`
   §3.4) needs to ground judgments in "documented behavior" — retrieval over indexed
   specs/docs is a more scalable version of hand-passing a schema string.
 - State memory / anomaly history (§3.3, §3.5) is itself a growing corpus that future
@@ -39,11 +39,11 @@ Don't build phases 1+ below until this is answered with a real corpus size estim
    and do a manual relevance check against a handful of test queries. No wiring into
    the engine yet — throwaway script only.
 2. **Wire into bootstrap probing.** If the spike looks worthwhile, replace the raw
-   `--context-file` text dump in `engine/bootstrap/probe.py` with a retrieval call
+   `--context-file` text dump in `trailhound/bootstrap/probe.py` with a retrieval call
    over an indexed version of that same context, so the prober gets ranked relevant
    chunks instead of everything.
 3. **Extend into generation.** Same retrieval interface feeding
-   `generate_adapter_source` (`engine/bootstrap/generate.py`), so generated adapters
+   `generate_adapter_source` (`trailhound/bootstrap/generate.py`), so generated adapters
    can pull from a larger indexed corpus (multiple docs, prior adapters) instead of
    just the one context string.
 4. **Index the mocked JIRA ticket store** (roadmap phase 3) through the same

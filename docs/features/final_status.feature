@@ -7,7 +7,7 @@
 # Anything else is inconclusive, so a result that wasn't confirmed is never shown
 # as confirmed.
 #
-# Code: engine/tools.py (final_observations), engine/runner.py (run)
+# Code: trailhound/tools.py (final_observations), trailhound/runner.py (run)
 
 Feature: The engine decides whether each final observation is corroborated
   As someone who needs honest results

@@ -9,7 +9,7 @@
 # the shared perceive.visual_diff. When the pixel diff can't be worked out (no
 # screenshot, or Pillow missing), only the signature and text decide.
 #
-# Code: engine/adapters/web_gui/session.py (Session.act, _VISUAL_CHANGE_THRESHOLD),
+# Code: trailhound/adapters/web_gui/session.py (Session.act, _VISUAL_CHANGE_THRESHOLD),
 # .experiments/web-recon/perceive.py (visual_diff), identity.py (appearance)
 
 Feature: Dead controls are told apart from visual changes

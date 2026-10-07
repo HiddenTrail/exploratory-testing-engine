@@ -583,7 +583,7 @@ consumer can take the observed claims and leave the guesses.
     contain a model's prose: why a mission was planned, why an action was refused, what it
     called a control. The fix is `readable_output()`, called first in every entry point,
     which is process-wide rather than a guard inside `log` because `log` is not the only
-    thing that prints model text - `engine/client.py` prints the validation errors it feeds
+    thing that prints model text - `trailhound/client.py` prints the validation errors it feeds
     back on a retry, and those quote the payload. The general lesson is the cheap one: a
     string that came from a model is untrusted input all the way to the console, and no
     sentence it writes should be able to end a session that has a game open.
@@ -775,7 +775,7 @@ consumer can take the observed claims and leave the guesses.
 
 ## What is reused, and what standalone means
 
-The engine depends on this directory. `engine/adapters/clash_royale/session.py` and
+The engine depends on this directory. `trailhound/adapters/clash_royale/session.py` and
 `clash-royale-kit` put it on `sys.path` and import `controller`, `recon`, `target` and
 `calibrate` at run time. It's maintained, not archive, and renaming anything here can break
 them without CI noticing.
@@ -790,7 +790,7 @@ experiment is trying to produce); the parts of the latter worth
 keeping (Steam library discovery, the foreground-lock retry, WM_CLOSE-then-force) are
 reimplemented here without the game.
 
-`engine/client.py` provides transport: Bedrock-or-API-key auth, forced tool calls,
+`trailhound/client.py` provides transport: Bedrock-or-API-key auth, forced tool calls,
 schema validation and informed retries. Reusing it does not make this part of the
 engine - what is standalone is the ontology schema and the exploration policy, and
 reimplementing auth and backoff to prove a point would only add a second thing to

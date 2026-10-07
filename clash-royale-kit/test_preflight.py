@@ -29,9 +29,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import checks  # noqa: E402
 import preflight  # noqa: E402
-from engine.adapters.clash_royale import actions as cr_actions  # noqa: E402
-from engine.adapters.clash_royale import reference  # noqa: E402
-from engine.adapters.clash_royale import session as cr_session  # noqa: E402
+from trailhound.adapters.clash_royale import actions as cr_actions  # noqa: E402
+from trailhound.adapters.clash_royale import reference  # noqa: E402
+from trailhound.adapters.clash_royale import session as cr_session  # noqa: E402
 
 
 class FakeTarget:

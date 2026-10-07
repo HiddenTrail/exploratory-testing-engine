@@ -11,7 +11,7 @@
 # carousel turned during it), so afterwards the state is reached afresh, the way
 # every later test reaches it.
 #
-# Code: engine/adapters/web_gui/session.py (Session._idle_noise, Session.act,
+# Code: trailhound/adapters/web_gui/session.py (Session._idle_noise, Session.act,
 # _NOISE_SAMPLES, _NOISE_SAMPLE_MS, _console_key, _request_key)
 
 Feature: The engine learns each state's idle noise

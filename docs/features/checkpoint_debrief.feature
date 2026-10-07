@@ -9,12 +9,12 @@
 # of process behind every verdict. Part of epic #262. Accepted cost: two more model calls on
 # a checkpoint with questions.
 #
-# Code: engine/tools.py (DEBRIEF_ANSWER_TOOL, RECONSIDER_TOOL, their prompts,
+# Code: trailhound/tools.py (DEBRIEF_ANSWER_TOOL, RECONSIDER_TOOL, their prompts,
 # validate_debrief_answers, validate_reconsideration, merge_debrief, open_part),
-# engine/loop.py (get_debrief_answers, cited_evidence, get_reconsideration,
-# run_checkpoint_loop), engine/client.py (rejected attempts), engine/interplay.py,
-# engine/report.py (_debrief_html, _verdict_change, _still_open).
-# Tests: engine/tests/test_debrief.py
+# trailhound/loop.py (get_debrief_answers, cited_evidence, get_reconsideration,
+# run_checkpoint_loop), trailhound/client.py (rejected attempts), trailhound/interplay.py,
+# trailhound/report.py (_debrief_html, _verdict_change, _still_open).
+# Tests: trailhound/tests/test_debrief.py
 
 Feature: Each checkpoint ends with a debrief the Driver has to win with evidence
   As someone who wants findings that survived questioning

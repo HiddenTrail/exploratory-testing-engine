@@ -12,7 +12,7 @@
 # The map still gives the screens a test can start from by id (their paths), and the
 # sweep its pairs.
 #
-# Code: engine/adapters/web_gui/adapter.py (CASTING_TOOL, validate_casting_response,
+# Code: trailhound/adapters/web_gui/adapter.py (CASTING_TOOL, validate_casting_response,
 # execute_test, API_SCHEMA_DOC, SAFETY_NOTE), session.py (act_steps, _do_step, _find_live,
 # _reach, STEP_KINDS, MAX_STEPS), reference.py (Reference, driver_briefing)
 

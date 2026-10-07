@@ -11,8 +11,8 @@
 # jira_mock.py). This context is separate from --spec-text, which only feeds the
 # free-text schema fallback.
 #
-# Code: engine/bootstrap/cli.py, engine/bootstrap/jira_mock.py,
-# engine/bootstrap/probe.py, engine/bootstrap/generate.py
+# Code: trailhound/bootstrap/cli.py, trailhound/bootstrap/jira_mock.py,
+# trailhound/bootstrap/probe.py, trailhound/bootstrap/generate.py
 
 Feature: Background context feeds probing and the generated adapter
   As an engineer who knows what the API is for

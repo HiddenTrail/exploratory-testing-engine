@@ -1,8 +1,8 @@
-# The run command: python -m engine.cli --adapter <name> [options].
+# The run command: python -m trailhound.cli --adapter <name> [options].
 #
 # The CLI is generic wiring only: it fixes the console encoding, reads the flags,
 # loads the adapter from the registry, builds a RunConfig and calls
-# engine.runner.run(). Settings are layered: the engine's fallback, then the
+# trailhound.runner.run(). Settings are layered: the engine's fallback, then the
 # adapter's suggested defaults, then the flags. RunConfig refuses a value below 1,
 # because max_checkpoints 0 would leave the run with no checkpoints and crash on
 # checkpoints[-1] instead of failing with a clear message.
@@ -10,7 +10,7 @@
 # Model text can hold characters the default Windows console codec can't encode,
 # which crashed a plain print(), so stdout is switched to UTF-8 first.
 #
-# Code: engine/cli.py, engine/config.py
+# Code: trailhound/cli.py, trailhound/config.py
 
 Feature: One command runs a session against an adapter
   As someone exploring a system
@@ -18,7 +18,7 @@ Feature: One command runs a session against an adapter
   So that starting a run is quick and its settings fit the SUT
 
   Scenario Outline: Each flag sets one run setting
-    When I run "python -m engine.cli --adapter complex_sut <flag> <value>"
+    When I run "python -m trailhound.cli --adapter complex_sut <flag> <value>"
     Then the run's "<setting>" is <value>
 
     Examples:
@@ -30,13 +30,13 @@ Feature: One command runs a session against an adapter
       | --out-dir            | runs/try1/complex_sut_1 | out_dir                 |
 
   Scenario: The adapter must be one that is registered
-    When I run "python -m engine.cli --adapter nosuch"
+    When I run "python -m trailhound.cli --adapter nosuch"
     Then argparse refuses it, listing the choices "clash_royale", "complex_sut", "token_purchase" and "web_gui"
     And running with no "--adapter" at all is refused too
 
   Scenario: Unset flags fall back to the adapter's suggested defaults
     # complex_sut suggests 4 checkpoints, a first-round budget of 10 and a default budget of 6.
-    When I run "python -m engine.cli --adapter complex_sut --default-budget 8"
+    When I run "python -m trailhound.cli --adapter complex_sut --default-budget 8"
     Then max_checkpoints is 4, first_round_test_budget is 10 and default_test_budget is 8
     And the model is the provider's default model
     And max_attempts is 3
@@ -60,7 +60,7 @@ Feature: One command runs a session against an adapter
 
   Scenario: A 0 on the command line means "not given"
     # for_adapter uses "flag or adapter default", so 0 never reaches the value check.
-    When I run "python -m engine.cli --adapter complex_sut --max-checkpoints 0"
+    When I run "python -m trailhound.cli --adapter complex_sut --max-checkpoints 0"
     Then max_checkpoints is 4, the complex_sut default
 
   Scenario: The console prints model text as UTF-8

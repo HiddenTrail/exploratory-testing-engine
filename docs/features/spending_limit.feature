@@ -3,14 +3,14 @@
 # Checkpoints, test budgets and the retry limit already bound a run, but each is a
 # number someone can set high by mistake, and a bug in the loop could call the model
 # again and again. So before every model call, retries included, the engine checks what
-# the run has spent, and stops at ENGINE_MAX_MODEL_CALLS calls or about
-# ENGINE_MAX_COST_USD dollars. The cost is estimated at list prices for a Sonnet-class
-# model ($3, $15, $3.75 and $0.30 per million input, output, cache-write and cache-read
-# tokens). The check runs before a call, so the last call can go over by its own cost.
+# the run has spent, and stops at TRAILHOUND_MAX_MODEL_CALLS calls or about
+# TRAILHOUND_MAX_COST_USD dollars. The cost is estimated at list prices for a
+# Sonnet-class model ($3, $15, $3.75 and $0.30 per million input, output, cache-write
+# and cache-read tokens). The check runs before a call, so the last call can go over by its own cost.
 # Asked for with the CI pipeline (#255), and on for every run on every machine.
 #
-# Code: engine/budget.py, engine/client.py (call_tool_with_retry), engine/runner.py,
-# engine/cli.py, engine/run_summary.py. Tests: engine/tests/test_budget.py
+# Code: trailhound/budget.py, trailhound/settings.py, trailhound/client.py (call_tool_with_retry),
+# trailhound/runner.py, trailhound/cli.py, trailhound/run_summary.py. Tests: trailhound/tests/test_budget.py
 
 Feature: A run stops itself at a spending limit
   As someone paying for model calls
@@ -18,7 +18,7 @@ Feature: A run stops itself at a spending limit
   So that no setting and no bug can make a run spend without end
 
   Scenario Outline: The limits come from the environment, with safe defaults
-    Given ENGINE_MAX_COST_USD is "<cost>" and ENGINE_MAX_MODEL_CALLS is "<calls>"
+    Given TRAILHOUND_MAX_COST_USD is "<cost>" and TRAILHOUND_MAX_MODEL_CALLS is "<calls>"
     When a run starts
     Then <result>
 

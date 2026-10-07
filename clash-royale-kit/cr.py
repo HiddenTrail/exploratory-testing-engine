@@ -158,7 +158,7 @@ def teardown(game: str) -> str:
     worth a loud sentence, not the loss of the run's output.
     """
     from attach import apply_calibration, attach                          # noqa: E402
-    from engine.adapters.clash_royale.session import Session              # noqa: E402
+    from trailhound.adapters.clash_royale.session import Session              # noqa: E402
     try:
         controller = attach(game, verbose=False)
         apply_calibration(controller, game)
@@ -185,7 +185,7 @@ def check_model() -> str:
     on the first screen worth vetting. A one-token call costs a fraction of a cent and moves
     that discovery to before anything has been touched.
     """
-    from engine.client import build_client, default_model                 # noqa: E402
+    from trailhound.client import build_client, default_model                 # noqa: E402
     model = default_model()
     try:
         client = build_client()

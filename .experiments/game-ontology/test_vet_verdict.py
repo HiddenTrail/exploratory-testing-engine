@@ -17,7 +17,7 @@ the model its own malformed call back, and asks for a terser one when the reason
 length - and a lost batch. The exception is `elements`, which is a description rather
 than a permission and is allowed to be partly lost; the last test is that trade.
 
-No network: the client is a stub, in the shape `engine/tests/test_client_retry.py` uses.
+No network: the client is a stub, in the shape `trailhound/tests/test_client_retry.py` uses.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))   # for `engine.client`
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))   # for `trailhound.client`
 
 import pytest
 

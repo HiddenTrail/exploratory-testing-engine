@@ -8,10 +8,10 @@
 # So a test may set start_as to "new_tab" (issue #249). The library's multiple_tabs
 # heuristic is the idea behind it (in the oracle since #246).
 #
-# Code: engine/adapters/web_gui/session.py (START_AS, Session.act, has_session,
-# Session._open_fresh_page), engine/adapters/web_gui/adapter.py (CASTING_TOOL,
+# Code: trailhound/adapters/web_gui/session.py (START_AS, Session.act, has_session,
+# Session._open_fresh_page), trailhound/adapters/web_gui/adapter.py (CASTING_TOOL,
 # validate_casting_response, execute_test, outcome_for, describe_test_for_log,
-# render_test_entry). Tests: engine/tests/test_web_gui_adapter.py
+# render_test_entry). Tests: trailhound/tests/test_web_gui_adapter.py
 
 Feature: A web_gui test can start as a new tab of the logged-in browser
   As a tester of an app behind a login

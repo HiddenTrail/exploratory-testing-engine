@@ -12,7 +12,7 @@
 # up to that point. A report can be rebuilt from saved files, which is how a report
 # change is checked without paying for a new run.
 #
-# Code: engine/report.py (render_report, render_report_from_dir)
+# Code: trailhound/report.py (render_report, render_report_from_dir)
 
 Feature: The HTML report puts the conclusion first and folds the details
   As someone reading a run's results

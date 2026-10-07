@@ -11,9 +11,9 @@
 # so it is still recorded when it's reached again after joining. The full record
 # stays in output.json, but the Driver sees its controls once and then just its id.
 #
-# Code: engine/adapters/web_gui/session.py (discovery, discovery_id, Session.act,
-# _MAX_DISCOVERY_STEPS), engine/adapters/web_gui/reference.py (add_discovery),
-# engine/adapters/web_gui/adapter.py (redact_history_for_model)
+# Code: trailhound/adapters/web_gui/session.py (discovery, discovery_id, Session.act,
+# _MAX_DISCOVERY_STEPS), trailhound/adapters/web_gui/reference.py (add_discovery),
+# trailhound/adapters/web_gui/adapter.py (redact_history_for_model)
 
 Feature: Screens beyond the map are recorded and join the run's map
   As someone testing more than the crawler found

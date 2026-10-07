@@ -8,8 +8,8 @@ kit's citation rule: every claim must cite a specific measurement from the diges
 a measured / inferred / speculative marker, and name the rival explanation it would lose
 to. General knowledge about the app that the digest does not support is inadmissible.
 
-Authentication is the engine's (`ENGINE_USE_BEDROCK` etc.), reused so this PoC does not
-grow its own. The digest-building, validation and rendering are pure and unit-tested with
+Authentication is the engine's (`TRAILHOUND_USE_BEDROCK` etc.), reused so this PoC does
+not grow its own. The digest-building, validation and rendering are pure and unit-tested with
 a fake client; the real call is exercised only behind the flag.
 """
 
@@ -22,7 +22,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from engine.client import build_client, call_tool_with_retry, default_model  # noqa: E402
+from trailhound.client import build_client, call_tool_with_retry, default_model  # noqa: E402
 
 _CONFIDENCE = ("measured", "inferred", "speculative")
 
@@ -139,7 +139,7 @@ def run_synthesis(onto) -> str:
     missing key / model never breaks the wiki - the deterministic wiki is already whole."""
     try:
         from dotenv import load_dotenv
-        load_dotenv(_REPO_ROOT / ".env")  # the Bedrock config (ENGINE_USE_BEDROCK, AWS_*) lives here
+        load_dotenv(_REPO_ROOT / ".env")  # the Bedrock config (TRAILHOUND_USE_BEDROCK, AWS_*) lives here
         review = synthesize(onto, build_client(), default_model())
         return render_synthesis(review)
     # SystemExit (build_client raises it on a missing key/region) is a BaseException, not

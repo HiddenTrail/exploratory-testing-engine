@@ -11,8 +11,8 @@
 # The loop keeps that field in the casting log, which is what feedback reads.
 # The environment is read when the adapter module is imported.
 #
-# Code: engine/adapters/token_purchase/adapter.py, engine/adapters/web_gui/adapter.py,
-# engine/loop.py, engine/tests/test_oracle_switch.py
+# Code: trailhound/adapters/token_purchase/adapter.py, trailhound/adapters/web_gui/adapter.py,
+# trailhound/loop.py, trailhound/tests/test_oracle_switch.py
 
 Feature: Each adapter chooses its oracle, and either can turn it off
   As someone running a session

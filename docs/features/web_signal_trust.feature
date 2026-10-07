@@ -12,8 +12,8 @@
 # a broken relative URL, and the first rule called that third-party (#146 audit).
 # Screenshots are never a signal: pixels move with animations, cursors and fonts.
 #
-# Code: engine/adapters/web_gui/session.py (_signal_diff, _own_request, _console_key,
-# _request_key), engine/adapters/web_gui/adapter.py (API_SCHEMA_DOC)
+# Code: trailhound/adapters/web_gui/session.py (_signal_diff, _own_request, _console_key,
+# _request_key), trailhound/adapters/web_gui/adapter.py (API_SCHEMA_DOC)
 
 Feature: Only trustworthy signals count as evidence
   As someone who doesn't want false alarms

@@ -40,7 +40,7 @@ from pathlib import Path
 # under conditions they were never taken under.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from engine.adapters.clash_royale import reference  # noqa: E402
+from trailhound.adapters.clash_royale import reference  # noqa: E402
 
 NCELLS = reference.NCELLS
 GRID = (reference.GRID_COLS, reference.GRID_ROWS)

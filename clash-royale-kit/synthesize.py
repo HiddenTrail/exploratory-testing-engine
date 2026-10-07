@@ -52,7 +52,7 @@ import wikibuild  # noqa: E402
 
 # Per call. Enough for three sections of real argument and not enough for an essay; the
 # validator rejects a truncated answer with the *actionable* correction ("be shorter") rather
-# than "be correct", which `engine/client.py` explains at the place it matters.
+# than "be correct", which `trailhound/client.py` explains at the place it matters.
 MAX_TOKENS = 3000
 
 # Free-text length caps, enforced by the validator rather than requested in the prompt.
@@ -61,8 +61,8 @@ MAX_TOKENS = 3000
 MAX_PARAGRAPH = 900
 MAX_SUMMARY = 300
 
-# `SystemExit` is in here, and it is not paranoia. `engine.client.build_client` raises
-# `SystemExit` - not a subclass of `Exception` - when `ENGINE_USE_BEDROCK` is set with no region
+# `SystemExit` is in here, and it is not paranoia. `trailhound.client.build_client` raises
+# `SystemExit` - not a subclass of `Exception` - when `TRAILHOUND_USE_BEDROCK` is set with no region
 # configured, which is the single likeliest thing to go wrong on a machine this kit is new to.
 # An `except Exception` around it lets exactly that case take the whole build down after the
 # deterministic wiki was already written, which is the opposite of what soft failure means.
@@ -378,15 +378,15 @@ def run(facts: wikibuild.Facts, workspace: Path, run_rel: str, *, generated_by: 
 
     if client is None:
         try:
-            from engine.client import build_client, default_model
+            from trailhound.client import build_client, default_model
             client, model = build_client(), model or default_model()
         except SOFT_FAILURES as error:                                    # noqa: BLE001
             return SynthesisResult(pages=[], skipped=[
                 f"all three analysis pages: no model client could be built ({error}). The "
-                f"deterministic wiki is complete without them - set ENGINE_USE_BEDROCK=1 and "
+                f"deterministic wiki is complete without them - set TRAILHOUND_USE_BEDROCK=1 and "
                 f"AWS_REGION, or ANTHROPIC_API_KEY, and re-run with --synthesize to add them."])
 
-    from engine.client import call_tool_with_retry
+    from trailhound.client import call_tool_with_retry
     evidence = json.dumps(payload, indent=1, default=str)
 
     for spec in PAGES:

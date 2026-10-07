@@ -14,7 +14,7 @@
 # controls, and clicking them landed on the backdrop (issue #121): they're kept and
 # marked "spoor_reached": false.
 #
-# Code: engine/adapters/web_gui/from_spoor.py. Tests: engine/tests/test_from_spoor.py
+# Code: trailhound/adapters/web_gui/from_spoor.py. Tests: trailhound/tests/test_from_spoor.py
 
 Feature: A Spoor map is converted into web_gui's site map by replaying it live
   As someone onboarding a web app
@@ -27,7 +27,7 @@ Feature: A Spoor map is converted into web_gui's site map by replaying it live
   Scenario: Paths are replayed and pages with one signature are merged
     Given Spoor states "S1" and "S2" both show the same page once replayed
     And Spoor has a transition from "S0" back to "S0"
-    When I run "python -m engine.adapters.web_gui.from_spoor --map <map> --url http://127.0.0.1:3000 --out <ontology.json>"
+    When I run "python -m trailhound.adapters.web_gui.from_spoor --map <map> --url http://127.0.0.1:3000 --out <ontology.json>"
     Then "S1" and "S2" become one state, and states are numbered "st01", "st02" in the order they were first reached
     And the self-loop on "S0" is not written as a transition
     And each written transition has effect "navigate" and a "click" action on the live element's locator

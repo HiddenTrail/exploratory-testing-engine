@@ -1,5 +1,5 @@
 {
-  "about": "Known problems in the local Juice Shop test target (v17.1.1, test-targets/docker-compose.yml) that the web_gui harness can observe through a logged-in map, for scoring runs: found X of Y (issue #277). Each problem says how it shows in a test's recorded signals; engine/adapters/web_gui/score.py matches by that evidence, never by a model: an observation finds a problem when a test it cites recorded the signal and its claim names the problem (one of 'named_by', any case). Proposed from the sweep (#276, runs/sweep/juice-shop.json) and the milestone runs.",
+  "about": "Known problems in the local Juice Shop test target (v17.1.1, test-targets/docker-compose.yml) that the web_gui harness can observe through a logged-in map, for scoring runs: found X of Y (issue #277). Each problem says how it shows in a test's recorded signals; trailhound/adapters/web_gui/score.py matches by that evidence, never by a model: an observation finds a problem when a test it cites recorded the signal and its claim names the problem (one of 'named_by', any case). Proposed from the sweep (#276, runs/sweep/juice-shop.json) and the milestone runs.",
   "review": {
     "status": "proposed",
     "note": "Proposed by Claude Code on 2026-10-04 from the sweep; awaiting review by a person. Change 'status' to 'reviewed' and add 'by' once checked."

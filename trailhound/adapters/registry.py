@@ -1,0 +1,33 @@
+"""Adapter registry - a plain name -> dotted-module-path map, resolved lazily
+via importlib at CLI runtime. Nothing in trailhound/ eagerly imports adapter
+code; this is the only place that ever crosses from trailhound/ into
+trailhound/adapters/, and it does so at run time, not at import time."""
+
+import importlib
+
+_ADAPTERS = {
+    "token_purchase": "trailhound.adapters.token_purchase.adapter",
+    "complex_sut": "trailhound.adapters.complex_sut.adapter",
+    # Not a web service and not a mock: a live game client on this machine. Safe to
+    # have registered because loading it starts nothing - the window is only
+    # attached to by check_sut_ready, which is also where the safety preflight
+    # runs. See trailhound/adapters/clash_royale/actions.py before running it.
+    "clash_royale": "trailhound.adapters.clash_royale.adapter",
+    # A live web app, driven by named (state, control) actions over web-recon's perception.
+    # Loading it starts nothing: the browser is launched only by check_sut_ready, which also
+    # loads the carried reference (WEB_GUI_ONTOLOGY). See trailhound/adapters/web_gui/adapter.py.
+    "web_gui": "trailhound.adapters.web_gui.adapter",
+}
+
+
+def available_adapters() -> list[str]:
+    return sorted(_ADAPTERS)
+
+
+def load_adapter(name: str):
+    module_path = _ADAPTERS.get(name)
+    if module_path is None:
+        available = ", ".join(available_adapters()) or "(none registered)"
+        raise SystemExit(f"Unknown adapter '{name}'. Available: {available}")
+    module = importlib.import_module(module_path)
+    return module.ADAPTER

@@ -1,7 +1,7 @@
 # token_purchase — published API spec
 
 <!-- Transcribed verbatim from API_SCHEMA_DOC and KNOWN_ACCOUNTS in
-     engine/adapters/token_purchase/adapter.py - not rediscovered, not
+     trailhound/adapters/token_purchase/adapter.py - not rediscovered, not
      fabricated. Stands in here for "a real spec doc a tester would be
      handed," so the wiki-generator has a real file to ingest from a plain
      directory instead of a string constant embedded in code. -->

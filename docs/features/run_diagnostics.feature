@@ -10,7 +10,7 @@
 # They are pure arithmetic: no model call, no I/O, and nothing that knows what a
 # modal or an HTTP status is. A "stop" finding ends the run after the checkpoint.
 #
-# Code: engine/diagnostics.py, engine/loop.py (run_checkpoint_loop)
+# Code: trailhound/diagnostics.py, trailhound/loop.py (run_checkpoint_loop)
 
 Feature: The engine checks the run's own mechanics after every batch
   As someone paying for runs

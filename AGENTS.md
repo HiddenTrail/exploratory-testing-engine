@@ -1,4 +1,4 @@
-# qes-exploration — Wiki (AGENTS.md)
+# Trailhound's product wiki (AGENTS.md)
 
 This wiki's purpose is a **model of the product(s) under test** — not of this
 repo's own testing engine. It's built the way a new tester would actually be
@@ -17,11 +17,11 @@ be handed to learn what it is: a published API/spec doc, a JIRA ticket
 describing intent or a bug, a screenshot or recording of the UI, a design doc,
 user-facing instructions. It doesn't matter where that material physically
 sits in this repo — a genuine product doc embedded as a string constant in an
-adapter file (e.g. `API_SCHEMA_DOC` in `engine/adapters/<sut>/adapter.py`) is
+adapter file (e.g. `API_SCHEMA_DOC` in `trailhound/adapters/<sut>/adapter.py`) is
 in scope for exactly what it documents; cite the specific constant, not the
 file's surrounding code.
 
-**Out of scope** — this repo's own testing machinery: engine/adapter
+**Out of scope** — this repo's own testing machinery: engine and adapter
 implementation code, oracle/heuristic config, prioritization logic, and past
 test-run results (`casting_log`, `bugs.json`, `output.json`, `runs/…`). Those
 describe *how we test*, not *what the product is* — a test result belongs in
@@ -119,19 +119,19 @@ show.
 
 Two things feed it: this wiki, and the screens Spoor's map showed. Those screens are
 written into the product's context (`context_<product>.json`, by
-`engine/adapters/web_gui/to_context.py`, #311), in the same shape as an Entity page, and
+`trailhound/adapters/web_gui/to_context.py`, #311), in the same shape as an Entity page, and
 the seeder reads both. They go to the context, not here: this wiki is the curated layer,
 a page someone wrote is never overwritten, and generated screens change with every map.
 
 The engine builds each product's oracle from this wiki (issue #138, see
-`engine/ontology/product.py` and `seeder.py`), so a product's pages carry three
+`trailhound/ontology/product.py` and `seeder.py`), so a product's pages carry three
 extra frontmatter fields:
 
 - **`product`** (the Product Overview and every Entity page about it): the
   product's slug, e.g. `juice-shop`. The overview also gets **`surfaces`**,
   e.g. `[gui]`.
 - **`features`** (Entity pages): what the thing has, as tags from
-  `engine/ontology/heuristics/vocabulary.json`, e.g. `[login, form]`. These
+  `trailhound/ontology/heuristics/vocabulary.json`, e.g. `[login, form]`. These
   decide which heuristics the oracle applies to it.
 - **`facts`** (Entity pages): short checkable statements, each with an `id`
   unique on the page (`F1`), a `kind` from the vocabulary's `fact_kinds`
@@ -152,12 +152,12 @@ facts:
 ```
 
 A fact is held to the same rule as the rest of the page: it says only what its
-source says. `engine/tests/test_seeded_oracle.py` checks the fields.
+source says. `trailhound/tests/test_seeded_oracle.py` checks the fields.
 
 ## Operations
 
 1. **Ingest** — read one in-scope raw source **faithfully** (no invented
-   facts, nothing from out-of-scope engine/test-result material) → write a
+   facts, nothing from out-of-scope engine or test-result material) → write a
    `summaries/` page → update/create `entities/` and `concepts/` pages that
    synthesize it with what's already known → regenerate `index.md` → append a
    line to today's `log/` file.

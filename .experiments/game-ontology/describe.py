@@ -27,7 +27,7 @@ about buttons that were never pressed; refusing to accept the call produces eith
 citation or an admission. The distinction survives into the JSON and the report, so a
 later consumer can take the observed claims and leave the guesses.
 
-Transport is `engine/client.py` - the same Bedrock-or-API-key client, forced tool
+Transport is `trailhound/client.py` - the same Bedrock-or-API-key client, forced tool
 calls, schema validation and informed retries the rest of the repo uses. Reusing it
 does not make this experiment part of the engine: what is standalone here is the
 ontology schema and the exploration policy, and reimplementing auth and backoff to
@@ -46,7 +46,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from engine.client import build_client, call_tool_with_retry, default_model  # noqa: E402
+from trailhound.client import build_client, call_tool_with_retry, default_model  # noqa: E402
 # What a coordinate has to look like to be aimable, from the file that defines the
 # coordinate system. Imported rather than restated so that this module cannot end up
 # accepting a coordinate `Controller.point` would refuse.

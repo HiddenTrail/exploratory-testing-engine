@@ -11,7 +11,7 @@
 # "reset_failing"): a run that can't get back to its own baseline can't tie a
 # result to the action that was sent, so more tests would be wasted money.
 #
-# Code: engine/loop.py (run_checkpoint_loop), engine/config.py, engine/runner.py
+# Code: trailhound/loop.py (run_checkpoint_loop), trailhound/config.py, trailhound/runner.py
 
 Feature: A run is a series of checkpoints that each cast, hypothesise and review
   As someone exploring a live system

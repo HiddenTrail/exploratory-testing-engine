@@ -267,7 +267,7 @@
     "description": "What EXPLICIT, documented claims does the spec make that can be mechanically checked against any real response? (e.g. 'decline_reason must be one of these N documented values', 'credits_purchased must be 0 if declined').",
     "context": ["api", "gui"],
     "status": "implemented",
-    "source": "docs/exploratory-testing-engine-concept.md §3.4"
+    "source": "docs/concept.md §3.4"
   },
   {
     "keyword": "comparable_products",
@@ -277,7 +277,7 @@
     "description": "Does this system belong to a recognizable category of real-world systems? If so, what conventions or behaviors do systems in that category typically get right (or wrong) that this system should be checked against, even if never explicitly documented?",
     "context": ["api", "gui"],
     "status": "implemented",
-    "source": "docs/exploratory-testing-engine-concept.md §3.4"
+    "source": "docs/concept.md §3.4"
   },
   {
     "keyword": "self_consistency",
@@ -287,7 +287,7 @@
     "description": "What cross-field or cross-response invariants SHOULD hold within this system's own documented behavior, even if never explicitly stated as a single rule? (e.g. 'if status is declined, credits_purchased and total_charged must both be 0').",
     "context": ["api", "gui"],
     "status": "implemented",
-    "source": "docs/exploratory-testing-engine-concept.md §3.4"
+    "source": "docs/concept.md §3.4"
   },
   {
     "keyword": "dumb_user",
@@ -297,7 +297,7 @@
     "description": "Would a naive user find this confusing or wrong, regardless of whether it's technically spec-compliant? Judge from the perspective of someone with no special knowledge of the system's internals or documentation.",
     "context": ["api", "gui"],
     "status": "cataloged",
-    "source": "docs/exploratory-testing-engine-concept.md §3.4"
+    "source": "docs/concept.md §3.4"
   },
   {
     "keyword": "statistical_trend",
@@ -307,6 +307,6 @@
     "description": "Does this deviate from the system's own past behavior - latency drift, error-rate creep, or other trends observable only by comparing against prior runs or history? Needs accumulated data across runs to be meaningful; not useful on a single, first-time pass.",
     "context": ["api", "gui"],
     "status": "cataloged",
-    "source": "docs/exploratory-testing-engine-concept.md §3.4"
+    "source": "docs/concept.md §3.4"
   }
 ]

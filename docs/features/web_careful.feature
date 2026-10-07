@@ -9,9 +9,9 @@
 # from, and leaving the site (#308). A run says plainly which way it tests, because that
 # line is what catches a run pointed at the wrong system.
 #
-# Code: engine/adapters/web_gui/careful.py (load, applies, logs_out, describe),
+# Code: trailhound/adapters/web_gui/careful.py (load, applies, logs_out, describe),
 # session.py (_do_step, check_ready), adapter.py (SAFETY_NOTE, render_onboarding_section).
-# Tests: engine/tests/test_careful.py, engine/tests/test_web_gui_adapter.py
+# Tests: trailhound/tests/test_careful.py, trailhound/tests/test_web_gui_adapter.py
 
 Feature: A web run tests fully, except where the target is tagged careful
   As someone testing a product on a copy nobody depends on

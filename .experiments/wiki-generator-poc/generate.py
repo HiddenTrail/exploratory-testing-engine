@@ -10,13 +10,13 @@ every experiment's run_live.py uses):
      wiki/concepts/<product>-product-model.md
 
 Deliberately narrow, matching how this repo's other PoCs scope down before
-graduating to engine/: no entity pages, no recursive source directories, no
+graduating to trailhound/: no entity pages, no recursive source directories, no
 in-scope/out-of-scope classification (the caller is trusted to only point
 --source at a directory that's already product-facing raw material - see
 AGENTS.md's "What counts as a raw source" for what that means in practice).
 Rendering (frontmatter + body markdown) is done in Python from the tool call's
 structured output, not by asking the model to emit raw markdown - same
-"structured call, deterministic render" split as engine/report.py.
+"structured call, deterministic render" split as trailhound/report.py.
 
 results/wiki/ in this experiment is the proof run's output, committed like
 oracle-agent-poc's results/oracle_library.json.

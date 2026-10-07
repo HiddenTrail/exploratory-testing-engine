@@ -152,7 +152,7 @@ def readable_output() -> None:
     game already launched, on a `→` in a sentence explaining why.
 
     Process-wide rather than a guard inside `log`, because `log` is not the only thing here
-    that prints model text: `engine/client.py` prints the validation errors it feeds back
+    that prints model text: `trailhound/client.py` prints the validation errors it feeds back
     on a retry, and those quote the payload. One line at startup covers every print in the
     process, including the ones in code this experiment only borrows.
 

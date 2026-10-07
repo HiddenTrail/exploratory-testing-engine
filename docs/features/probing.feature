@@ -11,7 +11,7 @@
 # because that is a fact code can check. Only the first endpoint of the schema is
 # probed.
 #
-# Code: engine/bootstrap/probe.py, engine/http.py (call_sut_once)
+# Code: trailhound/bootstrap/probe.py, trailhound/http.py (call_sut_once)
 
 Feature: The draft schema is checked by probing the live API
   As an engineer adding a new HTTP API

@@ -10,8 +10,8 @@
 # OpenAPI library is added for this. A catch-all 200 page (an SPA fallback) at one of
 # the paths must not be read as a schema, so a document has to say what it is.
 #
-# Code: engine/bootstrap/discovery.py, engine/bootstrap/report.py,
-# engine/bootstrap/cli.py (--discover-only)
+# Code: trailhound/bootstrap/discovery.py, trailhound/bootstrap/report.py,
+# trailhound/bootstrap/cli.py (--discover-only)
 
 Feature: The schema is read from the API's own OpenAPI document
   As an engineer adding a new HTTP API
@@ -73,7 +73,7 @@ Feature: The schema is read from the API's own OpenAPI document
     And complex_sut's "priority" is optional with a default of "normal"
 
   Scenario: --discover-only writes the result as JSON and HTML, with no model calls
-    When I run "python -m engine.bootstrap.cli --name my_api --base-url http://127.0.0.1:8000 --discover-only"
+    When I run "python -m trailhound.bootstrap.cli --name my_api --base-url http://127.0.0.1:8000 --discover-only"
     Then discovery runs and nothing else does
     And no model client is built
     And "--display-name" is not needed

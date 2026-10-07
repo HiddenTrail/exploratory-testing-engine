@@ -10,7 +10,7 @@
 # showing cache_read=0 can't say which call missed or how far apart they were.
 # The engine records token counts only. It does not work out a price.
 #
-# Code: engine/client.py (_record_usage, summarize_usage), engine/runner.py
+# Code: trailhound/client.py (_record_usage, summarize_usage), trailhound/runner.py
 
 Feature: Every model response's token use is logged and summed per call type
   As someone paying for runs

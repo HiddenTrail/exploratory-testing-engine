@@ -1,6 +1,6 @@
 # Bug replay: run a bug's tests again before it is reported (#177, merged in #230).
 #
-# Its tests are in engine/tests/test_verify.py.
+# Its tests are in trailhound/tests/test_verify.py.
 #
 # Why: the #160 milestone run reported a corroborated, high-severity bug (/profile
 # returns 500) that came from an expired saved session, and nothing ran the tests
@@ -9,7 +9,7 @@
 # is made. Replay is opt-in through SUTAdapter.compare_replay, because only the adapter
 # knows whether its tests can run twice. Today only web_gui supplies it.
 #
-# Code: engine/verify.py, runner.py, adapter.py, loop.py, redact.py,
+# Code: trailhound/verify.py, runner.py, adapter.py, loop.py, redact.py,
 # report.py, adapters/web_gui/adapter.py and session.py
 
 Feature: A bug's tests are replayed before it is reported

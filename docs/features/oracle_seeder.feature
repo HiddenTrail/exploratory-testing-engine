@@ -13,8 +13,8 @@
 # Facts outrank heuristics, so a plain top 15 would be all self-consistency checks.
 # That is why a capped pick takes turns across seeds.
 #
-# Code: engine/ontology/seeder.py, engine/ontology/seeds/fewhiccupps.json,
-# engine/ontology/oracle_creator.py (build_product_ideas), engine/tests/test_seeded_oracle.py
+# Code: trailhound/ontology/seeder.py, trailhound/ontology/seeds/fewhiccupps.json,
+# trailhound/ontology/oracle_creator.py (build_product_ideas), trailhound/tests/test_seeded_oracle.py
 
 Feature: A product's oracle is built from its wiki through the FEW HICCUPPS seeds
   As someone onboarding a product
@@ -22,7 +22,7 @@ Feature: A product's oracle is built from its wiki through the FEW HICCUPPS seed
   So that the oracle isn't hand-written and every idea says where it came from
 
   Background:
-    Given the seeds in engine/ontology/seeds/fewhiccupps.json
+    Given the seeds in trailhound/ontology/seeds/fewhiccupps.json
     And the product "juice-shop" in the wiki
 
   Scenario: There are 11 FEW HICCUPPS seeds
@@ -93,7 +93,7 @@ Feature: A product's oracle is built from its wiki through the FEW HICCUPPS seed
     And the oracle can be written as plain JSON
     And an invalid product layer raises an error starting "invalid product layer:"
     And the product's screens from its context (Spoor's map, see spoor_context.feature) are read with the wiki's entities, so a product with screens but no overview still gets an oracle
-    And "python -m engine.ontology.seeder --product juice-shop" prints the number of expectations and the count per seed
+    And "python -m trailhound.ontology.seeder --product juice-shop" prints the number of expectations and the count per seed
     And with "--out <file>" it also writes the oracle there as JSON
 
   Scenario: A capped pick takes turns across seeds

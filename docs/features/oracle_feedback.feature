@@ -1,6 +1,6 @@
 # Feedback: a run's results go back into the context layer for the next ranking.
 #
-# After a Driver run, engine.ontology.feedback reads the run's output.json and writes
+# After a Driver run, trailhound.ontology.feedback reads the run's output.json and writes
 # each test that cited an oracle id, with whether its prediction held, into
 # context_<sut>.json (or context_<product>.json for a product with a wiki).
 #
@@ -9,8 +9,8 @@
 # example from gap ids, when it has no oracle to cite (#107), so an id that isn't one
 # of the SUT's ranked ideas is dropped and listed instead of recorded.
 #
-# Code: engine/ontology/feedback.py, engine/tests/test_ontology_claim_matching.py,
-# engine/tests/test_seeded_oracle.py
+# Code: trailhound/ontology/feedback.py, trailhound/tests/test_ontology_claim_matching.py,
+# trailhound/tests/test_seeded_oracle.py
 
 Feature: A run's results feed back into the next ranking
   As someone running repeated sessions
@@ -18,15 +18,15 @@ Feature: A run's results feed back into the next ranking
   So that the next run's ranking reflects what this run learned
 
   Scenario: The CLI merges a run into the SUT's context file
-    When I run "python -m engine.ontology.feedback --sut token_purchase --run runs/x/output.json"
+    When I run "python -m trailhound.ontology.feedback --sut token_purchase --run runs/x/output.json"
     Then it reads the run's "casting_log"
-    And it writes "engine/ontology/context_token_purchase.json"
+    And it writes "trailhound/ontology/context_token_purchase.json"
     And it prints "Merged N test result(s) into" the path, with "(total now M)"
 
   Scenario: With --product the context file is keyed by product
     When I run feedback with "--sut web_gui --product juice-shop"
     Then the known ids are the whole seeded oracle for "juice-shop"
-    And the results go into "engine/ontology/context_juice-shop.json"
+    And the results go into "trailhound/ontology/context_juice-shop.json"
 
   Scenario: Only tests that cite an oracle id are kept
     Given a casting log with these tests:

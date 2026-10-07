@@ -9,9 +9,9 @@
 # looked like a counter that didn't count. Unlike token_purchase, one test can be a
 # burst of requests whose responses are added up into one result.
 #
-# Start it with: uvicorn engine.adapters.complex_sut.sut:app --port 8000
+# Start it with: uvicorn trailhound.adapters.complex_sut.sut:app --port 8000
 #
-# Code: engine/adapters/complex_sut/sut.py, engine/adapters/complex_sut/adapter.py
+# Code: trailhound/adapters/complex_sut/sut.py, trailhound/adapters/complex_sut/adapter.py
 
 Feature: A rate-limited API with a planted race to test against
   As someone developing the engine

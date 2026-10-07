@@ -7,7 +7,7 @@
 # bug, so its rubric scores how rigorous the process was, and any claimed anomaly has
 # to be checked against sut.py by hand. Nothing in the code reads these files.
 #
-# Code: engine/adapters/token_purchase/rubric.md, engine/adapters/complex_sut/rubric.md
+# Code: trailhound/adapters/token_purchase/rubric.md, trailhound/adapters/complex_sut/rubric.md
 
 Feature: Each reference SUT has a rubric to score runs by hand
   As someone judging the engine's quality
@@ -16,7 +16,7 @@ Feature: Each reference SUT has a rubric to score runs by hand
 
   Scenario: The token_purchase rubric scores the process, since there is no known bug
     Given a finished token_purchase run
-    When I score it with "engine/adapters/token_purchase/rubric.md"
+    When I score it with "trailhound/adapters/token_purchase/rubric.md"
     Then I check whether auth, card authorization, Luhn, expiry, CVV, credit_count and pricing tiers were each exercised
     And whether any test probed a card's hidden spending capacity, for example until "insufficient_funds"
     And whether each anomaly names test numbers, a mechanism and a real competing explanation
@@ -27,7 +27,7 @@ Feature: Each reference SUT has a rubric to score runs by hand
 
   Scenario: The complex_sut rubric checks the planted race was found and explained
     Given a finished complex_sut run with "anomaly_found" true
-    When I score it with "engine/adapters/complex_sut/rubric.md"
+    When I score it with "trailhound/adapters/complex_sut/rubric.md"
     Then I score sections 1 to 7
     And they ask whether the Driver reasoned about concurrency before testing it
     And whether the anomalous test really has "actual_correctness" "overcounted"
@@ -39,7 +39,7 @@ Feature: Each reference SUT has a rubric to score runs by hand
 
   Scenario: A complex_sut run that found nothing is scored on its behavior checkpoints
     Given a finished complex_sut run with "anomaly_found" false
-    When I score it with "engine/adapters/complex_sut/rubric.md"
+    When I score it with "trailhound/adapters/complex_sut/rubric.md"
     Then I skip to section 8
     And I check whether the summary matches what was tested
     And whether the Skeptic's gaps named that everything so far was sequential

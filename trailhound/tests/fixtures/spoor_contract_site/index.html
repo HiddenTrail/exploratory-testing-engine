@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Contract home</title></head>
+<body>
+  <h1>Contract home</h1>
+  <!-- The smallest site with something to map: a toggle that changes the page,
+       and a link to a second page. Used by trailhound/tests/test_spoor_contract.py. -->
+  <button type="button" onclick="document.getElementById('more').hidden = !document.getElementById('more').hidden">Show details</button>
+  <p id="more" hidden>Details <button type="button">Inner action</button></p>
+  <a href="second.html">Second page</a>
+  <!-- Only "logged in": the link exists when localStorage has contract_session=1, which a
+       saved session file gives Spoor's --session (#156). Logged out, the account page
+       can't be reached from here. -->
+  <script>
+    if (localStorage.getItem("contract_session") === "1") {
+      const link = document.createElement("a");
+      link.href = "account.html";
+      link.textContent = "Your account";
+      document.body.appendChild(link);
+    }
+  </script>
+</body>
+</html>
