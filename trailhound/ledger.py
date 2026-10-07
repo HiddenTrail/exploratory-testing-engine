@@ -37,6 +37,16 @@ def ideas_checked(casting_log: list[dict], checkpoint: int) -> dict[str, list[in
     return ideas
 
 
+def idea_answers(checkpoints: list[dict]) -> dict[str, str]:
+    """Each idea's latest answer in the run's hypotheses: held, broke or cannot_tell."""
+    answers: dict[str, str] = {}
+    for cp in checkpoints:
+        for a in (cp.get("hypothesis") or {}).get("ideas") or []:
+            if isinstance(a, dict) and a.get("id") and a.get("verdict") in VERDICTS:
+                answers[a["id"]] = a["verdict"]
+    return answers
+
+
 def accounted(checkpoints: list[dict], test_problems: dict[int, list[str]]) -> set[str]:
     """The problems earlier checkpoints answered: shown by a test an observation cites,
     or dismissed."""

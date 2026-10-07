@@ -414,11 +414,20 @@ def discovery_id(sig: str) -> str:
     return "d" + hashlib.blake2s(sig.encode("utf-8"), digest_size=4).hexdigest()
 
 
+def changes_data(element: dict, origin: str) -> bool:
+    """Whether the read-only gate holds this control back because using it would change
+    data (a submit, or a name like "Add to Basket"), not for another reason."""
+    reason = gate_plan(element, origin).reason
+    return "mutating verb" in reason or "commits a form" in reason
+
+
 def discovery(obs, sig: str, path: list[dict], from_state: str, via: str, origin: str) -> dict:
     """A screen an action reached that the carried map doesn't have (issue #157), in the
     shape of a map state, so it can be added to a map later (#158): its controls are
     already through web-recon's safety gate (committing unless the read-only crawl may act
-    on them), and `path` is every step from the start, the carried path plus the action."""
+    on them), and `path` is every step from the start, the carried path plus the action.
+    Its controls, its fields and the controls that change data are listed as coverage
+    tokens (#328), so the context can weigh it against the mapped screens."""
     safe = {e["locator"] for e in safe_actions(obs.elements, origin)}
     return {
         "id": discovery_id(sig), "signature": sig, "url": obs.url, "title": obs.title,
@@ -428,6 +437,12 @@ def discovery(obs, sig: str, path: list[dict], from_state: str, via: str, origin
                       "committing": e["locator"] not in safe, "href": e.get("href", "")}
                      for e in obs.elements],
         "controls_offered": len(safe),
+        "controls": sorted({ref_mod.control_token(e["role"], e["name"]) for e in obs.elements
+                            if e["role"] not in ("", "generic")}),
+        "fields": sorted({ref_mod.control_token(e["role"], e["name"]) for e in obs.elements
+                          if e["role"] in ref_mod.FIELD_ROLES}),
+        "changes_data": sorted({ref_mod.control_token(e["role"], e["name"]) for e in obs.elements
+                                if changes_data(e, origin)}),
     }
 
 

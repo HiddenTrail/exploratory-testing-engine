@@ -57,7 +57,7 @@ _FEATURE_RULES = (
     ("navigation", r"^link:|back to homepage|sidenav"),
     ("date-time", r"\bdate\b|\btime\b"),
 )
-_FIELD_ROLES = ("textbox", "searchbox", "combobox")
+_FIELD_ROLES = ref_mod.FIELD_ROLES
 _SUBMITS = re.compile(r"\b(submit|send|save|register|log ?in|sign ?in|checkout|pay|place order|confirm)\b")
 _MAX_LISTED = 8
 _MAX_NAME = 40
@@ -69,8 +69,10 @@ _EVERYWHERE = 0.8
 
 
 def _route(url: str) -> str:
+    """A screen's route: the path and the fragment, without a query in either, the way a
+    test's start is an area (#328). "/#/search?q=apple" is "/#/search"."""
     parts = urlsplit(url or "")
-    return (parts.path or "/") + (f"#{parts.fragment}" if parts.fragment else "")
+    return (parts.path or "/") + (f"#{parts.fragment.split('?', 1)[0]}" if parts.fragment else "")
 
 
 def _heading(state: dict) -> str:
@@ -103,6 +105,10 @@ def _name(text: str) -> str:
     text = re.sub(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+", "", text or "")
     text = " ".join(text.split())
     return text if len(text) <= _MAX_NAME else text[:_MAX_NAME].rsplit(" ", 1)[0] + "..."
+
+
+def _tokens(elements) -> list[str]:
+    return sorted({ref_mod.control_token(e.get("role", ""), e.get("name", "")) for e in elements})
 
 
 def features_of(elements: list[dict], headings: list[str], allowed: set[str]) -> list[str]:
@@ -164,6 +170,11 @@ def screens_from_map(reference: ref_mod.Reference, product: str, source: str) ->
         screens.append({"slug": slug, "title": title, "route": g["route"], "states": [s["id"] for s in g["states"]],
                         "path": reference._paths[g["states"][0]["id"]], "examples": headings,
                         "features": features_of(on_this, headings, allowed), "elements": on_this,
+                        # Coverage tokens (#328): what a run can try here, its fields, and
+                        # what changes data, so the context can say what was never tried.
+                        "controls": _tokens(on_this),
+                        "fields": _tokens(e for e in on_this if e.get("role") in _FIELD_ROLES),
+                        "changes_data": _tokens(e for e in on_this if e.get("changes_data")),
                         "generated": True, "source": source})
     for screen in screens:
         screen["facts"] = _facts(screen, reference, title_of)

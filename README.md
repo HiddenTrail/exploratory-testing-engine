@@ -139,7 +139,8 @@ Full status and backlog: [`docs/ontology-todo.md`](docs/ontology-todo.md).
 python -m trailhound.ontology.oracle_creator --sut token_purchase   # layer 4: rank
 python -m trailhound.ontology.website --sut token_purchase          # view all 4 layers
 python -m trailhound.ontology.feedback --sut token_purchase --run <output.json>  # close the loop
-python -m trailhound.cli --adapter web_gui --learn juice-shop       # or close it as the run ends (#159)
+python -m trailhound.cli --adapter web_gui --learn juice-shop       # or close it as the run ends (#159),
+                                                                    #   with each area's coverage and importance (#328)
 python -m trailhound.ontology.seeder --product juice-shop           # a product's oracle, built from its wiki
 ```
 
@@ -163,7 +164,8 @@ trailhound/
   interplay.py  # how well the Driver answered the Skeptic: gaps, answers, objections that came back
   steering.py   # most of each later round goes to new ground; claims the tests can't settle are parked
   ledger.py     # every oracle idea a checkpoint's tests checked, and every recorded error, gets an answer
-  coverage.py   # what the tests have sent so far, per input field, worked out from the casting schema
+  coverage.py   # what the tests have sent so far, per input field, worked out from the casting schema,
+                #   and the kinds a value can be (empty, a boundary, markup...), for coverage per area (#328)
                 #   and given to the Skeptic so it doesn't guess coverage from the Driver's prose
   report.py     # generic HTML rendering (prose, badges, CSS, page/checkpoint structure)
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output

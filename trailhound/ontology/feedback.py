@@ -6,6 +6,11 @@ An id that isn't one of the SUT's ranked ideas is dropped and reported: the
 Driver makes ids up, for example from gap ids, when it has no oracle to cite
 (issue #107).
 
+It also keeps the screens a run reached beyond its map, the Skeptic's objections, and
+what the run covered in each area of the product, with every area ranked for the next
+run (#328, ontology/areas.py). What it learned is written into the run's own output.json
+as "learned", so the run's summary can show it.
+
 Run: python -m trailhound.ontology.feedback --sut token_purchase --run runs/ontology_phase0_driver/output.json
 """
 
@@ -16,18 +21,25 @@ import json
 from datetime import date
 from pathlib import Path
 
+from trailhound.ontology import areas
 from trailhound.ontology.oracle_creator import build_product_ideas, build_ranked_ideas, context_path, load_context
 from trailhound.tools import OBJECTION_KINDS
 
 # How many kinds of objection the next run's Driver is told about.
 _OBJECTIONS_SHOWN = 4
+# How many areas a line of what was learned names.
+_AREAS_LISTED = 3
+
+
+def ideas_for(sut: str, product: str | None = None) -> list[dict]:
+    """The ideas a test can really cite: the SUT's ranked ideas (domain claims and
+    generic heuristics), or a product's whole seeded oracle."""
+    ideas = build_product_ideas(product) if product else build_ranked_ideas(sut)
+    return ideas["ranked_ideas"]
 
 
 def known_ids(sut: str, product: str | None = None) -> set[str]:
-    """The ids a test can really cite: the SUT's ranked ideas (domain claims and
-    generic heuristics), or a product's whole seeded oracle."""
-    ideas = build_product_ideas(product) if product else build_ranked_ideas(sut)
-    return {idea["id"] for idea in ideas["ranked_ideas"]}
+    return {idea["id"] for idea in ideas_for(sut, product)}
 
 
 def extract_results(output: dict, known: set[str]) -> tuple[list[dict], list[str]]:
@@ -84,6 +96,9 @@ def merge_discoveries(context: dict, found: list[dict], run: str) -> dict:
         known["last_seen"] = run
         known["elements"] = record["elements"]
         known["controls_offered"] = record["controls_offered"]
+        for key in ("controls", "fields", "changes_data"):        # coverage tokens (#328), the latest seen
+            if key in record:
+                known[key] = record[key]
         known["status"] = "reproduced" if known["times_reached"] >= 2 else "seen once"
     context["discoveries"] = list(by_id.values())
     return context
@@ -164,11 +179,16 @@ def merge_results(context: dict, new_results: list[dict]) -> dict:
 
 def learn(sut: str, run_path: Path, product: str | None = None) -> list[str]:
     """Feed one run into the context: results per oracle id, the screens it reached
-    beyond the map, and the earlier screens it reached again at its start. The next
+    beyond the map, the earlier screens it reached again at its start, and what it
+    covered in each area, with every area's importance for the next run (#328). The next
     run's oracle is rebuilt from this when it starts; the run itself is never re-ranked
-    (issue #159). Returns what was learned, as lines to print."""
+    (issue #159). Returns what was learned, as lines to print, and writes them into the
+    run's own output.json as "learned", for its summary. Learning from the same run again
+    doesn't count its coverage twice."""
     output = json.loads(Path(run_path).read_text(encoding="utf-8"))
-    new_results, dropped = extract_results(output, known_ids(sut, product))
+    ideas = ideas_for(sut, product)
+    known = {idea["id"] for idea in ideas}
+    new_results, dropped = extract_results(output, known)
     run = output.get("run_id") or Path(run_path).parent.name
 
     key = product or sut
@@ -184,6 +204,11 @@ def learn(sut: str, run_path: Path, product: str | None = None) -> list[str]:
     objections = extract_objections(output)
     if objections:
         context = merge_objections(context, objections, run=run)
+    # An adapter with no places (an API) leaves nothing here, and the context is left as it was.
+    covered = areas.extract(output, known)
+    tested = areas.merge(context, covered, run=run) if covered else {}
+    if context.get("screens") or context.get("coverage") or context.get("discoveries"):
+        context["areas"] = areas.rank(context, ideas)
 
     path = context_path(key)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -204,7 +229,40 @@ def learn(sut: str, run_path: Path, product: str | None = None) -> list[str]:
     if dropped:
         lines.append(f"Dropped {len(dropped)} made-up id(s) that aren't ranked ideas for {sut}: "
                      f"{', '.join(sorted(set(dropped)))}")
+    lines += coverage_lines(context, tested)
+    # Written the way the runner writes it, through a temporary file, so a crash can't
+    # leave half a run behind.
+    output["learned"] = lines
+    tmp = Path(run_path).with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(output, indent=2), encoding="utf-8")
+    tmp.replace(run_path)
     return lines
+
+
+def coverage_lines(context: dict, tested: dict[str, bool]) -> list[str]:
+    """What a run's coverage changed (#328): the areas it tested, those tested for the
+    first time, areas reached that the map lacks, and the most important areas now."""
+    by_key = {a["key"]: a for a in context.get("areas") or []}
+    lines = []
+    if tested:
+        first = [k for k, new in tested.items() if new]
+        lines.append(f"Covered: {len(tested)} area(s) tested this run, {len(first)} for the first time"
+                     + (": " + "; ".join(_title(by_key, k) for k in first[:_AREAS_LISTED]) if first else "")
+                     + (f" and {len(first) - _AREAS_LISTED} more" if len(first) > _AREAS_LISTED else ""))
+        unmapped = [k for k in tested if not by_key.get(k, {}).get("mapped", True)]
+        if unmapped:
+            lines.append("Tested where the map has no screen: "
+                         + "; ".join(_title(by_key, k) for k in unmapped[:_AREAS_LISTED])
+                         + (f" and {len(unmapped) - _AREAS_LISTED} more" if len(unmapped) > _AREAS_LISTED else ""))
+    top = (context.get("areas") or [])[:_AREAS_LISTED]
+    if top:
+        lines.append("Most important areas for the next run: " + "; ".join(
+            f"{a['title']} ({a['importance']}: {', '.join(a['why'])})" for a in top))
+    return lines
+
+
+def _title(by_key: dict, key: str) -> str:
+    return by_key[key]["title"] if key in by_key else key
 
 
 def main() -> None:

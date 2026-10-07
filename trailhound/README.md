@@ -98,7 +98,7 @@ trailhound/
   interplay.py  # how well the Driver answered the Skeptic: gaps, answers, objections that came back
   steering.py   # most of each later round goes to new ground; claims the tests can't settle are parked
   ledger.py     # every oracle idea a checkpoint's tests checked, and every recorded error, gets an answer
-  coverage.py   # what the tests have sent so far, per input field, for the Skeptic
+  coverage.py   # what the tests have sent so far, per input field, for the Skeptic, and the kinds of a value (#328)
   report.py     # generic HTML rendering (prose, badges, CSS, page/checkpoint structure)
   runner.py     # orchestrates one full run: readiness probe, loop, bug reports, file output
   verify.py     # replays each bug's tests before it's reported, and lowers one that doesn't reproduce
@@ -149,8 +149,12 @@ parameters with `--model`, `--max-checkpoints`, `--first-round-budget`,
 `--default-budget`, `--out-dir`. `--learn [product]` feeds the run's results,
 discovered screens and the Skeptic's objections (by kind) into the context layer
 when it ends, so the next run starts from them (#159, #258). Each run's Driver is
-told the kinds of objection the Skeptic raised most before. `TRAILHOUND_CONTEXT_DIR`
-moves the context files to another folder, for benchmarks.
+told the kinds of objection the Skeptic raised most before. It also adds up what
+the run covered in each area of the product (the controls used, the kinds of value
+each field was sent, the ideas checked, the errors seen) and ranks every area for
+the next run, with its reasons (`ontology/areas.py`, #328). The run's summary shows
+what was learned. `TRAILHOUND_CONTEXT_DIR` moves the context files to another
+folder, for benchmarks.
 
 `--lean` makes a lean run, for experiments (#295): the model writes only what
 decides a finding, and the testing story, the debrief and the bug report

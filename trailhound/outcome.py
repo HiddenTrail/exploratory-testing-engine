@@ -104,6 +104,16 @@ class Outcome:
     # sure each one is accounted for. Empty where the adapter can't observe any.
     problems: list[str] = field(default_factory=list)
 
+    # What the test covered (#328), so a product's context can say which parts were tested
+    # hard and which never were. `area` is where the test was cast to start, as the adapter
+    # names it (a screen of the map, a route); `tried` the controls it used, as tokens;
+    # `inputs` each field it filled and the kind of value it sent there (coverage.value_kinds).
+    # Opaque tokens again: the engine groups and counts them. Empty where the adapter has
+    # no such places.
+    area: str = ""
+    tried: list[str] = field(default_factory=list)
+    inputs: list[list[str]] = field(default_factory=list)
+
     def as_dict(self) -> dict:
         return asdict(self)
 
@@ -164,6 +174,15 @@ def validate_outcome(data) -> list[str]:
     problems = data.get("problems", [])
     if not isinstance(problems, list) or not all(isinstance(p, str) for p in problems):
         errors.append("'problems' must be a list of strings")
+    if not isinstance(data.get("area", ""), str):
+        errors.append("'area' must be a string ('' where the adapter has no places)")
+    tried = data.get("tried", [])
+    if not isinstance(tried, list) or not all(isinstance(t, str) for t in tried):
+        errors.append("'tried' must be a list of strings")
+    inputs = data.get("inputs", [])
+    if not isinstance(inputs, list) or not all(
+            isinstance(i, list) and len(i) == 2 and all(isinstance(x, str) for x in i) for i in inputs):
+        errors.append("'inputs' must be a list of [field, kind] pairs of strings")
     if data.get("reset_ok") is not None and not data.get("reset_attempted"):
         errors.append("'reset_ok' is set but 'reset_attempted' is false")
     return errors

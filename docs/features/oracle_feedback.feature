@@ -22,6 +22,7 @@ Feature: A run's results feed back into the next ranking
     Then it reads the run's "casting_log"
     And it writes "trailhound/ontology/context_token_purchase.json"
     And it prints "Merged N test result(s) into" the path, with "(total now M)"
+    And it writes what it printed into the run's own output.json as "learned" (#328)
 
   Scenario: With --product the context file is keyed by product
     When I run feedback with "--sut web_gui --product juice-shop"

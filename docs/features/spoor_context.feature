@@ -12,7 +12,7 @@
 # person wrote is never overwritten, and CI can't commit generated pages.
 #
 # Code: trailhound/adapters/web_gui/to_context.py (screens_from_map, features_of, write),
-# from_spoor.py (changes_data), trailhound/ontology/product.py (context_screens),
+# session.py (changes_data), trailhound/ontology/product.py (context_screens),
 # seeder.py (build_oracle), oracle_creator.py (build_product_ideas, REACHABLE_BONUS).
 # Tests: trailhound/tests/test_spoor_context.py
 
@@ -24,6 +24,7 @@ Feature: A Spoor map becomes the product's screens, and the oracle builds on the
   Scenario: The map's states become screens
     When python -m trailhound.adapters.web_gui.to_context --map <converted map> --product <product> runs
     Then states on one route whose controls mostly overlap (80%, numbers in names ignored) are one screen
+    And a route is the path and the fragment without a query: "/#/search?q=apple" is "/#/search"
     And Juice Shop's twelve product dialogs are one screen, "juice-shop apple juice (1000ml) and 11 more like it"
     And each screen has a slug, a title, its route, the path to reach it, and its headings as examples
     And the entry screen is called "start page"; a screen with no heading is named after the step that reaches it
@@ -32,6 +33,7 @@ Feature: A Spoor map becomes the product's screens, and the oracle builds on the
     Then features are vocabulary tags matched from its controls and headings: a field gives "text-field", a password "login", Add to Basket "cart", paging controls "list-paging"
     And one field with a submit-like button ("Send the review", "Log in") gives "form"
     And the toolbar's controls, on 80% or more of the states, count only for the start screen
+    And the same controls are the screen's "controls", "fields" and "changes_data", as coverage tokens like "button:add to basket" (#328)
 
   Scenario: Facts say only what the map saw
     Then each screen gets "shown" facts with ids G1, G2...: its fields, the controls that change data, where its controls lead, and the screens shown like it

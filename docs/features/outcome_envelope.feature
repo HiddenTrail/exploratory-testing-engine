@@ -10,7 +10,7 @@
 # "unknown" is never counted as "none", an empty state token means "not observed",
 # and "accepted" may be null when the adapter can't tell.
 #
-# Code: trailhound/outcome.py
+# Code: trailhound/outcome.py. Coverage (area, tried, inputs) is in area_coverage.feature.
 
 Feature: Adapters describe each test result in a typed outcome envelope
   As someone maintaining the engine
@@ -24,6 +24,7 @@ Feature: Adapters describe each test result in a typed outcome envelope
     And "accepted", "reset_ok", "latency" and "matched_prior" are null
     And "reset_attempted" is false
     And "problems" is an empty list (#312: the trusted problems a test recorded, as tokens the engine only compares)
+    And "area" is "", and "tried" and "inputs" are empty lists (#328: where the test started, the controls it used, each field and the kind of value sent)
 
   Scenario: An envelope is attached to and read back from a result under the key "outcome"
     Given a result dict from execute_test
@@ -53,6 +54,7 @@ Feature: Adapters describe each test result in a typed outcome envelope
       | "reset_attempted" is null                 | 'reset_attempted' must be a boolean                        |
       | "latency" is the string "fast"            | 'latency' must be a number or null                         |
       | "reset_ok" is true but no reset was tried | 'reset_ok' is set but 'reset_attempted' is false           |
+      | "inputs" is [["only one"]]                | 'inputs' must be a list of [field, kind] pairs of strings  |
 
   Scenario: The loop never calls validate_outcome
     # A malformed envelope should fail the adapter's test suite, not a live run

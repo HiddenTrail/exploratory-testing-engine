@@ -732,14 +732,19 @@ def test_a_discovered_screen_is_a_map_state_with_its_controls_through_the_safety
     obs = _Obs(elements=[{"role": "button", "name": "Show orders", "tag": "button", "type": "", "href": "",
                           "disabled": False, "locator": "#orders"},
                          {"role": "button", "name": "Delete account", "tag": "button", "type": "", "href": "",
-                          "disabled": False, "locator": "#delete"}])
+                          "disabled": False, "locator": "#delete"},
+                         {"role": "textbox", "name": "Search orders", "tag": "input", "type": "text", "href": "",
+                          "disabled": False, "locator": "#q"}])
     obs.title = "Orders"
     path = [{"role": "button", "name": "Account", "locator": "#account"}]
     found = live_session.discovery(obs, "/|menuitem:orders|", path, "st02", "button:Account", "http://x")
     assert found["id"] == live_session.discovery_id("/|menuitem:orders|") and found["id"].startswith("d")
     committing = {e["key"]: e["committing"] for e in found["elements"]}
-    assert committing == {"button:Show orders": False, "button:Delete account": True}
-    assert found["controls_offered"] == 1 and found["path"] == path and found["from_state"] == "st02"
+    assert committing == {"button:Show orders": False, "button:Delete account": True, "textbox:Search orders": False}
+    assert found["controls_offered"] == 2 and found["path"] == path and found["from_state"] == "st02"
+    # Coverage tokens (#328), so the context can weigh it against the mapped screens.
+    assert found["controls"] == ["button:delete account", "button:show orders", "textbox:search orders"]
+    assert found["fields"] == ["textbox:search orders"] and found["changes_data"] == ["button:delete account"]
 
 
 def _acting_session(monkeypatch, after):
