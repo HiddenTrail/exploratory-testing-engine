@@ -177,7 +177,9 @@ def convert(exploration: dict, url: str, observe: Callable[[list[dict]], object 
                               "committing": e["locator"] not in safe_locators, "href": e.get("href", ""),
                               # What the Driver is told (#311): the gate also holds back a
                               # dropdown or a disabled button, which change nothing.
-                              "changes_data": live_session.changes_data(e, origin)}
+                              "changes_data": live_session.changes_data(e, origin),
+                              # For a control with no name: where it is, its image (#325).
+                              **({"hint": e["hint"]} if e.get("hint") else {})}
                              for e in obs.elements],
                 "_spoor_ids": [],
             }

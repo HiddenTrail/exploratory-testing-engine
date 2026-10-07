@@ -60,8 +60,9 @@ Feature: A web test is a start and a few steps on the live page
     And when the page capture has no element by that name, the browser's accessibility tree is asked, where Spoor's names come from: a Juice Shop product card is "button:Apple Juice (1000ml)" there and an unnamed button in the capture
 
   Scenario: What a test's result tells the Driver
-    Then the result has "steps", each with its status and why
+    Then the result has "steps", each with its status and why: a failed one too (see step_reasons.feature)
     And "page_controls": what's on the page after the last step as "role:name", with a count like "button: (x13)" when several share it, at most 40, with "page_controls_more" past that
+    And a control with no name that the capture gave a hint is listed on its own with its nth, like "textbox: nth 1 (in the toolbar, ...)" (#325)
     And "action" reads like "st02 :: button:Back" or "/ :: button:Open Sidenav > goto /#/contact"
     And the log line of a test where nothing ran says why, like "NOT RUN - button:Checkout: refused"
 

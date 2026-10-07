@@ -66,6 +66,28 @@ _ELEMENTS_JS = r"""
       : (el.type === 'radio') ? 'radio' : 'textbox';
     return 'generic';
   };
+  // What a person would go by for a control with no name (Trailhound #325): where it sits,
+  // its image's alt text, an input type the role doesn't already say, and whether it has
+  // no size (a collapsed search box that opens from an icon). Empty for a named control;
+  // identity ignores it. No icon: an icon's text already names its button.
+  const where = [['mat-toolbar, [role=toolbar], header', 'in the toolbar'],
+                 ['nav, [role=navigation], mat-sidenav', 'in the navigation'],
+                 ['[role=dialog], mat-dialog-container', 'in a dialog'],
+                 ['form', 'in a form'],
+                 ['tr, mat-row, [role=row]', 'in a table row'],
+                 ['mat-card, [role=listitem], li', 'in a card or list item']];
+  const hintOf = (el, rect) => {
+    const parts = [];
+    for (const [q, words] of where) { if (el.closest(q)) { parts.push(words); break; } }
+    // Alt text only: an image's file name can hold a user's id.
+    const img = el.tagName === 'IMG' ? el : el.querySelector('img');
+    const alt = img ? clean(img.getAttribute('alt')) : '';
+    if (alt) parts.push(`image "${alt.slice(0, 40)}"`);
+    const type = el.getAttribute('type');
+    if (type && !['text', 'submit', 'button', 'checkbox', 'radio'].includes(type)) parts.push(`type ${type}`);
+    if (rect.width < 2 || rect.height < 2) parts.push('no size (it may open from another control)');
+    return parts.join(', ');
+  };
   const q = 'a[href], button, input, select, textarea, [role=button], [role=link], [role=checkbox], [role=tab], [role=menuitem], [onclick], [tabindex]';
   const out = [];
   const seen = new Set();
@@ -77,9 +99,11 @@ _ELEMENTS_JS = r"""
     const s = sel(el);
     if (seen.has(s)) continue;
     seen.add(s);
+    const nm = name(el);
     out.push({
       role: roleOf(el),
-      name: name(el),
+      name: nm,
+      hint: nm ? '' : hintOf(el, rect),
       tag: el.tagName.toLowerCase(),
       type: el.getAttribute('type') || '',
       locator: s,
