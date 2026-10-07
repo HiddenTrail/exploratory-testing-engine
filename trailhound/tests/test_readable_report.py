@@ -40,6 +40,18 @@ def test_the_glossary_explains_only_the_tags_the_run_used():
     assert "Glossary of the tags used here" in html and "the Driver will test it differently next round" in html
 
 
+def test_the_glossary_says_what_the_rival_check_means():
+    # #343: the badge said "discriminates" without saying from what.
+    output = {"checkpoints": [{"skeptic_review": {"observation_checks": [
+        {"observation_id": "C1.O1", "discriminates_from_rival": False}]}}]}
+    [(group, terms)] = glossary_for(output)
+    assert group == "The Skeptic's check on each observation"
+    assert terms == [("doesn't tell it from its rival",
+                      "the tests fit the rival explanation just as well as the claim, so they can't settle it yet")]
+    output["checkpoints"][0]["skeptic_review"]["observation_checks"].append({"discriminates_from_rival": True})
+    assert [t for t, _ in glossary_for(output)[0][1]] == ["tells it from its rival", "doesn't tell it from its rival"]
+
+
 def test_what_came_of_each_oracle_idea():
     ranked = [{"id": "oracle:a", "claim": "Prices add up"}, {"id": "oracle:b", "claim": "Pages load cleanly"}]
     log = [{"test_number": 1, "oracle_claim_id": "oracle:a", "prediction_matched": True},

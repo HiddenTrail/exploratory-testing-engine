@@ -149,7 +149,7 @@ def _tests_label(tests) -> str:
 def _check_badge(check) -> str:
     if not check:
         return ""
-    return bool_badge(check["discriminates_from_rival"], "discriminates", "doesn't discriminate")
+    return bool_badge(check["discriminates_from_rival"], "tells it from its rival", "doesn't tell it from its rival")
 
 
 def _lowered_label(observation) -> str:

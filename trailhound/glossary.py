@@ -18,6 +18,8 @@ LEVEL_TAGS = {"can_it_work": "L1", "common_and_critical": "L2", "deep": "L3"}
 QUALITY_TAGS = {"no_problems_seen_yet": "OK so far", "concerns": "Concerns", "problems_found": "Problems"}
 
 def _label(tag: str, raw: str) -> str:
+    if raw in ("true", "false"):              # a yes/no field: its tag says it all
+        return tag
     plain = raw.replace("_", " ")
     return tag if tag.lower() == plain or plain in tag else f"{tag} ({plain})"
 
@@ -40,6 +42,13 @@ GROUPS = [
     ("Confidence", "confidence", {"high": "the testing behind the estimate is solid", "medium": "some of it is",
                                   "low": "little of it is"}),
     ("The Skeptic's questions", "kind", dict(OBJECTION_KINDS)),
+    # #343: the badge on each of the Skeptic's per-observation checks used to say only
+    # "discriminates", without saying from what.
+    ("The Skeptic's check on each observation", "discriminates_from_rival", {
+        "true": "a test's result would differ depending on whether the claim or its rival explanation is "
+                "true, so the tests can settle it",
+        "false": "the tests fit the rival explanation just as well as the claim, so they can't settle it yet",
+    }),
     ("The debrief: the Driver's answer", "stance", {
         "defend": "the tests show the Driver is right, and it cites them",
         "concede": "the Driver accepts the point and says what it withdraws or lowers",
@@ -61,7 +70,8 @@ GROUPS = [
         "not available": "this adapter doesn't replay tests",
     }),
 ]
-_TAGS = {"coverage": LEVEL_TAGS, "quality": QUALITY_TAGS, "convinced": {c: f"convinced: {c}" for c in CONVINCED}}
+_TAGS = {"coverage": LEVEL_TAGS, "quality": QUALITY_TAGS, "convinced": {c: f"convinced: {c}" for c in CONVINCED},
+         "discriminates_from_rival": {"true": "tells it from its rival", "false": "doesn't tell it from its rival"}}
 
 
 def glossary_for(output: dict) -> list[tuple[str, list[tuple[str, str]]]]:
@@ -70,8 +80,10 @@ def glossary_for(output: dict) -> list[tuple[str, list[tuple[str, str]]]]:
     text = json.dumps(output, ensure_ascii=False)
     used = []
     for group, field, terms in GROUPS:
+        # A yes/no field is written without quotes: "discriminates_from_rival": true.
         present = [(_label(_TAGS.get(field, {}).get(raw, raw.replace("_", " ")), raw), meaning)
-                   for raw, meaning in terms.items() if f'"{field}": "{raw}"' in text]
+                   for raw, meaning in terms.items()
+                   if (f'"{field}": {raw}' if raw in ("true", "false") else f'"{field}": "{raw}"') in text]
         if present:
             used.append((group, present))
     return used

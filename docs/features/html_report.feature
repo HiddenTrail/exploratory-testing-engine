@@ -95,7 +95,8 @@ Feature: The HTML report puts the conclusion first and folds the details
     And its title says how many of the ideas were tested at all
 
   Scenario: A glossary explains the tags the report uses
-    Then the report ends with a folded glossary of only the tags that appear in this run: kinds, statuses, coverage levels, what's been seen, confidence, the Skeptic's questions, the debrief's stances, judgements and outcomes, and replay verdicts
+    Then the report ends with a folded glossary of only the tags that appear in this run: kinds, statuses, coverage levels, what's been seen, confidence, the Skeptic's questions, its check on each observation, the debrief's stances, judgements and outcomes, and replay verdicts
+    And the check on each observation shows "tells it from its rival" or "doesn't tell it from its rival": whether a test's result would differ depending on whether the claim or its rival explanation is true (#343)
     And the meanings come from the same definitions the engine and its prompts use
 
   Scenario: A report can be rebuilt from a saved run folder

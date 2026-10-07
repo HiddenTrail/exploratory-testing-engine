@@ -44,7 +44,7 @@ def _render():
 
 def test_the_conclusion_is_visible():
     _, visible = _render()
-    for text in ("SUMMARY-TEXT", "VERDICT-REASON", "C2.O1", "CLAIM-TEXT", "doesn't discriminate",
+    for text in ("SUMMARY-TEXT", "VERDICT-REASON", "C2.O1", "CLAIM-TEXT", "doesn't tell it from its rival",
                  "lowered because LOWERED-REASON", "C2.G1", "GAP-TEXT", "NEXT-TEST", "blocks verdict"):
         assert text in visible, text
     assert "Prior gaps: 1 tested, 1 not attempted. The Skeptic accepted 1 of 2 answers." in visible
