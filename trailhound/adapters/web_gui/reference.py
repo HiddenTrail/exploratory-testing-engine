@@ -223,22 +223,54 @@ class Reference:
         return "\n".join(lines) or "  (the map has no screens; start from a route)"
 
 
+# How many controls with no name of one role are listed one by one (#325). A product grid
+# of 36 unnamed image buttons otherwise pushed the paging controls off page_controls.
+UNNAMED_LISTED = 5
+
+
+def unnamed_key(element: dict, nth: int) -> str:
+    """A control with no name, told apart (#325): 'textbox: nth 1 (in the toolbar, no size
+    (it may open from another control))'. The nth is what a test step names to pick it."""
+    hint = element.get("hint") or ""
+    return f"{element['role']}: nth {nth}" + (f" ({hint})" if hint else "")
+
+
+def unnamed_rest(role: str, first: int, last: int) -> str:
+    """The unnamed controls of a role past UNNAMED_LISTED, as one line."""
+    return f"{role}: nth {first} to {last} (x{last - first + 1} more with no name)"
+
+
 def _control_lines(elements: list[dict]) -> list[str]:
-    """'button:Add to Basket (x12, changes data)': each control once, in page order."""
+    """'button:Add to Basket (x12, changes data)': each control once, in page order. Controls
+    with no name that the capture gave a hint get their own line with their nth, counted
+    over every control of that role with no name, as a step's nth is; past UNNAMED_LISTED
+    of a role, the rest are one line at the end."""
     seen: dict[str, dict] = {}
+    unnamed: dict[str, int] = {}
+    rest: dict[str, list[int]] = {}
     for e in elements:
         if e.get("role") in (None, "", "generic"):
             continue
         key = f"{e['role']}:{e.get('name', '')}"
-        entry = seen.setdefault(key, {"n": 0, "changes": False, "unreached": False})
+        if not e.get("name"):
+            unnamed[e["role"]] = unnamed.get(e["role"], 0) + 1
+            if e.get("hint"):
+                if unnamed[e["role"]] > UNNAMED_LISTED:
+                    rest.setdefault(e["role"], []).append(unnamed[e["role"]])
+                    continue
+                key = f"{e['role']}: nth {unnamed[e['role']]}"
+        entry = seen.setdefault(key, {"n": 0, "changes": False, "unreached": False,
+                                      "hint": e.get("hint", "") if " nth " in key else ""})
         entry["n"] += 1
         entry["changes"] |= bool(e.get("changes_data"))      # a map from before #311 has none
         entry["unreached"] |= e.get("spoor_reached") is False
     lines = []
     for key, entry in seen.items():
-        notes = ([f"x{entry['n']}"] if entry["n"] > 1 else []) + (["changes data"] if entry["changes"] else []) \
+        notes = ([entry["hint"]] if entry["hint"] else []) + ([f"x{entry['n']}"] if entry["n"] > 1 else []) \
+            + (["changes data"] if entry["changes"] else []) \
             + (["behind a dialog, or not reached by the recon"] if entry["unreached"] else [])
         lines.append(key + (f" ({', '.join(notes)})" if notes else ""))
+    lines += [unnamed_rest(role, nths[0], nths[-1]) for role, nths in rest.items()]
     return lines
 
 

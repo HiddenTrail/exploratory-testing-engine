@@ -421,6 +421,36 @@ def _feature_tags() -> frozenset[str]:
     return frozenset(load_vocabulary()["tags"]["feature"])
 
 
+# Why the browser couldn't do a step (#325), from Playwright's error and its call log,
+# most telling first: a Driver told only "failed" took a hidden toolbar search box for a
+# basket quantity field and reported the harness as broken.
+# Matched against Playwright's own words only: the call log also quotes the element's
+# HTML, where a bare "disabled" matched aria-disabled="false" on every Angular dropdown.
+_FAILURE_REASONS = (
+    ("intercepts pointer events", "covered by another element"),
+    ("is not a <select>", "not a dropdown with options (a custom one: click it, then click the option)"),
+    ("did not find some options", "no option with that label"),
+    ("element is not visible", "hidden: it has no size or isn't shown (it may open from another control)"),
+    ("outside of the viewport", "hidden: it has no size or isn't shown (it may open from another control)"),
+    ("element is not enabled", "disabled"),
+    ("element is not editable", "not editable (read-only)"),
+    ("strict mode violation", "more than one control matched"),
+    ("element is detached", "it went away while the step ran"),
+    ("timeout", "timed out waiting for it"),
+)
+
+
+def failure_reason(error: Exception | str) -> str:
+    """Why a step failed, in words, from a Playwright error (#325)."""
+    text = str(error)
+    low = text.lower()
+    for needle, reason in _FAILURE_REASONS:
+        if needle in low:
+            return reason
+    first = text.strip().splitlines()[0] if text.strip() else ""
+    return first[:120] or "the browser couldn't do it"
+
+
 def changes_data(element: dict, origin: str) -> bool:
     """Whether the read-only gate holds this control back because using it would change
     data (a submit, or a name like "Add to Basket"), not for another reason."""
@@ -444,7 +474,8 @@ def discovery(obs, sig: str, path: list[dict], from_state: str, via: str, origin
         "from_state": from_state, "via": via, "path": path,
         "elements": [{"key": f"{e['role']}:{e['name']}", "role": e["role"], "name": e["name"],
                       "kind": e.get("tag", ""), "locator": e["locator"],
-                      "committing": e["locator"] not in safe, "href": e.get("href", "")}
+                      "committing": e["locator"] not in safe, "href": e.get("href", ""),
+                      **({"hint": e["hint"]} if e.get("hint") else {})}       # #325
                      for e in obs.elements],
         "controls_offered": len(safe),
         "controls": sorted({ref_mod.control_token(e["role"], e["name"]) for e in obs.elements
@@ -524,6 +555,7 @@ class Session:
         self._open_fresh_page()
         self.seen_signatures: set[str] = set()   # signatures first sighted this run
         self.last_covered_by = ""                  # what was on top of the last control clicked
+        self.last_failure = ""                     # why the last step failed (#325)
         self._noise: dict = {}                      # state id -> what changes there on its own
         self.entry_signature = ""
         atexit.register(self.close)
@@ -737,6 +769,15 @@ class Session:
         except Exception:
             return None
 
+    def _note_failure(self, error: Exception) -> None:
+        """Keep the most telling reason a step failed (#325): the ladder tries several
+        ways, and a later forced click's error says less than the first one's."""
+        reason = failure_reason(error)
+        rank = {r: i for i, (_, r) in enumerate(_FAILURE_REASONS)}
+        kept = getattr(self, "last_failure", "")
+        if not kept or rank.get(reason, len(rank)) < rank.get(kept, len(rank)):
+            self.last_failure = reason
+
     def _actuate(self, step: dict) -> bool:
         """Actuate one control the way the recon's safety gate classified it: a text/search
         box is *filled* with a benign query (only search/filter boxes reach here - the gate
@@ -747,13 +788,15 @@ class Session:
             try:
                 self.page.goto(step["goto"], wait_until="domcontentloaded", timeout=15000)
                 return True
-            except Exception:
+            except Exception as exc:
+                self._note_failure(exc)
                 return False
         if step.get("back"):
             try:
                 self.page.go_back(wait_until="domcontentloaded", timeout=8000)
                 return True
-            except Exception:
+            except Exception as exc:
+                self._note_failure(exc)
                 return False
         role, name, css = step.get("role", ""), step.get("name", ""), step.get("locator", "")
         self.last_covered_by = ""
@@ -782,8 +825,8 @@ class Session:
                 self.page.dispatch_event(target, "click", timeout=2000)
                 self.last_covered_by = cover.get("by", "")
                 return True
-        except Exception:
-            pass
+        except Exception as exc:
+            self._note_failure(exc)
         # Click ladder: a unique (role, name) locator first, then the exact selector, then a
         # forced click - the compact form of web-recon's ladder.
         if role in _ROLE_LOCATABLE and name:
@@ -792,8 +835,8 @@ class Session:
                 if loc.count() == 1:
                     loc.click(timeout=4000)
                     return True
-            except Exception:
-                pass
+            except Exception as exc:
+                self._note_failure(exc)
         # Next the control's selector as it stands now, found by web-recon's own role and
         # name: the saved selector is positional, and on Juice Shop a toast in the same
         # overlay container shifts it (issue #123). Playwright's role lookup above can
@@ -804,14 +847,15 @@ class Session:
             try:
                 self.page.click(live, timeout=3000)
                 return True
-            except Exception:
-                pass
+            except Exception as exc:
+                self._note_failure(exc)
         for attempt in (lambda: self.page.click(css, timeout=3000),
                         lambda: self.page.click(css, timeout=2000, force=True)):
             try:
                 attempt()
                 return True
-            except Exception:
+            except Exception as exc:
+                self._note_failure(exc)
                 continue
         return False
 
@@ -867,6 +911,7 @@ class Session:
         out is refused everywhere: every test starts from the logged-in session."""
         kind = step.get("do")
         record = {k: step[k] for k in ("do", "role", "name", "value", "nth") if step.get(k) not in (None, "")}
+        self.last_failure = ""
         tags = getattr(self, "careful", careful_mod.EVERYTHING)
         gated = lambda why: {**record, "status": "refused",
                              "detail": f"tagged careful, and the read-only safety gate refuses it: {why}"}
@@ -874,7 +919,7 @@ class Session:
                     "detail": "it would log out, which ends the session every test starts from"}
         if kind == "back":
             ok = self._actuate({"back": True})
-            return {**record, "status": "done" if ok else "failed"}
+            return self._outcome(record, ok)
         if kind == "goto":
             route = step.get("value") or "/"
             url = self.route_url(route)
@@ -884,8 +929,11 @@ class Session:
                 gate = gate_plan({"role": "link", "name": route, "href": url, "tag": "a"}, self._site)
                 if gate.kind is None:
                     return gated(gate.reason)
-            ok = self._actuate({"goto": url}) and not self.blocked_off_site
-            return {**record, "status": "done" if ok else "failed"}
+            blocked_before = len(self.blocked_off_site)        # an earlier step's block isn't this one's
+            ok = self._actuate({"goto": url}) and len(self.blocked_off_site) == blocked_before
+            if len(self.blocked_off_site) > blocked_before:
+                self.last_failure = "it leads off the site, and the browser was stopped"
+            return self._outcome(record, ok)
         element = self._find_live(step.get("role", ""), step.get("name", ""), int(step.get("nth") or 1))
         if element is None and step.get("locator"):     # the map's saved selector (the sweep)
             element = {"role": step.get("role", ""), "name": step.get("name", ""), "locator": step["locator"]}
@@ -912,21 +960,29 @@ class Session:
                 else:
                     found.click(timeout=4000)
                 ok = True
-            except Exception:
+            except Exception as exc:
+                self._note_failure(exc)
                 ok = False
-            return {**record, "status": "done" if ok else "failed"}
+            return self._outcome(record, ok)
         if kind == "fill":
             ok = self._fill(element["role"], element["name"], element.get("locator", ""), step.get("value", ""))
-            return {**record, "status": "done" if ok else "failed"}
+            return self._outcome(record, ok)
         if kind == "select":
             try:
                 self.page.select_option(target["locator"], label=step.get("value", ""), timeout=4000)
                 ok = True
-            except Exception:
+            except Exception as exc:
+                self._note_failure(exc)
                 ok = False
         else:
             ok = self._actuate(target)
-        return {**record, "status": "done" if ok else "failed"}
+        return self._outcome(record, ok)
+
+    def _outcome(self, record: dict, ok: bool) -> dict:
+        """A step's record, done or failed, and when it failed, why (#325)."""
+        if ok:
+            return {**record, "status": "done"}
+        return {**record, "status": "failed", "detail": self.last_failure or "the browser couldn't do it"}
 
     def _cover(self, css: str) -> dict:
         if not css:
@@ -960,12 +1016,13 @@ class Session:
                 if loc.count() == 1:
                     loc.fill(value, timeout=4000)
                     return True
-            except Exception:
-                pass
+            except Exception as exc:
+                self._note_failure(exc)
         try:
             self.page.fill(css, value, timeout=4000)
             return True
-        except Exception:
+        except Exception as exc:
+            self._note_failure(exc)
             return False
 
     def _classify(self, before_sig: str, after_sig: str) -> str:
@@ -1122,10 +1179,28 @@ class Session:
         }
         if sent:
             # What's on the page now, so the next round can act on it (#310).
-            counted = Counter(f"{e['role']}:{e['name']}" for e in after.elements
-                              if e.get("role") not in ("generic", "") and not e.get("transient"))
+            # A control with no name is told apart by its hint and picked by nth (#325),
+            # listed after the named ones so the cap cuts hints, not the paging controls.
+            nth: Counter = Counter()
+            named, hinted, rest = [], [], {}
+            for e in after.elements:
+                if e.get("role") in ("generic", ""):
+                    continue
+                if not e.get("name"):
+                    nth[e["role"]] += 1            # counted as a step's nth counts: toasts too
+                if e.get("transient"):
+                    continue
+                if not e.get("name") and e.get("hint"):
+                    if nth[e["role"]] <= ref_mod.UNNAMED_LISTED:
+                        hinted.append(ref_mod.unnamed_key(e, nth[e["role"]]))
+                    else:
+                        rest.setdefault(e["role"], []).append(nth[e["role"]])
+                    continue
+                named.append(f"{e['role']}:{e['name']}")
+            counted = Counter(named)
             # "link: (x12)": twelve unnamed links, picked with nth.
-            keys = [k if n == 1 else f"{k} (x{n})" for k, n in counted.items()]
+            keys = [k if n == 1 else f"{k} (x{n})" for k, n in counted.items()] + hinted + [
+                ref_mod.unnamed_rest(role, nths[0], nths[-1]) for role, nths in rest.items()]
             result["page_controls"] = keys[:_PAGE_CONTROLS_SHOWN]
             if len(keys) > _PAGE_CONTROLS_SHOWN:
                 result["page_controls_more"] = len(keys) - _PAGE_CONTROLS_SHOWN
