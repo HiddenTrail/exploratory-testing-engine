@@ -41,7 +41,7 @@ def main() -> None:
     image = Path(sys.argv[1]) if len(sys.argv) > 1 else newest_image()
 
     import describe
-    from engine.client import default_model, use_bedrock  # noqa: E402
+    from trailhound.client import default_model, use_bedrock  # noqa: E402
     where = (f"Bedrock ({os.environ.get('AWS_REGION')}, profile "
              f"{os.environ.get('AWS_PROFILE')})" if use_bedrock() else "the Anthropic API")
     print(f"provider: {where}\nmodel:    {default_model()}\nimage:    {image}\n")

@@ -22,7 +22,7 @@ name: exploratory run
 # - The inputs have hard ranges, checked before anything is installed.
 # - At most 5 runs in 24 hours; a sixth stops before spending anything.
 # - One run at a time, and every step has its own time limit inside the job's 60 minutes.
-# - The engine stops itself at $1.50 or 40 model calls (engine/budget.py), whatever the
+# - The engine stops itself at $1.50 or 40 model calls (trailhound/budget.py), whatever the
 #   checkpoints and budgets say. These limits are set here, not as inputs.
 # - The AWS credentials last one hour, and the role can only call Bedrock models.
 "on":
@@ -169,9 +169,9 @@ jobs:
       - name: Install the engine, web-recon and the pinned Spoor
         timeout-minutes: 15
         run: |
-          pip install -r engine/requirements.txt
+          pip install -r trailhound/requirements.txt
           pip install -r .experiments/web-recon/requirements.txt
-          pip install -r engine/requirements-spoor.txt
+          pip install -r trailhound/requirements-spoor.txt
           python -m playwright install --with-deps chromium
 
       # One one-token call, before Spoor and the rest take 20 minutes: wrong permissions
@@ -183,7 +183,7 @@ jobs:
         run: |
           python - <<'PY'
           import os
-          from engine.client import build_client
+          from trailhound.client import build_client
           reply = build_client().messages.create(model=os.environ["MODEL"], max_tokens=1,
                                                  messages=[{"role": "user", "content": "hi"}])
           print(f"Bedrock answered with {os.environ['MODEL']}.")
@@ -205,7 +205,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           previous=$(gh api "repos/${{ github.repository }}/actions/runs?status=success&per_page=100"             -q '[.workflow_runs[] | select(.path == ".github/workflows/exploratory-run.yml")][0].id // empty' || true)
-          if [ -n "$previous" ] && gh run download "$previous" --name "context-$PRODUCT" --dir engine/ontology; then
+          if [ -n "$previous" ] && gh run download "$previous" --name "context-$PRODUCT" --dir trailhound/ontology; then
             echo "Starting from the context of run $previous."
           else
             echo "No earlier context; this run starts fresh."
@@ -214,7 +214,7 @@ jobs:
       - name: Log in with no person
         timeout-minutes: 3
         run: |
-          python -m engine.adapters.web_gui.login_recipe --recipe test-targets/login-recipes/$PRODUCT.json \
+          python -m trailhound.adapters.web_gui.login_recipe --recipe test-targets/login-recipes/$PRODUCT.json \
             --url "$URL" --product "$PRODUCT" --name logged-in
 
       - name: Map the site with Spoor from that session
@@ -233,11 +233,11 @@ jobs:
         timeout-minutes: 15
         run: |
           mkdir -p runs/ci
-          python -m engine.adapters.web_gui.from_spoor --map runs/spoor/.spoor-cache/maps/127.0.0.1_3000.json \
+          python -m trailhound.adapters.web_gui.from_spoor --map runs/spoor/.spoor-cache/maps/127.0.0.1_3000.json \
             --url "$URL" --session ".sessions/$PRODUCT/logged-in.json" --out runs/ci/map.json
           # Spoor feeds the context (#311): the map's screens go into the product's context,
           # and the oracle the engine builds next starts from them.
-          python -m engine.adapters.web_gui.to_context --map runs/ci/map.json --product "$PRODUCT"
+          python -m trailhound.adapters.web_gui.to_context --map runs/ci/map.json --product "$PRODUCT"
 
       - name: Run the engine and learn from it
         timeout-minutes: 30
@@ -255,7 +255,7 @@ jobs:
           set -o pipefail
           lean_args=()
           if [ "$LEAN" = "on" ]; then lean_args=(--lean); elif [ -n "$LEAN" ]; then lean_args=(--lean --with "$LEAN"); fi
-          python -m engine.cli --adapter web_gui --out-dir runs/ci --model "$MODEL" \
+          python -m trailhound.cli --adapter web_gui --out-dir runs/ci --model "$MODEL" \
             --max-checkpoints "$MAX_CHECKPOINTS" --first-round-budget "$FIRST_ROUND_BUDGET" \
             --default-budget "$DEFAULT_BUDGET" "${lean_args[@]}" --learn "$PRODUCT" 2>&1 | tee runs/ci/run.log
 
@@ -265,7 +265,7 @@ jobs:
         run: |
           if [ -f runs/ci/output.json ]; then
             # The summary includes the known-problems score, which the run records itself (#285).
-            python -m engine.run_summary runs/ci/output.json --log runs/ci/run.log >> "$GITHUB_STEP_SUMMARY"
+            python -m trailhound.run_summary runs/ci/output.json --log runs/ci/run.log >> "$GITHUB_STEP_SUMMARY"
             echo "The full report is report.html in the run's artifact." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "The run wrote no output.json; see the job log." >> "$GITHUB_STEP_SUMMARY"
@@ -289,6 +289,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: context-${{ env.PRODUCT }}
-          path: engine/ontology/context_${{ env.PRODUCT }}.json
+          path: trailhound/ontology/context_${{ env.PRODUCT }}.json
           if-no-files-found: ignore
           retention-days: 90

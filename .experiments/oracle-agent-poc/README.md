@@ -1,6 +1,6 @@
 # Oracle Agent PoC
 
-> **Archive.** A finished experiment, kept for history. `heuristics/catalog.json` is frozen: its entries moved into the engine's heuristic library, `engine/ontology/heuristics/htsm.json` (issue #128), and new heuristics go there.
+> **Archive.** A finished experiment, kept for history. `heuristics/catalog.json` is frozen: its entries moved into the engine's heuristic library, `trailhound/ontology/heuristics/htsm.json` (issue #128), and new heuristics go there.
 
 A first, deliberately narrow slice of the "Oracle layer" described in
 [`docs/concept.md`](../../docs/concept.md)
@@ -72,10 +72,10 @@ entries `status: "cataloged"` until something actually uses them.
 
 This run's output (`results/oracle_library.json`, copied verbatim, not
 regenerated) is now committed at
-[`engine/adapters/token_purchase/oracle_library.json`](../../engine/adapters/token_purchase/oracle_library.json)
+[`trailhound/adapters/token_purchase/oracle_library.json`](../../trailhound/adapters/token_purchase/oracle_library.json)
 and merged into the real `token_purchase` adapter's `onboarding_extra` -
-see [`adapter.py`](../../engine/adapters/token_purchase/adapter.py). The adapter
-now passes only a ranked top-15 slice built from it by `engine/ontology/oracle_creator.py`
+see [`adapter.py`](../../trailhound/adapters/token_purchase/adapter.py). The adapter
+now passes only a ranked top-15 slice built from it by `trailhound/ontology/oracle_creator.py`
 (`oracle_ranked`); since #105 the full library is no longer sent to the Driver or shown
 in the report. Before that, the Driver saw it as ordinary evidence alongside the schema and known
 accounts, and it rendered as its own "Oracle library" exhibit in the HTML

@@ -14,10 +14,10 @@ This is Trailhound, an LLM-based **disconfirmation engine** for exploratory
 testing. A Driver runs real tests against a live system under test (SUT) and
 forms one claim about how it behaves. Then a separate Skeptic tries to knock
 that claim down.
-`engine/` is the product: the checkpoint loop, one adapter per SUT, the pipeline
+`trailhound/` is the product: the checkpoint loop, one adapter per SUT, the pipeline
 that drafts new adapters, and the ontology layer that prioritizes test ideas.
 `clash-royale-kit/` packages the game-client exploration. `.experiments/` is
-mostly an archive of the prototypes that `engine/` grew out of.
+mostly an archive of the prototypes that `trailhound/` grew out of.
 
 ## Backlog and workflow
 
@@ -103,10 +103,10 @@ and wiki pages.
 
 ## Architecture rules (don't break these)
 
-- **Imports go one way.** `engine/*` never imports from `engine/adapters/*`.
-  Adapters import from `engine`, never the other way round. The one exception is
-  `engine/adapters/registry.py`, which loads adapters lazily through
-  `importlib`. `engine/bootstrap/` also depends only on `engine/`, never on a
+- **Imports go one way.** `trailhound/*` never imports from `trailhound/adapters/*`.
+  Adapters import from `trailhound`, never the other way round. The one exception is
+  `trailhound/adapters/registry.py`, which loads adapters lazily through
+  `importlib`. `trailhound/bootstrap/` also depends only on `trailhound/`, never on a
   specific adapter.
 - **Spoor feeds the context; it never limits the Driver.** Spoor's map tells the
   engine about the product: screens, routes, controls, fields. It goes to the context
@@ -114,15 +114,15 @@ and wiki pages.
   the Driver act on what Spoor mapped (#310). Safety lives in the engine: the browser
   never leaves the site, careful tags restrict where needed (#299), and the spending
   limits stay.
-- **`engine/tools.py` is shared.** The hypothesis, Skeptic and bug-report
+- **`trailhound/tools.py` is shared.** The hypothesis, Skeptic and bug-report
   schemas are the same for every SUT, and adapters can't override them.
   Anything SUT-specific goes in the adapter.
-- **The engine only reads adapter results through `engine/outcome.py`.** Generic
+- **The engine only reads adapter results through `trailhound/outcome.py`.** Generic
   code must never parse an adapter's prose.
 - **A person registers adapters, not the code.** The bootstrap pipeline prints
   the line to add to `registry.py`. Never register or run a generated adapter
   automatically.
-- **`validate_adapter()`** in `engine/adapter.py` checks up front that an adapter
+- **`validate_adapter()`** in `trailhound/adapter.py` checks up front that an adapter
   has every field it needs. If you add a required field, keep that check
   complete.
 - **The Oracle and the Driver will become separate services.** That's decided;
@@ -135,8 +135,8 @@ Treat `.experiments/*` as history. Don't refactor it and don't copy fixes back
 into it. **The exceptions are the folders other code depends on:**
 
 - **Loaded by the engine at run time:** `game-ontology/`, `android-bot/` and
-  `game-screen-probe/` (by `engine/adapters/clash_royale/session.py` and
-  `clash-royale-kit/`), and `web-recon/` (by `engine/adapters/web_gui/`).
+  `game-screen-probe/` (by `trailhound/adapters/clash_royale/session.py` and
+  `clash-royale-kit/`), and `web-recon/` (by `trailhound/adapters/web_gui/`).
   Renaming or moving something in them can break the engine without CI
   noticing. The game-ontology and android-bot tests only run on Windows and CI
   doesn't run them, so run them yourself (see below) before a PR that changes
@@ -145,13 +145,13 @@ into it. **The exceptions are the folders other code depends on:**
   parity tests). Replacing that with test fixtures is issue #77.
 
 New prototypes go in their own `.experiments/<name>/` folder with a README and a
-`requirements.txt`. When code moves into `engine/`, port it and harden it. Never
+`requirements.txt`. When code moves into `trailhound/`, port it and harden it. Never
 import it from `.experiments/`.
 
 ## Safety: the game harness drives a real account
 
 `.experiments/android-bot/`, `.experiments/game-ontology/`,
-`engine/adapters/clash_royale/` and `clash-royale-kit/` send real taps and drags
+`trailhound/adapters/clash_royale/` and `clash-royale-kit/` send real taps and drags
 to a real game client on someone's real account. Two things have already gone
 wrong: input landed in the wrong window (someone's editor), and the game got
 closed with no way to reopen it.
@@ -169,8 +169,8 @@ closed with no way to reopen it.
 ## Testing
 
 ```
-pip install -r engine/requirements.txt
-python -m pytest engine/tests            # runs in CI
+pip install -r trailhound/requirements.txt
+python -m pytest trailhound/tests            # runs in CI
 python -m pytest clash-royale-kit        # runs in CI
 (cd .experiments/web-recon && python -m pytest tests)   # runs in CI
 python -m pytest .experiments/game-ontology .experiments/android-bot   # Windows only, run by hand
@@ -179,7 +179,7 @@ python -m pytest .experiments/game-ontology .experiments/android-bot   # Windows
 - **Tests never call a real LLM** and never need an API key. Stub the client.
   Tests must give the same result every time.
 - New behaviour gets a test. A bug fix gets a test that fails without the fix.
-- CI also runs `python -m compileall -q engine`.
+- CI also runs `python -m compileall -q trailhound`.
 - Tests only prove what they check. If your change affects live behaviour (a
   real SUT, a real browser, the real game client), try it live when you can and
   say what you ran. If you couldn't, say that too.
@@ -190,21 +190,21 @@ python -m pytest .experiments/game-ontology .experiments/android-bot   # Windows
 cost when the change affects what the model is asked or how its answers are
 judged: prompts, tool schemas, validators, the evidence sent. A change the model
 never sees (the report, the runner, file output) is checked for free: re-render
-existing run output with `engine.report.render_report_from_dir`, and let the unit
+existing run output with `trailhound.report.render_report_from_dir`, and let the unit
 tests cover the rest.
 
 When a change does need a before/after comparison, keep the runs short. Slightly
 less reliable numbers are better than using up the quota and not testing at all.
 
 ```
-python -m engine.cli --adapter <sut> --out-dir runs/<name>/<sut>_<n> \
+python -m trailhound.cli --adapter <sut> --out-dir runs/<name>/<sut>_<n> \
   --max-checkpoints 3 --first-round-budget 10 --default-budget 6
 ```
 
 Experiments run lean: add `--lean`, and `--with <parts>` when the experiment is
 about the story, the debrief or bug reports (#295). Compare lean runs only with
 lean runs. When a lean run leaves you wanting a part, ask the saved run with
-`python -m engine.ask` instead of running again.
+`python -m trailhound.ask` instead of running again.
 
 A run costs about $0.50 at these settings. Checkpoints are the expensive part
 (each is three model calls, about $0.12 to $0.16), and tests are cheap (about
@@ -224,7 +224,7 @@ checkpoints and 6/4 tests, so don't compare against them.
 - A change that learns between runs (like #258) is benchmarked as a pair per SUT:
   run A learns, run B starts from what A learned. Point `TRAILHOUND_CONTEXT_DIR`
   at a scratch folder (with a copy of any committed context file) and use `--learn`,
-  so the benchmark doesn't change `engine/ontology/context_*.json`.
+  so the benchmark doesn't change `trailhound/ontology/context_*.json`.
 - Say what you measured and what it cost, in the PR or the issue.
 - **Every time you run something, say where its files are**, so the user can
   check them by hand: the run folder and the files in it (`output.json`,
@@ -247,7 +247,7 @@ When a task needs a website scraped, crawled or mapped, use **Spoor**
 on the `scraper` branch, and `.experiments/web-recon/`) when the user asks for
 them by name.
 
-- Spoor is an **optional, pinned dependency** (#144). `engine/requirements-spoor.txt`
+- Spoor is an **optional, pinned dependency** (#144). `trailhound/requirements-spoor.txt`
   pins it to a commit, and the `spoor contract` CI job runs that Spoor on a tiny
   site and checks its saved map against what `from_spoor.py` reads. A weekly run
   does the same against Spoor's latest main. Use Spoor only through its CLI and
@@ -256,7 +256,7 @@ them by name.
 - For running Spoor by hand, it has its own virtualenv in `../ht-spoor/.venv`.
   Run its CLI from there as a separate process. The contract test can use it
   locally: `SPOOR_CLI=../ht-spoor/.venv/Scripts/spoor python -m pytest
-  engine/tests/test_spoor_contract.py`. To set it up on a new machine:
+  trailhound/tests/test_spoor_contract.py`. To set it up on a new machine:
   ```
   py -3.13 -m venv ../ht-spoor/.venv
   ../ht-spoor/.venv/Scripts/python -m pip install -e "../ht-spoor[serve]"
@@ -285,18 +285,18 @@ them by name.
 ## Dependencies, config and secrets
 
 - **When you install a package, add it to the right manifest in the same
-  change**: `engine/requirements.txt`, the experiment's `requirements.txt`, or
+  change**: `trailhound/requirements.txt`, the experiment's `requirements.txt`, or
   `package.json`. Give it a sensible minimum version. If the version or an
   optional dependency needs explaining, add a comment the way
-  `engine/requirements.txt` does.
+  `trailhound/requirements.txt` does.
 - Secrets go in `.env` or `.claude/settings.local.json`, and git ignores both.
   Only `.env.example` gets committed. Never put keys in code,
   `.claude/settings.json`, tests or commit messages.
-- Create the LLM client with `engine.client.build_client()` and
+- Create the LLM client with `trailhound.client.build_client()` and
   `default_model()`. They handle both the direct API and Bedrock
   (`TRAILHOUND_USE_BEDROCK=1`). Don't call `Anthropic(...)` directly anywhere else.
   Bedrock model IDs aren't the ones `list-inference-profiles` shows; see
-  [engine/README.md](engine/README.md).
+  [trailhound/README.md](trailhound/README.md).
 
 ## Don't commit generated output
 
@@ -313,7 +313,7 @@ every commit.
 - Match the code around you: its naming, its habits and how much it comments.
 - Comments explain **why**: a constraint, something that broke before, a
   trade-off made on purpose. This codebase writes accepted limitations down
-  where they live (like the rounding caveat in `engine/tools.py`). Keep those
+  where they live (like the rounding caveat in `trailhound/tools.py`). Keep those
   comments true when you change nearby code, and don't quietly "fix" a
   limitation someone chose to accept.
 - Be honest in the code too. A result that wasn't confirmed is `inconclusive`,
@@ -322,7 +322,7 @@ every commit.
 ## Standing practices
 
 - **Heuristic library:** whenever you come up with or spot a new testing
-  heuristic, add it to the library in `engine/ontology/heuristics/`, in the file
+  heuristic, add it to the library in `trailhound/ontology/heuristics/`, in the file
   for its source (or a new file for a new source). Use only kinds and tags from
   `vocabulary.json`; add a tag there first if none fits. The library tests check
   every entry.

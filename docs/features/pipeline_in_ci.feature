@@ -9,9 +9,9 @@
 # trigger rules (#172) and what a run tells the pipeline (#173) aren't decided yet, so
 # a run with bugs doesn't fail the job.
 #
-# Code: .github/workflows/exploratory-run.yml, engine/adapters/web_gui/login_recipe.py,
-# test-targets/login-recipes/juice-shop.json, engine/run_summary.py.
-# Tests: engine/tests/test_login_recipe.py, engine/tests/test_run_summary.py
+# Code: .github/workflows/exploratory-run.yml, trailhound/adapters/web_gui/login_recipe.py,
+# test-targets/login-recipes/juice-shop.json, trailhound/run_summary.py.
+# Tests: trailhound/tests/test_login_recipe.py, trailhound/tests/test_run_summary.py
 
 Feature: The whole pipeline runs in GitHub Actions and reports as an artifact
   As someone who wants to see the engine work end to end without typing six commands
@@ -95,21 +95,21 @@ Feature: The whole pipeline runs in GitHub Actions and reports as an artifact
   Scenario: Each run starts from what the last successful run learned
     Given an earlier successful run uploaded the artifact "context-juice-shop"
     When a new run starts
-    Then it downloads context_juice-shop.json into engine/ontology before the engine runs
+    Then it downloads context_juice-shop.json into trailhound/ontology before the engine runs
     And without one it says "No earlier context; this run starts fresh."
 
   Scenario: The steps run in order on a throwaway Juice Shop
     Given Juice Shop v17.1.1 runs as a service on port 3000
     When the job runs
-    Then it logs in with "python -m engine.adapters.web_gui.login_recipe --recipe test-targets/login-recipes/juice-shop.json"
+    Then it logs in with "python -m trailhound.adapters.web_gui.login_recipe --recipe test-targets/login-recipes/juice-shop.json"
     And it maps the site with "spoor explore" from that session, in its own folder
     And it converts the map with from_spoor from the same session, to runs/ci/map.json
-    And it runs "python -m engine.cli --adapter web_gui" with WEB_GUI_SESSION_CHECK "/profile", WEB_GUI_PRODUCT "juice-shop" and "--learn juice-shop", logging to runs/ci/run.log
+    And it runs "python -m trailhound.cli --adapter web_gui" with WEB_GUI_SESSION_CHECK "/profile", WEB_GUI_PRODUCT "juice-shop" and "--learn juice-shop", logging to runs/ci/run.log
 
   Scenario: The report is an artifact and a summary, never the credentials
     When the job ends, whether the run succeeded or not
     Then runs/ci is uploaded as the artifact "exploratory-run" (report.html, output.json, bugs.json, run.log, map.json)
-    And "python -m engine.run_summary" writes the summary on the run's page: counts, where it stands (the Driver's last testing story), a table of observations worst first with their replay verdicts, how the Driver and the Skeptic got on, how many oracle ideas were checked and how they came out, whether every recorded error got an answer (#312), model calls, retries, cast tests dropped without running (#288, #305) and an estimated cost, then the score against the known problems (see run_score.feature)
+    And "python -m trailhound.run_summary" writes the summary on the run's page: counts, where it stands (the Driver's last testing story), a table of observations worst first with their replay verdicts, how the Driver and the Skeptic got on, how many oracle ideas were checked and how they came out, whether every recorded error got an answer (#312), model calls, retries, cast tests dropped without running (#288, #305) and an estimated cost, then the score against the known problems (see run_score.feature)
     And .sessions and .spoor-cache are never uploaded
     And the context file is uploaded as "context-juice-shop" only when the job succeeded
 

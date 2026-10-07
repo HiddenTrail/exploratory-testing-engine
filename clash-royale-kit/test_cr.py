@@ -28,7 +28,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import cr  # noqa: E402
-from engine import client as engine_client  # noqa: E402
+from trailhound import client as engine_client  # noqa: E402
 
 
 class Ran:

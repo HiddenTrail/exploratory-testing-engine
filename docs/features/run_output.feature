@@ -9,7 +9,7 @@
 # "anomaly_found" is true only when the final checkpoint has a real problem in it,
 # an anomaly or a bug. Findings alone don't count.
 #
-# Code: engine/runner.py (run)
+# Code: trailhound/runner.py (run)
 
 Feature: A run writes a JSON result, a bug list when there are bugs, and an HTML report
   As someone reading results

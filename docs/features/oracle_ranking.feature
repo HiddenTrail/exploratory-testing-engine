@@ -1,7 +1,7 @@
 # Layer 4 of the ontology stack: one ranked list of test ideas for a SUT.
 #
 # oracle_creator reads the heuristic library (layer 1), the SUT's domain claims in
-# engine/adapters/<sut>/oracle_library.json (layer 2) and context_<sut>.json
+# trailhound/adapters/<sut>/oracle_library.json (layer 2) and context_<sut>.json
 # (layer 3: test results, jira entries, risk assessments). Domain claims come first,
 # scored up or down by what context says about them. Heuristics fill in behind them.
 #
@@ -12,7 +12,7 @@
 #
 # It is flat files with no database or service, and no model calls.
 #
-# Code: engine/ontology/oracle_creator.py, engine/tests/test_ontology_claim_matching.py
+# Code: trailhound/ontology/oracle_creator.py, trailhound/tests/test_ontology_claim_matching.py
 
 Feature: Test ideas are ranked by what's already known about them
   As someone with a limited test budget
@@ -20,7 +20,7 @@ Feature: Test ideas are ranked by what's already known about them
   So that the Driver gets the most useful ideas first and its results can be tied back to them
 
   Scenario: Domain claims get stable ids from their category and position
-    Given engine/adapters/token_purchase/oracle_library.json lists claims under "modeled" by category
+    Given trailhound/adapters/token_purchase/oracle_library.json lists claims under "modeled" by category
     When load_domain_claims runs for "token_purchase"
     Then it returns 58 claims
     And the first claim in category "data" has id "claim:data:01"
@@ -71,7 +71,7 @@ Feature: Test ideas are ranked by what's already known about them
     And all ideas are sorted by score, highest first, and numbered from "rank" 1
 
   Scenario: The CLI writes the ranked list to a JSON file
-    When I run "python -m engine.ontology.oracle_creator --sut token_purchase"
+    When I run "python -m trailhound.ontology.oracle_creator --sut token_purchase"
     Then it writes "runs/ontology/token_purchase/oracle_ranked.json"
     And the file has "sut", "generated_at" and "ranked_ideas"
     And it prints "Wrote 176 ranked ideas to" and the path
@@ -79,6 +79,6 @@ Feature: Test ideas are ranked by what's already known about them
     And "--out" writes the file somewhere else instead
 
   Scenario: A SUT with no context file is ranked as if nothing were known
-    Given there is no engine/ontology/context_<sut>.json
+    Given there is no trailhound/ontology/context_<sut>.json
     When load_context runs
     Then it returns empty "test_results", "jira_entries" and "risk_assessments"

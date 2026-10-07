@@ -10,7 +10,7 @@
 # isn't waited out either: identity already leaves those controls out (#124), and
 # Juice Shop's stays up for about 5 s on every load.
 #
-# Code: engine/adapters/web_gui/session.py (_rest, _REST_QUIET_MS, _REST_MAX_MS,
+# Code: trailhound/adapters/web_gui/session.py (_rest, _REST_QUIET_MS, _REST_MAX_MS,
 # _MUTATION_COUNTER_JS, Session.act)
 
 Feature: Reads wait for a settled page

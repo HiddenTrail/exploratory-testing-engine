@@ -35,7 +35,7 @@ from mcp.client.stdio import stdio_client
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
-from engine.client import build_client, default_model, use_bedrock  # noqa: E402
+from trailhound.client import build_client, default_model, use_bedrock  # noqa: E402
 
 # Model-generated text can contain non-ASCII characters that the default
 # Windows console codec can't encode, crashing a plain print().
@@ -192,7 +192,7 @@ def validate_scenario_result(data) -> list[str]:
 
 
 def _cache_breakpoint(tools: list[dict], system: str) -> tuple[list[dict], list[dict]]:
-    """Same trick as engine/client.py's _cache_breakpoint - the Playwright
+    """Same trick as trailhound/client.py's _cache_breakpoint - the Playwright
     MCP tool list is large (~24 tools) and byte-identical across every
     turn of every scenario, so marking it (plus the system prompt) as a
     cache breakpoint meaningfully cuts cost with zero behavioral change."""

@@ -1,6 +1,6 @@
 # What this kit needs, which is less than the engine needs.
 #
-# Deliberately not a pointer at engine/requirements.txt: that file also carries
+# Deliberately not a pointer at trailhound/requirements.txt: that file also carries
 # fastapi, uvicorn and httpx for the engine's HTTP service, and nothing on this
 # path serves anything. The window is driven through ctypes against Win32, the
 # screenshots are written by a hand-rolled PNG encoder in
@@ -24,7 +24,7 @@
 anthropic[bedrock]>=1.0
 
 # Reads .env, so credentials live in a file git ignores rather than in a shell
-# history. engine/client.py calls load_dotenv() on every auth decision.
+# history. trailhound/client.py calls load_dotenv() on every auth decision.
 python-dotenv>=1.0
 
 # For `python -m pytest clash-royale-kit`, which is worth running once on a new

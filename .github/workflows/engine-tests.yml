@@ -18,13 +18,13 @@ jobs:
           python-version: "3.13"
 
       - name: Install dependencies
-        run: pip install -r engine/requirements.txt
+        run: pip install -r trailhound/requirements.txt
 
-      - name: Compile-check engine/
-        run: python -m compileall -q engine
+      - name: Compile-check trailhound/
+        run: python -m compileall -q trailhound
 
       - name: Run engine test suite
-        run: python -m pytest engine/tests -v
+        run: python -m pytest trailhound/tests -v
 
       # The Clash Royale kit's own suite. The kit drives a Windows client, but
       # none of these tests does: the decisions are in checks.py and

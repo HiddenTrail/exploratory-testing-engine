@@ -71,7 +71,7 @@ def test_parse_caps_the_list():
 
 
 class _FakeClient:
-    """Stands in for engine.client: call_tool_with_retry drives it through the real
+    """Stands in for trailhound.client: call_tool_with_retry drives it through the real
     validate_fn, so this exercises propose() end to end without a model."""
     def __init__(self, payload):
         self._payload = payload

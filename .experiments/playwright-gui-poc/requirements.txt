@@ -3,7 +3,7 @@ fastapi>=0.115
 uvicorn>=0.30
 
 # The Driver (run_live.py). httpx does the backend/frontend reachability checks; the
-# anthropic client is built by engine/client.py, which uses the [bedrock] extra when
+# anthropic client is built by trailhound/client.py, which uses the [bedrock] extra when
 # TRAILHOUND_USE_BEDROCK is set (the repo's default auth) and a direct key otherwise;
 # python-dotenv reads the .env; mcp is the client for the Playwright MCP server that
 # `npx @playwright/mcp@latest` provides (Node/npx must be on PATH separately).

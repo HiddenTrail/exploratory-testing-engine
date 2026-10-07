@@ -7,10 +7,10 @@
 # The CLI prints three steps because the free-text fallback runs inside step 1.
 #
 # The output is a draft for a person to review. The CLI never edits
-# engine/adapters/registry.py: registering a generated adapter is the last human
+# trailhound/adapters/registry.py: registering a generated adapter is the last human
 # gate before it runs.
 #
-# Code: engine/bootstrap/cli.py, engine/bootstrap/schema.py.
+# Code: trailhound/bootstrap/cli.py, trailhound/bootstrap/schema.py.
 # Worked example: docs/examples/bootstrap_demo/
 
 Feature: A draft adapter is bootstrapped from a live HTTP API
@@ -21,18 +21,18 @@ Feature: A draft adapter is bootstrapped from a live HTTP API
   Scenario: A full run goes through the phases and writes the adapter
     Given a live API at "http://127.0.0.1:8020" that publishes "/openapi.json"
     And probing gets at least one successful response from it
-    When I run "python -m engine.bootstrap.cli --name my_api --display-name \"My API\" --base-url http://127.0.0.1:8020"
+    When I run "python -m trailhound.bootstrap.cli --name my_api --display-name \"My API\" --base-url http://127.0.0.1:8020"
     Then it prints "[1/3] Discovering schema at http://127.0.0.1:8020 ..."
     And it prints "[2/3] Probing live SUT to confirm the schema (up to 8 probes) ..."
     And it prints "[3/3] Generating draft adapter ..."
-    And it writes "engine/adapters/my_api/adapter.py" and an empty "engine/adapters/my_api/__init__.py"
+    And it writes "trailhound/adapters/my_api/adapter.py" and an empty "trailhound/adapters/my_api/__init__.py"
 
   Scenario: The bootstrap prints the registry line and run command, and registers nothing
     Given a bootstrap run for "--name my_api" that ended "confirmed"
     When the adapter has been written
-    Then it prints the line "\"my_api\": \"engine.adapters.my_api.adapter\"," to add to the _ADAPTERS dict in registry.py
-    And it prints the run command "python -m engine.cli --adapter my_api"
-    And "engine/adapters/registry.py" is unchanged
+    Then it prints the line "\"my_api\": \"trailhound.adapters.my_api.adapter\"," to add to the _ADAPTERS dict in registry.py
+    And it prints the run command "python -m trailhound.cli --adapter my_api"
+    And "trailhound/adapters/registry.py" is unchanged
     And the generated adapter is not run
 
   Scenario: An inconclusive run says to read the warning first

@@ -16,7 +16,7 @@
 #
 # Code: .experiments/web-recon/identity.py (signature, control_keys, landmark_keys,
 # impersonal, appearance), perceive.py (capture, visual_diff),
-# engine/adapters/web_gui/reference.py (rewrite_signatures), session.py
+# trailhound/adapters/web_gui/reference.py (rewrite_signatures), session.py
 
 Feature: Screens are identified by a signature
   As someone mapping an app

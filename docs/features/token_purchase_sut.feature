@@ -8,10 +8,10 @@
 # file is refused before the Luhn check, and a mismatched expiry before the expiry
 # age, so "invalid_card_number" and "expired_card" can't be reached from outside.
 #
-# Start it with: uvicorn engine.adapters.token_purchase.sut:app --port 8000
+# Start it with: uvicorn trailhound.adapters.token_purchase.sut:app --port 8000
 #
-# Code: engine/adapters/token_purchase/sut.py, engine/adapters/token_purchase/adapter.py,
-# engine/tests/test_sut_regression.py
+# Code: trailhound/adapters/token_purchase/sut.py, trailhound/adapters/token_purchase/adapter.py,
+# trailhound/tests/test_sut_regression.py
 
 Feature: A mock purchase API with real decline rules to test against
   As someone developing the engine

@@ -14,8 +14,8 @@
 # rounding. The comment in SKEPTIC_TOOL records it on purpose and says not to fix
 # it in passing.
 #
-# Code: engine/tools.py (SKEPTIC_TOOL, SKEPTIC_SYSTEM_PROMPT, validate_skeptic_response),
-# engine/loop.py (get_skeptic_review)
+# Code: trailhound/tools.py (SKEPTIC_TOOL, SKEPTIC_SYSTEM_PROMPT, validate_skeptic_response),
+# trailhound/loop.py (get_skeptic_review)
 
 Feature: A cold Skeptic reviews each checkpoint hypothesis
   As someone who doesn't want the engine to confirm itself
@@ -75,7 +75,7 @@ Feature: A cold Skeptic reviews each checkpoint hypothesis
 
   Scenario: Every gap names its kind of objection
     # Counted across runs and shown to the next run's Driver: see skeptic_memory.feature (#258).
-    Then each gap has a "kind" from the fixed list in engine/tools.py OBJECTION_KINDS
+    Then each gap has a "kind" from the fixed list in trailhound/tools.py OBJECTION_KINDS
 
   Scenario: The Skeptic is told to test the "input was never accepted" rival
     Given the Skeptic system prompt and the observation_checks description

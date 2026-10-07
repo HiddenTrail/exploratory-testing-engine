@@ -22,7 +22,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import checks  # noqa: E402
-from engine.adapters.clash_royale import reference  # noqa: E402
+from trailhound.adapters.clash_royale import reference  # noqa: E402
 
 
 def drift(*samples: int, ncells: int = checks.NCELLS) -> checks.DriftReading:

@@ -3,7 +3,7 @@
 ## Setup
 
 Unlike `pattern-detection-oracle-poc`, this runs the actual production pipeline -
-`engine.runner.run()` against the real `token_purchase` adapter, not a hand-rolled
+`trailhound.runner.run()` against the real `token_purchase` adapter, not a hand-rolled
 reimplementation - because the full Driver+Skeptic checkpoint loop already exists for it.
 
 - **6 paired trials** (12 runs total). Same adapter, same budget in both arms - the only

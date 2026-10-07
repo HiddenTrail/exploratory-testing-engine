@@ -8,10 +8,10 @@
 # never sent to a model. Playwright traces would show more, but they hold cookies and
 # tokens, so they aren't used.
 #
-# Code: engine/runner.py (cited_tests, keep_test_media), engine/adapter.py
-# (save_test_media), engine/adapters/web_gui/session.py (save_videos),
-# engine/adapters/web_gui/adapter.py (save_test_media, the test card).
-# Tests: engine/tests/test_test_videos.py
+# Code: trailhound/runner.py (cited_tests, keep_test_media), trailhound/adapter.py
+# (save_test_media), trailhound/adapters/web_gui/session.py (save_videos),
+# trailhound/adapters/web_gui/adapter.py (save_test_media, the test card).
+# Tests: trailhound/tests/test_test_videos.py
 
 Feature: The tests a run rests on can be watched
   As someone reading a run report

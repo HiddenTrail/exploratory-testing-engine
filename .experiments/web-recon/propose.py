@@ -27,7 +27,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from engine.client import build_client, call_tool_with_retry, default_model  # noqa: E402
+from trailhound.client import build_client, call_tool_with_retry, default_model  # noqa: E402
 
 # Roles the crawler can robustly locate by (role, accessible name) and actuate - the model
 # is asked to nominate only these, so a nomination is resolvable and actionable, not a

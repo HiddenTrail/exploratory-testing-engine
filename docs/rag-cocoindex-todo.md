@@ -39,11 +39,11 @@ Don't build phases 1+ below until this is answered with a real corpus size estim
    and do a manual relevance check against a handful of test queries. No wiring into
    the engine yet — throwaway script only.
 2. **Wire into bootstrap probing.** If the spike looks worthwhile, replace the raw
-   `--context-file` text dump in `engine/bootstrap/probe.py` with a retrieval call
+   `--context-file` text dump in `trailhound/bootstrap/probe.py` with a retrieval call
    over an indexed version of that same context, so the prober gets ranked relevant
    chunks instead of everything.
 3. **Extend into generation.** Same retrieval interface feeding
-   `generate_adapter_source` (`engine/bootstrap/generate.py`), so generated adapters
+   `generate_adapter_source` (`trailhound/bootstrap/generate.py`), so generated adapters
    can pull from a larger indexed corpus (multiple docs, prior adapters) instead of
    just the one context string.
 4. **Index the mocked JIRA ticket store** (roadmap phase 3) through the same

@@ -11,7 +11,7 @@
 # are not the eu.* or global.* ids that "aws bedrock list-inference-profiles"
 # prints; those belong to the older InvokeModel path and are rejected here.
 #
-# Code: engine/client.py (use_bedrock, default_model, build_client), engine/config.py
+# Code: trailhound/client.py (use_bedrock, default_model, build_client), trailhound/config.py
 
 Feature: The engine uses the direct API or Bedrock, with a model to match
   As someone setting up the engine

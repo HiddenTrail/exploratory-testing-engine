@@ -10,7 +10,7 @@
 # hooks, check_sut_ready and fetch_happy_day_example. An HTTP adapter gets them
 # for free; a SUT with no URL (a browser, a game client) supplies both.
 #
-# Code: engine/runner.py (run), engine/http.py, engine/loop.py (get_happy_day_example)
+# Code: trailhound/runner.py (run), trailhound/http.py, trailhound/loop.py (get_happy_day_example)
 
 Feature: The engine checks the SUT is up and fetches one real example before spending anything
   As someone paying for runs

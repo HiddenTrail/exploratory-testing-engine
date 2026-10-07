@@ -7,11 +7,11 @@
 # it because the Driver's own rival explanation wasn't ruled out. These rules are held
 # in code, not left to the prompt.
 #
-# Code: engine/ledger.py, engine/steering.py (free_cap, oracle_id_errors,
-# oracle_progress), engine/loop.py, engine/tools.py (HYPOTHESIS_TOOL "ideas" and
-# "dismissed_errors", validate_hypothesis_response, reconcile_kinds), engine/outcome.py
-# ("problems"), engine/adapters/web_gui/adapter.py (problems_of), engine/report.py,
-# engine/run_summary.py. Tests: engine/tests/test_oracle_ledger.py
+# Code: trailhound/ledger.py, trailhound/steering.py (free_cap, oracle_id_errors,
+# oracle_progress), trailhound/loop.py, trailhound/tools.py (HYPOTHESIS_TOOL "ideas" and
+# "dismissed_errors", validate_hypothesis_response, reconcile_kinds), trailhound/outcome.py
+# ("problems"), trailhound/adapters/web_gui/adapter.py (problems_of), trailhound/report.py,
+# trailhound/run_summary.py. Tests: trailhound/tests/test_oracle_ledger.py
 
 Feature: The Driver tests from the oracle and answers for every idea and every error
   As someone relying on the engine to find problems

@@ -7,8 +7,8 @@
 # observations by id, the Driver answers gaps by id, a new observation can
 # "continues" an earlier one, and a bug report names the observation it's for.
 #
-# Code: engine/tools.py (stamp_observation_ids, stamp_gap_ids),
-# engine/loop.py (run_checkpoint_loop)
+# Code: trailhound/tools.py (stamp_observation_ids, stamp_gap_ids),
+# trailhound/loop.py (run_checkpoint_loop)
 
 Feature: The engine stamps ids on observations and gaps
   As someone following a run across checkpoints

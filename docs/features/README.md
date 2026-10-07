@@ -5,7 +5,7 @@ Gherkin. A comment at the top says why the capability exists and which code hold
 The scenarios say what it does, with the real field names, flags and numbers.
 
 These are documentation for now. Nothing runs them: there are no step definitions,
-and the unit tests in `engine/tests` are still what checks the behaviour.
+and the unit tests in `trailhound/tests` are still what checks the behaviour.
 
 Every change in behaviour adds or updates a file here in the same PR, the same way as
 a README ([CLAUDE.md](../../CLAUDE.md), workflow step 7). A new capability gets a new

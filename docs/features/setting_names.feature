@@ -3,8 +3,8 @@
 # written before the rename keeps working. Above all, a spending limit set under its old
 # name must still limit the run, not be silently ignored.
 #
-# Code: engine/settings.py, read by engine/budget.py, engine/client.py (use_bedrock) and
-# engine/ontology/oracle_creator.py (context_path). Tests: engine/tests/test_settings.py
+# Code: trailhound/settings.py, read by trailhound/budget.py, trailhound/client.py (use_bedrock) and
+# trailhound/ontology/oracle_creator.py (context_path). Tests: trailhound/tests/test_settings.py
 
 Feature: Settings are named TRAILHOUND_, and the old ENGINE_ names still work
   As someone with settings written before the rename

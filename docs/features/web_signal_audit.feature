@@ -8,8 +8,8 @@
 # how signals are captured or trusted, on more than one kind of site. The 3-site
 # audit on #146 is where the carousel noise and the http://modules/ rule came from.
 #
-# Code: engine/adapters/web_gui/signal_audit.py (main, pick_pairs, analyse),
-# engine/tests/test_signal_audit.py
+# Code: trailhound/adapters/web_gui/signal_audit.py (main, pick_pairs, analyse),
+# trailhound/tests/test_signal_audit.py
 
 Feature: Signal handling can be audited on a live site
   As someone maintaining the web adapter
@@ -18,7 +18,7 @@ Feature: Signal handling can be audited on a live site
 
   Scenario: The audit runs the real actions across fresh sessions
     Given a map, a base URL and a site name
-    When I run "python -m engine.adapters.web_gui.signal_audit --ontology <map> --url <url> --name <site>"
+    When I run "python -m trailhound.adapters.web_gui.signal_audit --ontology <map> --url <url> --name <site>"
     Then it makes 4 sessions, each with its own headless browser and a baseline
     And in each it acts on up to 15 pairs, 2 times each
     And it prints progress after each session and the report as JSON at the end

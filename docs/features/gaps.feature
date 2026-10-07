@@ -7,7 +7,7 @@
 # This stops gaps from being quietly dropped between checkpoints, and it means
 # "tested" has to cite a real test.
 #
-# Code: engine/tools.py (SKEPTIC_TOOL "gaps" and "prior_gaps_check",
+# Code: trailhound/tools.py (SKEPTIC_TOOL "gaps" and "prior_gaps_check",
 # HYPOTHESIS_TOOL "prior_gaps", _prior_gaps_errors, validate_skeptic_response)
 
 Feature: Gaps carry a next test and must be answered at the next checkpoint

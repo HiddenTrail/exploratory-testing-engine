@@ -9,8 +9,8 @@
 # product_errors checks those fields against the vocabulary and the page's own
 # sources, so a bad page is caught before an oracle is built from it. No model calls.
 #
-# Code: engine/ontology/product.py, engine/ontology/heuristics/vocabulary.json,
-# engine/tests/test_seeded_oracle.py
+# Code: trailhound/ontology/product.py, trailhound/ontology/heuristics/vocabulary.json,
+# trailhound/tests/test_seeded_oracle.py
 
 Feature: A product's surfaces, features and facts are read from its wiki
   As someone onboarding a product

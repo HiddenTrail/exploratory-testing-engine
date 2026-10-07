@@ -9,8 +9,8 @@
 # The loader reads every file except vocabulary.json and copies the file's "source"
 # onto each heuristic. The tests check every entry against the vocabulary.
 #
-# Code: engine/ontology/oracle_creator.py (load_heuristics, load_vocabulary),
-# engine/ontology/heuristics/*.json, engine/tests/test_heuristic_library.py
+# Code: trailhound/ontology/oracle_creator.py (load_heuristics, load_vocabulary),
+# trailhound/ontology/heuristics/*.json, trailhound/tests/test_heuristic_library.py
 
 Feature: A tagged library of testing heuristics, one file per source
   As someone deciding what to test
@@ -70,7 +70,7 @@ Feature: A tagged library of testing heuristics, one file per source
     Then it still has "goldilocks", "boundary_edges", "zero_and_negative", "alphabet_soup", "monetary_precision", "empty_and_null", "duplicate_replay", "ordering_race" and "sensitive_data_exposure"
     And "self_consistency" is not in the library
     # It is an oracle principle, so it moved to the FEW HICCUPPS seeds with its id (#138).
-    And "self_consistency" is a seed id in engine/ontology/seeds/
+    And "self_consistency" is a seed id in trailhound/ontology/seeds/
 
   Scenario: The library text has no long dashes
     When test_heuristic_library runs

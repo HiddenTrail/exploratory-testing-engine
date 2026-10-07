@@ -12,7 +12,7 @@ isn't - what you can click next depends on what actually rendered after the
 last click - so "executing" a GUI test means an LLM has to perceive-decide-
 act in a loop, not fire a pre-built request. This PoC exists to prove that
 mechanism works at all before deciding whether/how to harden it into
-`engine/`.
+`trailhound/`.
 
 **Phase 1** built just the mock GUI itself - no Driver, no Playwright MCP
 wiring. The app's own logic is deliberately trivial (there's no interesting
@@ -60,7 +60,7 @@ pip install -r requirements.txt
 python run_live.py
 ```
 
-The Driver authenticates through `engine/client.py`, the same as the rest of the repo:
+The Driver authenticates through `trailhound/client.py`, the same as the rest of the repo:
 by default it uses **Amazon Bedrock**, configured in the **repo-root `.env`**
 (`TRAILHOUND_USE_BEDROCK=1`, `AWS_REGION`, `AWS_PROFILE`; `aws sso login` before a run) -
 `run_live.py` loads that file itself and picks the right model for the provider

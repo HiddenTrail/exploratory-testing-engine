@@ -8,10 +8,10 @@
 # within one, and the Skeptic doesn't see it, so its review stays cold. No extra model
 # call: the kind is one more field on an answer the Skeptic already gives.
 #
-# Code: engine/tools.py (OBJECTION_KINDS, the Skeptic's gap schema and validator),
-# engine/ontology/feedback.py (extract_objections, merge_objections, driver_history,
-# learn), engine/ontology/oracle_creator.py (context_path), engine/loop.py
-# (_base_evidence), engine/config.py, engine/cli.py.
+# Code: trailhound/tools.py (OBJECTION_KINDS, the Skeptic's gap schema and validator),
+# trailhound/ontology/feedback.py (extract_objections, merge_objections, driver_history,
+# learn), trailhound/ontology/oracle_creator.py (context_path), trailhound/loop.py
+# (_base_evidence), trailhound/config.py, trailhound/cli.py.
 
 Feature: The Driver is told what the Skeptic objected to most in earlier runs
   As someone who wants the Driver to answer objections before they're raised
@@ -61,4 +61,4 @@ Feature: The Driver is told what the Skeptic objected to most in earlier runs
   Scenario: A benchmark can learn into a scratch folder
     # So a benchmark doesn't change a committed context file such as context_token_purchase.json.
     Given TRAILHOUND_CONTEXT_DIR is set to a folder
-    Then context files are read from and written to that folder instead of engine/ontology
+    Then context files are read from and written to that folder instead of trailhound/ontology

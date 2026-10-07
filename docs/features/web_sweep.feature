@@ -7,7 +7,7 @@
 # is a candidate list for a person to review before it becomes a target's known problems
 # (#277). Part of the epic "Know what it finds" (#280).
 #
-# Code: engine/adapters/web_gui/sweep.py. Tests: engine/tests/test_sweep.py
+# Code: trailhound/adapters/web_gui/sweep.py. Tests: trailhound/tests/test_sweep.py
 
 Feature: A sweep runs every reachable action once and lists what the harness observed
   As someone benchmarking the engine on a web target
@@ -15,7 +15,7 @@ Feature: A sweep runs every reachable action once and lists what the harness obs
   So that a run's findings can be scored against what it could have found
 
   Scenario: Every pair runs once, and again as a new tab when there's a saved session
-    When I run "python -m engine.adapters.web_gui.sweep --ontology <map> --url <url> --session <file> --out <file>"
+    When I run "python -m trailhound.adapters.web_gui.sweep --ontology <map> --url <url> --session <file> --out <file>"
     Then every (state, control) pair in the map is acted on as "same_tab", and as "new_tab"
     And without a session, or with --no-new-tab, only as "same_tab"
     And it stops after --max-actions (400 by default)

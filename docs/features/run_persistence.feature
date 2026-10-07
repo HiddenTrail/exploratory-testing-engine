@@ -10,7 +10,7 @@
 # the run ends, for any reason, output.json is written once more with the real
 # stopped_reason.
 #
-# Code: engine/runner.py (save_progress), engine/loop.py (on_checkpoint)
+# Code: trailhound/runner.py (save_progress), trailhound/loop.py (on_checkpoint)
 
 Feature: Progress is saved after every checkpoint
   As someone running long sessions

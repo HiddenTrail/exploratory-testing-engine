@@ -15,7 +15,7 @@ this scenario a genuine test of whether the oracle library changes outcomes, not
 - **Comparison** (`run_comparison.py`): 6 paired trials. Same Driver tool schema and system
   prompt in both arms — the *only* difference is whether `oracle_library` is present in the
   evidence. Each hypothesis then gets a cold Skeptic review that never sees the oracle library,
-  mirroring how `engine.loop`'s Skeptic never sees `onboarding_extra` either.
+  mirroring how `trailhound.loop`'s Skeptic never sees `onboarding_extra` either.
 - **Scoring**: done by hand against the real `ground_truth` (this project's standing convention),
   by me, not blinded to which arm produced which output — a real limitation, noted here rather
   than glossed over.

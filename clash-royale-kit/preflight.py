@@ -57,7 +57,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".experiments" / "g
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".experiments" / "android-bot"))
 
 import checks  # noqa: E402
-from engine.adapters.clash_royale import reference  # noqa: E402
+from trailhound.adapters.clash_royale import reference  # noqa: E402
 
 GAME = "Clash Royale"
 
@@ -223,8 +223,8 @@ def _baseline(controller) -> tuple[str, float, bool]:
     the reference classifies `abort` raises `Unsafe`, and both are things a pass must not start
     on top of.
     """
-    from engine.adapters.clash_royale.actions import Unsafe               # noqa: E402
-    from engine.adapters.clash_royale.session import Session              # noqa: E402
+    from trailhound.adapters.clash_royale.actions import Unsafe               # noqa: E402
+    from trailhound.adapters.clash_royale.session import Session              # noqa: E402
     try:
         where = Session(controller=controller).observe()
     except Unsafe as unsafe:
@@ -269,8 +269,8 @@ def run(game: str = GAME, samples: int = DRIFT_SAMPLES, verbose: bool = True) ->
     # Before any frame is scored. An empty denylist is the failure that looks exactly like
     # success - every check downstream of it reports "allowed" - so it has to be impossible to
     # get past this point with one.
-    from engine.adapters.clash_royale.actions import preflight as guard_check   # noqa: E402
-    from engine.adapters.clash_royale.actions import Unsafe                     # noqa: E402
+    from trailhound.adapters.clash_royale.actions import preflight as guard_check   # noqa: E402
+    from trailhound.adapters.clash_royale.actions import Unsafe                     # noqa: E402
     try:
         report.guards = f"{guard_check(controller.target)}\n\n{reference.check_reference()}"
     except Unsafe as unsafe:

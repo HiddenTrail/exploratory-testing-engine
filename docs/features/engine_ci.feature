@@ -12,7 +12,7 @@
 # then when each thread built its own client and the burst spread out (#136).
 #
 # Code: .github/workflows/engine-tests.yml, .github/workflows/spoor-contract.yml,
-# engine/tests/test_*_parity.py, engine/tests/test_*sut_regression.py
+# trailhound/tests/test_*_parity.py, trailhound/tests/test_*sut_regression.py
 
 Feature: CI checks the engine on every pull request
   As someone maintaining the engine
@@ -28,9 +28,9 @@ Feature: CI checks the engine on every pull request
   Scenario: The engine-tests workflow runs on pushes and pull requests to master
     When a pull request to "master" is opened or a commit is pushed to "master"
     Then the "engine tests" workflow runs on "ubuntu-latest" with Python "3.13"
-    And it installs "engine/requirements.txt"
-    And it runs "python -m compileall -q engine"
-    And it runs "python -m pytest engine/tests -v"
+    And it installs "trailhound/requirements.txt"
+    And it runs "python -m compileall -q trailhound"
+    And it runs "python -m pytest trailhound/tests -v"
     And it runs "python -m pytest clash-royale-kit -v"
     And it installs ".experiments/web-recon/requirements.txt" and runs "python -m pytest tests -v" in ".experiments/web-recon"
     # .experiments/game-ontology and .experiments/android-bot are Windows-only and stay out of CI.
@@ -43,16 +43,16 @@ Feature: CI checks the engine on every pull request
 
     Examples:
       | test                                    | prototype                                    |
-      | engine/tests/test_tools_parity.py       | .experiments/token-purchase-poc/run_live.py  |
-      | engine/tests/test_complex_sut_parity.py | .experiments/complex-sut-poc/run_live.py     |
+      | trailhound/tests/test_tools_parity.py       | .experiments/token-purchase-poc/run_live.py  |
+      | trailhound/tests/test_complex_sut_parity.py | .experiments/complex-sut-poc/run_live.py     |
 
   Scenario: The token_purchase regression tests pin the order of its checks
-    When "engine/tests/test_sut_regression.py" runs against the mock SUT through TestClient
+    When "trailhound/tests/test_sut_regression.py" runs against the mock SUT through TestClient
     Then a card number "1234567890" is declined "card_not_authorized", never "invalid_card_number"
     And a past but mismatched expiry is declined "expiry_mismatch", never "expired_card"
 
   Scenario: The race test runs against a real uvicorn server
-    Given "engine/tests/test_complex_sut_regression.py" starts "engine.adapters.complex_sut.sut:app" with uvicorn on port 8791
+    Given "trailhound/tests/test_complex_sut_regression.py" starts "trailhound.adapters.complex_sut.sut:app" with uvicorn on port 8791
     And it waits up to 10 seconds for "/docs" to answer
     When it sends 8 requests one after another for a fresh client_id
     Then exactly 5 are accepted
@@ -60,7 +60,7 @@ Feature: CI checks the engine on every pull request
     Then more than 5 are accepted
 
   Scenario: The Spoor contract job runs when its side of the contract changes
-    When a change touches "engine/requirements-spoor.txt", "from_spoor.py", the contract test or its fixture site
+    When a change touches "trailhound/requirements-spoor.txt", "from_spoor.py", the contract test or its fixture site
     Then the "spoor contract" workflow installs the pinned Spoor and Chromium
-    And it runs "engine/tests/test_spoor_contract.py" with "REQUIRE_SPOOR" set to "1"
+    And it runs "trailhound/tests/test_spoor_contract.py" with "REQUIRE_SPOOR" set to "1"
     And once a week on Monday it runs the same against Spoor's latest main instead

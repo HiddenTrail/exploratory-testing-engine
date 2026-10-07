@@ -53,7 +53,7 @@ otherwise `inconclusive`. All observations go into `output.json` under
 them), because findings and anomalies are already complete as they are. Output is a JSON result, a JSON bug list, and a self-contained HTML report.
 
 Before any bug is written up, the engine runs every test it cites again, exactly as
-cast (`engine/verify.py`, #177). The adapter says whether each replay came out the
+cast (`trailhound/verify.py`, #177). The adapter says whether each replay came out the
 same. A bug whose tests don't all reproduce, or can't be replayed, is lowered to an
 anomaly with the reason, so it never gets a bug report. No model is called for this.
 Replay is opt-in through the adapter's `compare_replay` hook: so far only `web_gui`
@@ -62,7 +62,7 @@ has it, and other adapters' bugs are marked "not replayed" in the report.
 ## Bootstrapping a new adapter automatically
 
 Testing a new API normally means hand-writing an *adapter* (see below). The
-`engine/bootstrap/` pipeline can generate a first draft of one instead, by
+`trailhound/bootstrap/` pipeline can generate a first draft of one instead, by
 actually pointing itself at a live system and working out the schema for real:
 
 ```
@@ -77,12 +77,12 @@ Generate      → emit a real, runnable adapter.py from what was confirmed
 Run all four phases end to end with:
 
 ```
-python -m engine.bootstrap.cli \
+python -m trailhound.bootstrap.cli \
   --name my_api --display-name "My API" --base-url http://localhost:8000
 ```
 
 This never auto-registers or auto-runs the result - it prints the line to add
-to `engine/adapters/registry.py` and the command to run it, keeping
+to `trailhound/adapters/registry.py` and the command to run it, keeping
 registration a deliberate human step. A generated adapter that never achieved
 a real success is refused outright (`status == "failed"`); one that ran out
 of probing budget while still uncertain is generated anyway, with a
@@ -117,13 +117,13 @@ This is a 4-phase roadmap, being built incrementally:
 1. ✅ Thread context into probing.
 2. ✅ Persist context into the generated adapter.
 3. ✅ Prove the source is swappable via a mocked `jira` ticket store
-   (`engine/bootstrap/jira_mock.py`) - no real JIRA calls.
+   (`trailhound/bootstrap/jira_mock.py`) - no real JIRA calls.
 4. ⏳ Not started - real JIRA API integration (auth, live ticket fetch),
    left as a `TODO` in `jira_mock.py` until explicitly requested.
 
 ## Ontology layer (prioritization)
 
-`engine/ontology/` sits between the domain-grounded oracle claims and the
+`trailhound/ontology/` sits between the domain-grounded oracle claims and the
 Driver: a 4-layer flat-file stack (generic heuristic library → per-SUT
 business/domain facts → context/results → a ranked, prioritized test-idea
 list) that scores claims up or down based on what's already been tested,
@@ -136,11 +136,11 @@ rather than only ever matching on the Driver's own free-text hypothesis.
 Full status and backlog: [`docs/ontology-todo.md`](docs/ontology-todo.md).
 
 ```
-python -m engine.ontology.oracle_creator --sut token_purchase   # layer 4: rank
-python -m engine.ontology.website --sut token_purchase          # view all 4 layers
-python -m engine.ontology.feedback --sut token_purchase --run <output.json>  # close the loop
-python -m engine.cli --adapter web_gui --learn juice-shop       # or close it as the run ends (#159)
-python -m engine.ontology.seeder --product juice-shop           # a product's oracle, built from its wiki
+python -m trailhound.ontology.oracle_creator --sut token_purchase   # layer 4: rank
+python -m trailhound.ontology.website --sut token_purchase          # view all 4 layers
+python -m trailhound.ontology.feedback --sut token_purchase --run <output.json>  # close the loop
+python -m trailhound.cli --adapter web_gui --learn juice-shop       # or close it as the run ends (#159)
+python -m trailhound.ontology.seeder --product juice-shop           # a product's oracle, built from its wiki
 ```
 
 For a product with a wiki (Juice Shop so far), the oracle isn't written by hand:
@@ -150,7 +150,7 @@ through the FEW HICCUPPS oracle seeds (#138).
 ## Layout
 
 ```
-engine/
+trailhound/
   adapter.py    # SUTAdapter interface - what a per-SUT adapter must supply
   tools.py      # HYPOTHESIS_TOOL / SKEPTIC_TOOL / BUG_REPORT_TOOL - shared across every adapter
   client.py     # Anthropic client + call_tool_with_retry (tool-forced calls, retried on transient errors)
@@ -171,9 +171,9 @@ engine/
   run_summary.py # a run's outcome as Markdown, for a CI job's summary page
   budget.py     # the hard spending limit (TRAILHOUND_MAX_COST_USD, TRAILHOUND_MAX_MODEL_CALLS)
   settings.py   # reads the TRAILHOUND_ settings, and the old ENGINE_ names with a warning (#335)
-  cli.py        # python -m engine.cli --adapter <name>
+  cli.py        # python -m trailhound.cli --adapter <name>
   lean.py       # lean runs for experiments: the fields and calls a lean run skips (#295)
-  ask.py        # python -m engine.ask <run>: asks a saved run for a part it didn't write
+  ask.py        # python -m trailhound.ask <run>: asks a saved run for a part it didn't write
   adapters/
     registry.py           # name -> adapter module, resolved lazily at run time
     token_purchase/        # first adapter: single request/response, decline-reason logic
@@ -194,7 +194,7 @@ engine/
     generate.py   # Phase 4 - generate a real adapter.py from a confirmed/inconclusive result
     report.py     # renders a DiscoveredSchema as HTML for --discover-only
     jira_mock.py  # stubbed ticket store for context-enriched bootstrap - see above; real JIRA is a TODO
-    cli.py        # python -m engine.bootstrap.cli - chains all 4 phases end to end
+    cli.py        # python -m trailhound.bootstrap.cli - chains all 4 phases end to end
   ontology/       # prioritization layer stack (heuristics/domain/context/ranked oracle, and the seeder) - see above
   tests/          # deterministic regression + parity tests (no LLM calls, runs in CI)
 .experiments/     # mostly earlier prototypes this package was hardened from, kept as an archive.
@@ -238,27 +238,27 @@ The backlog is [GitHub Issues](https://github.com/HiddenTrail/exploratory-testin
 For scraping and mapping websites the repo uses Spoor, a separate project
 checked out next to this one (`../ht-spoor`); see CLAUDE.md.
 
-`engine/*` never imports from `engine/adapters/*` - adapters import from
-`engine`, never the reverse. `engine/adapters/registry.py` is the only place
+`trailhound/*` never imports from `trailhound/adapters/*` - adapters import from
+`trailhound`, never the reverse. `trailhound/adapters/registry.py` is the only place
 that crosses that boundary, and it does so lazily (`importlib`) at CLI run
-time. `engine/bootstrap/` follows the same rule: it depends on `engine/`, not
+time. `trailhound/bootstrap/` follows the same rule: it depends on `trailhound/`, not
 on any concrete adapter.
 
 ## Getting started
 
 ```
 # terminal 1
-pip install -r engine/requirements.txt
-uvicorn engine.adapters.token_purchase.sut:app --port 8000
+pip install -r trailhound/requirements.txt
+uvicorn trailhound.adapters.token_purchase.sut:app --port 8000
 
 # terminal 2
-cp engine/.env.example engine/.env   # fill in ANTHROPIC_API_KEY
-python -m engine.cli --adapter token_purchase
+cp trailhound/.env.example trailhound/.env   # fill in ANTHROPIC_API_KEY
+python -m trailhound.cli --adapter token_purchase
 ```
 
 To authenticate through Amazon Bedrock instead of an API key, set
 `TRAILHOUND_USE_BEDROCK=1` and `AWS_REGION` (plus `AWS_PROFILE` if needed) - see
-[`engine/README.md`](engine/README.md) for the model-ID caveats, which are not
+[`trailhound/README.md`](trailhound/README.md) for the model-ID caveats, which are not
 the same IDs `aws bedrock list-inference-profiles` reports.
 
 The settings were called `ENGINE_...` before the rename to Trailhound (#335):
@@ -270,12 +270,12 @@ Writes `runs/<adapter>/output.json`, `runs/<adapter>/bugs.json` (if any
 bugs were found), and `runs/<adapter>/report.html`. Override run
 parameters with `--model`, `--max-checkpoints`, `--first-round-budget`,
 `--default-budget`, `--out-dir`. `--lean` makes a cheaper run for experiments,
-and `python -m engine.ask` asks a saved run for what it skipped (see
-[`engine/README.md`](engine/README.md)).
+and `python -m trailhound.ask` asks a saved run for what it skipped (see
+[`trailhound/README.md`](trailhound/README.md)).
 
-See [`engine/README.md`](engine/README.md) for adding a new adapter by hand,
+See [`trailhound/README.md`](trailhound/README.md) for adding a new adapter by hand,
 and the CI/testing setup. To drive a web app in a browser, see
-[`engine/adapters/web_gui/README.md`](engine/adapters/web_gui/README.md).
+[`trailhound/adapters/web_gui/README.md`](trailhound/adapters/web_gui/README.md).
 
 ### Mapping the game client instead
 
@@ -300,14 +300,14 @@ knowledge of the rest of this repo.
 ## Testing
 
 ```
-pip install -r engine/requirements.txt
-python -m pytest engine/tests
+pip install -r trailhound/requirements.txt
+python -m pytest trailhound/tests
 ```
 
 Runs on every push to `master`, every PR into `master`, and on demand, via
 [`.github/workflows/engine-tests.yml`](.github/workflows/engine-tests.yml) -
 no Anthropic API key needed, since no test makes a real LLM call. That workflow
-also compile-checks `engine/`, runs web-recon's tests (the web_gui adapter loads it), and runs `clash-royale-kit`'s tests, which are cross-platform on purpose:
+also compile-checks `trailhound/`, runs web-recon's tests (the web_gui adapter loads it), and runs `clash-royale-kit`'s tests, which are cross-platform on purpose:
 the kit drives a Windows client, but its decisions live in modules that import
 no Win32, and the ones that do keep those imports function-local so a stub can
 be put under the name. What that buys is having the assertions that matter -
@@ -331,7 +331,7 @@ starts it, a label is used up by the run it starts, inputs have hard ranges, the
 are at most 5 runs a day, every step has a time limit, the AWS credentials last one
 hour, and the engine stops itself at $1.50 or 40 model calls.
 
-Every run, anywhere, has a spending limit (`engine/budget.py`): it stops before the
+Every run, anywhere, has a spending limit (`trailhound/budget.py`): it stops before the
 next model call once it has made `TRAILHOUND_MAX_MODEL_CALLS` calls (default 80) or
 spent about `TRAILHOUND_MAX_COST_USD` (default $3.00). A run it stops keeps its
 output, and the run command exits with code 2.

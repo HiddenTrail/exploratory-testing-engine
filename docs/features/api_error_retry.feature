@@ -12,7 +12,7 @@
 # most common transient error there is. A bad key or a malformed request is
 # permanent, and retrying it only burns time.
 #
-# Code: engine/client.py (_RETRYABLE_API_ERRORS, call_tool_with_retry)
+# Code: trailhound/client.py (_RETRYABLE_API_ERRORS, call_tool_with_retry)
 
 Feature: Transient API errors are retried with backoff, permanent ones fail at once
   As someone running a session

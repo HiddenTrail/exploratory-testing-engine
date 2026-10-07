@@ -6,11 +6,11 @@
 # the only thing that knew was a sentence in a string field.
 #
 # So an adapter fills a few typed fields under the reserved key "outcome", and
-# engine/diagnostics.py only compares and counts them. Three rules keep it honest:
+# trailhound/diagnostics.py only compares and counts them. Three rules keep it honest:
 # "unknown" is never counted as "none", an empty state token means "not observed",
 # and "accepted" may be null when the adapter can't tell.
 #
-# Code: engine/outcome.py
+# Code: trailhound/outcome.py
 
 Feature: Adapters describe each test result in a typed outcome envelope
   As someone maintaining the engine

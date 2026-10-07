@@ -6,18 +6,18 @@ Proves the "wiki-ingest" mechanics described in the repo-root
 [`AGENTS.md`](../../AGENTS.md) as real, testable code, instead of only an
 interactive Claude Code slash command
 ([`.claude/commands/wiki-ingest.md`](../../.claude/commands/wiki-ingest.md)).
-If this holds up, it graduates to `engine/wiki/` the way `token-purchase-poc`
-became `engine/adapters/token_purchase` and `oracle-agent-poc`'s output became
-`engine/adapters/token_purchase/oracle_library.json`, which `engine/ontology`
+If this holds up, it graduates to `trailhound/wiki/` the way `token-purchase-poc`
+became `trailhound/adapters/token_purchase` and `oracle-agent-poc`'s output became
+`trailhound/adapters/token_purchase/oracle_library.json`, which `trailhound/ontology`
 reads - proven here first, hardened there. It hasn't graduated yet: there is
-no `engine/wiki/`.
+no `trailhound/wiki/`.
 
 **This is a wiki about the product under test, not about this repo's own
 testing machinery.** `raw/` holds only product-facing material a tester with
 no prior knowledge would be handed: a spec, a ticket. Both files here are
 transcribed verbatim from what's already known and validated elsewhere in
-this project (`engine/adapters/token_purchase/adapter.py`'s
-`API_SCHEMA_DOC`/`KNOWN_ACCOUNTS`, and `engine/bootstrap/jira_mock.py`'s
+this project (`trailhound/adapters/token_purchase/adapter.py`'s
+`API_SCHEMA_DOC`/`KNOWN_ACCOUNTS`, and `trailhound/bootstrap/jira_mock.py`'s
 `PROJ-101`) - not rediscovered, not fabricated, and deliberately real files
 on disk rather than string constants, so the generator has an actual
 directory to point at.
@@ -35,7 +35,7 @@ experiment's `run_live.py` uses):
 
 Both calls return structured tool output; the actual markdown+frontmatter is
 rendered deterministically in Python from that structure (same
-"structured-call, deterministic-render" split as `engine/report.py`), not
+"structured-call, deterministic-render" split as `trailhound/report.py`), not
 generated as free-text markdown by the model.
 
 ## Running it

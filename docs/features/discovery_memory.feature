@@ -9,8 +9,8 @@
 # once). A discovery stays in the context layer. Promoting one into the product wiki
 # is a step a person takes; no code does it.
 #
-# Code: engine/ontology/feedback.py (extract_discoveries, merge_discoveries),
-# engine/tests/test_ontology_claim_matching.py
+# Code: trailhound/ontology/feedback.py (extract_discoveries, merge_discoveries),
+# trailhound/tests/test_ontology_claim_matching.py
 
 Feature: Screens found beyond the map are remembered across runs
   As someone exploring an app over many runs
@@ -24,9 +24,9 @@ Feature: Screens found beyond the map are remembered across runs
     Then it returns one record, for "d1", with "test_number" 4
 
   Scenario: The CLI writes them into context_<slug>.json
-    When I run "python -m engine.ontology.feedback --sut web_gui --product juice-shop --run <output.json>"
+    When I run "python -m trailhound.ontology.feedback --sut web_gui --product juice-shop --run <output.json>"
     And the run discovered screens
-    Then they go under "discoveries" in "engine/ontology/context_juice-shop.json"
+    Then they go under "discoveries" in "trailhound/ontology/context_juice-shop.json"
     And the run is named by the output's "run_id", or by the folder output.json is in
     And it prints "Screens beyond the map: N new this run, A from earlier runs reached again at the start, F known ones found again by tests (K known, R reproduced)" (#159)
 

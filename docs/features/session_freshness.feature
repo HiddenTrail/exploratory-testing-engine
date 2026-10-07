@@ -10,7 +10,7 @@
 # WEB_GUI_SESSION_CHECK can name a path that only works logged in (for example
 # /profile on Juice Shop), and the run stops if the server answers 400 or above.
 #
-# Code: engine/adapters/web_gui/session.py (session_expiry, check_session_fresh,
+# Code: trailhound/adapters/web_gui/session.py (session_expiry, check_session_fresh,
 # _jwt_exp, Session.check_url, check_ready)
 
 Feature: A stale saved session is refused before a run
@@ -40,7 +40,7 @@ Feature: A stale saved session is refused before a run
     And the cookie "token" in the session expired before now
     When web_gui's check_ready runs
     Then the run stops with SystemExit saying the saved session "logged-in" has expired (cookie token)
-    And the message says to save a fresh session with "python -m engine.adapters.web_gui.save_session"
+    And the message says to save a fresh session with "python -m trailhound.adapters.web_gui.save_session"
     And no browser is launched
 
   Scenario: A credential that expires within 30 minutes only warns

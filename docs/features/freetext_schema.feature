@@ -9,7 +9,7 @@
 # confidence_notes what it had to guess. --spec-text is separate from
 # --context-file: it is only ever read when discovery finds nothing.
 #
-# Code: engine/bootstrap/freetext.py, engine/bootstrap/schema.py
+# Code: trailhound/bootstrap/freetext.py, trailhound/bootstrap/schema.py
 
 Feature: A schema is drafted from free text when discovery finds nothing
   As an engineer adding an API that publishes no OpenAPI document

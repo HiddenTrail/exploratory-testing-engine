@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import synthesize  # noqa: E402
 import wikibuild  # noqa: E402
-from engine import client as engine_client  # noqa: E402
+from trailhound import client as engine_client  # noqa: E402
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "ontology.json"
 AT = datetime(2026, 9, 7, 12, 0, 0, tzinfo=timezone.utc)

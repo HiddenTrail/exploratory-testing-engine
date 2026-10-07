@@ -2,15 +2,15 @@
 #
 # Each SUT has its own test shape, so the casting tool schema, prompt and per-test
 # checks live in the adapter. Three things are the same for every adapter and live
-# in engine/tools.py so they can't drift apart (issue #96): what the Driver is told
+# in trailhound/tools.py so they can't drift apart (issue #96): what the Driver is told
 # about the previous checkpoint's feedback (PRIOR_FEEDBACK_GUIDE), the 60-word
 # limit on the round's reasoning, and the checks on the answer's envelope
 # (give_up, reasoning, candidate_tests). A missing give_up used to be the most
 # common casting retry after #41 (4 of 12 calls), so it may now be left out when
 # the answer has tests.
 #
-# Code: engine/loop.py (get_casting_round, run_checkpoint_loop),
-# engine/tools.py (casting_envelope_errors), each adapter's validate_casting_response
+# Code: trailhound/loop.py (get_casting_round, run_checkpoint_loop),
+# trailhound/tools.py (casting_envelope_errors), each adapter's validate_casting_response
 
 Feature: The Driver casts a batch of tests in the adapter's own schema
   As someone exploring a live system

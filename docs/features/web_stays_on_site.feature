@@ -11,9 +11,9 @@
 # route() was tried first: it doesn't see redirect hops, and routing every request
 # kept Juice Shop's socket.io poll open, so no page ever counted as rested.
 #
-# Code: engine/adapters/web_gui/session.py (off_site_target, _guard_page, _on_document,
+# Code: trailhound/adapters/web_gui/session.py (off_site_target, _guard_page, _on_document,
 # _on_request_failed, _storage), adapter.py (API_SCHEMA_DOC, describe_result_for_log,
-# render_test_entry). Tests: engine/tests/test_web_gui_adapter.py
+# render_test_entry). Tests: trailhound/tests/test_web_gui_adapter.py
 
 Feature: The test browser never leaves the product's site
   As someone pointing the engine at a product

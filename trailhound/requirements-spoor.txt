@@ -1,0 +1,9 @@
+# Optional: Spoor (HiddenTrail/ht-spoor), the site mapper the web_gui adapter can
+# start from (trailhound/adapters/web_gui/from_spoor.py). The engine runs without it.
+#
+# Pinned to a commit so a change in Spoor can't break this repo unnoticed (#144).
+# Moving the pin is a deliberate PR: CI's spoor-contract job runs a real Spoor at
+# this commit and checks its saved map against what from_spoor reads, and a weekly
+# run checks Spoor's latest code the same way, without blocking anyone.
+# Once Spoor tags releases (HiddenTrail/ht-spoor#171), pin a release instead.
+ht-spoor @ git+https://github.com/HiddenTrail/ht-spoor@d77d53a3ef0a96ab056f4211e631bf8ff408ce18

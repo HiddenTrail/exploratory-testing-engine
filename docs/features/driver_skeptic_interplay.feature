@@ -7,9 +7,9 @@
 # Driver left the blocking gap "not attempted" twice; these numbers make that visible
 # without reading the log. Every later change in the epic is judged by them.
 #
-# Code: engine/interplay.py (measure, summary_lines), engine/runner.py,
-# engine/report.py (_render_interplay_section), engine/run_summary.py.
-# Tests: engine/tests/test_interplay.py
+# Code: trailhound/interplay.py (measure, summary_lines), trailhound/runner.py,
+# trailhound/report.py (_render_interplay_section), trailhound/run_summary.py.
+# Tests: trailhound/tests/test_interplay.py
 
 Feature: Every run measures how well the Driver answered the Skeptic
   As someone making the Driver smarter

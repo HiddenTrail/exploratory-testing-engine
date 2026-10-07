@@ -11,8 +11,8 @@
 # a max_tokens cutoff), the run keeps its verdict and records "bug_report_error"
 # instead of turning a finished run into an "error".
 #
-# Code: engine/loop.py (get_bug_reports), engine/runner.py (run),
-# engine/tools.py (BUG_REPORT_TOOL, validate_bug_reports)
+# Code: trailhound/loop.py (get_bug_reports), trailhound/runner.py (run),
+# trailhound/tools.py (BUG_REPORT_TOOL, validate_bug_reports)
 
 Feature: Bugs get a written report that can't change the engine's verdict
   As someone handing results to developers

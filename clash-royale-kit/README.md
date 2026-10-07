@@ -34,7 +34,7 @@ git clone <this repo>
 cd qes-exploration
 py -3.13 -m venv .venv
 .venv\Scripts\pip install -r clash-royale-kit\requirements.txt
-copy engine\.env.example .env
+copy trailhound\.env.example .env
 ```
 
 Then edit `.env`. For Bedrock through SSO, which is what this was set up for:
@@ -50,15 +50,15 @@ expired looks perfectly configured and fails on first use, so `--doctor` makes a
 call rather than just constructing a client. It costs a fraction of a cent and it is the
 difference between finding out now and finding out five minutes into a pass.
 
-`.env` at the repo root, and run from the repo root. `engine/client.py` calls
+`.env` at the repo root, and run from the repo root. `trailhound/client.py` calls
 `python-dotenv`'s `load_dotenv()` with no path, which - for a real script run, not a `python -c`
-one-liner - searches upward starting from `engine/`'s own directory, not from wherever you
-launched the command. That only reaches the repo root if nothing between `engine/` and the
-root has its own `.env`; a stray one anywhere in between (an old `engine/.env` from before this
+one-liner - searches upward starting from `trailhound/`'s own directory, not from wherever you
+launched the command. That only reaches the repo root if nothing between `trailhound/` and the
+root has its own `.env`; a stray one anywhere in between (an old `trailhound/.env` from before this
 kit existed, say) is found first and silently shadows the repo-root file, with no error and no
 mention of which one won. If auth looks configured but keeps resolving to the wrong provider or
-model, check whether a stray `engine\.env` exists (`dir engine\.env`) and delete it if so. A
-`python -c` check with `find_dotenv` searches from your current directory, not from `engine\`,
+model, check whether a stray `trailhound\.env` exists (`dir trailhound\.env`) and delete it if so. A
+`python -c` check with `find_dotenv` searches from your current directory, not from `trailhound\`,
 so it can't show this. `run.cmd` still gets you to the repo root either way.
 
 Verify the install without a game or a model:
@@ -264,6 +264,6 @@ nothing can reopen.
 
 It leans on three things already in this repo rather than copying them: the harness in
 `.experiments\game-ontology`, the target in `.experiments\android-bot`, and the safety layers in
-`engine\adapters\clash_royale`. Read
+`trailhound\adapters\clash_royale`. Read
 [`.experiments\android-bot\README.md`](../.experiments/android-bot/README.md) if you are going to
 change any of it - it carries the reasoning behind the rules this kit only enforces.

@@ -20,10 +20,10 @@ ontology forward, so a state is *known on first sight* (`carried`), and a drift 
 flags carried states not reached this run (`carried_state_absent`) and states new since it
 (`new_state`). And web-recon is **promoted into the engine**: the deterministic crawl is
 the read-only recon that writes the map; the new
-[`engine/adapters/web_gui`](../../engine/adapters/web_gui/) adapter takes that ontology as
+[`trailhound/adapters/web_gui`](../../trailhound/adapters/web_gui/) adapter takes that ontology as
 its *carried reference* and drives the same app with the engine's LLM-Driver casting loop
 (mirroring `clash_royale`), reusing this package's perception/identity/safety. One command:
-`WEB_GUI_ONTOLOGY=...out/ontology.json python -m engine.cli --adapter web_gui`. The Driver
+`WEB_GUI_ONTOLOGY=...out/ontology.json python -m trailhound.cli --adapter web_gui`. The Driver
 may only name a `(state, control)` pair the recon cleared as safe — so the casting run
 looks and navigates only.
 
@@ -166,4 +166,4 @@ Stage 1 hardens identity across a multi-view app; Stage 2 adds read-only frontie
 exploration + evidence capture → a real `ontology.json`; Stage 3 the wiki; Stage 4 the
 optional, batched LLM review (hypotheses + Skeptic + Oracle heuristics); Stage 5
 safe interaction (gestures, model-proposed controls, vetting-gated mutations); Stage 6
-resume/carry + promotion to an `engine/` adapter.
+resume/carry + promotion to a `trailhound/` adapter.

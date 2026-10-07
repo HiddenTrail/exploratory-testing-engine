@@ -13,9 +13,9 @@
 # Playwright can't restore sessionStorage from the file, so web_gui puts it back with an
 # init script that runs before the app's own scripts (issue #228).
 #
-# Code: engine/adapters/web_gui/session.py (load_session_file, session_name,
+# Code: trailhound/adapters/web_gui/session.py (load_session_file, session_name,
 # session_storage_script, Session._open_fresh_page, check_ready),
-# engine/adapters/web_gui/reference.py
+# trailhound/adapters/web_gui/reference.py
 
 Feature: web_gui tests start from a saved login session
   As a tester of features behind a login

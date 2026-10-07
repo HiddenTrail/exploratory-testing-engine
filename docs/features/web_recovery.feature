@@ -8,8 +8,8 @@
 # never compounds. The start page is compared with the entry signature the baseline
 # recorded when the run began, and is retaken up to twice if it doesn't match yet.
 #
-# Code: engine/adapters/web_gui/session.py (Session.act, Session.recover, Session.baseline),
-# engine/adapters/web_gui/adapter.py (outcome_for, describe_result_for_log, render_test_entry)
+# Code: trailhound/adapters/web_gui/session.py (Session.act, Session.recover, Session.baseline),
+# trailhound/adapters/web_gui/adapter.py (outcome_for, describe_result_for_log, render_test_entry)
 
 Feature: The browser recovers after reaching a new screen
   As someone who needs independent tests

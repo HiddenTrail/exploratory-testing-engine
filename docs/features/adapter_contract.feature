@@ -4,14 +4,14 @@
 # ADAPTER and only read during a run. It supplies the casting tool schema, the
 # casting prompt and validator, execute_test, and how to draw a test and the
 # onboarding section in the report. The hypothesis, Skeptic and bug report schemas
-# are not part of it: they live in engine/tools.py and are the same for every SUT.
+# are not part of it: they live in trailhound/tools.py and are the same for every SUT.
 #
 # Reaching the SUT can be done two ways, and an adapter must pick one wholly: HTTP
 # fields for a web service, or both reach hooks for anything else. Supplying only
 # one hook is refused, because the other would fall back to HTTP and fail with a
 # confusing connection error just as the run seemed to have started.
 #
-# Code: engine/adapter.py (SUTAdapter, validate_adapter), engine/loop.py
+# Code: trailhound/adapter.py (SUTAdapter, validate_adapter), trailhound/loop.py
 
 Feature: Any system can be tested through one SUTAdapter
   As an engineer adding a new SUT
@@ -62,7 +62,7 @@ Feature: Any system can be tested through one SUTAdapter
       | hook                     | fallback                                                 |
       | check_sut_ready          | the HTTP probe of base_url plus docs_path                |
       | fetch_happy_day_example  | one live POST of happy_day_request to test_endpoint_path |
-      | redact_history_for_model | engine/redact.py's default redaction                     |
+      | redact_history_for_model | trailhound/redact.py's default redaction                     |
       | describe_test_for_log    | the test's fields without linked_hypothesis, as a string |
       | describe_result_for_log  | the result's response body, as a string                  |
       | report_title             | "<display_name> Investigation Report"                    |
@@ -82,6 +82,6 @@ Feature: Any system can be tested through one SUTAdapter
     # What counts as a claim, a bug and a strong result has to be the same for every SUT.
     Given any registered adapter
     When the engine asks for a hypothesis, a Skeptic review or bug reports
-    Then it uses "submit_checkpoint_hypothesis", "submit_skeptic_review" and "submit_bug_reports" from engine/tools.py
+    Then it uses "submit_checkpoint_hypothesis", "submit_skeptic_review" and "submit_bug_reports" from trailhound/tools.py
     And SUTAdapter has no field to replace them
     And only the casting call uses the adapter's own tool schema and prompt

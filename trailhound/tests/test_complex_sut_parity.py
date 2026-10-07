@@ -1,0 +1,117 @@
+"""Asserts the complex_sut adapter's per-SUT pieces are unchanged from
+.experiments/complex-sut-poc/run_live.py, except for two deliberate
+divergences: the proactive addition of client_id/payload string-type checks
+(the same class of gap fixed in the token_purchase adapter after PR review,
+applied here before it could be hit a second time), and a fix to
+_compute_correctness silently asserting "correct" when the SUT's responses
+are missing the limit field entirely - a PR review on this very adapter
+caught it."""
+
+import copy
+import importlib.util
+import sys
+from pathlib import Path
+
+import pytest
+
+from trailhound.adapters.complex_sut import adapter as complex_sut_adapter
+from trailhound.tools import PRIOR_FEEDBACK_GUIDE
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+ORIGINAL_DIR = REPO_ROOT / ".experiments" / "complex-sut-poc"
+
+
+@pytest.fixture(scope="module")
+def original():
+    sys.path.insert(0, str(ORIGINAL_DIR))
+    try:
+        spec = importlib.util.spec_from_file_location("original_complex_sut_run_live", ORIGINAL_DIR / "run_live.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        yield module
+    finally:
+        sys.path.remove(str(ORIGINAL_DIR))
+
+
+def test_casting_tool_schema_matches(original):
+    # Deliberate divergence (issue #96): the round's reasoning is limited to a few
+    # words, so its description differs. Setting that one description back should
+    # make the schemas identical again.
+    engine_schema = copy.deepcopy(complex_sut_adapter.CASTING_TOOL)
+    engine_schema["input_schema"]["properties"]["reasoning"] = original.CASTING_TOOL["input_schema"]["properties"]["reasoning"]
+    assert engine_schema == original.CASTING_TOOL
+
+
+def test_first_round_casting_prompt_matches(original):
+    # Only the first round still matches: later rounds describe the structured
+    # feedback of issue #41 through the shared PRIOR_FEEDBACK_GUIDE (issue #96).
+    assert complex_sut_adapter.casting_system_prompt(10, True) == original.casting_system_prompt(10, True)
+    assert PRIOR_FEEDBACK_GUIDE in complex_sut_adapter.casting_system_prompt(6, False)
+    assert "anomaly_critique" not in complex_sut_adapter.casting_system_prompt(6, False)
+
+
+def test_api_schema_and_happy_day_request_match(original):
+    assert complex_sut_adapter.API_SCHEMA_DOC == original.API_SCHEMA_DOC
+    assert complex_sut_adapter.HAPPY_DAY_REQUEST == original.HAPPY_DAY_REQUEST
+
+
+def test_max_request_count_matches(original):
+    assert complex_sut_adapter.MAX_REQUEST_COUNT == original.MAX_REQUEST_COUNT
+
+
+def test_validate_casting_response_matches_on_well_typed_sample(original):
+    sample = {"give_up": False, "reasoning": "x", "candidate_tests": []}
+    assert complex_sut_adapter.validate_casting_response(sample) == original.validate_casting_response(sample)
+
+
+def test_validate_casting_response_now_also_rejects_non_string_client_id(original):
+    # Deliberate divergence: the original never checked client_id/payload were
+    # actually strings before passing them to unwrap_accidental_json_body(),
+    # the same gap a PR review caught in the token_purchase adapter. Fixed
+    # here proactively rather than waiting to hit it again.
+    test = {
+        "linked_hypothesis": "", "client_id": 12345, "payload": "x", "priority": "normal",
+        "request_count": 1, "concurrent": False, "predicted_outcome": "x", "predicted_correctness": "correct",
+    }
+    data = {"give_up": False, "reasoning": "x", "candidate_tests": [test]}
+
+    original_errors = original.validate_casting_response(data)
+    assert not any("client_id" in e and "string" in e for e in original_errors)
+
+    engine_errors = complex_sut_adapter.validate_casting_response(data)
+    assert any("client_id" in e and "string" in e for e in engine_errors)
+
+
+def test_compute_correctness_overcounted_when_accepted_exceeds_limit():
+    responses = [{"body": {"status": "accepted", "used": i, "limit": 5}} for i in range(1, 8)]
+    accepted_count, limit, actual_correctness = complex_sut_adapter._compute_correctness(responses)
+    assert (accepted_count, limit, actual_correctness) == (7, 5, "overcounted")
+
+
+def test_compute_correctness_correct_when_within_limit():
+    responses = [{"body": {"status": "accepted", "used": i, "limit": 5}} for i in range(1, 4)]
+    accepted_count, limit, actual_correctness = complex_sut_adapter._compute_correctness(responses)
+    assert (accepted_count, limit, actual_correctness) == (3, 5, "correct")
+
+
+def test_a_test_over_the_request_ceiling_is_skipped_with_a_prediction_result():
+    # A live run asked for 50 concurrent requests. The skipped result had no
+    # prediction_matched, and loop.py crashed reading it (issue #60). Nothing is
+    # sent, so no SUT needs to be running.
+    test = {
+        "client_id": "c", "payload": "p", "priority": "normal",
+        "request_count": complex_sut_adapter.MAX_REQUEST_COUNT + 1, "concurrent": True,
+        "predicted_outcome": "overcounts", "predicted_correctness": "overcounted",
+    }
+    result = complex_sut_adapter.execute_test(test, 1)
+    assert result["skipped"] is True
+    assert result["prediction_matched"] is False
+
+
+def test_compute_correctness_unknown_when_limit_missing_from_every_response():
+    # The bug a PR review caught: this used to silently default to "correct"
+    # when every response was malformed/missing the limit field, asserting
+    # something with no actual basis.
+    responses = [{"body": {"error": "non-JSON response from SUT", "raw_text": "<html>502</html>"}}]
+    accepted_count, limit, actual_correctness = complex_sut_adapter._compute_correctness(responses)
+    assert (accepted_count, limit, actual_correctness) == (0, None, "unknown")

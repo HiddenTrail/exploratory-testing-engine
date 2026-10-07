@@ -9,8 +9,8 @@
 # and cache-read tokens). The check runs before a call, so the last call can go over by its own cost.
 # Asked for with the CI pipeline (#255), and on for every run on every machine.
 #
-# Code: engine/budget.py, engine/settings.py, engine/client.py (call_tool_with_retry),
-# engine/runner.py, engine/cli.py, engine/run_summary.py. Tests: engine/tests/test_budget.py
+# Code: trailhound/budget.py, trailhound/settings.py, trailhound/client.py (call_tool_with_retry),
+# trailhound/runner.py, trailhound/cli.py, trailhound/run_summary.py. Tests: trailhound/tests/test_budget.py
 
 Feature: A run stops itself at a spending limit
   As someone paying for model calls

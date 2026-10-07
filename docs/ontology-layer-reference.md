@@ -1,14 +1,14 @@
 # Ontology layer reference
 
 Ground-truth documentation of the 4-layer ontology stack implemented under
-`engine/ontology/` (Phase 0, proven on `token_purchase` — see
+`trailhound/ontology/` (Phase 0, proven on `token_purchase` — see
 [`docs/ontology-todo.md`](ontology-todo.md) for status and backlog). Written
 layer by layer, from the actual current files, not from the design
 discussion that led here.
 
 ## Layer 1 — Heuristic library
 
-**Folder:** [`engine/ontology/heuristics/`](../engine/ontology/heuristics/) (issue #128)
+**Folder:** [`trailhound/ontology/heuristics/`](../trailhound/ontology/heuristics/) (issue #128)
 
 ### What it is
 
@@ -24,7 +24,7 @@ the original 10 (`core.json`, less `self_consistency`), HTSM (`htsm.json`, which
 absorbed the old experiments catalog; its FEW HICCUPPS oracles moved to the seeds, below), Hendrickson's cheat sheet,
 Whittaker's attacks, classic techniques, Nielsen's usability heuristics, WCAG
 and common web page checks. `vocabulary.json` fixes the kinds and tags, and
-`engine/tests/test_heuristic_library.py` enforces them. The Oracle doesn't send
+`trailhound/tests/test_heuristic_library.py` enforces them. The Oracle doesn't send
 the whole library to the Driver: `select_heuristics` keeps the ones that fit
 the SUT's surface, ranks those matching its features higher, and the adapter
 caps how many it takes.
@@ -118,7 +118,7 @@ more).
 
 ## Layer 2 — Domain/spec layer
 
-**File:** [`engine/ontology/domain_token_purchase.json`](../engine/ontology/domain_token_purchase.json)
+**File:** [`trailhound/ontology/domain_token_purchase.json`](../trailhound/ontology/domain_token_purchase.json)
 
 ### What it is
 
@@ -164,7 +164,7 @@ though both are "specific to this SUT."
 ### Known gap (as of this writing)
 
 `domain_token_purchase.json` isn't actually read by the scoring pipeline
-yet. `engine/ontology/oracle_creator.py`'s own docstring says layer 2 is
+yet. `trailhound/ontology/oracle_creator.py`'s own docstring says layer 2 is
 `adapters/<sut>/oracle_library.json` — a older, separate artifact from the
 pre-4-layer Oracle Agent PoC, where a heuristic pass was already run once
 over the spec by hand, producing pre-digested claims rather than raw facts.
@@ -196,7 +196,7 @@ case forces the question.
 
 ## Layer 3 — Context/source layer
 
-**File:** [`engine/ontology/context_token_purchase.json`](../engine/ontology/context_token_purchase.json)
+**File:** [`trailhound/ontology/context_token_purchase.json`](../trailhound/ontology/context_token_purchase.json)
 
 ### What it is
 
@@ -208,7 +208,7 @@ tomorrow, in contrast to layer 2's sprint/quarter-stable facts and layer
 1's never-changing generic vocabulary.
 
 Implemented today as four arrays: `test_results` (outcomes fed back by
-`engine/ontology/feedback.py` after a Driver run), `discoveries` (screens a
+`trailhound/ontology/feedback.py` after a Driver run), `discoveries` (screens a
 web_gui run reached that its map doesn't have, with the path that reached
 them, their safety-gated controls, and how often and in which runs they were
 reached: "seen once" until reached again, then "reproduced"; #157),
@@ -301,9 +301,9 @@ most likely land, once there's an actual scoring rule for it.
 
 ## The oracle seeder (issue #138)
 
-**Files:** [`engine/ontology/seeds/`](../engine/ontology/seeds/),
-[`engine/ontology/seeder.py`](../engine/ontology/seeder.py),
-[`engine/ontology/product.py`](../engine/ontology/product.py)
+**Files:** [`trailhound/ontology/seeds/`](../trailhound/ontology/seeds/),
+[`trailhound/ontology/seeder.py`](../trailhound/ontology/seeder.py),
+[`trailhound/ontology/product.py`](../trailhound/ontology/product.py)
 
 For a product with a wiki, the oracle is built, not written by hand. The seeder
 runs layer 1 (the heuristic library) and layer 2 (the product's facts and
@@ -333,10 +333,10 @@ cap it picks by taking turns across seeds, so every seed is represented. Facts
 outrank heuristics, so a plain top 15 would be all self-consistency checks.
 
 It's deterministic, with no model calls. Run
-`python -m engine.ontology.seeder --product juice-shop` to see it, and set
+`python -m trailhound.ontology.seeder --product juice-shop` to see it, and set
 `WEB_GUI_PRODUCT=juice-shop` for a web_gui run to use it. token_purchase stays on
 the older path below until it has a wiki. More seed sets are #139.
 
 ## Layer 4 — Oracle (ranking/scoring)
 
-*Not yet documented here — file: `engine/ontology/oracle_creator.py`.*
+*Not yet documented here — file: `trailhound/ontology/oracle_creator.py`.*

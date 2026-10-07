@@ -21,11 +21,11 @@
 # call the answer grew big enough to break too often (fields lost, or written in another
 # tool-call format), and strict tool use isn't available on Bedrock.
 #
-# Code: engine/tools.py (TESTING_STORY_TOOL, TESTING_STORY_SYSTEM_PROMPT,
+# Code: trailhound/tools.py (TESTING_STORY_TOOL, TESTING_STORY_SYSTEM_PROMPT,
 # validate_testing_story, COVERAGE_LEVELS, QUALITY_SEEN, CONFIDENCE, SKEPTIC_SYSTEM_PROMPT),
-# engine/loop.py (get_testing_story, get_skeptic_review, run_checkpoint_loop), engine/report.py
-# (_areas_table, _obstacles_list, _render_standing_section), engine/run_summary.py,
-# engine/client.py (find_misplaced_fields).
+# trailhound/loop.py (get_testing_story, get_skeptic_review, run_checkpoint_loop), trailhound/report.py
+# (_areas_table, _obstacles_list, _render_standing_section), trailhound/run_summary.py,
+# trailhound/client.py (find_misplaced_fields).
 
 Feature: The Driver tells its testing story, and the Skeptic debriefs it
   As someone reading what a run found

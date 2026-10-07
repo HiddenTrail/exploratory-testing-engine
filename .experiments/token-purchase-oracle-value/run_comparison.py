@@ -1,8 +1,8 @@
-"""Measures whether the oracle library wired into engine/adapters/token_purchase
+"""Measures whether the oracle library wired into trailhound/adapters/token_purchase
 changes real Driver+Skeptic checkpoint-loop outcomes - the same paired-trial idea
 as pattern-detection-oracle-poc, but against the real, live-SUT adapter via the
 actual engine (not a hand-rolled single-shot script), since token_purchase's full
-checkpoint loop already exists in engine/runner.py.
+checkpoint loop already exists in trailhound/runner.py.
 
 Unlike pattern-detection-oracle-poc, token_purchase's mock SUT has NO known/seeded
 bug - "whether a real bug exists at all... is genuinely unknown" (sut.py's own
@@ -28,13 +28,13 @@ import httpx
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from engine.adapters.token_purchase.adapter import ADAPTER, KNOWN_ACCOUNTS  # noqa: E402
-from engine.config import RunConfig  # noqa: E402
-from engine.runner import run as run_engine  # noqa: E402
+from trailhound.adapters.token_purchase.adapter import ADAPTER, KNOWN_ACCOUNTS  # noqa: E402
+from trailhound.config import RunConfig  # noqa: E402
+from trailhound.runner import run as run_engine  # noqa: E402
 
 N_TRIALS = 6
 TESTS_PER_CHECKPOINT = 8
-SUT_MODULE = "engine.adapters.token_purchase.sut:app"
+SUT_MODULE = "trailhound.adapters.token_purchase.sut:app"
 SUT_PORT = 8000
 DOCS_URL = f"http://127.0.0.1:{SUT_PORT}/docs"
 REPO_ROOT = Path(__file__).resolve().parents[2]

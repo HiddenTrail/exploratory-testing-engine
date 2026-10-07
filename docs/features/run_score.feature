@@ -5,8 +5,8 @@
 # how it shows in a test's recorded signals and the words that name it. A run is scored
 # against it by code, never by a model. Part of the epic "Know what it finds" (#280).
 #
-# Code: engine/adapters/web_gui/score.py, test-targets/known-problems/juice-shop.json,
-# .github/workflows/exploratory-run.yml. Tests: engine/tests/test_score.py
+# Code: trailhound/adapters/web_gui/score.py, test-targets/known-problems/juice-shop.json,
+# .github/workflows/exploratory-run.yml. Tests: trailhound/tests/test_score.py
 
 Feature: A run is scored against a target's known problems
   As someone judging whether a change makes the engine find more
@@ -28,7 +28,7 @@ Feature: A run is scored against a target's known problems
     Then a same-tab test showing the same error doesn't find it
 
   Scenario: The score says what was found, seen, missed and out of reach
-    When I run "python -m engine.adapters.web_gui.score --known test-targets/known-problems/juice-shop.json --run <output.json>"
+    When I run "python -m trailhound.adapters.web_gui.score --known test-targets/known-problems/juice-shop.json --run <output.json>"
     Then it prints "Known problems found: X of Y" with the list's review status
     And each problem found (and how it was labelled), seen by a test but not reported, or missed
     And the problems listed as out of the harness's reach, which aren't counted

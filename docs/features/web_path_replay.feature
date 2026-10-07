@@ -11,7 +11,7 @@
 # page still loading reads as another state: Juice Shop's paginator renders after the
 # product list, so an early capture was missing two controls (#131).
 #
-# Code: engine/adapters/web_gui/session.py (Session.act, _reboot, _open_fresh_page,
+# Code: trailhound/adapters/web_gui/session.py (Session.act, _reboot, _open_fresh_page,
 # _replay, _capture_expecting)
 
 Feature: Each test reaches its state by replaying the mapped path
