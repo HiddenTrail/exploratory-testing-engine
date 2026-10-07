@@ -87,6 +87,9 @@ def test_three_checkpoints_cap_the_follow_ups_and_then_park_the_claim(monkeypatc
             follow = "" if n == 1 else f"C{n - 1}.O1"
             tests = [{"linked_hypothesis": "", "state": f"s{n}{i}", "follows_up": follow if i < 3 else "",
                       "predicted_outcome": "x"} for i in range(4)]
+            if n > 1:                           # the last review's blocking question comes first (#340)
+                tests.insert(0, {"linked_hypothesis": "", "state": f"s{n}g", "follows_up": f"C{n - 1}.G1",
+                                 "rules_out_if": "the rival would show y", "predicted_outcome": "x"})
             answer = {"give_up": False, "reasoning": "r", "candidate_tests": tests}
             assert kw["validate_fn"](answer) == []
             return answer
@@ -120,8 +123,10 @@ def test_three_checkpoints_cap_the_follow_ups_and_then_park_the_claim(monkeypatc
 
     assert "first round: leave 'follows_up' empty" in casting_calls[0]["system"]
     assert "At most 2 of this round's tests may follow up" in casting_calls[1]["system"]
-    # Checkpoint 2: two follow-ups run, the third is over the limit, the new test runs.
-    assert [c["follow_ups"] for c in checkpoints] == [0, 2, 0]
+    assert "First, the questions that block the verdict: C1.G1" in casting_calls[1]["system"]
+    # Checkpoint 2: the blocking question's test runs outside the cap, two more follow-ups
+    # run, the third is over the limit, the new test runs.
+    assert [c["follow_ups"] for c in checkpoints] == [0, 3, 0]
     assert checkpoints[1]["dropped_tests"][0]["errors"] == ["over the limit of 2 follow-up test(s) a round"]
     # Objected to in checkpoints 1 and 2, so parked after checkpoint 2, and the Driver is told.
     assert checkpoints[1]["parked"] == [{"claim": "C1.O1", "checkpoints_in_a_row": 2}]

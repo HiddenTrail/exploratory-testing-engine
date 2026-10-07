@@ -9,6 +9,9 @@
 #
 # Code: trailhound/steering.py, trailhound/loop.py, trailhound/runner.py, trailhound/interplay.py
 # (lineages, objected). Tests: trailhound/tests/test_steering.py
+#
+# Questions that block the verdict come first and run outside the follow-up cap (#340,
+# blocking_first.feature).
 
 Feature: Later rounds explore new ground, and claims the tests can't settle are parked
   As someone who wants the engine to find problems

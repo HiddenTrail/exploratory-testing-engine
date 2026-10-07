@@ -114,6 +114,7 @@ def get_casting_round(
     parked: list[dict] | None = None,
     idea_ids=frozenset(),
     oracle_progress: dict | None = None,
+    blocking: tuple[str, ...] = (),
 ) -> dict:
     """follow_up_ids: the earlier observation and question ids a test may follow up
     (#305). parked: what the Driver is told about parked claims. idea_ids: the oracle's
@@ -139,13 +140,15 @@ def get_casting_round(
         fresh_evidence["oracle_progress"] = oracle_progress
     validate = lambda data: (adapter.validate_casting_response(data)
                              + steering.follow_up_errors(data, follow_up_ids)
-                             + (steering.oracle_id_errors(data, idea_ids) if idea_ids else []))
+                             + (steering.oracle_id_errors(data, idea_ids) if idea_ids else [])
+                             + steering.blocking_errors(data, blocking, test_budget))
     return call_tool_with_retry(
         client,
         model=run_config.model,
         system=(adapter.casting_system_prompt(test_budget, is_first_round)
                 + steering.casting_note(steering.follow_up_cap(test_budget), is_first_round,
-                                        steering.free_cap(test_budget) if idea_ids else None)
+                                        steering.free_cap(test_budget) if idea_ids else None,
+                                        blocking, steering.blocking_needed(blocking, test_budget))
                 + (lean.CASTING_NOTE if run_config.lean else "")),
         tools=[steering.with_follow_up_field(adapter.casting_tool_schema)],
         tool_name="submit_casting_round",
@@ -453,6 +456,8 @@ def run_checkpoint_loop(
         is_first_checkpoint = checkpoint_num == 1
         test_budget = run_config.first_round_test_budget if is_first_checkpoint else run_config.default_test_budget
         print(f"Asking Claude for a casting round (checkpoint {checkpoint_num}, budget {test_budget})...")
+        # Questions from the last review that block the verdict come first (#340).
+        blocking = () if is_first_checkpoint else steering.blocking_ids(prior_feedback)
         casting = get_casting_round(
             client,
             adapter,
@@ -469,13 +474,14 @@ def run_checkpoint_loop(
             parked=steering.for_driver(checkpoints, parked),
             idea_ids=idea_ids,
             oracle_progress=steering.oracle_progress(ranked, casting_log, checkpoints) if ranked else None,
+            blocking=blocking,
         )
 
         entries_before = len(casting_log)
         # Most of a round goes to new ground, and parked claims get no more tests (#305).
         to_run, over_limit = steering.limit(casting.get("candidate_tests") or [],
                                             steering.follow_up_cap(test_budget), parked_ids,
-                                            steering.free_cap(test_budget) if idea_ids else None)
+                                            steering.free_cap(test_budget) if idea_ids else None, blocking)
         dropped_tests = casting.get("dropped_tests", []) + over_limit
         for dropped in dropped_tests:
             print(f"  dropped a test that couldn't be fixed in time: {dropped['errors']}")
