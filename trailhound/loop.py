@@ -138,10 +138,14 @@ def get_casting_round(
         fresh_evidence["parked"] = parked
     if oracle_progress:
         fresh_evidence["oracle_progress"] = oracle_progress
-    validate = lambda data: (adapter.validate_casting_response(data)
+    # Checks on each test: the last-attempt salvage (#288) keeps the tests that pass them.
+    per_test = lambda data: (adapter.validate_casting_response(data)
                              + steering.follow_up_errors(data, follow_up_ids)
                              + (steering.oracle_id_errors(data, idea_ids) if idea_ids else [])
-                             + steering.blocking_errors(data, blocking, test_budget))
+                             + steering.rules_out_errors(data, blocking))
+    # Too few blocking questions answered is sent back once only (#340): never a run's end.
+    shortfall = steering.once(lambda data: steering.blocking_shortfall(data, blocking, test_budget))
+    validate = lambda data: per_test(data) + shortfall(data)
     return call_tool_with_retry(
         client,
         model=run_config.model,
@@ -155,7 +159,7 @@ def get_casting_round(
         cached_segments=cached_segments,
         user_message=json.dumps(fresh_evidence, indent=2),
         validate_fn=validate,
-        salvage_fn=salvage_casting(validate),
+        salvage_fn=salvage_casting(per_test),
         max_tokens=adapter.casting_max_tokens(test_budget),
         max_attempts=run_config.max_attempts,
         cache_static_content=True,
@@ -483,6 +487,10 @@ def run_checkpoint_loop(
                                             steering.follow_up_cap(test_budget), parked_ids,
                                             steering.free_cap(test_budget) if idea_ids else None, blocking)
         dropped_tests = casting.get("dropped_tests", []) + over_limit
+        if blocking:
+            answered = steering.blocking_answered(to_run, blocking)
+            print(f"  blocking: needed {steering.blocking_needed(blocking, test_budget)} of {', '.join(blocking)}; "
+                  f"answered {', '.join(answered) or 'none'}")
         for dropped in dropped_tests:
             print(f"  dropped a test that couldn't be fixed in time: {dropped['errors']}")
         if casting.get("give_up", False):
@@ -505,6 +513,12 @@ def run_checkpoint_loop(
                     "round_reasoning": casting["reasoning"],
                     "linked_hypothesis": linked,
                     "oracle_claim_id": test.get("oracle_claim_id", ""),
+                    # Which earlier question a test answers, and what would settle it (#340),
+                    # for the hypothesis and the Skeptic to see.
+                    **({"follows_up": test["follows_up"]} if isinstance(test.get("follows_up"), str)
+                       and test["follows_up"] else {}),
+                    **({"rules_out_if": test["rules_out_if"]} if isinstance(test.get("rules_out_if"), str)
+                       and test["rules_out_if"].strip() else {}),
                     # The test exactly as cast, so trailhound/verify.py can run it again (#177).
                     "cast_test": test,
                     **result,
@@ -609,6 +623,9 @@ def run_checkpoint_loop(
             # How much of the round went back over earlier ground (#305): declared, and
             # measured from the actions themselves.
             "follow_ups": sum(1 for t in to_run if t.get("follows_up")),
+            # The questions that blocked the verdict going in, and which this round answered (#340).
+            **({"blocking": {"questions": list(blocking), "needed": steering.blocking_needed(blocking, test_budget),
+                             "answered": steering.blocking_answered(to_run, blocking)}} if blocking else {}),
             "repeats": steering.repeats(casting_log, checkpoint_num),
         })
         now_parked = steering.parked_claims(checkpoints)

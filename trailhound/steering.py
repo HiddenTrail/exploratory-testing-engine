@@ -20,11 +20,15 @@ same blocking question came back checkpoint after checkpoint ("About Us TypeErro
 isolated from third-party scripts" at C1, C2 and C3), while each round opened new claims:
 
 3. While questions from the last review block the verdict, a round answers them first:
-   at least one test per blocking question, up to half the round, each with 'follows_up'
-   set to the question's id and 'rules_out_if' saying what result would rule the rival
-   out. A round that doesn't is sent back. Those tests don't count against the follow-up
-   limit; they come out of the new ground. A question that still won't settle is parked
-   with its claim by rule 2.
+   one test per blocking question, up to half the round, each with 'follows_up' set to
+   the question's id and 'rules_out_if' saying what result would settle it. A round that
+   answers too few is sent back once; after that it's accepted and the shortfall is
+   recorded, so the rule never stops a run (the last-attempt salvage of #288 checks the
+   tests one by one, without the count). The first test on each question doesn't count
+   against the follow-up limit; they come out of the new ground. A question that still
+   won't settle is parked with its claim by rule 2. Only questions about a claim's rival
+   count: not one the debrief settled or the Driver conceded, not "not worth continuing",
+   and not a coverage question about no claim, which is new ground anyway.
 
 Generic: it reads the hypothesis and Skeptic schemas, and the outcome envelope's
 action_id for repeats, nothing adapter-specific.
@@ -47,8 +51,8 @@ FOLLOW_UP_FIELD = {
 }
 RULES_OUT_FIELD = {
     "type": "string",
-    "description": ("For a test that answers a question blocking the verdict: the result that would rule out "
-                    "the claim's rival explanation, in one sentence. Empty otherwise."),
+    "description": ("For a test that answers a question blocking the verdict: the result that would settle it "
+                    "(for a rival explanation, the result that would rule it out), in one sentence. Empty otherwise."),
 }
 BLOCKING_SHARE = 2        # blocking questions get at most 1/BLOCKING_SHARE of a round
 
@@ -66,10 +70,14 @@ def with_follow_up_field(tool: dict) -> dict:
 
 
 def blocking_ids(prior_feedback: dict | None) -> tuple[str, ...]:
-    """The questions in the last review that block the verdict, parked claims' left out
-    (the loop strips those before the next round)."""
+    """The questions in the last review that block the verdict and are about a claim, so a
+    test can settle them (parked claims' are already stripped by the loop). Left out: one
+    the debrief settled or the Driver conceded, one the Skeptic says isn't worth continuing,
+    and a coverage question about no claim."""
     review = (prior_feedback or {}).get("skeptic_review") or {}
-    return tuple(g["id"] for g in review.get("gaps") or [] if g.get("blocks_verdict") and g.get("id"))
+    return tuple(g["id"] for g in review.get("gaps") or []
+                 if g.get("blocks_verdict") and g.get("id") and g.get("about")
+                 and g.get("kind") != "not_worth_continuing" and g.get("outcome") not in ("settled", "conceded"))
 
 
 def blocking_needed(blocking: tuple[str, ...], test_budget: int) -> int:
@@ -78,27 +86,59 @@ def blocking_needed(blocking: tuple[str, ...], test_budget: int) -> int:
     return min(len(blocking), max(1, test_budget // BLOCKING_SHARE)) if blocking else 0
 
 
-def blocking_errors(data, blocking: tuple[str, ...], test_budget: int) -> list[str]:
-    """A round that leaves blocking questions unanswered is sent back (#340), and so is a
-    test answering one without saying what would rule the rival out."""
-    if not blocking:
-        return []
+def _tests(data) -> list[dict]:
     tests = data.get("candidate_tests") if isinstance(data, dict) else None
-    tests = [t for t in (tests if isinstance(tests, list) else []) if isinstance(t, dict)]
+    return [t for t in (tests if isinstance(tests, list) else []) if isinstance(t, dict)]
+
+
+def blocking_answered(tests: list[dict], blocking: tuple[str, ...]) -> list[str]:
+    """The blocking questions these tests answer, in the review's order."""
+    asked = {t.get("follows_up") for t in tests if isinstance(t.get("follows_up"), str)}
+    return [b for b in blocking if b in asked]
+
+
+def rules_out_errors(data, blocking: tuple[str, ...]) -> list[str]:
+    """A test answering a blocking question must say what would settle it (#340). Checked on
+    each test, so the last-attempt salvage (#288) can keep the others."""
     errors = []
-    for i, test in enumerate(tests):
-        if test.get("follows_up") in blocking and not (test.get("rules_out_if") or "").strip():
+    for i, test in enumerate(_tests(data)):
+        if not isinstance(test.get("follows_up"), str) or test["follows_up"] not in blocking:
+            continue
+        said = test.get("rules_out_if")
+        if not isinstance(said, str) or not said.strip():
             errors.append(f"candidate_tests[{i}] answers {test['follows_up']}, which blocks the verdict: say in "
-                          "'rules_out_if' what result would rule out the claim's rival explanation.")
-    answered = {t.get("follows_up") for t in tests} & set(blocking)
-    needed = blocking_needed(blocking, test_budget)
-    if len(answered) < needed and not (isinstance(data, dict) and data.get("give_up")):
-        left = [b for b in blocking if b not in answered]
-        errors.append(f"{len(blocking)} question(s) from the last review block the verdict, and this round answers "
-                      f"{len(answered)}. Answer at least {needed} of them first, one test each: set 'follows_up' to "
-                      f"the question's id and 'rules_out_if' to the result that would rule the rival out. "
-                      f"Not answered yet: {', '.join(left)}.")
+                          "'rules_out_if' (a string) what result would settle it.")
     return errors
+
+
+def blocking_shortfall(data, blocking: tuple[str, ...], test_budget: int) -> list[str]:
+    """A round that answers too few blocking questions (#340). The loop sends it back once
+    only (once()), so a question the Driver can't answer here never stops a run."""
+    needed = blocking_needed(blocking, test_budget)
+    answered = blocking_answered(_tests(data), blocking)
+    if len(answered) >= needed or (isinstance(data, dict) and data.get("give_up")):
+        return []
+    left = [b for b in blocking if b not in answered]
+    return [f"{len(blocking)} question(s) from the last review block the verdict, and this round answers "
+            f"{len(answered)}. Answer at least {needed} of them, one test each: set 'follows_up' to the question's "
+            f"id and 'rules_out_if' to the result that would settle it, starting from its next_test. Not answered "
+            f"yet: {', '.join(left)}. If one can't be tested here, say why in the round's reasoning; this is "
+            f"asked once."]
+
+
+def once(check):
+    """The check's errors the first time it finds any, and none after: a rule worth one
+    retry, not a run."""
+    said = []
+
+    def checked(data):
+        if said:
+            return []
+        errors = check(data)
+        if errors:
+            said.append(True)
+        return errors
+    return checked
 
 
 def follow_up_cap(test_budget: int) -> int:
@@ -117,16 +157,18 @@ def free_cap(test_budget: int) -> int:
 def casting_note(cap: int, first_round: bool, free: int | None = None, blocking: tuple[str, ...] = (),
                  needed: int = 0) -> str:
     oracle = ("" if free is None else
-              f"\n\nMost tests should check an idea from 'oracle_ranked': put its id in oracle_claim_id; its "
+              f"\n\n{'Of the other tests, most' if blocking else 'Most tests'} should check an idea from "
+              f"'oracle_ranked': put its id in oracle_claim_id; its "
               f"'where' says where to start. 'oracle_progress' shows which ideas no test has checked yet. At most "
               f"{free} test(s) may check something no idea covers and follow up nothing; more are dropped "
               f"without running.")
     if first_round:
         return "\n\nThis is the first round: leave 'follows_up' empty on every test." + oracle
     first = (f"\n\nFirst, the questions that block the verdict: {', '.join(blocking)}. At least {needed} test(s) "
-             f"must answer them, one per question: set 'follows_up' to the question's id and 'rules_out_if' to the "
-             f"result that would rule out the claim's rival explanation. These don't count against the limit "
-             f"below." if blocking else "")
+             f"must answer them, one per question, starting from each question's next_test: set 'follows_up' to the "
+             f"question's id and 'rules_out_if' to the result that would settle it (for a rival explanation, the "
+             f"result that would rule it out). The first test on each doesn't count against the limit below."
+             if blocking else "")
     return (first + f"\n\nAt most {cap} of this round's tests may follow up an earlier observation or question: "
             f"set 'follows_up' to its id. Leave it empty on the rest and use them on something not tested yet. A "
             f"follow-up over the limit, or on a claim in 'parked', is dropped without running." + oracle)
