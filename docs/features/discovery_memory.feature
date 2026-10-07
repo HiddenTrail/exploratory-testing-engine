@@ -50,6 +50,7 @@ Feature: Screens found beyond the map are remembered across runs
     When a later run reaches "d1" with different elements
     Then "d1" keeps the "path", "from_state" and "via" of its first reach
     And its "elements" and "controls_offered" are the latest run's
+    And so are its coverage tokens "controls", "fields" and "changes_data", when the reach has them (#328)
 
   Scenario: Counting is per reach, so two reaches in one run also count
     Given one run whose tests reached "d1" twice

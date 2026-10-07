@@ -49,6 +49,12 @@ def test_what_came_of_each_oracle_idea():
     assert "The oracle's ideas: 1 of 2 tested" in html
     assert "<td>Prices add up</td><td>2</td><td>1 of 2</td><td>C1.O1</td>" in html
     assert "<td>Pages load cleanly</td><td>-</td><td>-</td><td>-</td>" in html
+    # With the hypotheses' answers (#312), each idea's latest answer is its own column.
+    checkpoints = [{"hypothesis": {"ideas": [{"id": "oracle:a", "verdict": "held", "tests": [1]}]}},
+                   {"hypothesis": {"ideas": [{"id": "oracle:a", "verdict": "broke", "tests": [2]}]}}]
+    html = _render_oracle_outcomes(ranked, log, [], checkpoints)
+    assert "broke" in html.split("Prices add up")[1].split("</tr>")[0]
+    assert "held" not in html.split("Prices add up")[1].split("</tr>")[0]
 
 
 def test_a_web_run_scores_itself_from_its_products_known_problems(monkeypatch):

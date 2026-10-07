@@ -14,11 +14,65 @@ adapter code. It summarises inputs only, never results, so the Skeptic stays col
 from __future__ import annotations
 
 import json
+import re
 
 # Fields a test carries that aren't inputs to the system under test.
 _NOT_INPUTS = ("linked_hypothesis", "oracle_claim_id")
 MAX_VALUES = 10
 MAX_VALUE_CHARS = 30
+
+# The kinds of value a field can be sent (#328), so the context can say a field has had
+# only plain text and never an empty value, a boundary or markup. A value can be several
+# kinds at once ("-1" is a number and negative). "text" means none of the others.
+VALUE_KINDS = ("empty", "spaces", "padded", "long", "number", "zero", "negative", "decimal", "huge",
+               "markup", "script", "quote", "non-ascii", "email", "text")
+LONG_VALUE = 256
+HUGE_NUMBER = 10 ** 9
+_NUMBER = re.compile(r"[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?", re.ASCII)
+_ZERO = re.compile(r"[+-]?(0+(\.0*)?|\.0+)([eE][+-]?\d+)?", re.ASCII)
+_EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+# A script in a value: a script tag, a javascript: link, or an event handler attribute.
+# Only real handler names count: "one=1" and "Online=yes" aren't scripts.
+_SCRIPT = re.compile(r"<\s*script|javascript:|\bon(error|load|click|dblclick|mouse\w+|focus|blur|change|input|"
+                     r"submit|key(down|up|press)|animation\w+|toggle|pointer\w+)\s*=", re.IGNORECASE)
+
+
+def value_kinds(value) -> list[str]:
+    """The kinds of one value sent to a field, in VALUE_KINDS order."""
+    text = "" if value is None else str(value)
+    if text == "":
+        return ["empty"]
+    if not text.strip():
+        return ["spaces"]
+    kinds = set()
+    if text != text.strip():
+        kinds.add("padded")
+    if len(text) >= LONG_VALUE:
+        kinds.add("long")
+    if _NUMBER.fullmatch(text.strip()):
+        kinds.add("number")
+        number = float(text.strip())
+        if _ZERO.fullmatch(text.strip()):           # "1e-400" is a tiny number, not zero
+            kinds.add("zero")
+        if number < 0:
+            kinds.add("negative")
+        if "." in text:                             # written with a point; "1e5" is a whole number
+            kinds.add("decimal")
+        if abs(number) >= HUGE_NUMBER:
+            kinds.add("huge")
+    if "<" in text and ">" in text:
+        kinds.add("markup")
+    if _SCRIPT.search(text):
+        kinds.add("script")
+    if "'" in text or '"' in text:
+        kinds.add("quote")
+    if any(ord(c) > 127 for c in text):
+        kinds.add("non-ascii")
+    if _EMAIL.fullmatch(text.strip()):
+        kinds.add("email")
+    if not kinds or kinds == {"padded"}:
+        kinds.add("text")
+    return [k for k in VALUE_KINDS if k in kinds]
 
 
 def input_fields(casting_tool_schema: dict) -> dict[str, dict]:

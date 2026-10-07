@@ -38,11 +38,7 @@ def _oracle_and_errors(output: dict) -> list[str]:
     checkpoints = output.get("checkpoints") or []
     lines = []
     if ranked:
-        answers = {}
-        for cp in checkpoints:
-            for a in (cp.get("hypothesis") or {}).get("ideas") or []:
-                if isinstance(a, dict) and a.get("id"):
-                    answers[a["id"]] = a.get("verdict", "")
+        answers = ledger.idea_answers(checkpoints)
         counts = {v: list(answers.values()).count(v) for v in ("held", "broke", "cannot_tell")}
         lines.append(f"**The oracle:** {len(answers)} of {len(ranked)} ideas checked: {counts['held']} held, "
                      f"{counts['broke']} broke, {counts['cannot_tell']} couldn't tell.")
@@ -118,6 +114,8 @@ def summarize(output: dict, log_text: str | None = None, bugs: list | None = Non
     if parked:
         lines += ["**Parked** (the tests couldn't settle them, so they got no more, #305): " + ", ".join(
             f"{p['claim']} ({p['checkpoints_in_a_row']} checkpoints in a row)" for p in parked), ""]
+    if output.get("learned"):                    # written by --learn after the run (#328)
+        lines += ["**Learned for the next run:**", *(f"- {_cell(line)}" for line in output["learned"]), ""]
     usage = output.get("usage_summary") or {}
     if usage:
         calls = sum(c.get("calls", 0) for c in usage.values())

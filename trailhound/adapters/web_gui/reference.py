@@ -15,6 +15,7 @@ web-recon import - so it is unit-tested against a fixture ontology with nothing 
 from __future__ import annotations
 
 import json
+import re
 from collections import defaultdict
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -22,6 +23,21 @@ from urllib.parse import urlsplit
 # The three structural predictions the Driver may make about where an action lands - the
 # same taxonomy web-recon's signature draws and clash_royale predicts against.
 PREDICTIONS = ("same_screen", "known_screen", "new_screen")
+
+
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+# The roles a value is typed or chosen in: a screen's fields.
+FIELD_ROLES = ("textbox", "searchbox", "combobox")
+
+
+def control_token(role: str, name: str) -> str:
+    """One control as a coverage token (#328), the same for the map's controls and a
+    test's steps: "button:add to basket". Lower case, spaces collapsed, emails taken out
+    and numbers as "#", because a Driver writes names in its own case, the account menu's
+    name holds whoever is logged in, and "Reviews(2)" is "Reviews(3)" on the next product."""
+    name = " ".join(_EMAIL.sub("", name or "").lower().split())
+    name = re.sub(r"\d+", "#", name)
+    return f"{(role or '').lower()}:{name}"
 
 
 def _split_key(element_key: str) -> tuple[str, str]:

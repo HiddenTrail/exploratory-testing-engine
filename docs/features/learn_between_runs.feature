@@ -17,7 +17,8 @@
 # check_ready), trailhound/adapters/web_gui/reference.py (add_discovery, state_label),
 # trailhound/adapters/web_gui/adapter.py (render_onboarding_section),
 # trailhound/ontology/feedback.py (learn, reached_at_start, merge_reached_again),
-# trailhound/cli.py (--learn)
+# trailhound/cli.py (--learn). What a run covered per area, and each area's importance,
+# is in area_coverage.feature (#328).
 
 Feature: A run starts from the screens earlier runs discovered, and learns for the next one
   As someone running the engine against the same product again and again

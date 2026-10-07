@@ -216,6 +216,11 @@ reached: "seen once" until reached again, then "reproduced"; #157),
 risk judgments) — but these are examples of the class, not its definition.
 A discovery stays in the context layer: promoting one into the product wiki
 is a human step.
+A run with `--learn` also keeps `coverage`, what the runs covered in each area of
+the product (the screen a test started from, the controls it used, the kinds of
+value each field was sent, the ideas checked and the errors seen), and `areas`,
+every screen, discovery and unmapped route ranked by how much it matters to the
+next run, with the reasons in words (`trailhound/ontology/areas.py`, #328).
 Other things that clearly belong to the same class, not yet implemented:
 a feature flag flipping, a deploy/release happening, an incident or
 monitoring alert, a support ticket, an A/B test result, a config change, a

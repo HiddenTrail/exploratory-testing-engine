@@ -32,6 +32,7 @@ from pathlib import Path
 
 from trailhound import outcome
 from trailhound.adapter import SUTAdapter
+from trailhound.coverage import value_kinds
 from trailhound.tools import CASTING_REASONING_DESCRIPTION, PRIOR_FEEDBACK_GUIDE, casting_envelope_errors
 from trailhound.adapters.web_gui import reference as ref_mod
 from trailhound.adapters.web_gui import session as live_session
@@ -165,7 +166,8 @@ def outcome_for(result: dict) -> outcome.Outcome:
     if result.get("verdict") != "sent":
         return outcome.Outcome(action_id=action, effect=outcome.UNKNOWN, accepted=False,
                                state_before=before, state_after=before,
-                               start_intended=result.get("intended_before", ""))
+                               start_intended=result.get("intended_before", ""),
+                               area=area_of(result), **coverage_of(result))
 
     screen_was = result.get("screen_was")
     if screen_was == "same_screen":
@@ -188,7 +190,46 @@ def outcome_for(result: dict) -> outcome.Outcome:
         latency=result.get("settle"),
         matched_prior=result.get("was_measured_before"),
         problems=problems_of(result),
+        area=area_of(result),
+        **coverage_of(result),
     )
+
+
+def area_of(result: dict) -> str:
+    """Where the test was cast to start (#328): a screen of the map by its id, or a route
+    as "/#/basket" (a fragment's query left out). From the front of the result's action,
+    so nothing new goes into the history the model reads. A test that never reached its
+    start has no area: nothing was tried there, and counting it would make a screen the
+    harness can't reach look covered."""
+    if result.get("reached_target_state") is False:
+        return ""
+    start = (result.get("action") or "").split(" :: ", 1)[0].strip()
+    if start.startswith("#"):
+        start = "/" + start
+    return start.split("?", 1)[0]
+
+
+def coverage_of(result: dict) -> dict:
+    """The controls a test used and the kinds of value it typed (#328), from the steps
+    that were done. A refused, missing or failed control wasn't tried. Every step counts
+    for the area the test started in; one after a step that moved to another screen is on
+    that screen, which the context can't tell from here, so it only counts where the start
+    screen has the same control. The token is from the name the Driver wrote: a control it
+    found by part of its name ("Add to Basket" for "Add to Basket Apple Juice") doesn't
+    match the map's token, and stays counted as never tried. Recording the matched name
+    would put a new field into the history the model reads."""
+    tried, inputs = [], []
+    for step in result.get("steps") or []:
+        if step.get("status") != "done" or step.get("do") not in ("click", "fill", "select"):
+            continue
+        token = ref_mod.control_token(step.get("role", ""), step.get("name", ""))
+        if token not in tried:
+            tried.append(token)
+        if step["do"] in ("fill", "select"):
+            for kind in value_kinds(step.get("value", "")):
+                if [token, kind] not in inputs:
+                    inputs.append([token, kind])
+    return {"tried": tried, "inputs": inputs}
 
 
 def _token(text: str) -> str:

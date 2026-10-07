@@ -70,6 +70,12 @@ def test_facts_say_only_what_the_map_saw():
     assert all(f["kind"] == "shown" and f["source"] == "spoor-map test" for f in screens[0]["facts"])
 
 
+def test_a_screens_route_has_no_query():
+    # #328: a test's start is a route without a query, so the screen's must be too.
+    assert to_context._route("http://shop/#/search?q=apple") == "/#/search"
+    assert to_context._route("http://shop/basket?x=1") == "/basket"
+
+
 def test_names_lose_emails_and_get_short():
     assert to_context._name("account_circle trailhound-1@example.test Orders") == "account_circle Orders"
     assert to_context._name("x " * 60).endswith("...") and len(to_context._name("x " * 60)) <= 43
