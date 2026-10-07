@@ -76,7 +76,8 @@ def analyse(runs: list[dict], noise: dict, origin: str) -> dict:
         for r in reached:
             for item in items(r["signals_weak"]):
                 url = item.split(" ", 2)[-1].split(" -> ")[0] if item.startswith("failed_requests") else ""
-                why = ("not sent" if r["verdict"] != "sent"
+                why = ("weak by kind" if item.startswith("console_warnings")
+                       else "not sent" if r["verdict"] != "sent"
                        else "unsettled" if not (r["signals"]["settled_before"] and r["signals"]["settled_after"])
                        else "third-party" if url and not live_session._own_request({"url": url}, origin)
                        else "seen idle")

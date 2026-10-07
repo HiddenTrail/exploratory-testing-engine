@@ -35,6 +35,7 @@ Feature: Only trustworthy signals count as evidence
       | a storage key changed that also changed while idle                   | signals_weak |
       | a control came or went that also came and went while idle            | signals_weak |
       | a console error not seen idle                                        | signals      |
+      | a console warning, whatever else (#326)                              | signals_weak |
 
   Scenario: Only requests started after the click are looked at
     Given a request was already in flight when the control was clicked

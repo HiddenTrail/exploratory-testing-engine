@@ -97,10 +97,11 @@ WHAT YOU GET BACK, per test:
   steps: each step and what came of it: "done", "not_found" (nothing on the page had that
     role and name), "refused" (see HOW FAR YOU MAY GO) or "failed" (it was there but didn't
     respond; "detail" says why). A step also says what it set off, so an error is tied to
-    the step that caused it: its own "signals" and "signals_weak" (console errors and failed
-    requests, the same trust checks as below), "server_said" (a failed request on the
-    product's own site with the start of the server's answer, often its own error message)
-    and "slow" (requests that took 2 s or more).
+    the step that caused it. In a test of several steps, its own "signals" and
+    "signals_weak" (console errors and failed requests; a step is trusted only if it was
+    done and the page had rested before and after it). On a trusted step, "server_said": a
+    failed request on the product's own site with the server's own error message, and
+    "slow": its requests that took 2 s or more.
   page_controls: what's on the page after the last step, as "role:name", so a next test can
     act on it.
   settle: seconds the page took to go quiet after the action (the app's own timing).
@@ -751,10 +752,13 @@ def _request_log_html(result) -> str:
         f"<tr><td>{esc(r.get('step'))}</td><td>{esc(r.get('method'))}</td><td><code>{esc(r.get('path'))}</code></td>"
         f"<td>{esc(r.get('status'))}</td><td>{esc(r.get('ms', ''))}</td><td>{esc(r.get('message', ''))}</td></tr>"
         for r in log.get("own_site") or [])
-    if not rows and not log.get("third_party"):
+    if not rows and not (log.get("third_party") or log.get("static_files")):
         return ""
-    others = (f'<p class="prose-muted">And {esc(log["third_party"])} request(s) to other sites, counted only.</p>'
-              if log.get("third_party") else "")
+    counted = [f"{log['own_site_more']} more on the site" if log.get("own_site_more") else "",
+               f"{log['static_files']} static file(s) that loaded fine" if log.get("static_files") else "",
+               f"{log['third_party']} request(s) to other sites" if log.get("third_party") else ""]
+    counted = [c for c in counted if c]
+    others = (f'<p class="prose-muted">And {esc(", ".join(counted))}, counted only.</p>' if counted else "")
     table = (f"<table><thead><tr><th>Step</th><th>Method</th><th>Path</th><th>Status</th><th>ms</th>"
              f"<th>What the server said</th></tr></thead><tbody>{rows}</tbody></table>" if rows else "")
     return f'<details class="fold"><summary>Requests</summary>{table}{others}</details>'
