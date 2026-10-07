@@ -1,6 +1,6 @@
 # Trailhound
 
-[![engine tests](https://github.com/HiddenTrail/exploratory-testing-engine/actions/workflows/engine-tests.yml/badge.svg)](https://github.com/HiddenTrail/exploratory-testing-engine/actions/workflows/engine-tests.yml)
+[![Trailhound tests](https://github.com/HiddenTrail/exploratory-testing-engine/actions/workflows/tests.yml/badge.svg)](https://github.com/HiddenTrail/exploratory-testing-engine/actions/workflows/tests.yml)
 
 Trailhound is an LLM-based **disconfirmation engine** for exploratory testing
 of live systems (HTTP APIs, web apps and a game client): instead of running a
@@ -305,7 +305,7 @@ python -m pytest trailhound/tests
 ```
 
 Runs on every push to `master`, every PR into `master`, and on demand, via
-[`.github/workflows/engine-tests.yml`](.github/workflows/engine-tests.yml) -
+[`.github/workflows/tests.yml`](.github/workflows/tests.yml) -
 no Anthropic API key needed, since no test makes a real LLM call. That workflow
 also compile-checks `trailhound/`, runs web-recon's tests (the web_gui adapter loads it), and runs `clash-royale-kit`'s tests, which are cross-platform on purpose:
 the kit drives a Windows client, but its decisions live in modules that import

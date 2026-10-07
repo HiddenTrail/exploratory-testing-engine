@@ -223,7 +223,7 @@ python -m pytest trailhound/tests
 ```
 
 Runs on every push to `master`, every PR into `master`, and on demand, via
-`.github/workflows/engine-tests.yml` - no Anthropic API key needed, since no
+`.github/workflows/tests.yml` - no Anthropic API key needed, since no
 test makes a real LLM call. The same workflow compile-checks `trailhound/` and
 runs the `clash-royale-kit` and `.experiments/web-recon` tests.
 

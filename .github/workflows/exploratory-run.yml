@@ -166,7 +166,7 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install the engine, web-recon and the pinned Spoor
+      - name: Install Trailhound, web-recon and the pinned Spoor
         timeout-minutes: 15
         run: |
           pip install -r trailhound/requirements.txt
@@ -229,7 +229,7 @@ jobs:
           timeout --kill-after=30 "$((SPOOR_SECONDS + 120))" spoor explore "$URL" --session "$GITHUB_WORKSPACE/.sessions/$PRODUCT/logged-in.json" \
             --sandbox --max-depth 2 --max-seconds "$SPOOR_SECONDS"
 
-      - name: Convert the map for the engine
+      - name: Convert the map for Trailhound
         timeout-minutes: 15
         run: |
           mkdir -p runs/ci
@@ -239,7 +239,7 @@ jobs:
           # and the oracle the engine builds next starts from them.
           python -m trailhound.adapters.web_gui.to_context --map runs/ci/map.json --product "$PRODUCT"
 
-      - name: Run the engine and learn from it
+      - name: Run Trailhound and learn from it
         timeout-minutes: 30
         env:
           TRAILHOUND_USE_BEDROCK: "1"

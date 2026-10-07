@@ -36,7 +36,7 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install the engine and web-recon
+      - name: Install Trailhound and web-recon
         run: |
           pip install -r trailhound/requirements.txt
           pip install -r .experiments/web-recon/requirements.txt

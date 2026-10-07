@@ -34,7 +34,7 @@ mostly an archive of the prototypes that `trailhound/` grew out of.
 3. **Commit and push only when the user asks.** Opening a PR makes the work
    public, so check first.
 4. **Every change reaches `master` through a PR**, and CI
-   ([engine-tests.yml](.github/workflows/engine-tests.yml)) has to pass. PRs are
+   ([tests.yml](.github/workflows/tests.yml)) has to pass. PRs are
    squash-merged, so the PR title becomes the commit subject. Put `Closes #N` in
    the PR body when it fixes an issue.
 5. **Read your whole diff before you open a PR.** Go through `git diff master...`

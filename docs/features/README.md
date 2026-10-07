@@ -171,4 +171,4 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | File | Feature |
 |---|---|
 | [`product_wiki.feature`](product_wiki.feature) | A product wiki describes the product under test |
-| [`engine_ci.feature`](engine_ci.feature) | CI checks the engine on every pull request |
+| [`ci.feature`](ci.feature) | CI checks Trailhound on every pull request |

@@ -1,4 +1,4 @@
-name: engine tests
+name: Trailhound tests
 
 "on":
   push:
@@ -23,7 +23,7 @@ jobs:
       - name: Compile-check trailhound/
         run: python -m compileall -q trailhound
 
-      - name: Run engine test suite
+      - name: Run the Trailhound test suite
         run: python -m pytest trailhound/tests -v
 
       # The Clash Royale kit's own suite. The kit drives a Windows client, but

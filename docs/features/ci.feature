@@ -1,4 +1,4 @@
-# Engine CI: the checks every change has to pass before it reaches master.
+# CI: the checks every change has to pass before it reaches master.
 #
 # Tests must give the same result every time and cost nothing, so no test calls a
 # real model or needs an API key. That is a rule each test keeps by passing a stub
@@ -11,11 +11,11 @@
 # since an in-process client may not use a real thread pool. It used to fail now and
 # then when each thread built its own client and the burst spread out (#136).
 #
-# Code: .github/workflows/engine-tests.yml, .github/workflows/spoor-contract.yml,
+# Code: .github/workflows/tests.yml, .github/workflows/spoor-contract.yml,
 # trailhound/tests/test_*_parity.py, trailhound/tests/test_*sut_regression.py
 
-Feature: CI checks the engine on every pull request
-  As someone maintaining the engine
+Feature: CI checks Trailhound on every pull request
+  As someone maintaining Trailhound
   I want every change compile-checked and tested without real model calls
   So that changes reach master only when they pass, for free and the same way every time
 
@@ -25,9 +25,9 @@ Feature: CI checks the engine on every pull request
     Then it passes a fake client that answers from a fixed list of tool calls
     And no API key is needed and no request goes to a real model
 
-  Scenario: The engine-tests workflow runs on pushes and pull requests to master
+  Scenario: The tests workflow runs on pushes and pull requests to master
     When a pull request to "master" is opened or a commit is pushed to "master"
-    Then the "engine tests" workflow runs on "ubuntu-latest" with Python "3.13"
+    Then the "Trailhound tests" workflow runs on "ubuntu-latest" with Python "3.13"
     And it installs "trailhound/requirements.txt"
     And it runs "python -m compileall -q trailhound"
     And it runs "python -m pytest trailhound/tests -v"
