@@ -56,7 +56,7 @@ def render_html(ranked: dict) -> str:
           <td>{badge(idea['status'], _status_kind(idea['status']))}</td>
           <td>{esc(idea['category'])}</td>
           <td>{inline_markdown(idea['claim'])}</td>
-          <td class="rationale">{inline_markdown(idea['rationale'])}</td>
+          <td class="rationale">{inline_markdown(idea['rationale'])}{('<br>Its area: ' + esc(idea['area'])) if idea.get('area') else ''}</td>
         </tr>""")
 
     return f"""<!DOCTYPE html>

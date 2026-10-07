@@ -72,6 +72,7 @@ Feature: The context keeps what each run covered, per area, and how much each ar
     And 2 for "reached by the Driver, not mapped": a screen the Driver reached beyond the map, or a route a test started from that no screen has
     And 0.1 less for each test already spent there, at most 3 less, and never below 0
     And "why" lists each of those in words, like "never tested" or "tested 21 time(s) already"
+    And "untested" is the same score without the errors and broken ideas: what the oracle steers by (#330)
     But coverage left under a key with no screen (a slug a new map renamed) says "no screen in the context for it" and gets nothing for it
 
   Scenario: An untouched screen with a form ranks above a start page that was tested

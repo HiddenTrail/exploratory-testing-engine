@@ -96,7 +96,7 @@ def merge_discoveries(context: dict, found: list[dict], run: str) -> dict:
         known["last_seen"] = run
         known["elements"] = record["elements"]
         known["controls_offered"] = record["controls_offered"]
-        for key in ("controls", "fields", "changes_data"):        # coverage tokens (#328), the latest seen
+        for key in ("controls", "fields", "changes_data", "features"):    # #328, #330: the latest seen
             if key in record:
                 known[key] = record[key]
         known["status"] = "reproduced" if known["times_reached"] >= 2 else "seen once"

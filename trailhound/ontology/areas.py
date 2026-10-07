@@ -23,6 +23,7 @@ Accepted limitations:
 
 from __future__ import annotations
 
+import re
 from datetime import date
 from urllib.parse import urlsplit
 
@@ -48,6 +49,7 @@ _LISTED = 2                # errors named in a reason
 REACHED = "reached by the Driver, not mapped"
 NO_SCREEN = "no screen in the context for it"
 _MAX_TITLE = 70
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 
 
 def area_key(token: str, screens: list[dict]) -> str:
@@ -153,7 +155,7 @@ def _area(key: str, title: str, route: str, unmapped: str, controls, fields, cha
           ideas_here: list[str], answers: dict[str, str]) -> dict:
     """One area's score and its reasons. `unmapped` is "" for a screen of the map, else
     why it has none: a place the Driver reached ranks with the gaps, a leftover key doesn't."""
-    importance, why = 0.0, []
+    importance, why, found = 0.0, [], 0.0
     tested = bool(cov and cov.get("tests"))
     if not tested:
         importance += NEVER_TESTED
@@ -182,11 +184,13 @@ def _area(key: str, title: str, route: str, unmapped: str, controls, fields, cha
     problems = sorted((cov or {}).get("problems", {}).items(), key=lambda kv: -kv[1])
     if problems:
         importance += ERRORS
+        found += ERRORS
         why.append("errors recorded: " + "; ".join(p for p, _ in problems[:_LISTED])
                    + (f" and {len(problems) - _LISTED} more" if len(problems) > _LISTED else ""))
     broke = [i for i in ideas_here if answers.get(i) == "broke"]
     if broke:
         importance += IDEAS_BROKE
+        found += IDEAS_BROKE
         why.append(f"{len(broke)} oracle idea(s) broke here")
     if unmapped:
         importance += NOT_MAPPED if unmapped == REACHED else 0.0
@@ -195,8 +199,12 @@ def _area(key: str, title: str, route: str, unmapped: str, controls, fields, cha
         importance -= min(MOST_FOR_TESTS, PER_TEST * cov["tests"])
         why.append(f"tested {cov['tests']} time(s) already")
     # A well-tested area bottoms out at 0 rather than going negative.
+    # `untested` is the same score without what was found there: how much of the area is
+    # still untested. The oracle steers by it (#330), so a known error doesn't keep pulling
+    # tests back; re-checking known findings will be #319's job.
     return {"key": key, "title": title, "route": route, "mapped": not unmapped,
-            "tests": (cov or {}).get("tests", 0), "importance": round(max(0.0, importance), 1), "why": why}
+            "tests": (cov or {}).get("tests", 0), "importance": round(max(0.0, importance), 1),
+            "untested": round(max(0.0, importance - found), 1), "why": why}
 
 
 def rank(context: dict, ideas: list[dict] | None = None) -> list[dict]:
@@ -229,10 +237,12 @@ def rank(context: dict, ideas: list[dict] | None = None) -> list[dict]:
         url = urlsplit(d.get("url", ""))
         route = (url.path or "/") + (f"#{url.fragment}" if url.fragment else "")
         # A single-page app has one page title everywhere, so it's named by how it was reached.
-        title = f"{route}, reached by {d.get('via') or 'a test'}"
+        # Without emails: the account menu's name holds whoever is logged in.
+        via = " ".join(_EMAIL.sub("", d.get("via") or "a test").split())
+        title = f"{route}, reached by {via}"
         title = title if len(title) <= _MAX_TITLE else title[:_MAX_TITLE - 3] + "..."
         areas.append(_area(d["id"], title, route, REACHED, d.get("controls") or [], d.get("fields") or [],
-                           d.get("changes_data") or [], coverage.get(d["id"]), [], answers))
+                           d.get("changes_data") or [], coverage.get(d["id"]), per_entity.get(d["id"], []), answers))
         seen.add(d["id"])
     for key, cov in coverage.items():
         if key not in seen:

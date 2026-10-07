@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from trailhound import settings
+from trailhound.ontology import areas as areas_mod
 
 ONTOLOGY_DIR = Path(__file__).parent
 ADAPTERS_DIR = ONTOLOGY_DIR.parent / "adapters"
@@ -44,6 +45,13 @@ FEATURE_MATCH_BONUS = 1.0
 # An idea about a screen the engine knows how to reach (#311) is worth more than one about
 # a place it may not get to: the oracle's top ideas were about screens no test reached.
 REACHABLE_BONUS = 1.5
+# What an idea's area adds or takes away (#330): this much per point of the area's
+# "untested" score (ontology/areas.py: its importance without the errors and broken
+# ideas found there) above or below the middle one's, among the areas ideas are about. Ideas on an untested screen with a form rise; ideas
+# on a screen tested in several runs sink, and stay in. Half a point was too little: in
+# the first check the untouched screens stayed out of the Driver's 15.
+AREA_WEIGHT = 1.0
+_AREA_TEXT = 160
 # A heuristic written for the SUT's surface (tagged "gui" for a GUI SUT) beats an
 # equally weighted one that fits any surface. Without it a GUI run's top slice was
 # all field-level checks, and ones like overlay_blocking never made the cut.
@@ -187,7 +195,11 @@ def build_product_ideas(product: str, limit: int | None = None, focus: tuple = (
     from trailhound.ontology.product import context_screens
     context = load_context(product)
     tags_of = {h["id"]: set(h["tags"]) for h in load_heuristics()}
-    route_of = {s["slug"]: s["route"] for s in context_screens(product) if s.get("route")}
+    screens = context_screens(product)
+    route_of = {s["slug"]: s["route"] for s in screens if s.get("route")}
+    # A place the Driver reached beyond the map is reached by replaying how it was found,
+    # not by its route alone (a dialog's route is its page's): no bonus for being reachable.
+    beyond_map = {s["slug"] for s in screens if s.get("reached_not_mapped")}
     ideas = []
     for e in build_oracle(product)["expectations"]:
         delta, status = _context_delta(e["id"], context)
@@ -195,7 +207,8 @@ def build_product_ideas(product: str, limit: int | None = None, focus: tuple = (
         focused = sorted(set(focus) & tags_of.get(heuristic, set()))
         where = route_of.get(e["entity"], "")
         ideas.append({
-            "id": e["id"], "tier": e["tier"], "score": e["score"] + delta + (REACHABLE_BONUS if where else 0.0),
+            "id": e["id"], "tier": e["tier"],
+            "score": e["score"] + delta + (REACHABLE_BONUS if where and e["entity"] not in beyond_map else 0.0),
             "status": status, "category": e["seed"], "entity": e["entity"], "claim": e["claim"],
             # Where to start testing it (#311): the screen's route, from Spoor's map.
             **({"where": where} if where else {}),
@@ -205,6 +218,7 @@ def build_product_ideas(product: str, limit: int | None = None, focus: tuple = (
             "source": "seeded_oracle",
             **({"focus": focused} if focused else {}),
         })
+    weigh_by_area(ideas, context)
     if limit is None:
         ideas = sorted(ideas, key=lambda i: i["score"], reverse=True)
     elif focus:
@@ -218,6 +232,33 @@ def build_product_ideas(product: str, limit: int | None = None, focus: tuple = (
     for rank, idea in enumerate(ideas, start=1):
         idea["rank"] = rank
     return {"sut": product, "generated_at": datetime.now(timezone.utc).isoformat(), "ranked_ideas": ideas}
+
+
+def weigh_by_area(ideas: list[dict], context: dict) -> None:
+    """Move each idea about a screen by how much of its area is still untested (#330), and
+    say why in `area` (the report shows it too). Only once a run has learned what it covered: before that every
+    screen is untested, and the order stays the oracle's own."""
+    if not context.get("coverage"):
+        return
+    ranked = areas_mod.rank(context, ideas)
+    if not ranked:
+        return
+    entities = {i.get("entity") for i in ideas}
+    by_key = {a["key"]: a for a in ranked if a["key"] in entities}
+    if not by_key:
+        return
+    # The middle of the areas ideas are about (the upper one of an even count), so leftover
+    # keys and places with no ideas don't move the zero point.
+    untested = sorted(a["untested"] for a in by_key.values())
+    middle = untested[len(untested) // 2]
+    for idea in ideas:
+        area = by_key.get(idea.get("entity"))
+        if area is None:
+            continue
+        idea["score"] = round(idea["score"] + AREA_WEIGHT * (area["untested"] - middle), 2)
+        reasons = [w for w in area["why"] if not w.startswith("errors recorded") and "broke here" not in w]
+        text = f"untested {area['untested']}: " + "; ".join(reasons)
+        idea["area"] = text if len(text) <= _AREA_TEXT else text[:_AREA_TEXT - 3] + "..."
 
 
 def build_ranked_ideas(sut: str, surfaces=None, features=(), heuristic_limit: int | None = None) -> dict[str, Any]:

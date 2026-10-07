@@ -745,6 +745,13 @@ def test_a_discovered_screen_is_a_map_state_with_its_controls_through_the_safety
     # Coverage tokens (#328), so the context can weigh it against the mapped screens.
     assert found["controls"] == ["button:delete account", "button:show orders", "textbox:search orders"]
     assert found["fields"] == ["textbox:search orders"] and found["changes_data"] == ["button:delete account"]
+    # Feature tags the way a mapped screen gets them, so the oracle can draw ideas for it (#330).
+    assert found["features"] == ["text-field", "input-field", "search", "account"]
+    # Controls on nearly every state of the map (a toolbar's search box) say nothing about this
+    # screen, so they don't give it features, as on a mapped screen.
+    toolbar = live_session.discovery(obs, "/|menuitem:orders|", path, "st02", "button:Account", "http://x",
+                                     common={"textbox:search orders"})
+    assert toolbar["features"] == ["account"] and toolbar["fields"] == ["textbox:search orders"]
 
 
 def _acting_session(monkeypatch, after):

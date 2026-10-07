@@ -236,7 +236,7 @@ def test_a_discovered_screen_keeps_its_fields_in_the_context_and_they_count(tmp_
     profile = {"id": "d1", "signature": "/profile|", "url": "http://shop/profile", "title": "Shop",
                "from_state": "st01", "via": "menuitem:Go to user profile", "path": [], "elements": [],
                "controls_offered": 2, "controls": ["button:save", "textbox:username"],
-               "fields": ["textbox:username"], "changes_data": ["button:save"]}
+               "fields": ["textbox:username"], "changes_data": ["button:save"], "features": ["text-field", "account"]}
     run = tmp_path / "r1" / "output.json"
     run.parent.mkdir()
     run.write_text(json.dumps({"casting_log": [{"test_number": 1, "result": {"discovered": profile}}]}),
@@ -244,6 +244,7 @@ def test_a_discovered_screen_keeps_its_fields_in_the_context_and_they_count(tmp_
     feedback.learn("web_gui", run, "shop")
     context = json.loads((tmp_path / "context_shop.json").read_text(encoding="utf-8"))
     assert context["discoveries"][0]["fields"] == ["textbox:username"]
+    assert context["discoveries"][0]["features"] == ["text-field", "account"]          # for the oracle (#330)
     [area] = [a for a in context["areas"] if a["key"] == "d1"]
     assert area["why"] == ["never tested", "1 field(s)", "1 control(s) change data", "reached by the Driver, not mapped"]
 

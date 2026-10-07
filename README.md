@@ -146,7 +146,9 @@ python -m trailhound.ontology.seeder --product juice-shop           # a product'
 
 For a product with a wiki (Juice Shop so far), the oracle isn't written by hand:
 the seeder runs the heuristic library and the product's facts from the wiki
-through the FEW HICCUPPS oracle seeds (#138).
+through the FEW HICCUPPS oracle seeds (#138). Once runs have learned what they
+covered, ideas move with how much of their screen is still untested, and the
+most important places the Driver reached beyond the map get ideas too (#330).
 
 ## Layout
 

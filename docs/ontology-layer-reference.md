@@ -220,7 +220,9 @@ A run with `--learn` also keeps `coverage`, what the runs covered in each area o
 the product (the screen a test started from, the controls it used, the kinds of
 value each field was sent, the ideas checked and the errors seen), and `areas`,
 every screen, discovery and unmapped route ranked by how much it matters to the
-next run, with the reasons in words (`trailhound/ontology/areas.py`, #328).
+next run, with the reasons in words (`trailhound/ontology/areas.py`, #328). The next
+oracle uses them (#330): each idea about a screen moves with how much of its area is still
+untested, and the most untested places the Driver reached beyond the map get ideas.
 Other things that clearly belong to the same class, not yet implemented:
 a feature flag flipping, a deploy/release happening, an incident or
 monitoring alert, a support ticket, an A/B test result, a config change, a
