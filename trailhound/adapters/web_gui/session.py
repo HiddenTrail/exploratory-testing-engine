@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import atexit
 import functools
+import html as html_lib
 import json
 import os
 import re
@@ -321,6 +322,79 @@ def _console_key(text: str) -> str:
     return re.sub(r"\d+", "#", text or "")[:200]
 
 
+# The request log (#326). A request this slow is shown to the Driver; a failed one on the
+# product's own site comes with what the server said.
+SLOW_MS = 2000
+_MESSAGE_CHARS = 200
+_BODY_CHARS = 4000            # read at most this much of a failed response's body
+_BODY_BYTES = 200_000         # and none of one bigger than this
+_LOG_ROWS = 40                # own-site requests listed per test; the rest are counted
+# A token: a JWT, or a long run of key-like characters. A long number: a code or an id.
+_TOKEN = re.compile(r"eyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]*|[A-Za-z0-9+/_=-]{32,}")
+_LONG_NUMBER = re.compile(r"\d{6,}")
+_MESSAGE_KEYS = ("error", "message", "detail", "title")
+_STATIC = re.compile(r"\.(m?js|css|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|map)$", re.IGNORECASE)
+
+
+def _redact(text: str) -> str:
+    """Emails, generated ids, tokens and long numbers out of a piece of text."""
+    return _LONG_NUMBER.sub("<n>", _TOKEN.sub("<token>", impersonal(text)))
+
+
+def _said(value, depth: int = 0) -> list[str]:
+    """The message strings a JSON error body holds, by an allowlist of keys: an echoed
+    query, a stack trace or a field the Driver typed is never kept."""
+    if depth > 2:
+        return []
+    if isinstance(value, str):
+        return [value]
+    found = []
+    if isinstance(value, dict):
+        for key in _MESSAGE_KEYS:
+            if key in value:
+                found += _said(value[key], depth + 1)
+    elif isinstance(value, list):
+        for item in value[:3]:
+            found += _said(item, depth + 1)
+    return found
+
+
+def server_message(body: str, content_type: str = "") -> str:
+    """What the server said in a failed response (#326), as the Driver may see it. From
+    JSON only the error, message, detail or title text; from HTML only the page's title;
+    from plain text its first line. Anything else says nothing. Then one line, redacted,
+    cut short."""
+    body, kind = body or "", (content_type or "").lower()
+    if "json" in kind or body.lstrip().startswith(("{", "[")):
+        try:
+            text = " ".join(_said(json.loads(body)))
+        except ValueError:
+            text = ""
+    elif "html" in kind or body.lstrip().lower().startswith("<"):
+        title = re.search(r"<title[^>]*>(.*?)</title>", body, re.IGNORECASE | re.DOTALL)
+        text = html_lib.unescape(title.group(1)) if title else ""
+    elif "text/plain" in kind:
+        text = body.strip().splitlines()[0] if body.strip() else ""
+    else:
+        text = ""
+    flat = _redact(" ".join(text.split()))
+    return flat if len(flat) <= _MESSAGE_CHARS else flat[:_MESSAGE_CHARS - 3] + "..."
+
+
+def _safe_path(url: str) -> str:
+    """A URL's path, with matrix parameters (;jsessionid=...) dropped and emails, ids and
+    tokens taken out: a path can be /api/Users/<email> or /reset-password/<token>."""
+    return _redact((urlsplit(url or "").path or "/").split(";", 1)[0])
+
+
+def log_path(url: str) -> str:
+    """A request's path for the log: redacted, the query's names kept and their values
+    hidden, since a value can be a search the Driver typed or a token."""
+    parts = urlsplit(url or "")
+    names = [q.split("=", 1)[0] for q in parts.query.split("&") if q] if parts.query else []
+    return _safe_path(url) + (("?" + "&".join(f"{n}=<v>" for n in names)) if names else "")
+
+
 def _own_request(r: dict, origin: str) -> bool:
     """Whether a request is the product's own business: to its origin, or to a host
     with no dot that isn't localhost. The second is a malformed URL in the product's
@@ -377,15 +451,10 @@ def _signal_diff(before, after, requests: list[dict], storage_before: dict, stor
             if len(weak_items) > _MAX_SIGNAL_ITEMS:
                 weak[f"{key}_more"] = len(weak_items) - _MAX_SIGNAL_ITEMS
 
-    errors = [c["text"] for c in after.console if c.get("type") in ("error", "pageerror")]
-    put("console_errors", [e for e in errors if _console_key(e) not in noise.get("console", ())],
-        [e for e in errors if _console_key(e) in noise.get("console", ())])
-
-    failed = [r for r in requests if r.get("status") is not None and (r["status"] == 0 or r["status"] >= 400)]
-    def line(r):
-        return f"{_request_key(r)} -> {r['status'] or r.get('failure') or 'no response'}"
-    own = lambda r: _own_request(r, origin) and _request_key(r) not in noise.get("requests", ())
-    put("failed_requests", [line(r) for r in failed if own(r)], [line(r) for r in failed if not own(r)])
+    for key, (trusted_items, weak_items) in _error_signals(after.console, requests, noise, origin).items():
+        put(key, trusted_items, weak_items)
+    # Warnings are hints only (#326): pages warn about plenty that isn't a problem.
+    put("console_warnings", [], [c["text"] for c in after.console if c.get("type") == "warning"])
 
     noisy_storage = set(noise.get("storage", ()))
     for key, keys in (("storage_added", sorted(set(storage_after) - set(storage_before))),
@@ -408,6 +477,77 @@ def _signal_diff(before, after, requests: list[dict], storage_before: dict, stor
             if cut:
                 weak[f"{key}_more"] = cut
     return signals, weak
+
+
+def _error_signals(console: list[dict], requests: list[dict], noise: dict, origin: str) -> dict:
+    """Console errors and failed requests, each as (trusted, weak): the trust checks of
+    _signal_diff for these two kinds, so a test and each of its steps (#326) judge alike."""
+    errors = [c["text"] for c in console if c.get("type") in ("error", "pageerror")]
+    failed = [r for r in requests if r.get("status") is not None and (r["status"] == 0 or r["status"] >= 400)]
+    own = lambda r: _own_request(r, origin) and _request_key(r) not in noise.get("requests", ())
+    return {
+        "console_errors": ([e for e in errors if _console_key(e) not in noise.get("console", ())],
+                           [e for e in errors if _console_key(e) in noise.get("console", ())]),
+        "failed_requests": ([_failed_line(r) for r in failed if own(r)], [_failed_line(r) for r in failed if not own(r)]),
+    }
+
+
+def _failed_line(r: dict) -> str:
+    """A failed request as a signal: its origin and redacted path, no query (#326)."""
+    parts = urlsplit(r["url"])
+    return f"{r['method']} {parts.scheme}://{parts.netloc}{_safe_path(r['url'])} -> {r['status'] or r.get('failure') or 'no response'}"
+
+
+def _cut(items: list) -> tuple[list, int]:
+    items = list(dict.fromkeys(items))
+    return items[:_MAX_SIGNAL_ITEMS], max(len(items) - _MAX_SIGNAL_ITEMS, 0)
+
+
+def step_signals(console: list[dict], requests: list[dict], noise: dict, origin: str, trusted: bool,
+                 with_signals: bool = True) -> dict:
+    """What one step set off (#326). Its console errors and failed requests, trusted and
+    weak, only when the test has several steps (one step's would repeat the test's). What
+    the server said and the slow requests only when the step is trusted, and only for its
+    trusted own-site requests: a hint never reaches the Driver dressed as a fact. Only
+    what's there, so a quiet step adds nothing to the record."""
+    found: dict = {}
+    if with_signals:
+        for key, (trusted_items, weak_items) in _error_signals(console, requests, noise, origin).items():
+            if not trusted:                   # the same rule as the test: unsettled, unsent, off the site
+                trusted_items, weak_items = [], trusted_items + weak_items
+            for tier, items in (("signals", trusted_items), ("signals_weak", weak_items)):
+                shown, more = _cut(items)
+                if shown:
+                    found.setdefault(tier, {})[key] = shown
+                    if more:
+                        found[tier][f"{key}_more"] = more
+    if not trusted:
+        return found
+    own = [r for r in requests if _own_request(r, origin) and _request_key(r) not in noise.get("requests", ())]
+    said, more = _cut([f"{r['method']} {log_path(r['url'])} -> {r['status']}: {r['message']}"
+                       for r in own if r.get("message")])
+    if said:
+        found["server_said"] = said + ([f"and {more} more"] if more else [])
+    slow, more = _cut([f"{r['method']} {log_path(r['url'])} took {r['ms'] / 1000:.1f} s"
+                       for r in own if (r.get("ms") or 0) >= SLOW_MS])
+    if slow:
+        found["slow"] = slow + ([f"and {more} more"] if more else [])
+    return found
+
+
+def request_log(requests: list[dict], step: int, origin: str) -> tuple[list[dict], int, int]:
+    """One step's requests to the product's own site, for the log (#326): method, redacted
+    path with query values hidden, status, milliseconds, and the server's message when it
+    failed. Never a request body, a cookie or a header. Static files that loaded fine
+    (scripts, styles, images, fonts) and third-party requests are only counted. Returns the
+    rows, the static count and the third-party count."""
+    own = [r for r in requests if _own_request(r, origin)]
+    failed = lambda r: r.get("status") is not None and (r["status"] == 0 or r["status"] >= 400)
+    static = [r for r in own if _STATIC.search(urlsplit(r["url"]).path) and not failed(r)]
+    rows = [{"step": step, "method": r["method"], "path": log_path(r["url"]), "status": r.get("status"),
+             **({"ms": r["ms"]} if r.get("ms") is not None else {}),
+             **({"message": r["message"]} if r.get("message") else {})} for r in own if r not in static]
+    return rows, len(static), len(requests) - len(own)
 
 
 def discovery_id(sig: str) -> str:
@@ -626,8 +766,8 @@ class Session:
         # requests it started (issue #143), not ones already in flight when it ran.
         self._requests: dict = {}
         self.page.on("request", self._on_request)
-        self.page.on("response", lambda resp: self._requests.get(id(resp.request), {}).update(status=resp.status))
-        self.page.on("requestfinished", lambda r: self._inflight.discard(id(r)))
+        self.page.on("response", self._on_response)
+        self.page.on("requestfinished", self._on_request_finished)
         self.page.on("requestfailed", self._on_request_failed)
         if old is not None:
             try:
@@ -686,13 +826,58 @@ class Session:
         self._inflight.add(id(r))
         self._requests[id(r)] = {"t": time.time(), "method": r.method, "url": r.url[:300], "status": None}
 
+    def _on_response(self, resp) -> None:
+        entry = self._requests.get(id(resp.request))
+        if entry is None:
+            return
+        entry["status"] = resp.status
+        # Kept to read what the server said once the step is over (#326); reading it here,
+        # inside the event, could block the page.
+        if resp.status >= 400:
+            entry["_response"] = resp
+
+    def _on_request_finished(self, r) -> None:
+        self._inflight.discard(id(r))
+        entry = self._requests.get(id(r))
+        if entry is not None and "t" in entry:
+            entry["ms"] = round((time.time() - entry["t"]) * 1000)
+
+    def _console(self) -> list:
+        col = getattr(self, "col", None)
+        return col.console if col is not None else []
+
+    def _read_messages(self, requests: list[dict]) -> None:
+        """What the server said in each failed own request's response (#326), read right
+        after the step, before a later navigation can drop the body. Only a finished
+        response, of a text type, and not a huge one."""
+        for r in requests:
+            if "_response" not in r or "ms" not in r:
+                continue                               # not failed, or not finished yet
+            resp = r.pop("_response")
+            if not _own_request(r, self._site):
+                continue
+            try:
+                kind = (resp.headers or {}).get("content-type", "")
+                size = int((resp.headers or {}).get("content-length") or 0)
+                if not any(k in kind.lower() for k in ("json", "html", "text")) or size > _BODY_BYTES:
+                    continue
+                said = server_message(resp.text()[:_BODY_CHARS], kind)
+                if said:
+                    r["message"] = said
+            except Exception:
+                pass                                   # a body that's gone or can't be read: no message
+
     def _on_request_failed(self, r) -> None:
         self._inflight.discard(id(r))
         if "ERR_BLOCKED_BY_CLIENT" in (r.failure or ""):
             # Our own guard stopped it (#308), not the product failing.
             self._requests.pop(id(r), None)
             return
-        self._requests.get(id(r), {}).update(status=0, failure=(r.failure or "")[:120])
+        entry = self._requests.get(id(r))
+        if entry is not None:
+            entry.update(status=0, failure=(r.failure or "")[:120])
+            if "t" in entry:
+                entry["ms"] = round((time.time() - entry["t"]) * 1000)
 
     def _requests_since(self, t: float) -> list[dict]:
         return [r for r in self._requests.values() if r["t"] >= t]
@@ -1131,18 +1316,25 @@ class Session:
         t0 = time.time()
         self.blocked_off_site = []
         done = []                                   # what each step did, in order
+        marks = []                                  # (time, console length) at each step's start
+        rested = settled_before
         for i, step in enumerate(steps if reached else []):
+            # Where this step starts, and whether the page had rested before it (#326).
+            marks.append((time.time(), len(self._console()), rested))
             done.append(self._do_step(step))
             if done[-1]["status"] != "done":
                 break                               # later steps build on this one
             if i < len(steps) - 1:
-                self.last_rest = self._rest()
+                self.last_rest = rested = self._rest()
+                self._read_messages(self._requests_since(marks[-1][0]))
         sent = any(d["status"] == "done" for d in done)
         t1 = time.time()
         settled_after = self._rest()
         click = round(t1 - t0, 2)
         settle = round(time.time() - t1, 2)
 
+        console_now = list(self._console())                        # capture() drains it
+        marks.append((time.time(), len(console_now), settled_after))
         after = capture(self.page, self.col)
         after_sig = signature(after)
         after_png = self._shot()
@@ -1210,13 +1402,34 @@ class Session:
             # The control leads off the site; the browser was stopped (#308).
             result["blocked_off_site"] = list(dict.fromkeys(self.blocked_off_site))
         origin = "{0.scheme}://{0.netloc}".format(urlsplit(self.base_url))
-        result["signals"], weak = _signal_diff(before, after, self._requests_since(t0), storage_before, self._storage(),
+        test_requests = self._requests_since(t0)
+        self._read_messages(test_requests)              # the last step's, after its settle
+        result["signals"], weak = _signal_diff(before, after, test_requests, storage_before, self._storage(),
                                                settled_before, settled_after, self._noise.get(noise_key, {}), origin,
                                                # After a stopped trip off the site (#308) the page is the
                                                # browser's error page, not the product: hints only.
                                                sent=sent and not self.blocked_off_site)
         if weak:
             result["signals_weak"] = weak
+        # Each step's own signals, and the requests it made (#326): a test can have 6 steps,
+        # and an error has to be tied to the one that caused it. A step is trusted like the
+        # test, and only if it was done and the page had rested on both sides of it.
+        test_trusted = sent and not self.blocked_off_site and settled_before and settled_after
+        own_log, static, third_party = [], 0, 0
+        for i, record in enumerate(done):
+            (start_t, start_c, rested_before), (end_t, end_c, rested_after) = marks[i], marks[i + 1]
+            during = [r for r in test_requests if start_t <= r["t"] < end_t]
+            trusted = test_trusted and record["status"] == "done" and rested_before and rested_after
+            record.update(step_signals(console_now[start_c:end_c], during, self._noise.get(noise_key, {}), origin,
+                                       trusted, with_signals=len(steps) > 1))
+            rows, statics, others = request_log(during, i + 1, origin)
+            own_log += rows
+            static += statics
+            third_party += others
+        if own_log or static or third_party:
+            result["request_log"] = {"own_site": own_log[:_LOG_ROWS], "static_files": static,
+                                     "third_party": third_party,
+                                     **({"own_site_more": len(own_log) - _LOG_ROWS} if len(own_log) > _LOG_ROWS else {})}
         # A screen the carried map doesn't have, however many times this run has seen it,
         # so later runs can count how often it's reached (#157). Recorded before the
         # recovery reboot, from the capture taken on it. It also joins this run's map, so
