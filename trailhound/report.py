@@ -125,7 +125,7 @@ def render_oracle_ranked(ranked_ideas: list[dict] | None) -> str:
         return ""
     rows = "".join(
         f"""<li><strong>#{idea['rank']} [{esc(idea['id'])}] ({idea['tier']}, score {idea['score']:.1f}, {idea['status']})</strong>
-            {esc(idea['claim'])}<div class="prose-muted">{inline_markdown(idea['rationale'])}</div></li>"""
+            {esc(idea['claim'])}<div class="prose-muted">{inline_markdown(idea['rationale'])}</div>{_area_line(idea)}</li>"""
         for idea in ranked_ideas
     )
     # Folded: it's background the Driver was given, not a result, and it runs to
@@ -138,6 +138,11 @@ def render_oracle_ranked(ranked_ideas: list[dict] | None) -> str:
       <ul class="vector-list">{rows}</ul>
     </details>
     """
+
+
+def _area_line(idea: dict) -> str:
+    """Why an idea's area moved it (#330), when it did."""
+    return f'<div class="prose-muted">Its area: {esc(idea["area"])}</div>' if idea.get("area") else ""
 
 
 def _tests_label(tests) -> str:

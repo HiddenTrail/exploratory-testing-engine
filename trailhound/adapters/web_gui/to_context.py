@@ -107,6 +107,21 @@ def _name(text: str) -> str:
     return text if len(text) <= _MAX_NAME else text[:_MAX_NAME].rsplit(" ", 1)[0] + "..."
 
 
+def common_controls(states: list[dict]) -> set[str]:
+    """The controls on nearly every state of a map (80%): the toolbar. Keys as in a
+    signature, "role:name" in lower case with numbers as "#"."""
+    counts: dict[str, int] = {}
+    for s in states:
+        for c in _controls(s):
+            counts[c] = counts.get(c, 0) + 1
+    return {c for c, n in counts.items() if n >= _EVERYWHERE * len(states)}
+
+
+def common_key(element: dict) -> str:
+    """An element's key the way common_controls counts it."""
+    return re.sub(r"\d+", "#", f"{element.get('role', '')}:{(element.get('name') or '').lower()}")
+
+
 def _tokens(elements) -> list[str]:
     return sorted({ref_mod.control_token(e.get("role", ""), e.get("name", "")) for e in elements})
 
@@ -137,11 +152,7 @@ def screens_from_map(reference: ref_mod.Reference, product: str, source: str) ->
             group["states"].append(state)
     # The toolbar's controls are on nearly every screen: they say nothing about a screen,
     # so they only count on the start screen.
-    counts: dict[str, int] = {}
-    for s in states:
-        for c in _controls(s):
-            counts[c] = counts.get(c, 0) + 1
-    everywhere = {c for c, n in counts.items() if n >= _EVERYWHERE * len(states)}
+    everywhere = common_controls(states)
     entry = reference.entry()
     title_of: dict[str, str] = {}
     screens, slugs = [], set()
@@ -149,8 +160,7 @@ def screens_from_map(reference: ref_mod.Reference, product: str, source: str) ->
         headings = [h for h in dict.fromkeys(_clean(_heading(s)) for s in g["states"]) if h]
         is_entry = any(s["id"] == entry for s in g["states"])
         elements = [e for e in g["states"][0].get("elements", []) if e.get("role") not in (None, "", "generic")]
-        own = elements if is_entry else [
-            e for e in elements if re.sub(r"\d+", "#", f"{e['role']}:{(e.get('name') or '').lower()}") not in everywhere]
+        own = elements if is_entry else [e for e in elements if common_key(e) not in everywhere]
         place = "start page" if g["route"] in ("/", "/#/") else g["route"]
         # No heading of its own: named after the step that reaches it (a menu opened, say).
         path = reference._paths[g["states"][0]["id"]]

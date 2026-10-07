@@ -153,7 +153,8 @@ told the kinds of objection the Skeptic raised most before. It also adds up what
 the run covered in each area of the product (the controls used, the kinds of value
 each field was sent, the ideas checked, the errors seen) and ranks every area for
 the next run, with its reasons (`ontology/areas.py`, #328). The run's summary shows
-what was learned. `TRAILHOUND_CONTEXT_DIR` moves the context files to another
+what was learned. The next run's oracle moves each idea by how much of its screen is
+still untested, and the most untested places beyond the map get ideas (#330). `TRAILHOUND_CONTEXT_DIR` moves the context files to another
 folder, for benchmarks.
 
 `--lean` makes a lean run, for experiments (#295): the model writes only what

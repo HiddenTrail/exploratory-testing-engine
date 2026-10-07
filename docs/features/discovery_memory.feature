@@ -51,6 +51,7 @@ Feature: Screens found beyond the map are remembered across runs
     Then "d1" keeps the "path", "from_state" and "via" of its first reach
     And its "elements" and "controls_offered" are the latest run's
     And so are its coverage tokens "controls", "fields" and "changes_data", when the reach has them (#328)
+    And its "features", vocabulary tags from its controls, so the oracle can draw ideas for it (#330)
 
   Scenario: Counting is per reach, so two reaches in one run also count
     Given one run whose tests reached "d1" twice

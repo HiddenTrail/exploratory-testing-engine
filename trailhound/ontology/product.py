@@ -24,6 +24,8 @@ from typing import Any
 
 import yaml
 
+from trailhound.ontology import areas
+
 REPO = Path(__file__).resolve().parents[2]
 WIKI_DIR = REPO / "wiki"
 VOCABULARY = Path(__file__).parent / "heuristics" / "vocabulary.json"
@@ -106,18 +108,47 @@ def product_errors(product: str, wiki_dir: Path = WIKI_DIR) -> list[str]:
     return errors
 
 
+# How many of the places the Driver reached beyond the map get ideas like the map's
+# screens (#330): the most important ones. The rest stay in the context only.
+NEW_AREAS = 3
+
+
 def context_screens(product: str) -> list[dict[str, Any]]:
     """The product's screens from its context (#311): what Spoor's map showed, written by
     the web adapter's to_context, shaped like the wiki's entities so the seeder reads
-    both. Each carries its route; a fact's global id is `<product>.<slug>.<id>`."""
+    both. Each carries its route; a fact's global id is `<product>.<slug>.<id>`. The most
+    important places the Driver reached beyond the map come too, with their features and
+    no facts (#330)."""
     from trailhound.ontology.oracle_creator import load_context   # it imports this module's callers
+    context = load_context(product)
     screens = []
-    for s in load_context(product).get("screens", []):
+    for s in context.get("screens", []):
         screens.append({
             "slug": s["slug"], "title": s["title"], "page": "", "features": list(s.get("features", [])),
             "route": s.get("route", ""), "generated": True,
             "facts": [{"local_id": f["id"], "id": f"{product}.{s['slug']}.{f['id']}", "kind": f["kind"],
                        "text": f["text"], "source": f.get("source", "")} for f in s.get("facts", [])],
         })
+    for d, area in new_areas(context):
+        screens.append({"slug": d["id"], "title": area["title"], "page": "", "features": list(d["features"]),
+                        "route": area["route"], "generated": True, "reached_not_mapped": True, "facts": []})
     return screens
+
+
+def new_areas(context: dict) -> list[tuple[dict, dict]]:
+    """The places the Driver reached beyond the map with the most still untested (#330),
+    each with its area, once runs have learned their coverage: only those whose features
+    are known (recorded since #330), so the seeder has something to draw on, and only at
+    a route no mapped screen has. A state at a mapped route (the basket after adding
+    something) is a variant of that screen: tests that start at the route count for the
+    screen, so the variant would look untested for ever. Ties go to the place reached
+    most often."""
+    if not context.get("coverage"):
+        return []
+    mapped = {s.get("route") for s in context.get("screens") or []}
+    by_id = {d["id"]: d for d in context.get("discoveries") or []
+             if d.get("features") and areas.route_of(d.get("url", "")) not in mapped}
+    ranked = [a for a in areas.rank(context) if a["key"] in by_id and not a["mapped"]]
+    ranked.sort(key=lambda a: (-a["untested"], -by_id[a["key"]].get("times_reached", 0), a["key"]))
+    return [(by_id[a["key"]], a) for a in ranked[:NEW_AREAS]]
 

@@ -17,6 +17,7 @@ Driver cannot name anything that mutates.
 from __future__ import annotations
 
 import atexit
+import functools
 import json
 import os
 import re
@@ -44,7 +45,8 @@ from safety import safe_actions                    # noqa: E402
 
 from trailhound.adapters.web_gui import careful as careful_mod  # noqa: E402
 from trailhound.adapters.web_gui import reference as ref_mod  # noqa: E402
-from trailhound.ontology.oracle_creator import load_context  # noqa: E402
+from trailhound.adapters.web_gui import to_context  # noqa: E402
+from trailhound.ontology.oracle_creator import load_context, load_vocabulary  # noqa: E402
 
 # Roles Playwright can target by (role, accessible name) - the robust first step of the
 # actuation ladder, same set web-recon's crawler uses.
@@ -414,6 +416,11 @@ def discovery_id(sig: str) -> str:
     return "d" + hashlib.blake2s(sig.encode("utf-8"), digest_size=4).hexdigest()
 
 
+@functools.cache
+def _feature_tags() -> frozenset[str]:
+    return frozenset(load_vocabulary()["tags"]["feature"])
+
+
 def changes_data(element: dict, origin: str) -> bool:
     """Whether the read-only gate holds this control back because using it would change
     data (a submit, or a name like "Add to Basket"), not for another reason."""
@@ -421,13 +428,16 @@ def changes_data(element: dict, origin: str) -> bool:
     return "mutating verb" in reason or "commits a form" in reason
 
 
-def discovery(obs, sig: str, path: list[dict], from_state: str, via: str, origin: str) -> dict:
+def discovery(obs, sig: str, path: list[dict], from_state: str, via: str, origin: str,
+              common: set[str] = frozenset()) -> dict:
     """A screen an action reached that the carried map doesn't have (issue #157), in the
     shape of a map state, so it can be added to a map later (#158): its controls are
     already through web-recon's safety gate (committing unless the read-only crawl may act
     on them), and `path` is every step from the start, the carried path plus the action.
     Its controls, its fields and the controls that change data are listed as coverage
-    tokens (#328), so the context can weigh it against the mapped screens."""
+    tokens (#328), so the context can weigh it against the mapped screens. Its features
+    leave out `common`, the controls on nearly every state of the map (the toolbar), as a
+    mapped screen's do (#330)."""
     safe = {e["locator"] for e in safe_actions(obs.elements, origin)}
     return {
         "id": discovery_id(sig), "signature": sig, "url": obs.url, "title": obs.title,
@@ -443,6 +453,11 @@ def discovery(obs, sig: str, path: list[dict], from_state: str, via: str, origin
                           if e["role"] in ref_mod.FIELD_ROLES}),
         "changes_data": sorted({ref_mod.control_token(e["role"], e["name"]) for e in obs.elements
                                 if changes_data(e, origin)}),
+        # Feature tags from the vocabulary, the way a mapped screen gets them, so the oracle
+        # can draw ideas for it when it's among the most important new places (#330).
+        "features": to_context.features_of(
+            [e for e in obs.elements if e["role"] not in ("", "generic") and to_context.common_key(e) not in common],
+            [], _feature_tags()),
     }
 
 
@@ -1138,7 +1153,8 @@ class Session:
             origin = "{0.scheme}://{0.netloc}".format(urlsplit(self.base_url))
             ran = [_replay_step(s, d, self) for s, d in zip(steps, done) if d["status"] == "done"]
             result["discovered"] = discovery(after, after_sig, path + ran, start,
-                                             " > ".join(_step_label(s) for s in steps), origin)
+                                             " > ".join(_step_label(s) for s in steps), origin,
+                                             to_context.common_controls(self.reference.states))
             result["discovered"]["in_run_map"] = bool(self.reference.add_discovery(result["discovered"],
                                                                                   _MAX_DISCOVERY_STEPS))
         self.seen_signatures.add(after_sig)

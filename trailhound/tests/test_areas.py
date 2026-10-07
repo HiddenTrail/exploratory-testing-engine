@@ -91,6 +91,22 @@ def _run(*entries, answers=()):
             "checkpoints": [{"hypothesis": {"ideas": [{"id": i, "verdict": v, "tests": [1]} for i, v in answers]}}]}
 
 
+def test_a_test_started_at_a_route_counts_for_the_place_beyond_the_map_at_that_route():
+    # Found in the #330 benchmark: 5 tests had started at "/#/login", but the login page the
+    # map lacked (a discovery) still looked never tested, and the next oracle sent the
+    # Driver back to it with 5 of its 15 ideas.
+    login = [{"id": "d1", "url": "http://shop/#/login?next=x", "times_reached": 1},
+             {"id": "d2", "url": "http://shop/#/login", "times_reached": 3}]
+    assert areas.area_key("/#/login", SCREENS, login) == "d2"            # the one reached most often
+    assert areas.area_key("/#/checkout", SCREENS, login) == "screen-checkout"   # a mapped screen comes first
+    context = {"screens": SCREENS}
+    areas.merge(context, areas.extract(_run(*[_entry(n, "/#/login") for n in range(1, 6)])), run="r1")
+    assert list(context["coverage"]) == ["/#/login"]
+    context["discoveries"] = login                                        # learned later in the same run
+    by_key = {a["key"]: a for a in areas.rank(context)}
+    assert "/#/login" not in by_key and by_key["d2"]["tests"] == 5 and "never tested" not in by_key["d2"]["why"]
+
+
 def test_coverage_adds_up_by_area_across_runs():
     context = {"screens": SCREENS}
     first = _run(_entry(1, "st01", ["button:a"], idea="oracle:x", problems=["request: GET /x -> 500"]),
@@ -236,7 +252,7 @@ def test_a_discovered_screen_keeps_its_fields_in_the_context_and_they_count(tmp_
     profile = {"id": "d1", "signature": "/profile|", "url": "http://shop/profile", "title": "Shop",
                "from_state": "st01", "via": "menuitem:Go to user profile", "path": [], "elements": [],
                "controls_offered": 2, "controls": ["button:save", "textbox:username"],
-               "fields": ["textbox:username"], "changes_data": ["button:save"]}
+               "fields": ["textbox:username"], "changes_data": ["button:save"], "features": ["text-field", "account"]}
     run = tmp_path / "r1" / "output.json"
     run.parent.mkdir()
     run.write_text(json.dumps({"casting_log": [{"test_number": 1, "result": {"discovered": profile}}]}),
@@ -244,6 +260,7 @@ def test_a_discovered_screen_keeps_its_fields_in_the_context_and_they_count(tmp_
     feedback.learn("web_gui", run, "shop")
     context = json.loads((tmp_path / "context_shop.json").read_text(encoding="utf-8"))
     assert context["discoveries"][0]["fields"] == ["textbox:username"]
+    assert context["discoveries"][0]["features"] == ["text-field", "account"]          # for the oracle (#330)
     [area] = [a for a in context["areas"] if a["key"] == "d1"]
     assert area["why"] == ["never tested", "1 field(s)", "1 control(s) change data", "reached by the Driver, not mapped"]
 
