@@ -24,6 +24,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | [`gaps.feature`](gaps.feature) | Gaps carry a next test and must be answered at the next checkpoint |
 | [`new_ground_and_parking.feature`](new_ground_and_parking.feature) | Later rounds explore new ground, and claims the tests can't settle are parked |
 | [`blocking_first.feature`](blocking_first.feature) | Blocking questions are answered before new claims are opened |
+| [`debrief_promises.feature`](debrief_promises.feature) | What the Driver promises in the debrief, the next round runs first |
 | [`oracle_and_errors.feature`](oracle_and_errors.feature) | The Driver tests from the oracle and answers for every idea and every error |
 | [`ids.feature`](ids.feature) | The engine stamps ids on observations and gaps |
 | [`word_limits.feature`](word_limits.feature) | Short fields have word limits that only reject far-too-long answers |

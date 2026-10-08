@@ -30,6 +30,21 @@ isolated from third-party scripts" at C1, C2 and C3), while each round opened ne
    count: not one the debrief settled or the Driver conceded, not "not worth continuing",
    and not a coverage question about no claim, which is new ground anyway.
 
+A fourth came with #352. In the full run runs/full340/F1 none of the 13 debrief answers
+came with a test, and 9 were plans ("next round I'll open the basket in a new tab"). The
+new-tab test was promised at C1, C2 and C3 and never ran: it wasn't blocking, so rule 3
+didn't hold the Driver to it, and the oracle and new claims took each round.
+
+4. A question the Driver answered in the debrief with change_approach is a promise. The
+   next round answers it first, like a blocking question and in the same share of the
+   round: rule 3's count and retry apply to both, and only as many as must be answered
+   (half the round at most) skip the follow-up cap, since F1's 9 plans would otherwise
+   take a whole round. Unlike rule 3, a promise needn't be about a claim. The checkpoint
+   records which promises were kept: a test following it up ran. A promise it can't keep here is said in the round's reasoning
+   once, as for rule 3, and a claim whose question keeps coming back is parked by rule 2.
+   Running the promised test inside the debrief would need a round of its own there; the
+   next round is where tests already run, so it's held to it there.
+
 Generic: it reads the hypothesis and Skeptic schemas, and the outcome envelope's
 action_id for repeats, nothing adapter-specific.
 """
@@ -80,6 +95,17 @@ def blocking_ids(prior_feedback: dict | None) -> tuple[str, ...]:
                  and g.get("kind") != "not_worth_continuing" and g.get("outcome") not in ("settled", "conceded"))
 
 
+def promises(prior_feedback: dict | None, debrief: list[dict] | None) -> list[dict]:
+    """The debrief's promises (#352): each question the Driver answered with change_approach
+    that's still in the review the next round answers (so not parked), with what it said it
+    would do. Not one the Skeptic says isn't worth continuing. A coverage question about no
+    claim is kept, unlike rule 3: F1's never-run new-tab test was one."""
+    open_ids = {g.get("id") for g in ((prior_feedback or {}).get("skeptic_review") or {}).get("gaps") or []}
+    return [{"id": d["gap_id"], "promise": (d.get("answer") or {}).get("argument", "")}
+            for d in debrief or [] if d.get("outcome") == "new_approach" and d.get("gap_id") in open_ids
+            and d.get("kind") != "not_worth_continuing"]
+
+
 def blocking_needed(blocking: tuple[str, ...], test_budget: int) -> int:
     """How many of a round's tests must answer blocking questions (#340): one per question,
     up to half the round."""
@@ -97,7 +123,7 @@ def blocking_answered(tests: list[dict], blocking: tuple[str, ...]) -> list[str]
     return [b for b in blocking if b in asked]
 
 
-def rules_out_errors(data, blocking: tuple[str, ...]) -> list[str]:
+def rules_out_errors(data, blocking: tuple[str, ...], promised: tuple[str, ...] = ()) -> list[str]:
     """A test answering a blocking question must say what would settle it (#340). Checked on
     each test, so the last-attempt salvage (#288) can keep the others."""
     errors = []
@@ -106,22 +132,27 @@ def rules_out_errors(data, blocking: tuple[str, ...]) -> list[str]:
             continue
         said = test.get("rules_out_if")
         if not isinstance(said, str) or not said.strip():
-            errors.append(f"candidate_tests[{i}] answers {test['follows_up']}, which blocks the verdict: say in "
-                          "'rules_out_if' (a string) what result would settle it.")
+            why = "you promised it in the debrief" if test["follows_up"] in promised else "it blocks the verdict"
+            errors.append(f"candidate_tests[{i}] answers {test['follows_up']}, which comes first because {why}: say "
+                          "in 'rules_out_if' (a string) what result would settle it.")
     return errors
 
 
-def blocking_shortfall(data, blocking: tuple[str, ...], test_budget: int) -> list[str]:
-    """A round that answers too few blocking questions (#340). The loop sends it back once
-    only (once()), so a question the Driver can't answer here never stops a run."""
+def blocking_shortfall(data, blocking: tuple[str, ...], test_budget: int, promised: tuple[str, ...] = ()) -> list[str]:
+    """A round that answers too few of the questions that come first: those blocking the
+    verdict (#340), and the debrief's promises among them (#352). The loop sends it back
+    once only (once()), so a question the Driver can't answer here never stops a run."""
     needed = blocking_needed(blocking, test_budget)
     answered = blocking_answered(_tests(data), blocking)
     if len(answered) >= needed or (isinstance(data, dict) and data.get("give_up")):
         return []
     left = [b for b in blocking if b not in answered]
-    return [f"{len(blocking)} question(s) from the last review block the verdict, and this round answers "
+    why = ("come first (they block the verdict, or you promised them in the debrief)" if promised
+           else "block the verdict")
+    return [f"{len(blocking)} question(s) from the last review {why}, and this round answers "
             f"{len(answered)}. Answer at least {needed} of them, one test each: set 'follows_up' to the question's "
-            f"id and 'rules_out_if' to the result that would settle it, starting from its next_test. Not answered "
+            f"id and 'rules_out_if' to the result that would settle it, starting from its next_test"
+            f"{' or your promise' if promised else ''}. Not answered "
             f"yet: {', '.join(left)}. If one can't be tested here, say why in the round's reasoning; this is "
             f"asked once."]
 
@@ -155,7 +186,8 @@ def free_cap(test_budget: int) -> int:
 
 
 def casting_note(cap: int, first_round: bool, free: int | None = None, blocking: tuple[str, ...] = (),
-                 needed: int = 0) -> str:
+                 needed: int = 0, promised: tuple[str, ...] = ()) -> str:
+    """blocking: every question that comes first, the debrief's promises (#352) included."""
     oracle = ("" if free is None else
               f"\n\n{'Of the other tests, most' if blocking else 'Most tests'} should check an idea from "
               f"'oracle_ranked': put its id in oracle_claim_id; its "
@@ -164,10 +196,17 @@ def casting_note(cap: int, first_round: bool, free: int | None = None, blocking:
               f"without running.")
     if first_round:
         return "\n\nThis is the first round: leave 'follows_up' empty on every test." + oracle
-    first = (f"\n\nFirst, the questions that block the verdict: {', '.join(blocking)}. At least {needed} test(s) "
-             f"must answer them, one per question, starting from each question's next_test: set 'follows_up' to the "
+    held = [b for b in blocking if b not in promised]
+    which = ", and ".join(part for part in (
+        f"the questions that block the verdict: {', '.join(held)}" if held else "",
+        f"what you promised in the debrief: {', '.join(promised)} (your words are in 'promises')" if promised else "")
+        if part)
+    start = "each question's next_test" + (" or your promise" if promised else "")
+    first = (f"\n\nFirst, {which}. At least {needed} test(s) "
+             f"must answer them, one per question, starting from {start}: set 'follows_up' to the "
              f"question's id and 'rules_out_if' to the result that would settle it (for a rival explanation, the "
-             f"result that would rule it out). The first test on each doesn't count against the limit below."
+             f"result that would rule it out). The first test on each, up to {needed}, doesn't count against the "
+             f"limit below."
              if blocking else "")
     return (first + f"\n\nAt most {cap} of this round's tests may follow up an earlier observation or question: "
             f"set 'follows_up' to its id. Leave it empty on the rest and use them on something not tested yet. A "
@@ -206,17 +245,19 @@ def follow_up_errors(data, known_ids) -> list[str]:
 
 
 def limit(tests: list[dict], cap: int, parked_ids, free: int | None = None,
-          blocking: tuple[str, ...] = ()) -> tuple[list[dict], list[dict]]:
+          blocking: tuple[str, ...] = (), exempt: int | None = None) -> tuple[list[dict], list[dict]]:
     """The tests to run, and the ones dropped with why, in the dropped_tests shape (#288).
     free: how many tests may check no oracle idea and follow up nothing (#312); None for
-    a run without an oracle. blocking: the questions blocking the verdict, whose first
-    test each doesn't count against the follow-up cap (#340)."""
+    a run without an oracle. blocking: the questions that come first, whose first test
+    each doesn't count against the follow-up cap (#340), up to `exempt` of them
+    (blocking_needed): with many promises (#352) they would otherwise take the whole round."""
     kept, dropped, follow_ups, frees = [], [], 0, 0
     answered: set[str] = set()
     for test in tests:
         follows = test.get("follows_up") or ""
         unguided = not follows and not test.get("oracle_claim_id")
-        if follows in blocking and follows not in answered and follows not in parked_ids:
+        if (follows in blocking and follows not in answered and follows not in parked_ids
+                and (exempt is None or len(answered) < exempt)):
             answered.add(follows)
             kept.append(test)
         elif follows in parked_ids:

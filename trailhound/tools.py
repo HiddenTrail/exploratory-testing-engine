@@ -1082,7 +1082,8 @@ DEBRIEF_ANSWER_TOOL = {
                             "description": (
                                 "defend: your tests show you're right, and you cite them. concede: you accept "
                                 "the point, and say exactly what you withdraw or lower. change_approach: more of "
-                                "the same won't settle it, and you say what you'll test differently next round."
+                                "the same won't settle it, and you say what you'll test differently next round; "
+                                "the next round is asked to run it first."
                             ),
                         },
                         "argument": {
@@ -1112,7 +1113,8 @@ answers a test lead in a debrief.
 - concede: when the point is fair. Say exactly what you withdraw or lower.
 - change_approach: when more tests of the same kind won't settle it. Say what you'll test differently
   next round (another technique, another starting state, a contrast case) and why that would give new
-  evidence.
+  evidence. It's a promise: the next round is asked to run that test first, so only promise what you
+  can run.
 Don't concede to please the Skeptic: if your tests support you, defend. Don't defend what your tests don't
 show. Keep every argument short: it has a word limit."""
 

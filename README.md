@@ -164,7 +164,7 @@ trailhound/
                 #   a state whose actions are all inert, a batch that didn't start from one place, a
                 #   baseline reset that stopped working, a prior that matched nothing
   interplay.py  # how well the Driver answered the Skeptic: gaps, answers, objections that came back
-  steering.py   # blocking questions are answered first (#340), then most of a round goes to new ground;
+  steering.py   # blocking questions and debrief promises are answered first (#340, #352), then most of a round goes to new ground;
                 #   claims the tests can't settle are parked
   ledger.py     # every oracle idea a checkpoint's tests checked, and every recorded error, gets an answer
   coverage.py   # what the tests have sent so far, per input field, worked out from the casting schema,

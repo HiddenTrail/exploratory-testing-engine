@@ -7,6 +7,8 @@
 # blocking questions first; now the engine holds the Driver to it, at the cost of one retry
 # at most: a question this harness can't answer must never stop a run. A question that
 # still won't settle is parked with its claim (new_ground_and_parking.feature).
+# What the Driver promised in the last debrief comes first too, in the same lists and the
+# same share of the round (debrief_promises.feature, #352).
 #
 # Code: trailhound/steering.py (blocking_ids, blocking_needed, blocking_answered,
 # rules_out_errors, blocking_shortfall, once, limit, casting_note, RULES_OUT_FIELD),
@@ -22,6 +24,7 @@ Feature: Blocking questions are answered before new claims are opened
     Then the blocking questions for the next round are those about a claim ("about" not empty), not about a parked claim
     But not one the debrief settled or the Driver conceded, and not one of kind "not_worth_continuing"
     And the first round has none
+    And the questions that come first also include the debrief's promises, which needn't block (debrief_promises.feature)
 
   Scenario Outline: One test per blocking question, up to half the round
     Given <blocking> blocking question(s) and a round of <budget> tests
@@ -36,6 +39,7 @@ Feature: Blocking questions are answered before new claims are opened
   Scenario: Too few answers are sent back once, then the round is taken
     Given 2 questions block the verdict and the round answers 1
     Then it is sent back with "2 question(s) from the last review block the verdict, and this round answers 1. Answer at least 2 of them, ..." naming the questions not answered yet and ending "this is asked once."
+    And with a promise among them it says "come first (they block the verdict, or you promised them in the debrief)" instead of "block the verdict"
     And if the next answer still answers too few, it is taken as it is, and the log line and the checkpoint record show the shortfall
     And a round that gives up isn't held to the count
     And the last-attempt salvage (#288) checks the tests one by one without the count, so it keeps a round that answers them
@@ -47,12 +51,13 @@ Feature: Blocking questions are answered before new claims are opened
     And the test's casting log entry keeps "follows_up" and "rules_out_if", so the hypothesis and the Skeptic see them
 
   Scenario: The first test on each doesn't count against the follow-up limit
-    Then the first test answering each blocking question runs outside the follow-up cap of #305
+    Then the first test answering each blocking question runs outside the follow-up cap of #305, for at most as many questions as must be answered (half the round)
     And a second test on the same question counts against the cap like any follow-up
     And a test on a parked claim's question is dropped as before
 
   Scenario: The Driver is told what comes first, and the run records it
-    Then the engine's casting note for a later round starts with "First, the questions that block the verdict: C2.G1, C2.G3. At least 2 test(s) must answer them, one per question, starting from each question's next_test: ..."
+    Then the engine's casting note for a later round starts with "First, the questions that block the verdict: C2.G1, C2.G3. At least 2 test(s) must answer them, one per question, starting from each question's next_test: ..." and says "The first test on each, up to 2, doesn't count against the limit below."
+    And with promises, it goes on ", and what you promised in the debrief: ..." (debrief_promises.feature)
     And with an oracle, its next part reads "Of the other tests, most should check an idea from 'oracle_ranked'"
-    And the log says "blocking: needed 2 of C2.G1, C2.G3; answered C2.G1"
+    And the log says "blocking: needed 2 of C2.G1, C2.G3; answered C2.G1", promised questions listed with the blocking ones
     And the checkpoint record has "blocking" with the questions, how many were needed and which were answered

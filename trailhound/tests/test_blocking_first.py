@@ -49,7 +49,8 @@ def test_too_few_answers_are_sent_back_once_only():
 
 def test_a_test_answering_one_says_what_would_settle_it_and_odd_values_dont_crash():
     [error] = steering.rules_out_errors({"candidate_tests": [_test(follows="C2.G1")]}, ("C2.G1",))
-    assert error.startswith("candidate_tests[0] answers C2.G1, which blocks the verdict: say in 'rules_out_if'")
+    assert error.startswith("candidate_tests[0] answers C2.G1, which comes first because it blocks the verdict: say "
+                            "in 'rules_out_if'")
     # Found in review: a list here crashed the validation instead of being sent back.
     odd = {"candidate_tests": [{"follows_up": ["C2.G1", "C2.G3"]}, {"follows_up": "C2.G1", "rules_out_if": ["x"]}]}
     assert len(steering.rules_out_errors(odd, ("C2.G1",))) == 1
@@ -131,7 +132,7 @@ def test_the_driver_is_told_which_questions_come_first_and_gets_the_field():
     note = steering.casting_note(2, False, 3, ("C2.G1", "C2.G3"), 2)
     assert note.startswith("\n\nFirst, the questions that block the verdict: C2.G1, C2.G3. At least 2 test(s) must "
                            "answer them, one per question, starting from each question's next_test")
-    assert "The first test on each doesn't count against the limit below." in note
+    assert "The first test on each, up to 2, doesn't count against the limit below." in note
     assert "Of the other tests, most should check an idea" in note
     assert "First, the questions" not in steering.casting_note(2, False)
     tool = steering.with_follow_up_field({"input_schema": {"properties": {"candidate_tests": {"items": {
