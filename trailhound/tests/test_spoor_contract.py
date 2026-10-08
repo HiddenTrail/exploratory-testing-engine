@@ -47,14 +47,17 @@ def _explore(site_url, work, *extra):
     done = subprocess.run([SPOOR, "explore", site_url, "--max-states", "6", "--max-seconds", "120", *extra],
                           cwd=work, capture_output=True, text=True, timeout=300)
     assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
-    maps = list((work / ".spoor-cache" / "maps").glob("*.json"))
+    # Older Spoor writes one JSON file per site, current Spoor one SQLite database (#385).
+    maps = list((work / ".spoor-cache" / "maps").glob("*.json")) + list((work / ".spoor-cache").glob("spoor.db"))
     assert len(maps) == 1, f"expected one saved map, found {maps}"
     return maps[0]
 
 
 @pytest.fixture(scope="module")
 def spoor_map(site_url, tmp_path_factory):
-    return json.loads(_explore(site_url, tmp_path_factory.mktemp("spoor")).read_text(encoding="utf-8"))
+    from trailhound.adapters.web_gui.from_spoor import load_saved_map
+
+    return load_saved_map(_explore(site_url, tmp_path_factory.mktemp("spoor")))
 
 
 @pytest.fixture(scope="module")
@@ -103,10 +106,10 @@ def test_the_exploration_is_in_the_format_from_spoor_reads(site_url, spoor_map):
 # ---- mapping from a saved session (issue #156) ----------------------------------------------
 
 def test_a_saved_session_reaches_what_a_logged_out_map_cant(site_url, spoor_map, session_map_path):
-    from trailhound.adapters.web_gui.from_spoor import map_errors
+    from trailhound.adapters.web_gui.from_spoor import load_saved_map, map_errors
 
     logged_out = _exploration(site_url, spoor_map)
-    logged_in = _exploration(site_url, json.loads(session_map_path.read_text(encoding="utf-8")))
+    logged_in = _exploration(site_url, load_saved_map(session_map_path))
     assert "Your account" not in _action_names(logged_out)
     assert "Your account" in _action_names(logged_in)
     assert len(logged_in["states"]) > len(logged_out["states"])

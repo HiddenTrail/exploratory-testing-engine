@@ -45,7 +45,7 @@ Feature: CI checks Spoor's saved map against what from_spoor reads
     Given the fixture site trailhound/tests/fixtures/spoor_contract_site served on a free port on 127.0.0.1
     When the test runs "spoor explore <site url> --max-states 6 --max-seconds 120" in a temporary folder
     Then Spoor exits with code 0
-    And exactly one saved map is written under ".spoor-cache/maps/"
+    And exactly one saved map is written: a JSON file under ".spoor-cache/maps/" (older Spoor) or ".spoor-cache/spoor.db" (current Spoor, #385)
 
   Scenario: The saved map must be in the format from_spoor reads
     Given Spoor's saved map from the fixture site

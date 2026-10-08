@@ -53,6 +53,7 @@ a part tagged careful anything the read-only gate wouldn't click, isn't followed
 ```bash
 ../ht-spoor/.venv/Scripts/spoor explore http://127.0.0.1:3000 --sandbox --max-depth 2 --max-seconds 300
 python -m trailhound.adapters.web_gui.from_spoor     --map .spoor-cache/maps/127.0.0.1_3000.json --url http://127.0.0.1:3000     --out .experiments/web-recon/out/juice-shop-from-spoor.json
+# Current Spoor saves its map in .spoor-cache/spoor.db instead of maps/<site>.json (#385). --map takes either.
 export WEB_GUI_ONTOLOGY="$PWD/.experiments/web-recon/out/juice-shop-from-spoor.json"
 # Feed the map's screens into the product's context, so the oracle builds on them (#311):
 python -m trailhound.adapters.web_gui.to_context --map "$WEB_GUI_ONTOLOGY" --product juice-shop
