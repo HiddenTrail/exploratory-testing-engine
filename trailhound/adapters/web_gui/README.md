@@ -91,7 +91,8 @@ into `C:/Program Files/Git/profile`, which is refused, so set `MSYS_NO_PATHCONV=
 **A test can start as a new tab** (#249): with `"start_as": "new_tab"`, it gets the saved
 session's cookies and localStorage but empty sessionStorage, the way a second tab of the same
 logged-in browser would. That's where Juice Shop loses the basket. Run the same test both
-ways and compare.
+ways and compare. With `"start_as": "fresh"` (#381) it gets no saved session at all, what a
+first-time visitor sees: not logged in, no cookies, no storage.
 
 **Before a bug is reported** (#177), each test it cites runs again from a fresh browser
 context. It counts as reproduced only if the replay lands on the same screen with the same

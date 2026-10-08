@@ -47,8 +47,10 @@ Feature: A web_gui test can start as a new tab of the logged-in browser
       | session                     | start_as  | verdict                                                  |
       | starts from a saved session | new_tab   | accepted                                                 |
       | starts from a saved session | same_tab  | accepted                                                 |
-      | starts from a saved session | incognito | rejected: "start_as must be one of: same_tab, new_tab"   |
-      | has no saved session        | new_tab   | rejected: it says a new tab is the same as any test here |
+      | starts from a saved session | fresh     | accepted (fresh_start.feature)                           |
+      | starts from a saved session | incognito | rejected: "start_as must be one of: same_tab, new_tab, fresh" |
+      | has no saved session        | new_tab   | rejected: it says the test starts the same as any test   |
+      | has no saved session        | fresh     | rejected the same way                                    |
 
   Scenario: The same basket test differs between the same tab and a new tab
     # Ran live on the local Juice Shop, no model calls (#249).
