@@ -120,6 +120,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | [`save_session.feature`](save_session.feature) | A session is saved by logging in by hand, or when a condition holds |
 | [`session_freshness.feature`](session_freshness.feature) | A stale saved session is refused before a run |
 | [`new_tab_start.feature`](new_tab_start.feature) | A web_gui test can start as a new tab of the logged-in browser |
+| [`fresh_start.feature`](fresh_start.feature) | A web_gui test can start with no saved session, and the model reads each step's requests |
 | [`learn_between_runs.feature`](learn_between_runs.feature) | A run starts from the screens earlier runs discovered, and learns for the next one |
 | [`area_coverage.feature`](area_coverage.feature) | The context keeps what each run covered, per area, and how much each area matters next |
 | [`oracle_by_area.feature`](oracle_by_area.feature) | The oracle ranks ideas by how much of their area is still untested |

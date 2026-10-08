@@ -50,6 +50,7 @@ Feature: Each step says what it set off, and the run keeps a request log
 
   Scenario: The Driver gets the short form, the report the whole log
     Then the history the model reads keeps each step's signals, "server_said" and "slow", but not "request_log"
+    And each step gets its own-site requests from the log as "requests", like "POST /profile -> 302", at most 8 then "and N more" (#381, fresh_start.feature)
     And the report's test entry has a folded "Requests" table, and its step lines say what each step set off
 
   Scenario: Console warnings are hints

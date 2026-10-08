@@ -88,6 +88,11 @@ the saved tab, sessionStorage starts empty. Apps that keep part of a user's stat
 test once as usual and once as a new tab, and compare. The result then carries
 started_as: "new_tab".
 
+FRESH START. A test may set start_as to "fresh": it then starts with no saved session at all,
+what a first-time visitor gets: no cookies, no storage, not logged in. Use it to see what a new
+visitor sees (a cookie notice, a welcome dialog) or to test logging in; a step that needs a login
+has to do it. The result then carries started_as: "fresh".
+
 WHAT YOU GET BACK, per test:
   screen_before / screen_after: the state signature before the first step and after the last.
   screen_was: "same_screen" (the signature did not change), "known_screen" (it changed to a
@@ -106,7 +111,9 @@ WHAT YOU GET BACK, per test:
     "signals_weak" (console errors and failed requests; a step is trusted only if it was
     done and the page had rested before and after it). On a trusted step, "server_said": a
     failed request on the product's own site with the server's own error message, and
-    "slow": its requests that took 2 s or more. Any step can also carry "page_says": what
+    "slow": its requests that took 2 s or more. "requests": what the step sent to the site, as
+    "POST /api/Users -> 201", at most 8 (static files that loaded fine aren't listed). Any step can
+    also carry "page_says": what
     the page started ("shown") and stopped ("gone") telling the user with that step, read
     after the page rested: "invalid field 'Email': Please provide an email address.",
     "error at 'Password': ...", "error: Invalid email or password." (text the page marks
@@ -176,13 +183,14 @@ TEST_CAPABILITIES = """A test here starts at a route on the site or a known scre
 saved session (or as a new tab of it), and does up to 6 steps: click, fill, select, press a key (Enter,
 Escape, Tab, arrows, Space, Backspace), go to a route, go back. A test can be run again, and the same
 steps can be repeated in one test. What a test shows: where it landed (same, known or new screen); each
-step's status and why it failed; the console errors and failed requests each step set off, with the
-request's address and status and the server's error message; slow requests; storage and cookie keys
+step's status and why it failed; the requests each step sent to the site (method, path, status); the
+console errors and failed requests each step set off, with the request's address and status and the
+server's error message; slow requests; storage and cookie keys
 that changed (not their values); controls that appeared or went; the page's messages (validation errors,
 alerts, toasts); the controls on the page at the end. What a test can't do: read the DOM, CSS, styles or
-a screenshot; open a network tab or read response headers or bodies beyond the error message; start
-logged out or clear cookies and storage; block, delay or mock a request; suppress an error; act as a
-second user at the same time."""
+a screenshot; open a network tab or read response headers or bodies beyond the error message; clear
+storage part way through a test; block, delay or mock a request; suppress an error; act as a second
+user at the same time. A test can start fresh, with no saved session (a first-time visitor)."""
 
 
 def outcome_for(result: dict) -> outcome.Outcome:
@@ -195,8 +203,8 @@ def outcome_for(result: dict) -> outcome.Outcome:
     not be actuated at all (verdict not "sent") is the one honest False: it never reached
     the app."""
     action = result.get("action", "")
-    if result.get("started_as") == "new_tab":   # not the same action as from the same tab (#249)
-        action += " (as a new tab)"
+    # Not the same action as from the same tab (#249, #381).
+    action += _START_LABEL.get(result.get("started_as"), "")
     before = result.get("screen_before", "")
     after = result.get("screen_after", "")
 
@@ -320,10 +328,31 @@ def redact_history_for_model(casting_log: list[dict]) -> list[dict]:
             listed.add(found["id"])
         entry["result"]["discovered"] = short
     # The full request log stays in output.json and the report; the Driver gets each step's
-    # short form, the server's messages and the slow requests (#326).
+    # short form, the server's messages and the slow requests (#326), and each step its requests (#381).
     for entry in redacted:
-        (entry.get("result") or {}).pop("request_log", None)
+        result = entry.get("result") or {}
+        _requests_by_step(result, result.pop("request_log", None) or {})
     return redacted
+
+
+# How many of a step's requests the model reads (#381); the rest are counted.
+_STEP_REQUESTS = 8
+
+
+def _requests_by_step(result: dict, log: dict) -> None:
+    """Each step's own-site requests, as "POST /api/Users -> 201", on the step in the history
+    the model reads (#381). The full request log is too long for every prompt, but without
+    any of it the Driver couldn't say how many requests a double click sent. Static files
+    that loaded fine aren't in it (#326)."""
+    by_step: dict = {}
+    for row in log.get("own_site") or []:
+        status = row.get("status") if row.get("status") is not None else "no answer yet"
+        by_step.setdefault(row.get("step"), []).append(f"{row.get('method')} {row.get('path')} -> {status}")
+    for n, step in enumerate(result.get("steps") or [], start=1):
+        rows = by_step.get(n)
+        if rows:
+            step["requests"] = rows[:_STEP_REQUESTS] + (
+                [f"and {len(rows) - _STEP_REQUESTS} more"] if len(rows) > _STEP_REQUESTS else [])
 
 
 def _start_and_steps(test: dict) -> tuple[str, list[dict]]:
@@ -456,8 +485,12 @@ def _test_label(test: dict) -> str:
     return f"{start} :: " + " > ".join(live_session._step_label(s) for s in steps)
 
 
+# How a test that didn't start as the saved tab reads in a label.
+_START_LABEL = {"new_tab": " (as a new tab)", "fresh": " (fresh, no saved session)"}
+
+
 def describe_test_for_log(test: dict) -> str:
-    tab = " (as a new tab)" if test.get("start_as") == "new_tab" else ""
+    tab = _START_LABEL.get(test.get("start_as"), "")
     return f"{_test_label(test)}{tab} -> predicting {test['predicted_screen']}"
 
 
@@ -567,8 +600,9 @@ CASTING_TOOL = {
                         },
                         "start_as": {"type": "string", "enum": list(live_session.START_AS),
                                      "description": "Optional, 'same_tab' if left out. 'new_tab' starts the test "
-                                                    "as a new tab of the logged-in browser (see NEW TAB). Only "
-                                                    "with a saved session."},
+                                                    "as a new tab of the logged-in browser (see NEW TAB); 'fresh' "
+                                                    "with no saved session, as a first-time visitor (see FRESH "
+                                                    "START). Both only with a saved session."},
                         "predicted_screen": {"type": "string", "enum": list(PREDICTIONS),
                                              "description": "Where the last step leaves you: 'same_screen' - the "
                                                             "screen you started on; 'known_screen' - a state "
@@ -676,9 +710,9 @@ def validate_casting_response(data) -> list[str]:
         start_as = test.get("start_as", "same_tab")
         if start_as not in live_session.START_AS:
             errors.append(f"candidate_tests[{i}].start_as must be one of: {', '.join(live_session.START_AS)}")
-        elif start_as == "new_tab" and live_session._SESSION is not None and not live_session.has_session():
-            errors.append(f"candidate_tests[{i}].start_as is 'new_tab', but this run has no saved session, "
-                          "so a new tab is the same as any test. Leave start_as out.")
+        elif start_as in ("new_tab", "fresh") and live_session._SESSION is not None and not live_session.has_session():
+            errors.append(f"candidate_tests[{i}].start_as is '{start_as}', but this run has no saved session, "
+                          "so it starts the same as any test. Leave start_as out.")
     return errors
 
 
@@ -725,7 +759,7 @@ def render_test_entry(entry) -> str:
         '<span class="probe-label">Probe</span> (no linked hypothesis)')
     number_html = (f'<span class="test-number">Test #{esc(entry.get("test_number"))}</span>'
                    if entry.get("test_number") is not None else "")
-    tab = " (as a new tab)" if request.get("start_as") == "new_tab" else ""
+    tab = _START_LABEL.get(request.get("start_as"), "")
     label = (_test_label(request) if "start" in request
              else f"{request.get('state')} :: {request.get('control')}")   # a run from before #310
     action_html = f'<span class="test-number">{esc(label)}{tab}</span>'

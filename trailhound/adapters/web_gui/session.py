@@ -73,7 +73,10 @@ _SESSION_CHECK_ENV = "WEB_GUI_SESSION_CHECK"
 # included. "new_tab": what a new tab of that logged-in browser gets, cookies and
 # localStorage but empty sessionStorage. A logged-in Juice Shop user's new tab lost the
 # basket, and only a person found it, because every test started as the same tab.
-START_AS = ("same_tab", "new_tab")
+# "fresh" (#381): no saved session at all, what a first-time visitor gets: no cookies, no
+# storage, not logged in. The Skeptic asked for that in 7 of 114 blocking questions ("clear
+# cookies, load fresh, check for the banner"), and no test could do it.
+START_AS = ("same_tab", "new_tab", "fresh")
 # What one step of a test does on the live page (#310). A test starts from a route on the
 # site or a screen the map knows, then runs up to MAX_STEPS of these on whatever is there.
 STEP_KINDS = ("click", "fill", "select", "press", "goto", "back")
@@ -924,7 +927,8 @@ class Session:
         if getattr(self, "_video_dir", None):
             options["record_video_dir"] = self._video_dir
             options["record_video_size"] = _VIDEO_SIZE
-        if getattr(self, "session_file", None):
+        fresh = getattr(self, "_start_as", "same_tab") == "fresh"
+        if getattr(self, "session_file", None) and not fresh:
             options["storage_state"] = self.session_file
         self._context = self._browser.new_context(**options)
         # The browser never leaves the site (#308), in this tab or any a click opens.
@@ -934,7 +938,7 @@ class Session:
             self._context.add_init_script(_INVALID_EVENTS_JS)
         except Exception:
             pass
-        if getattr(self, "_session_storage_js", None) and getattr(self, "_start_as", "same_tab") != "new_tab":
+        if getattr(self, "_session_storage_js", None) and getattr(self, "_start_as", "same_tab") == "same_tab":
             self._context.add_init_script(self._session_storage_js)
         self.page = self._context.new_page()
         self._guard_page(self.page)
@@ -1567,8 +1571,9 @@ class Session:
         """Reach `start` (a route on the site, or a screen the map knows by id), run `steps`
         on the live page (#310), and report the whole transition classified against the map.
         Recovery (a reboot) is part of the operation when it lands somewhere new, so the next
-        test starts clean. `start_as` "new_tab" starts every reboot of this test as a new tab
-        (START_AS). With a test_number, the video of the context it ran in is kept under it."""
+        test starts clean. `start_as` "new_tab" starts every reboot of this test as a new tab,
+        and "fresh" with no saved session at all (START_AS). With a test_number, the video of
+        the context it ran in is kept under it."""
         self._start_as = start_as
         self.last_video = None
         try:
