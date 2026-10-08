@@ -34,6 +34,7 @@ from trailhound.tools import (
     merge_debrief,
     open_part,
     salvage_casting,
+    summary_verdict_errors,
     validate_debrief_answers,
     validate_reconsideration,
     lower_unsupported_bugs,
@@ -235,6 +236,8 @@ def get_checkpoint_hypothesis(
             data, known_observation_ids=known_observation_ids, open_gap_ids=open_gap_ids, lean=run_config.lean,
             ideas_to_answer=tuple(ideas_to_answer), errors_to_account=errors_to_account, test_problems=test_problems,
         ),
+        # A summary that judges the whole product is sent back once, never on the last try (#341).
+        nudge_fn=summary_verdict_errors,
         # A behaviour still citing a test with an error at the last try is dropped, not the run (#363).
         salvage_fn=ledger.salvage_behaviors(test_problems or {}),
         # Room to spare: when the hypothesis carried the testing story (#265), answers ran

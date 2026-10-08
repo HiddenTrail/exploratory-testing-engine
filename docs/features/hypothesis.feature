@@ -11,8 +11,14 @@
 #
 # The schema is shared and adapters can't override it.
 #
+# The summary says what the tests found and covered, never a verdict on the product
+# (#341). In 25 of 28 checkpoints where the Skeptic objected to coverage with no claim to
+# point at, the summary read like "Juice Shop behaves largely as expected ... no obvious
+# new bugs found" after 10 to 20 tests.
+#
 # Code: trailhound/tools.py (HYPOTHESIS_TOOL, HYPOTHESIS_SYSTEM_PROMPT,
-# validate_hypothesis_response), trailhound/loop.py (get_checkpoint_hypothesis)
+# validate_hypothesis_response, summary_verdict_errors), trailhound/loop.py
+# (get_checkpoint_hypothesis). Tests: trailhound/tests/test_summary_verdict.py
 
 Feature: The Driver forms one structured hypothesis per checkpoint
   As someone reading a run
@@ -27,6 +33,13 @@ Feature: The Driver forms one structured hypothesis per checkpoint
     And each untested entry has an "area"
     And "observations" may be an empty list, because the system may have no problems at all
     And it may have "ideas" (an answer per oracle idea its tests checked) and "dismissed_errors", which must cover what the evidence asks (see oracle_and_errors.feature)
+
+  Scenario: The summary is never a verdict on the product
+    Then the prompt and the tool ask for one sentence on what the tests found and what they covered, not a verdict on the product or a whole area
+    And a summary saying "as expected" or "as intended", "behaves normally" (or correctly, fine, properly, sensibly), "works fine" (works, working or functions, then normally, correctly, fine, properly or mechanically), "everything works", "all good", "fine overall", "nothing wrong" (or unexpected, broken) or "no bugs" (or issues, problems, defects, regressions, with up to two words between) is sent back with "'summary' gives a verdict on the product ("as expected"): this checkpoint's tests can't show that. ..."
+    And it is asked once and never on the last attempt (nudge_fn, tool_call_retry.feature), so it can't fail the call or stop a run
+    But a summary naming what a test showed, like "Checkout works from a reliable state", is fine
+    And a phrase can also fit a narrow finding ("the total updates as expected"), which costs one retry, and an overclaim worded around the list gets through
 
   Scenario: Every observation cites tests, a mechanism and a rival explanation
     Given an observation in the hypothesis

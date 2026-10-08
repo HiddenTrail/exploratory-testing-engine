@@ -267,7 +267,7 @@ def summarize_usage(usage_log: list[dict]) -> dict[str, dict]:
 def call_tool_with_retry(
     client, *, model, system, tools, tool_name, user_message, validate_fn, max_tokens,
     max_attempts=DEFAULT_MAX_ATTEMPTS, cache_static_content=False, cached_segments=None, usage_sink=None,
-    salvage_fn=None,
+    salvage_fn=None, nudge_fn=None,
 ):
     """Retries are informed, not blind repeats: on failure, the model's own malformed call and
     the concrete validation errors are fed back as a tool_result before asking again, so a
@@ -296,6 +296,10 @@ def call_tool_with_retry(
     chunk gives the boundaries somewhere real to land. user_message stays the small, call-specific
     remainder that changes every time and is never cached.
 
+    nudge_fn, if given, is a check worth one retry but never a failed call (#341): its errors
+    are added only the first time it finds any, and never on the last attempt, so a model
+    that ignores it still gets its answer taken.
+
     salvage_fn, if given, gets one last chance at the final attempt's answer when it fails
     validation: it returns a usable part of it, or None. What it returns is validated again
     before it's used, so it can only cut an answer down, never let a broken one through.
@@ -308,6 +312,7 @@ def call_tool_with_retry(
     content = _cacheable_content(cached_segments, user_message) if cached_segments else user_message
     messages = [{"role": "user", "content": content}]
     last_errors = ["no attempts made"]
+    nudged = False
     for attempt in range(1, max_attempts + 1):
         # The run's hard spending limit (trailhound/budget.py): checked before every call,
         # retries included, so nothing can keep calling the model past it.
@@ -353,6 +358,11 @@ def call_tool_with_retry(
         if unstrung:
             print(f"  [{tool_name}] turned JSON text back into structure at: {', '.join(unstrung)}")
         errors = validate_fn(answer)
+        if nudge_fn is not None and not nudged and attempt < max_attempts:
+            nudge = nudge_fn(answer)
+            if nudge:
+                nudged = True
+                errors = errors + nudge
         if not errors:
             return answer
         if attempt == max_attempts and salvage_fn is not None:
