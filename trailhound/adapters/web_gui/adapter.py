@@ -101,7 +101,16 @@ WHAT YOU GET BACK, per test:
     "signals_weak" (console errors and failed requests; a step is trusted only if it was
     done and the page had rested before and after it). On a trusted step, "server_said": a
     failed request on the product's own site with the server's own error message, and
-    "slow": its requests that took 2 s or more.
+    "slow": its requests that took 2 s or more. Any step can also carry "page_says": what
+    the page started ("shown") and stopped ("gone") telling the user with that step, read
+    after the page rested: "invalid field 'Email': Please provide an email address.",
+    "error at 'Password': ...", "error: Invalid email or password." (text the page marks
+    as an error or notice), "alert: ...", "status: ..." (toasts, snack bars, live regions),
+    and "the browser refused 'Name': ..." (the browser's own check when a form is submitted,
+    for the first field it refuses; shown on each step that sets it off, never "gone"). Treat it as a fact. "page_says_weak" is the
+    same from a step that isn't trusted, for example one the page hadn't rested after. No
+    page_says means nothing changed there, which only counts as "no message" if the
+    message would have shown by then.
   page_controls: what's on the page after the last step, as "role:name", so a next test can
     act on it.
   settle: seconds the page took to go quiet after the action (the app's own timing).
@@ -447,7 +456,9 @@ def describe_result_for_log(result: dict) -> str:
              f"{len(signals['failed_requests'])} failed request(s)" if signals.get("failed_requests") else "",
              "storage changed" if any(k in signals for k in ("storage_added", "storage_removed", "storage_changed")) else "",
              "UNSETTLED" if signals and not (signals.get("settled_before", True) and signals.get("settled_after", True)) else "",
-             f"{sum(len(v) for v in detail['signals_weak'].values() if isinstance(v, list))} weak signal(s)" if detail.get("signals_weak") else ""]
+             f"{sum(len(v) for v in detail['signals_weak'].values() if isinstance(v, list))} weak signal(s)" if detail.get("signals_weak") else "",
+             f"page messages on {sum(1 for s in detail.get('steps') or [] if (s.get('page_says') or {}).get('shown'))} step(s)"
+             if any((s.get("page_says") or {}).get("shown") for s in detail.get("steps") or []) else ""]
     if any(noted):
         line += ", " + ", ".join(n for n in noted if n)
     if not detail.get("reached_target_state"):
@@ -737,11 +748,16 @@ def render_test_entry(entry) -> str:
 
 
 def _step_signals_html(step) -> str:
-    """What one step set off (#326): its trusted errors, the server's messages, slow requests."""
+    """What one step set off (#326): its trusted errors, the server's messages, slow requests,
+    and what the page started and stopped telling the user (#351), a weak one marked as a hint."""
     parts = [f"{key.replace('_', ' ')}: {', '.join(map(str, value))}"
              for key, value in (step.get("signals") or {}).items() if isinstance(value, list)]
     parts += [f"the server said {m}" for m in step.get("server_said") or []]
     parts += [f"slow: {s}" for s in step.get("slow") or []]
+    for key, hint in (("page_says", ""), ("page_says_weak", " (a hint)")):
+        says = step.get(key) or {}
+        parts += [f"the page showed {m}{hint}" for m in says.get("shown") or []]
+        parts += [f"the page stopped showing {m}{hint}" for m in says.get("gone") or []]
     return f'<div class="prose-muted">{esc("; ".join(parts))}</div>' if parts else ""
 
 

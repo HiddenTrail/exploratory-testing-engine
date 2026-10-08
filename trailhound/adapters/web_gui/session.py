@@ -302,6 +302,114 @@ _STORAGE_JS = r"""
 """
 _MAX_SIGNAL_ITEMS = 5
 
+# What the page tells the user (#351): fields marked invalid with their error text, error
+# text under a field, and alerts, status lines and other live regions (toasts, snack bars).
+# The Driver only saw controls as role and name, so in runs/full340/F1 it conceded every
+# claim about validation: "control-diff can't see inline error text". Messages only: a
+# field's value is never read, though a message can quote what the Driver typed (the
+# browser's own email check does), so lines are redacted like the server's messages
+# (#326). Accepted limit: unlike the server's message there's no allowlist here, so a
+# live region's text (an order summary with a name and an address) reaches the Driver as
+# it is, the way control names already do. The browser's own required-field bubble isn't
+# in the page, so its "invalid" events are caught as they fire (_INVALID_EVENTS_JS) and
+# handed over here.
+_PAGE_SAYS_JS = r"""
+() => {
+  // Shown on screen: a screen reader's 1 px copy of a toast (Angular CDK's live announcer)
+  // isn't, and it keeps the last toast's text after the toast is gone.
+  const shown = (e) => {
+    if (!e || !e.getClientRects().length || getComputedStyle(e).visibility === "hidden") return false;
+    const r = e.getBoundingClientRect();
+    return r.width > 1 && r.height > 1;
+  };
+  const text = (e) => (e.innerText || e.textContent || "").replace(/\s+/g, " ").trim();
+  const byIds = (ids) => (ids || "").split(/\s+/).filter(Boolean).map((id) => document.getElementById(id)).filter(Boolean);
+  const nameOf = (f) => f.getAttribute("aria-label") || byIds(f.getAttribute("aria-labelledby")).map(text).join(" ")
+    || [...(f.labels || [])].map(text).join(" ") || f.getAttribute("placeholder") || f.getAttribute("name") || f.tagName.toLowerCase();
+  const ERROR = "mat-error, .mat-error, .mat-mdc-form-field-error, [role=alert]";
+  const FIELD_BOX = "mat-form-field, .mat-mdc-form-field, .form-group, .field";
+  const CONTROL = "a, button, input, select, textarea, [contenteditable], [role=button], [role=combobox], [role=listbox], "
+    + "[role=checkbox], [role=radio], [role=switch], [role=slider], [role=textbox]";
+  // Text a page marks as an error or notice only by its class: Juice Shop's failed login is
+  // a <div class="error">, Bootstrap's is .alert-danger or .invalid-feedback. Never an
+  // element holding a control: that's a panel, not a message.
+  const NOTICE = /^(.*[-_])?(error|errors|invalid|danger|warning|alert|notification|toast|snackbar)([-_].*)?$/i;
+  const AN_ERROR = /^(.*[-_])?(error|errors|invalid|danger)([-_].*)?$/i;
+  const classed = (e, re) => [...e.classList].some((c) => re.test(c)) && !e.querySelector(CONTROL) && !e.matches(CONTROL);
+  const isError = (e) => e.matches(ERROR) || classed(e, AN_ERROR);
+  const out = [], used = [];
+  for (const f of document.querySelectorAll("[aria-invalid=true]")) {
+    if (!shown(f)) continue;
+    let errors = byIds(f.getAttribute("aria-errormessage")).concat(byIds(f.getAttribute("aria-describedby")).filter(isError));
+    const box = f.closest(FIELD_BOX);
+    if (!errors.length && box) errors = [...box.querySelectorAll("*")].filter(isError);
+    errors = errors.filter(shown);
+    used.push(...errors);
+    out.push({kind: "invalid", field: nameOf(f), text: errors.map(text).filter(Boolean).join(" ")});
+  }
+  // Error text under a field, and the rest of what's marked by class.
+  const marked = [...document.querySelectorAll("[class]")].filter((e) => classed(e, NOTICE));
+  for (const e of [...document.querySelectorAll("mat-error, .mat-error, .mat-mdc-form-field-error"), ...marked]) {
+    if (used.some((u) => u.contains(e)) || !shown(e) || !text(e)) continue;
+    used.push(e);
+    const field = (e.closest(FIELD_BOX) || e).querySelector("input, textarea, select");
+    const kind = !marked.includes(e) || classed(e, AN_ERROR) ? "error"
+      : [...e.classList].some((c) => /alert|warning/i.test(c)) ? "alert" : "status";
+    out.push({kind, field: kind === "error" && field ? nameOf(field) : "", text: text(e)});
+  }
+  // A live region's own text, without its buttons and links: a cookie banner or a snack
+  // bar holds its controls, and their labels aren't what it says.
+  const said = (e) => {
+    const copy = e.cloneNode(true);
+    copy.querySelectorAll(CONTROL).forEach((c) => c.remove());
+    return (copy.textContent || "").replace(/\s+/g, " ").trim();
+  };
+  for (const e of document.querySelectorAll("[role=alert], [role=status], [aria-live]:not([aria-live=off]), output")) {
+    if (used.some((u) => u.contains(e)) || !shown(e) || !said(e)) continue;
+    used.push(e);
+    const urgent = e.getAttribute("role") === "alert" || e.getAttribute("aria-live") === "assertive";
+    out.push({kind: urgent ? "alert" : "status", text: said(e)});
+  }
+  const checks = (window.__trailhoundInvalid || []).map((c) => ({kind: "browser_check", field: c.field, text: c.text}));
+  window.__trailhoundInvalid = [];
+  return out.slice(0, 20 - checks.length).concat(checks);
+}
+"""
+
+# Catches the browser's own form checks (a required field left empty), which show a
+# bubble outside the page. Only while the user submits that form, by a click on its submit
+# button or Enter in one of its fields, and only the first field refused, the one the bubble
+# points at: a page's own script can call checkValidity() at any time, which fires the same
+# event with no bubble (PrestaShop does on every load, for its newsletter field). The flag
+# lasts until the next task, after the browser has run the form's submission. Kept to the
+# last 10.
+_INVALID_EVENTS_JS = """
+window.__trailhoundInvalid = [];
+(() => {
+  let submitting = null;
+  const mark = (form) => { if (!form) return; submitting = form; setTimeout(() => { submitting = null; }, 0); };
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest && e.target.closest("button:not([type=button]):not([type=reset]), input[type=submit], input[type=image]");
+    if (b) mark(b.form);
+  }, true);
+  document.addEventListener("keydown", (e) => { if (e.key === "Enter") mark(e.target.form); }, true);
+  document.addEventListener("invalid", (e) => {
+    const f = e.target;
+    if (!submitting || f.form !== submitting) return;
+    submitting = null;
+    const label = (f.labels && f.labels[0] && f.labels[0].innerText) || "";
+    window.__trailhoundInvalid = window.__trailhoundInvalid.slice(-9).concat([{
+      field: f.getAttribute("aria-label") || label || f.getAttribute("placeholder") || f.name || f.tagName.toLowerCase(),
+      text: f.validationMessage || ""}]);
+  }, true);
+})();
+"""
+_PAGE_SAYS_CHARS = 160
+# The browser's own check is an event, not something on the page: each read hands over
+# those that fired since the last one. So it's "shown" on every step that sets it off,
+# even when the step before set off the same one, and never "gone".
+BROWSER_CHECK = "the browser refused"
+
 
 # A state is watched idle once per run, to learn what changes on its own (polling,
 # timers, analytics, a carousel): _NOISE_SAMPLES looks, _NOISE_SAMPLE_MS apart. The
@@ -535,6 +643,46 @@ def step_signals(console: list[dict], requests: list[dict], noise: dict, origin:
     return found
 
 
+def page_says_lines(items: list[dict]) -> list[str]:
+    """What _PAGE_SAYS_JS read, one redacted line each: "invalid field 'Email': Please
+    provide an email address.", "error at 'Password': ...", "error: ...", "alert: ...",
+    "status: ...", and "the browser refused 'Name': ..." for the browser's own check.
+    The same text twice is one line: a screen reader's copy of a toast repeats it."""
+    lines, said = [], set()
+    for item in items or []:
+        field = _redact(" ".join(str(item.get("field") or "").split()))[:60]
+        text = _redact(" ".join(str(item.get("text") or "").split()))
+        if text and text in said and item.get("kind") in ("alert", "status"):
+            continue
+        said.add(text)
+        if item.get("kind") == "browser_check":
+            line = f"{BROWSER_CHECK} '{field}': {text}"
+        elif item.get("kind") == "invalid":
+            line = f"invalid field '{field}': {text}" if text else f"invalid field '{field}' (no message shown)"
+        elif item.get("kind") == "error":
+            line = f"error at '{field}': {text}" if field else f"error: {text}"
+        else:
+            line = f"{item.get('kind', 'status')}: {text}"
+        lines.append(line if len(line) <= _PAGE_SAYS_CHARS else line[:_PAGE_SAYS_CHARS - 3] + "...")
+    return list(dict.fromkeys(lines))
+
+
+def page_says_change(before: list[str], after: list[str], noise: set, trusted: bool) -> dict:
+    """What the page started and stopped telling the user during one step (#351): as
+    "page_says" {"shown": [...], "gone": [...]}, or as "page_says_weak" when the step isn't
+    trusted (the same rule as its signals). A message that also comes and goes while the
+    page sits idle (a toast on every load) isn't the step's, so it's left out. Only what
+    changed, so a quiet step adds nothing."""
+    quiet = lambda line: _console_key(line) in noise
+    change = {}
+    for key, lines in (("shown", [l for l in after if l not in before or l.startswith(BROWSER_CHECK)]),
+                       ("gone", [l for l in before if l not in after and not l.startswith(BROWSER_CHECK)])):
+        shown, more = _cut([l for l in lines if not quiet(l)])
+        if shown:
+            change[key] = shown + ([f"and {more} more"] if more else [])
+    return {"page_says" if trusted else "page_says_weak": change} if change else {}
+
+
 def request_log(requests: list[dict], step: int, origin: str) -> tuple[list[dict], int, int]:
     """One step's requests to the product's own site, for the log (#326): method, redacted
     path with query values hidden, status, milliseconds, and the server's message when it
@@ -754,6 +902,7 @@ class Session:
         self._context.on("page", self._guard_page)
         try:
             self._context.add_init_script(_MUTATION_COUNTER_JS)
+            self._context.add_init_script(_INVALID_EVENTS_JS)
         except Exception:
             pass
         if getattr(self, "_session_storage_js", None) and getattr(self, "_start_as", "same_tab") != "new_tab":
@@ -896,19 +1045,29 @@ class Session:
         log is drained only on purpose."""
         self.col.drain()
         storage0, controls0, t = self._storage(), self._controls_now(), time.time()
-        storage_changed, controls_changed = set(), set()
+        says0 = set(self._page_says())
+        storage_changed, controls_changed, says_changed = set(), set(), set()
         for _ in range(_NOISE_SAMPLES):
             self.page.wait_for_timeout(_NOISE_SAMPLE_MS)
             storage, controls = self._storage(), self._controls_now()
             storage_changed |= {k for k in set(storage0) | set(storage) if storage0.get(k) != storage.get(k)}
             controls_changed |= controls ^ controls0
+            says_changed |= set(self._page_says()) ^ says0
         console, _ = self.col.drain()
         return {
             "requests": {_request_key(r) for r in self._requests_since(t)},
             "console": {_console_key(c["text"]) for c in console if c.get("type") in ("error", "pageerror")},
             "storage": storage_changed,
             "controls": controls_changed,
+            "page_says": {_console_key(line) for line in says_changed},
         }
+
+    def _page_says(self) -> list[str]:
+        """What the page tells the user now (#351), as lines; none if it can't be read."""
+        try:
+            return page_says_lines(self.page.evaluate(_PAGE_SAYS_JS) or [])
+        except Exception:
+            return []
 
     def _rest(self) -> bool:
         """Wait until the page has rested (see _REST_QUIET_MS). True if it did, False if
@@ -1316,11 +1475,11 @@ class Session:
         t0 = time.time()
         self.blocked_off_site = []
         done = []                                   # what each step did, in order
-        marks = []                                  # (time, console length) at each step's start
+        marks = []                                  # (time, console length, rested, page_says) at each step's start
         rested = settled_before
         for i, step in enumerate(steps if reached else []):
             # Where this step starts, and whether the page had rested before it (#326).
-            marks.append((time.time(), len(self._console()), rested))
+            marks.append((time.time(), len(self._console()), rested, self._page_says()))
             done.append(self._do_step(step))
             if done[-1]["status"] != "done":
                 break                               # later steps build on this one
@@ -1334,7 +1493,7 @@ class Session:
         settle = round(time.time() - t1, 2)
 
         console_now = list(self._console())                        # capture() drains it
-        marks.append((time.time(), len(console_now), settled_after))
+        marks.append((time.time(), len(console_now), settled_after, self._page_says() if done else []))
         after = capture(self.page, self.col)
         after_sig = signature(after)
         after_png = self._shot()
@@ -1417,11 +1576,14 @@ class Session:
         test_trusted = sent and not self.blocked_off_site and settled_before and settled_after
         own_log, static, third_party = [], 0, 0
         for i, record in enumerate(done):
-            (start_t, start_c, rested_before), (end_t, end_c, rested_after) = marks[i], marks[i + 1]
+            (start_t, start_c, rested_before, says_before), (end_t, end_c, rested_after, says_after) = marks[i], marks[i + 1]
             during = [r for r in test_requests if start_t <= r["t"] < end_t]
             trusted = test_trusted and record["status"] == "done" and rested_before and rested_after
             record.update(step_signals(console_now[start_c:end_c], during, self._noise.get(noise_key, {}), origin,
                                        trusted, with_signals=len(steps) > 1))
+            # What the page told the user, as it changed with this step (#351).
+            record.update(page_says_change(says_before, says_after, self._noise.get(noise_key, {}).get("page_says", set()),
+                                           trusted))
             rows, statics, others = request_log(during, i + 1, origin)
             own_log += rows
             static += statics

@@ -27,6 +27,7 @@ Feature: The engine learns each state's idle noise
     And the console errors logged during it, with digits replaced by "#"
     And the storage and cookie keys whose value changed
     And the controls that came or went
+    And the messages the page showed or stopped showing, with digits replaced by "#" (page_says.feature)
 
   Scenario: The idle watch learns controls that come and go
     Given a page whose links read "Slide 1", then "Slide 1", then "Slide 2"
