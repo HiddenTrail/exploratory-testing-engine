@@ -9,6 +9,7 @@
 # at 5 items, and a "<key>_more" count says how many were left out, so a cut list
 # doesn't look complete. Which of these count as trusted is in web_signal_trust.feature.
 # Each step also says what it set off, and a request log is kept: request_log.feature (#326).
+# Each step also says what the page told the user: page_says.feature (#351).
 #
 # Code: trailhound/adapters/web_gui/session.py (_signal_diff, _STORAGE_JS, Session._storage,
 # _request_key, _MAX_SIGNAL_ITEMS)
