@@ -32,6 +32,7 @@ Feature: The Driver is told what the Skeptic objected to most in earlier runs
       | rival_not_tested     | no test tells the claim from its rival explanation                                                                                                              |
       | not_reproduced       | it was seen once, or not repeated the same way                                                                                                                  |
       | not_worth_continuing | this line gives no new evidence; more of the same won't change anything                                                                                         |
+      | harness_limit        | no test this harness can run would settle it, so it can't block; the claim stays unproven (skeptic_knows_the_harness.feature)                                   |
       | other                | none of these                                                                                                                                                   |
 
   Scenario: Feedback counts the objections by kind

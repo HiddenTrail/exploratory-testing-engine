@@ -21,6 +21,7 @@ Feature: The report and the summary lead with each claim's result
     Given a checkpoint's claims and the Skeptic's review of them
     Then a claim is "corroborated" when the Skeptic's check says its tests tell it from its rival and no blocking question is about it
     And otherwise it is "inconclusive", held back by "its tests don't tell it from its rival", by "open blocking question C1.G1" for each such question, or both
+    And a "harness_limit" doubt about it holds it back too, as "a doubt this harness can't settle, C1.G2", though it doesn't block (#379)
 
   Scenario: The checkpoint heading says how its claims came out
     When the report is rendered

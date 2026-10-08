@@ -92,7 +92,8 @@ def blocking_ids(prior_feedback: dict | None) -> tuple[str, ...]:
     review = (prior_feedback or {}).get("skeptic_review") or {}
     return tuple(g["id"] for g in review.get("gaps") or []
                  if g.get("blocks_verdict") and g.get("id") and g.get("about")
-                 and g.get("kind") != "not_worth_continuing" and g.get("outcome") not in ("settled", "conceded"))
+                 and g.get("kind") not in ("not_worth_continuing", "harness_limit")
+                 and g.get("outcome") not in ("settled", "conceded"))
 
 
 def promises(prior_feedback: dict | None, debrief: list[dict] | None) -> list[dict]:
@@ -103,7 +104,7 @@ def promises(prior_feedback: dict | None, debrief: list[dict] | None) -> list[di
     open_ids = {g.get("id") for g in ((prior_feedback or {}).get("skeptic_review") or {}).get("gaps") or []}
     return [{"id": d["gap_id"], "promise": (d.get("answer") or {}).get("argument", "")}
             for d in debrief or [] if d.get("outcome") == "new_approach" and d.get("gap_id") in open_ids
-            and d.get("kind") != "not_worth_continuing"]
+            and d.get("kind") not in ("not_worth_continuing", "harness_limit")]
 
 
 def blocking_needed(blocking: tuple[str, ...], test_budget: int) -> int:

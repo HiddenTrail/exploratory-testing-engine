@@ -172,6 +172,19 @@ product's site (blocked_off_site). After any test that reaches a new state the r
 to the start."""
 
 
+TEST_CAPABILITIES = """A test here starts at a route on the site or a known screen, logged in with the
+saved session (or as a new tab of it), and does up to 6 steps: click, fill, select, press a key (Enter,
+Escape, Tab, arrows, Space, Backspace), go to a route, go back. A test can be run again, and the same
+steps can be repeated in one test. What a test shows: where it landed (same, known or new screen); each
+step's status and why it failed; the console errors and failed requests each step set off, with the
+request's address and status and the server's error message; slow requests; storage and cookie keys
+that changed (not their values); controls that appeared or went; the page's messages (validation errors,
+alerts, toasts); the controls on the page at the end. What a test can't do: read the DOM, CSS, styles or
+a screenshot; open a network tab or read response headers or bodies beyond the error message; start
+logged out or clear cookies and storage; block, delay or mock a request; suppress an error; act as a
+second user at the same time."""
+
+
 def outcome_for(result: dict) -> outcome.Outcome:
     """One `session.act` result as the engine's typed outcome envelope. Pure, so it is
     tested against recorded results with no browser attached.
@@ -899,6 +912,7 @@ ADAPTER = SUTAdapter(
     render_test_entry=render_test_entry,
     render_onboarding_section=render_onboarding_section,
     report_title="Web GUI - live browser exploration",
+    test_capabilities=TEST_CAPABILITIES,
     # Modest budgets: every action is a real browser reach + actuate + reboot taking a
     # second or more, and the action space is only as large as the carried map.
     default_max_checkpoints=3,

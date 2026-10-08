@@ -45,7 +45,7 @@ def _make_fakes(num_checkpoints_before_strong_enough):
         calls["hypothesis"] += 1
         return {"summary": "b", "behaviors": [], "observations": [], "untested": [{"area": "u"}], "prior_gaps": []}
 
-    def fake_skeptic(client, run_config, hypothesis, prior_skeptic_review=None, usage_sink=None, test_coverage=None, previous_story=None):
+    def fake_skeptic(client, run_config, hypothesis, prior_skeptic_review=None, usage_sink=None, test_coverage=None, previous_story=None, **_):
         calls["skeptic"] += 1
         verdict = "strong_enough" if calls["skeptic"] >= num_checkpoints_before_strong_enough else "weak"
         return {
