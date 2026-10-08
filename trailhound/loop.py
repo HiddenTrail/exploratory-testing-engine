@@ -372,6 +372,7 @@ def get_reconsideration(
 def get_skeptic_review(
     client: Anthropic, run_config: RunConfig, hypothesis: dict, prior_skeptic_review: dict | None = None,
     usage_sink: list[dict] | None = None, test_coverage: dict | None = None, previous_story: list | None = None,
+    test_capabilities: str = "",
 ) -> dict:
     # The testing story is part of what the Skeptic reviews (#265). It was left off this
     # list once, so the Skeptic was told to question a story it never received (#271).
@@ -386,6 +387,9 @@ def get_skeptic_review(
         evidence["previous_story"] = previous_story
     if test_coverage is not None:
         evidence["test_coverage"] = test_coverage
+    # What a test on this SUT can and can't do, so a blocking question asks for one it can run (#379).
+    if test_capabilities:
+        evidence["what_a_test_can_do"] = test_capabilities
     if prior_skeptic_review is not None:
         evidence["your_own_prior_review"] = prior_skeptic_review
     open_gap_ids = tuple(gap["id"] for gap in prior_skeptic_review["gaps"]) if prior_skeptic_review else ()
@@ -646,6 +650,7 @@ def run_checkpoint_loop(
         skeptic_review = get_skeptic_review(
             client, run_config, hypothesis, prior_skeptic_review, usage_sink=usage_sink, test_coverage=test_coverage,
             previous_story=checkpoints[-1]["hypothesis"].get("areas") if checkpoints else None,
+            test_capabilities=getattr(adapter, "test_capabilities", "") or "",
         )
         stamp_gap_ids(checkpoint_num, skeptic_review)
         reconcile_kinds(hypothesis, skeptic_review, test_problems)

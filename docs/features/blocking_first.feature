@@ -26,7 +26,7 @@ Feature: Blocking questions are answered before new claims are opened
   Scenario: The blocking questions are the last review's open ones about a claim
     Given the last review has questions with "blocks_verdict" true
     Then the blocking questions for the next round are those about a claim ("about" not empty), not about a parked claim
-    But not one the debrief settled or the Driver conceded, and not one of kind "not_worth_continuing"
+    But not one the debrief settled or the Driver conceded, and not one of kind "not_worth_continuing" or "harness_limit"
     And the first round has none
     And the questions that come first also include the debrief's promises, which needn't block (debrief_promises.feature)
 

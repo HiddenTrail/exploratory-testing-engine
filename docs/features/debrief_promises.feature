@@ -24,7 +24,7 @@ Feature: The next round runs what the Driver promised in the debrief
     Then the question's outcome is "new_approach" and it is a promise for the next round, whether it blocks the verdict or not, and whether or not it's about a claim
     And the debrief prompt tells the Driver: "It's a promise: the next round is asked to run that test first, so only promise what you can run."
     But a question whose claim is parked is no promise any more: it's gone from the review the next round answers
-    And a question of kind "not_worth_continuing" is no promise: the Skeptic said to drop it
+    And a question of kind "not_worth_continuing" is no promise: the Skeptic said to drop it, and neither is a "harness_limit" one, which no test here can answer
     And a lean run without the debrief has no promises
 
   Scenario: The next round answers promises first, like blocking questions

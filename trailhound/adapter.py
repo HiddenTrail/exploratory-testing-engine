@@ -91,6 +91,11 @@ class SUTAdapter:
     report_title: str | None = None
 
     # Suggested run-level defaults; RunConfig/CLI flags may override.
+    # What a test on this SUT can do and observe, and what it can't, in a few lines for the
+    # Skeptic (#379). Reviewing cold, it asked for tests no test here could run (read the
+    # DOM, clear cookies, open the network tab) in 39% of its blocking questions, and
+    # those questions then blocked every checkpoint. Empty: the Skeptic isn't told.
+    test_capabilities: str = ""
     default_max_checkpoints: int = 4
     default_first_round_test_budget: int = 12
     default_test_budget: int = 8

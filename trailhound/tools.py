@@ -31,6 +31,7 @@ OBJECTION_KINDS = {
     "rival_not_tested": "no test tells the claim from its rival explanation",
     "not_reproduced": "it was seen once, or not repeated the same way",
     "not_worth_continuing": "this line gives no new evidence; more of the same won't change anything",
+    "harness_limit": "no test this harness can run would settle it, so it can't block; the claim stays unproven",
     "other": "none of these",
 }
 SEVERITIES = ("low", "medium", "high")
@@ -665,9 +666,14 @@ def stamp_observation_ids(checkpoint_num: int, hypothesis: dict) -> None:
 
 def stamp_gap_ids(checkpoint_num: int, skeptic_review: dict) -> None:
     """Gives each of the Skeptic's gaps its id, 'C<checkpoint>.G<n>', so the next
-    checkpoint's hypothesis can answer it by id."""
+    checkpoint's hypothesis can answer it by id. A "harness_limit" gap never blocks
+    (#379): no test here could answer it, so blocking would only hold the next round to
+    the impossible. Set here rather than sent back, at no retry."""
     for n, gap in enumerate(skeptic_review["gaps"], start=1):
         gap["id"] = f"C{checkpoint_num}.G{n}"
+        if gap.get("kind") == "harness_limit" and gap.get("blocks_verdict"):
+            gap["blocks_verdict"] = False
+            gap["asked_to_block"] = True
 
 
 SKEPTIC_WORD_LIMITS = {
@@ -911,6 +917,14 @@ conflate "I can name an untested corner" with "I have an objection": exploratory
 to try, and that's what gaps are for, without blocks_verdict. But don't confuse a few narrow corners with
 most of the interface never being touched: five tests that each confirm one easy error path is a small
 slice, not a well-tested system with loose ends.
+
+If your evidence includes 'what_a_test_can_do', it says what a test here can do and observe, and what it
+can't. A blocking question needs a next_test this harness can run: say which steps and what in the result
+would settle it. A doubt that no test here could settle is a gap of kind "harness_limit", which never blocks:
+say what would settle it elsewhere. It isn't one of the four objections below: when only such doubts are
+left, more tests here won't settle anything, so the verdict can be "strong_enough", and the engine still keeps
+their claims unproven. Don't pass off an untestable doubt as settled, and don't ask for the impossible to keep a
+question open.
 
 If your evidence includes 'your_own_prior_review', check continuity. For each gap you named last time, the
 hypothesis's 'prior_gaps' gives the Driver's answer. Judge whether it holds up: a real test, or a concrete,
@@ -1457,16 +1471,22 @@ def claim_results(hypothesis: dict, skeptic_review: dict) -> list[dict]:
     one blocking question on any claim makes it weak, so the claims say more."""
     checks = {c["observation_id"]: c for c in skeptic_review["observation_checks"]}
     blocking: dict[str, list[str]] = {}
+    untestable: dict[str, list[str]] = {}
     for gap in skeptic_review["gaps"]:
         if gap["blocks_verdict"]:
             for oid in gap["about"]:
                 blocking.setdefault(oid, []).append(gap.get("id", ""))
+        # A doubt no test here could settle doesn't block, but it isn't settled either (#379).
+        if gap.get("kind") == "harness_limit":
+            for oid in gap["about"]:
+                untestable.setdefault(oid, []).append(gap.get("id", ""))
     results = []
     for observation in hypothesis["observations"]:
         oid = observation["id"]
         tells = checks.get(oid, {}).get("discriminates_from_rival") is True
         held_back = ([] if tells else ["its tests don't tell it from its rival"]) + [
-            f"open blocking question {g}".rstrip() for g in blocking.get(oid, [])]
+            f"open blocking question {g}".rstrip() for g in blocking.get(oid, [])] + [
+            f"a doubt this harness can't settle, {g}".rstrip(", ") for g in untestable.get(oid, [])]
         results.append({"id": oid, "status": "inconclusive" if held_back else "corroborated", "held_back": held_back})
     return results
 
