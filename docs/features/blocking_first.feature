@@ -10,8 +10,12 @@
 # What the Driver promised in the last debrief comes first too, in the same lists and the
 # same share of the round (debrief_promises.feature, #352).
 #
+# What a round must answer first goes in its evidence, not the system prompt (#376): with
+# the question ids in the system prompt, every round wrote the prompt cache again, and a
+# lean run cost about $0.20 more.
+#
 # Code: trailhound/steering.py (blocking_ids, blocking_needed, blocking_answered,
-# rules_out_errors, blocking_shortfall, once, limit, casting_note, RULES_OUT_FIELD),
+# rules_out_errors, blocking_shortfall, once, limit, casting_note, answer_first, RULES_OUT_FIELD),
 # trailhound/loop.py. Tests: trailhound/tests/test_blocking_first.py
 
 Feature: Blocking questions are answered before new claims are opened
@@ -56,8 +60,9 @@ Feature: Blocking questions are answered before new claims are opened
     And a test on a parked claim's question is dropped as before
 
   Scenario: The Driver is told what comes first, and the run records it
-    Then the engine's casting note for a later round starts with "First, the questions that block the verdict: C2.G1, C2.G3. At least 2 test(s) must answer them, one per question, starting from each question's next_test: ..." and says "The first test on each, up to 2, doesn't count against the limit below."
+    Then a later round's casting evidence has "answer_first": "First, the questions that block the verdict: C2.G1, C2.G3. At least 2 test(s) must answer them, one per question, starting from each question's next_test: ..." ending "The first test on each, up to 2, doesn't count against the follow-up limit."
     And with promises, it goes on ", and what you promised in the debrief: ..." (debrief_promises.feature)
-    And with an oracle, its next part reads "Of the other tests, most should check an idea from 'oracle_ranked'"
+    And the casting system prompt says "When your evidence has 'answer_first', do that first: ...", and with an oracle "Apart from any tests 'answer_first' asks for, most tests should check an idea from 'oracle_ranked'"
+    And the casting system prompt is byte for byte the same in every round after the first, so those rounds read the prompt cache (#376)
     And the log says "blocking: needed 2 of C2.G1, C2.G3; answered C2.G1", promised questions listed with the blocking ones
     And the checkpoint record has "blocking" with the questions, how many were needed and which were answered

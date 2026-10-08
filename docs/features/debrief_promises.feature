@@ -30,7 +30,7 @@ Feature: The next round runs what the Driver promised in the debrief
   Scenario: The next round answers promises first, like blocking questions
     Given the last debrief promised "C1.G4"
     Then the next round's casting evidence has "promises": each id with the Driver's own words
-    And the casting note starts "First, what you promised in the debrief: C1.G4 (your words are in 'promises')", after the blocking questions when there are any
+    And the round's "answer_first" starts "First, what you promised in the debrief: C1.G4 (your words are in 'promises')", after the blocking questions when there are any (blocking_first.feature)
     And the promises count with the blocking questions: one test per question, up to half the round, each with "follows_up" and "rules_out_if"
     And a promised test without "rules_out_if" is sent back with "... which comes first because you promised it in the debrief: say in 'rules_out_if' ..."
     And a round that answers too few is sent back once with "... come first (they block the verdict, or you promised them in the debrief), and this round answers ...", then taken as it is, so a promise can go unkept

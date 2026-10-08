@@ -185,32 +185,43 @@ def free_cap(test_budget: int) -> int:
     return max(1, test_budget // FREE_SHARE)
 
 
-def casting_note(cap: int, first_round: bool, free: int | None = None, blocking: tuple[str, ...] = (),
-                 needed: int = 0, promised: tuple[str, ...] = ()) -> str:
-    """blocking: every question that comes first, the debrief's promises (#352) included."""
+def casting_note(cap: int, first_round: bool, free: int | None = None) -> str:
+    """The casting rules for the system prompt. The same in every round after the first,
+    so those rounds read the cached prompt (#376): when #340 put the blocking questions in
+    here, every round started the cache over and a lean run cost about $0.20 more. What
+    changes from round to round goes in the evidence, as 'answer_first' (answer_first)."""
     oracle = ("" if free is None else
-              f"\n\n{'Of the other tests, most' if blocking else 'Most tests'} should check an idea from "
+              f"\n\nApart from any tests 'answer_first' asks for, most tests should check an idea from "
               f"'oracle_ranked': put its id in oracle_claim_id; its "
               f"'where' says where to start. 'oracle_progress' shows which ideas no test has checked yet. At most "
               f"{free} test(s) may check something no idea covers and follow up nothing; more are dropped "
               f"without running.")
     if first_round:
         return "\n\nThis is the first round: leave 'follows_up' empty on every test." + oracle
+    return ("\n\nWhen your evidence has 'answer_first', do that first: it names the questions this round must "
+            "answer before anything new, and the first test on each of them doesn't count against the limit below."
+            f"\n\nAt most {cap} of this round's tests may follow up an earlier observation or question: "
+            f"set 'follows_up' to its id. Leave it empty on the rest and use them on something not tested yet. A "
+            f"follow-up over the limit, or on a claim in 'parked', is dropped without running." + oracle)
+
+
+def answer_first(blocking: tuple[str, ...], needed: int, promised: tuple[str, ...] = ()) -> str:
+    """What a round must answer first, for the casting evidence (#376): the questions that
+    block the verdict (#340) and the debrief's promises (#352), with how many tests. Empty
+    when there are none."""
+    if not blocking:
+        return ""
     held = [b for b in blocking if b not in promised]
     which = ", and ".join(part for part in (
         f"the questions that block the verdict: {', '.join(held)}" if held else "",
         f"what you promised in the debrief: {', '.join(promised)} (your words are in 'promises')" if promised else "")
         if part)
     start = "each question's next_test" + (" or your promise" if promised else "")
-    first = (f"\n\nFirst, {which}. At least {needed} test(s) "
-             f"must answer them, one per question, starting from {start}: set 'follows_up' to the "
-             f"question's id and 'rules_out_if' to the result that would settle it (for a rival explanation, the "
-             f"result that would rule it out). The first test on each, up to {needed}, doesn't count against the "
-             f"limit below."
-             if blocking else "")
-    return (first + f"\n\nAt most {cap} of this round's tests may follow up an earlier observation or question: "
-            f"set 'follows_up' to its id. Leave it empty on the rest and use them on something not tested yet. A "
-            f"follow-up over the limit, or on a claim in 'parked', is dropped without running." + oracle)
+    return (f"First, {which}. At least {needed} test(s) "
+            f"must answer them, one per question, starting from {start}: set 'follows_up' to the "
+            f"question's id and 'rules_out_if' to the result that would settle it (for a rival explanation, the "
+            f"result that would rule it out). The first test on each, up to {needed}, doesn't count against the "
+            f"follow-up limit.")
 
 
 def oracle_id_errors(data, idea_ids) -> list[str]:

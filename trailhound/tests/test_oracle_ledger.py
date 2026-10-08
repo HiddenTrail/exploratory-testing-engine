@@ -150,5 +150,5 @@ def test_a_checkpoint_hands_the_driver_its_ideas_and_errors_to_answer(monkeypatc
     })()
     _, checkpoints, reason = loop.run_checkpoint_loop(None, adapter, RunConfig(max_checkpoints=1, lean=True), {},
                                                      itertools.count(1))
-    assert "Most tests should check an idea from 'oracle_ranked'" in calls[0]["system"]
+    assert "most tests should check an idea from 'oracle_ranked'" in calls[0]["system"]
     assert checkpoints[0]["hypothesis"]["ideas"][0]["verdict"] == "broke"

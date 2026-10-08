@@ -109,8 +109,11 @@ def test_the_loop_asks_once_then_runs_the_round_and_records_what_it_answered(mon
     })()
     log, checkpoints, _ = loop.run_checkpoint_loop(None, adapter, RunConfig(max_checkpoints=2, lean=True), {},
                                                    itertools.count(1))
-    assert "First, the questions that block the verdict: C1.G1." in calls[1]["system"]
-    assert "Of the other tests, most should" not in calls[1]["system"]             # no oracle in this run
+    assert json.loads(calls[1]["user_message"])["answer_first"].startswith(
+        "First, the questions that block the verdict: C1.G1.")
+    assert "oracle_ranked" not in calls[1]["system"]                                # no oracle in this run
+    # #376: the system prompt stays the same from round to round, so later rounds read the cache.
+    assert "C1.G1" not in calls[1]["system"]
     assert checkpoints[1]["blocking"] == {"questions": ["C1.G1"], "needed": 1, "answered": ["C1.G1"]}
     answering = next(e for e in log if e["checkpoint"] == 2 and e.get("follows_up"))
     assert answering["follows_up"] == "C1.G1" and answering["rules_out_if"] == "the rival would show y"
@@ -129,12 +132,57 @@ def test_a_blocking_questions_first_test_doesnt_count_against_the_follow_up_cap(
 
 
 def test_the_driver_is_told_which_questions_come_first_and_gets_the_field():
-    note = steering.casting_note(2, False, 3, ("C2.G1", "C2.G3"), 2)
-    assert note.startswith("\n\nFirst, the questions that block the verdict: C2.G1, C2.G3. At least 2 test(s) must "
+    note = steering.answer_first(("C2.G1", "C2.G3"), 2)
+    assert note.startswith("First, the questions that block the verdict: C2.G1, C2.G3. At least 2 test(s) must "
                            "answer them, one per question, starting from each question's next_test")
-    assert "The first test on each, up to 2, doesn't count against the limit below." in note
-    assert "Of the other tests, most should check an idea" in note
-    assert "First, the questions" not in steering.casting_note(2, False)
+    assert note.endswith("The first test on each, up to 2, doesn't count against the follow-up limit.")
+    assert steering.answer_first((), 0) == ""
+    rules = steering.casting_note(2, False, 3)
+    assert "When your evidence has 'answer_first', do that first" in rules
+    assert "Apart from any tests 'answer_first' asks for, most tests should check an idea" in rules
     tool = steering.with_follow_up_field({"input_schema": {"properties": {"candidate_tests": {"items": {
         "properties": {}}}}}})
     assert "rules_out_if" in tool["input_schema"]["properties"]["candidate_tests"]["items"]["properties"]
+
+def test_the_casting_system_prompt_is_the_same_in_every_later_round(monkeypatch):
+    # #376: with the blocking questions in the system prompt, every round wrote the cache
+    # again (0 read in every casting call of runs/exp341/A1, about $0.20 a lean run).
+    calls = []
+
+    def fake(client, **kw):
+        tool = kw["tool_name"]
+        if tool == "submit_casting_round":
+            calls.append(kw)
+            tests = [{"linked_hypothesis": "", "state": f"s{len(calls)}{i}", "predicted_outcome": "x"} for i in range(2)]
+            answer = {"give_up": False, "reasoning": "r", "candidate_tests": tests}
+            first = json.loads(kw["user_message"]).get("answer_first")
+            if first:
+                gid = first.split(": ")[1].split(".")[0] + "." + first.split(": ")[1].split(".")[1]
+                answer["candidate_tests"][0].update(follows_up=gid, rules_out_if="r")
+            return answer
+        if tool == "submit_checkpoint_hypothesis":
+            return {"summary": "s", "prior_gaps": [], "observations": [
+                {"kind": "anomaly", "continues": "", "claim": "c", "tests": [1], "violates": "", "reproduced": "once",
+                 "rival": "r", "rival_ruled_out": False, "severity": "low"}]}
+        oid = json.loads(kw["user_message"])["observations"][0]["id"]
+        return {"verdict": "weak", "verdict_reason": "v", "coverage": {"material": False}, "prior_gaps_check": [],
+                "observation_checks": [{"observation_id": oid, "discriminates_from_rival": False,
+                                        "rival_is_genuine": True, "kind": "anomaly"}],
+                "gaps": [{"gap": "g", "next_test": "t", "blocks_verdict": True, "kind": "rival_not_tested",
+                          "about": [oid]}]}
+    monkeypatch.setattr(loop, "call_tool_with_retry", fake)
+    adapter = type("A", (), {
+        "casting_tool_schema": {"name": "submit_casting_round", "input_schema": {"properties": {
+            "candidate_tests": {"type": "array", "items": {"properties": {}, "required": []}}}}},
+        "redact_history_for_model": None, "describe_test_for_log": None, "describe_result_for_log": None,
+        "casting_system_prompt": staticmethod(lambda budget, first: f"cast {budget} {first}"),
+        "validate_casting_response": staticmethod(lambda data: []),
+        "casting_max_tokens": staticmethod(lambda budget: 100), "api_schema_doc": "doc", "onboarding_extra": {},
+        "execute_test": staticmethod(lambda test, n: outcome.attach(
+            {"test_number": n, "prediction_matched": True}, outcome.Outcome(action_id=test["state"], effect=outcome.NONE))),
+    })()
+    loop.run_checkpoint_loop(None, adapter, RunConfig(max_checkpoints=3, lean=True), {}, itertools.count(1))
+    later = [json.loads(c["user_message"])["answer_first"] for c in calls[1:]]
+    assert later[0].startswith("First, the questions that block the verdict: C1.G1")
+    assert later[1].startswith("First, the questions that block the verdict: C2.G1")
+    assert calls[1]["system"] == calls[2]["system"]                  # byte for byte

@@ -128,7 +128,10 @@ def get_casting_round(
     # can't read checkpoint 1's cache however stable the evidence blocks are.
     # Rounds 2..N share a prompt and do hit - measured 0 read at checkpoint 2,
     # then ~14k at checkpoint 3 - so it costs one extra write per run, not one
-    # per checkpoint. Not worth flattening the prompt over.
+    # per checkpoint. Not worth flattening the prompt over. Keep rounds 2..N's prompt
+    # the same, though: when #340 put the blocking questions in it, every round wrote
+    # the cache again (0 read in every round of runs/exp341/A1) and a lean run cost
+    # about $0.20 more (#373, #376). What changes per round goes in fresh_evidence.
     cached_segments = _cacheable_evidence_segments(
         adapter, happy_day_example, "TESTS TRIED IN EARLIER ROUNDS", history_segments,
         skeptic_history=run_config.skeptic_history,
@@ -145,6 +148,11 @@ def get_casting_round(
     if promises:
         fresh_evidence["promises"] = promises
     promised = tuple(p["id"] for p in promises or [])
+    # What this round must answer first goes here, not in the system prompt, which then stays
+    # the same every round after the first and is read from the cache (#376).
+    if blocking:
+        fresh_evidence["answer_first"] = steering.answer_first(
+            blocking, steering.blocking_needed(blocking, test_budget), promised)
     # Checks on each test: the last-attempt salvage (#288) keeps the tests that pass them.
     per_test = lambda data: (adapter.validate_casting_response(data)
                              + steering.follow_up_errors(data, follow_up_ids)
@@ -158,8 +166,7 @@ def get_casting_round(
         model=run_config.model,
         system=(adapter.casting_system_prompt(test_budget, is_first_round)
                 + steering.casting_note(steering.follow_up_cap(test_budget), is_first_round,
-                                        steering.free_cap(test_budget) if idea_ids else None,
-                                        blocking, steering.blocking_needed(blocking, test_budget), promised)
+                                        steering.free_cap(test_budget) if idea_ids else None)
                 + (lean.CASTING_NOTE if run_config.lean else "")),
         tools=[steering.with_follow_up_field(adapter.casting_tool_schema)],
         tool_name="submit_casting_round",
