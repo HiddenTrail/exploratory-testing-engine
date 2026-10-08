@@ -157,6 +157,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | [`discovery_memory.feature`](discovery_memory.feature) | Screens found beyond the map are remembered across runs |
 | [`product_layer.feature`](product_layer.feature) | A product's surfaces, features and facts are read from its wiki |
 | [`oracle_seeder.feature`](oracle_seeder.feature) | A product's oracle is built from its wiki through the FEW HICCUPPS seeds |
+| [`demo_folders.feature`](demo_folders.feature) | The wiki and the heuristic library can be read from another folder |
 | [`oracle_selection.feature`](oracle_selection.feature) | Each adapter chooses its oracle, and either can turn it off |
 | [`oracle_views.feature`](oracle_views.feature) | The ranked oracle and its layers can be viewed in HTML |
 
