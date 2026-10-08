@@ -17,8 +17,8 @@
 #
 # Every target has the label trailhound.sandbox=true. It means the app is a throwaway
 # test target, so exploration that changes data (adding to a cart, submitting
-# forms) is allowed against it. Nothing reads the label yet. It's there so the
-# file says which containers are safe to break.
+# forms) is allowed against it. trailhound/adapters/web_gui/fresh_target.py reads it:
+# it only restarts a container that has it (#372).
 #
 # Versions are pinned so runs stay comparable over time.
 #

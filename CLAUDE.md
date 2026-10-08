@@ -193,33 +193,53 @@ never sees (the report, the runner, file output) is checked for free: re-render
 existing run output with `trailhound.report.render_report_from_dir`, and let the unit
 tests cover the rest.
 
-When a change does need a before/after comparison, keep the runs short. Slightly
-less reliable numbers are better than using up the quota and not testing at all.
+**Whole runs are too noisy to measure a change.** Runs with the same code and
+settings found 0 to 3 known problems and tested 4 to 9 start points (#369), mostly
+because they ran different tests. Two runs per side can't show an effect. So
+measure a change where it acts, with everything before it frozen, and keep a whole
+experiment to $1 to $3 in total:
+
+- **The harness** (steps, signals, what's captured): live checks with no model. Free.
+- **The judging** (hypothesis, Skeptic, debrief: prompts, checks, the evidence
+  they get): re-judge saved runs, the same tests with only the judging again
+  (#370), about $0.10 to $0.15 a checkpoint lean:
+  `python -m trailhound.rejudge runs/<run> --adapter <sut> --times 3 --out runs/<exp>/<arm>`
+- **The steering** (what the Driver casts): one casting round from a saved
+  checkpoint, repeated (#371, not built yet).
+- **The whole version** (known problems per run, #279): whole runs, only at
+  milestones, with enough of them to mean something.
+
+There is no temperature to turn down: our model (Sonnet 5 on Bedrock) refuses one
+(#372). So the design has to cut the noise. Compare lean with lean, count rates
+over many items (per summary, per objection, per round), pooled across runs, and
+give the spread between identical runs next to any difference.
+
+When a whole run is needed, keep it short and lean, on a freshly restarted
+target with a fresh login:
 
 ```
-python -m trailhound.cli --adapter <sut> --out-dir runs/<name>/<sut>_<n> \
+python -m trailhound.adapters.web_gui.fresh_target --container test-targets-juice-shop-1 \
+  --url http://127.0.0.1:3000 --recipe test-targets/login-recipes/juice-shop.json --product juice-shop
+python -m trailhound.cli --adapter <sut> --out-dir runs/<name>/<sut>_<n> --lean \
   --max-checkpoints 3 --first-round-budget 10 --default-budget 6
 ```
 
-Experiments run lean: add `--lean`, and `--with <parts>` when the experiment is
-about the story, the debrief or bug reports (#295). Compare lean runs only with
-lean runs. When a lean run leaves you wanting a part, ask the saved run with
+Add `--with <parts>` when the experiment is about the story, the debrief or bug
+reports (#295). When a lean run leaves you wanting a part, ask the saved run with
 `python -m trailhound.ask` instead of running again.
 
-A run costs about $0.50 at these settings. Checkpoints are the expensive part
-(each is three model calls, about $0.12 to $0.16), and tests are cheap (about
-half a cent each), so raise test budgets before adding checkpoints. A run the
-Skeptic is satisfied with stops early. Runs made before 2026-09-29 used 2
-checkpoints and 6/4 tests, so don't compare against them.
+A lean web run costs about $0.75 to $0.95 at these settings, and a full one about
+$1.90 (#373 is finding out why that grew from $0.50). Checkpoints are the
+expensive part, and tests are cheap, so raise test budgets before adding
+checkpoints. A run the Skeptic is satisfied with stops early.
 
-- Do 2 runs each on `complex_sut` and `token_purchase`, and a third only if the
-  result is close. Start each mock SUT on port 8000 first (see the README), one
-  at a time.
+- On the mock SUTs (`complex_sut`, `token_purchase`), start each on port 8000
+  first (see the README), one at a time.
 - Retries are the biggest cost in a run: each one resends the whole prompt and
   pays for a full new answer. Fix known retry causes before benchmarking, and
   count the retries in the run log (`attempt N produced malformed output`).
 - Run one first and check its cost from `usage_summary` in `output.json`
-  before starting the rest. A run should cost well under $1.
+  before starting the rest. Say so before going over what you said it would cost.
 - Only compare runs made with the same settings and the same model.
 - A change that learns between runs (like #258) is benchmarked as a pair per SUT:
   run A learns, run B starts from what A learned. Point `TRAILHOUND_CONTEXT_DIR`
