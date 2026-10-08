@@ -115,10 +115,13 @@ def get_casting_round(
     idea_ids=frozenset(),
     oracle_progress: dict | None = None,
     blocking: tuple[str, ...] = (),
+    promises: list[dict] | None = None,
 ) -> dict:
     """follow_up_ids: the earlier observation and question ids a test may follow up
     (#305). parked: what the Driver is told about parked claims. idea_ids: the oracle's
-    ideas a test may cite, empty for a run without an oracle (#312)."""
+    ideas a test may cite, empty for a run without an oracle (#312). blocking: the
+    questions this round answers first (#340), promises' included. promises: what the
+    Driver promised in the last debrief (#352)."""
     # Known and unavoidable: the casting system prompt varies with test_budget
     # and is_first_round, and system renders BEFORE the messages, so checkpoint 2
     # can't read checkpoint 1's cache however stable the evidence blocks are.
@@ -138,13 +141,16 @@ def get_casting_round(
         fresh_evidence["parked"] = parked
     if oracle_progress:
         fresh_evidence["oracle_progress"] = oracle_progress
+    if promises:
+        fresh_evidence["promises"] = promises
+    promised = tuple(p["id"] for p in promises or [])
     # Checks on each test: the last-attempt salvage (#288) keeps the tests that pass them.
     per_test = lambda data: (adapter.validate_casting_response(data)
                              + steering.follow_up_errors(data, follow_up_ids)
                              + (steering.oracle_id_errors(data, idea_ids) if idea_ids else [])
-                             + steering.rules_out_errors(data, blocking))
+                             + steering.rules_out_errors(data, blocking, promised))
     # Too few blocking questions answered is sent back once only (#340): never a run's end.
-    shortfall = steering.once(lambda data: steering.blocking_shortfall(data, blocking, test_budget))
+    shortfall = steering.once(lambda data: steering.blocking_shortfall(data, blocking, test_budget, promised))
     validate = lambda data: per_test(data) + shortfall(data)
     return call_tool_with_retry(
         client,
@@ -152,7 +158,7 @@ def get_casting_round(
         system=(adapter.casting_system_prompt(test_budget, is_first_round)
                 + steering.casting_note(steering.follow_up_cap(test_budget), is_first_round,
                                         steering.free_cap(test_budget) if idea_ids else None,
-                                        blocking, steering.blocking_needed(blocking, test_budget))
+                                        blocking, steering.blocking_needed(blocking, test_budget), promised)
                 + (lean.CASTING_NOTE if run_config.lean else "")),
         tools=[steering.with_follow_up_field(adapter.casting_tool_schema)],
         tool_name="submit_casting_round",
@@ -460,8 +466,11 @@ def run_checkpoint_loop(
         is_first_checkpoint = checkpoint_num == 1
         test_budget = run_config.first_round_test_budget if is_first_checkpoint else run_config.default_test_budget
         print(f"Asking Claude for a casting round (checkpoint {checkpoint_num}, budget {test_budget})...")
-        # Questions from the last review that block the verdict come first (#340).
+        # Questions from the last review that block the verdict come first (#340), and so do
+        # the questions the Driver promised a new approach for in the last debrief (#352).
         blocking = () if is_first_checkpoint else steering.blocking_ids(prior_feedback)
+        promises = [] if is_first_checkpoint else steering.promises(prior_feedback, checkpoints[-1].get("debrief"))
+        blocking += tuple(p["id"] for p in promises if p["id"] not in blocking)
         casting = get_casting_round(
             client,
             adapter,
@@ -479,13 +488,15 @@ def run_checkpoint_loop(
             idea_ids=idea_ids,
             oracle_progress=steering.oracle_progress(ranked, casting_log, checkpoints) if ranked else None,
             blocking=blocking,
+            promises=promises,
         )
 
         entries_before = len(casting_log)
         # Most of a round goes to new ground, and parked claims get no more tests (#305).
         to_run, over_limit = steering.limit(casting.get("candidate_tests") or [],
                                             steering.follow_up_cap(test_budget), parked_ids,
-                                            steering.free_cap(test_budget) if idea_ids else None, blocking)
+                                            steering.free_cap(test_budget) if idea_ids else None, blocking,
+                                            steering.blocking_needed(blocking, test_budget))
         dropped_tests = casting.get("dropped_tests", []) + over_limit
         if blocking:
             answered = steering.blocking_answered(to_run, blocking)
@@ -531,6 +542,14 @@ def run_checkpoint_loop(
                 else:
                     tests_run.append(test)
                     print(f"    actual: {result_detail} - prediction {'matched' if result.get('prediction_matched') else 'MISSED'}")
+
+        # A promise is kept when a test following it up ran: not cast and dropped, not skipped.
+        ran = {e.get("follows_up") for e in casting_log[entries_before:] if not e.get("skipped")}
+        for p in promises:
+            p["kept"] = p["id"] in ran
+        if promises:
+            print("  debrief promises: kept " + (", ".join(p["id"] for p in promises if p["kept"]) or "none")
+                  + "; not kept " + (", ".join(p["id"] for p in promises if not p["kept"]) or "none"))
 
         new_entries = _redact(adapter, casting_log[entries_before:])
         if new_entries:
@@ -623,9 +642,13 @@ def run_checkpoint_loop(
             # How much of the round went back over earlier ground (#305): declared, and
             # measured from the actions themselves.
             "follow_ups": sum(1 for t in to_run if t.get("follows_up")),
-            # The questions that blocked the verdict going in, and which this round answered (#340).
+            # The questions this round had to answer first, and which it answered: those that
+            # blocked the verdict (#340) and those promised in the last debrief (#352).
             **({"blocking": {"questions": list(blocking), "needed": steering.blocking_needed(blocking, test_budget),
                              "answered": steering.blocking_answered(to_run, blocking)}} if blocking else {}),
+            # Each promise from the last debrief, with what the Driver said and whether this
+            # round ran a test on it (#352).
+            **({"promises": promises} if promises else {}),
             "repeats": steering.repeats(casting_log, checkpoint_num),
         })
         now_parked = steering.parked_claims(checkpoints)

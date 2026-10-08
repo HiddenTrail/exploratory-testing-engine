@@ -400,6 +400,12 @@ def _steering_line(checkpoint_entry, test_count) -> str:
         return ""
     parts = [f"{checkpoint_entry['follow_ups']} of {test_count} test(s) followed up earlier questions, "
              f"{checkpoint_entry.get('repeats', 0)} repeated an earlier action."]
+    promises = checkpoint_entry.get("promises") or []
+    if promises:
+        kept = [p["id"] for p in promises if p.get("kept")]
+        broken = [p["id"] for p in promises if not p.get("kept")]
+        parts.append("Promised in the last debrief: " + "; ".join(part for part in (
+            f"kept {', '.join(kept)}" if kept else "", f"not kept {', '.join(broken)}" if broken else "") if part) + ".")
     parked = checkpoint_entry.get("parked") or []
     if parked:
         parts.append("Parked, because the tests couldn't settle them: " + ", ".join(

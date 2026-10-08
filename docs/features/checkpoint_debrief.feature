@@ -34,7 +34,7 @@ Feature: Each checkpoint ends with a debrief the Driver has to win with evidence
       | stance          | rule                                                                              |
       | defend          | it argues and cites the tests that show it, at most 8, or the answer is retried   |
       | concede         | it says exactly what it withdraws or lowers                                       |
-      | change_approach | it says what it will test differently next round, and why that gives new evidence |
+      | change_approach | it says what it will test differently next round, and why that gives new evidence; the next round must run it first (debrief_promises.feature) |
 
   Scenario: The Skeptic judges against what the tests recorded
     Given the Driver cites tests 3 and 5
