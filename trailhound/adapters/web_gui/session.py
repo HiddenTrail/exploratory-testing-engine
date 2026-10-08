@@ -76,7 +76,26 @@ _SESSION_CHECK_ENV = "WEB_GUI_SESSION_CHECK"
 START_AS = ("same_tab", "new_tab")
 # What one step of a test does on the live page (#310). A test starts from a route on the
 # site or a screen the map knows, then runs up to MAX_STEPS of these on whatever is there.
-STEP_KINDS = ("click", "fill", "select", "goto", "back")
+STEP_KINDS = ("click", "fill", "select", "press", "goto", "back")
+# The keys a "press" step may press (#350): what a tester needs to send a message, close a
+# dialog, move focus and pick from a list, not shortcuts. In runs/full340/F1 the Driver
+# planned "fill the chat textbox then press Enter" at two checkpoints and couldn't.
+PRESS_KEYS = ("Enter", "Escape", "Tab", "Shift+Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+              "Space", "Backspace")
+# Keys that only move focus or close something, so a careful part allows them anywhere.
+_LOOK_KEYS = ("Escape", "Tab", "Shift+Tab")
+# Where focus really is: inside a component's shadow root, the document only knows the host.
+_DEEP_FOCUS_JS = """() => { let e = document.activeElement;
+  while (e && e.shadowRoot && e.shadowRoot.activeElement) e = e.shadowRoot.activeElement;
+  return e; }"""
+# The names of the buttons that submit an element's form. Enter in a field submits it through
+# them, so a press is checked against them as a click on them would be (review of #350).
+_FORM_BUTTONS_JS = r"""(e) => {
+  const form = e && (e.form || (e.closest && e.closest("form")));
+  if (!form) return [];
+  return [...form.querySelectorAll("button:not([type=button]):not([type=reset]), input[type=submit], input[type=image]")]
+    .map((b) => (b.getAttribute("aria-label") || b.innerText || b.value || b.getAttribute("alt") || "").replace(/\s+/g, " ").trim());
+}"""
 MAX_STEPS = 6
 # How many of the page's controls a result lists, so the Driver can act on what it sees.
 _PAGE_CONTROLS_SHOWN = 40
@@ -798,12 +817,16 @@ def off_site_target(url: str, status: int, location: str | None, site: str) -> s
 
 def _step_label(step: dict) -> str:
     """How a step reads in an action's label: "button:Next page", "textbox:Search = 'x'",
-    "goto /#/basket", "back"."""
+    "press Enter on textbox:Message", "goto /#/basket", "back"."""
     kind = step.get("do", "click")
     if kind == "back":
         return "back"
     if kind == "goto":
         return f"goto {step.get('value', '')}"
+    if kind == "press":
+        on = f"{step.get('role', '')}:{step.get('name', '')}" if step.get("role") else ""
+        on += f" #{step['nth']}" if on and int(step.get("nth") or 1) > 1 else ""
+        return f"press {step.get('value', '')}" + (f" on {on}" if on else "")
     label = f"{step.get('role', '')}:{step.get('name', '')}" + (f" #{step['nth']}" if int(step.get("nth") or 1) > 1 else "")
     return label + (f" = {step['value']!r}" if kind in ("fill", "select") and step.get("value") else "")
 
@@ -814,6 +837,12 @@ def _replay_step(step: dict, done: dict, session) -> dict:
         return {"goto": session.route_url(step.get("value") or "/")}
     if step.get("do") == "back":
         return {"back": True}
+    if step.get("do") == "press":
+        # A key on what had focus replays on that same element, not on whatever has focus then.
+        role, _, name = (done.get("focused") or "").partition(":")
+        on = {"role": role, "name": name} if role and not step.get("role") else {}
+        return {"press": step.get("value", ""), **on,
+                **{k: step[k] for k in ("role", "name", "locator", "nth") if step.get(k)}}
     return {k: step[k] for k in ("role", "name", "value", "locator", "nth") if step.get(k)}
 
 
@@ -1142,6 +1171,8 @@ class Session:
             except Exception as exc:
                 self._note_failure(exc)
                 return False
+        if step.get("press"):                   # a key, on an element or on what has focus (#350)
+            return self._press(step)
         role, name, css = step.get("role", ""), step.get("name", ""), step.get("locator", "")
         self.last_covered_by = ""
         if role in TEXT_ROLES:
@@ -1214,6 +1245,65 @@ class Session:
         path.parent.mkdir(parents=True, exist_ok=True)
         return save_state(self._context, path)
 
+    def _press(self, step: dict) -> bool:
+        """Press one key (#350). On the element the step names, focused first: by its live
+        selector, else by its accessible name (how a Spoor name is found, and how a replayed
+        path finds one with no selector). With no element, on whatever has focus, the way a
+        person goes on typing."""
+        key, role, name = step["press"], step.get("role", ""), step.get("name", "")
+        try:
+            target = "" if step.get("a11y_nth") or not role else self._live_locator(role, name) or step.get("locator", "")
+            if target:
+                self.page.press(target, key, timeout=4000)
+            elif role:
+                nth = step.get("a11y_nth") or int(step.get("nth") or 1)
+                self.page.get_by_role(role, name=name, exact=True).nth(nth - 1).press(key, timeout=4000)
+            else:
+                self.page.keyboard.press(key)
+            return True
+        except Exception as exc:
+            self._note_failure(exc)
+            return False
+
+    def _focused(self) -> dict | None:
+        """The control that has focus, as the capture lists it. {} when the page itself has
+        it (nothing focused), None when something has it that the capture doesn't list (in
+        a shadow root or a frame) or it can't be read: then nobody can tell what a key does."""
+        try:
+            on_page = self.page.evaluate(f"() => {{ const e = ({_DEEP_FOCUS_JS})(); "
+                                         "return !e || e === document.body || e === document.documentElement; }")
+            if on_page:
+                return {}
+            elements = self.page.evaluate(ELEMENTS_JS)
+            i = self.page.evaluate(f"(sels) => {{ const f = ({_DEEP_FOCUS_JS})(); return sels.findIndex((s) => "
+                                   "{ try { return !!s && document.querySelector(s) === f; } catch (e) { return false; } }); }",
+                                   [e.get("locator", "") for e in elements])
+        except Exception:
+            return None
+        return elements[i] if 0 <= i < len(elements) else None
+
+    def _careful_on_page(self, tags: dict) -> str:
+        """The name of a control on the page tagged careful by its name, or ""."""
+        if not tags.get("controls"):
+            return ""
+        try:
+            names = [e.get("name") or "" for e in self.page.evaluate(ELEMENTS_JS)]
+        except Exception:
+            return "something it couldn't read"           # can't tell: as careful as a match
+        return next((n for n in names if n and careful_mod.applies({"controls": tags["controls"]}, "", n)), "")
+
+    def _form_buttons(self, element: dict | None) -> list[str]:
+        """The names of the buttons that submit the form the element (or what has focus) is in."""
+        try:
+            if element and element.get("a11y_nth"):
+                found = self.page.get_by_role(element["role"], name=element["name"], exact=True).nth(element["a11y_nth"] - 1)
+                return found.evaluate(_FORM_BUTTONS_JS) or []
+            if element and element.get("locator"):
+                return self.page.locator(element["locator"]).first.evaluate(_FORM_BUTTONS_JS) or []
+            return self.page.evaluate(f"() => ({_FORM_BUTTONS_JS})(({_DEEP_FOCUS_JS})())") or []
+        except Exception:
+            return []
+
     def _find_live(self, role: str, name: str, nth: int = 1) -> dict | None:
         """The element on the page now with this role and name: an exact name first, then
         the same name in any case, then one whose name contains it if only one does. An
@@ -1264,6 +1354,8 @@ class Session:
         if kind == "back":
             ok = self._actuate({"back": True})
             return self._outcome(record, ok)
+        if kind == "press":
+            return self._press_step(step, record, tags, gated, logs_out)
         if kind == "goto":
             route = step.get("value") or "/"
             url = self.route_url(route)
@@ -1320,6 +1412,66 @@ class Session:
                 ok = False
         else:
             ok = self._actuate(target)
+        return self._outcome(record, ok)
+
+    def _press_step(self, step: dict, record: dict, tags: dict, gated, logs_out) -> dict:
+        """A "press" step (#350), with the same safety as a click. Enter or Space on a log-out
+        control is refused everywhere. On a careful part, Escape and the Tab keys only move
+        focus or close something, so they're allowed; Enter and Space activate, so only on
+        what the read-only gate would click (never in a field, where Enter submits its
+        form); the others only in a box the gate would fill (a search box). Enter in a form
+        submits it through its submit buttons, so it's refused where clicking one of them
+        would be, and Enter in a field is refused while any control on the page is tagged
+        careful by name, since an app can wire Enter to anything. Enter or Space on
+        something that has focus but can't be told apart is refused everywhere. A key that
+        takes the browser off the site is stopped, as a goto is."""
+        key = step.get("value", "")
+        if step.get("role"):
+            element = self._find_live(step["role"], step.get("name", ""), int(step.get("nth") or 1))
+            if element is None:
+                return {**record, "status": "not_found",
+                        "detail": "nothing on the page has that role and name (or not that many); page_controls lists what's there"}
+        else:
+            element = self._focused()
+            if element:
+                record = {**record, "focused": f"{element.get('role', '')}:{element.get('name', '')}"}
+            elif element is None and key in ("Enter", "Space"):
+                return {**record, "status": "refused", "detail": "something has focus that it can't tell apart (in a "
+                        "frame or a component), so it can't check the key won't log out; name the element instead"}
+        name = (element or {}).get("name", "")
+        route = self._page_route()
+        if key in ("Enter", "Space") and careful_mod.logs_out(name):
+            return logs_out
+        if key == "Enter":
+            for button in self._form_buttons(element):
+                if careful_mod.logs_out(button):
+                    return logs_out
+                if careful_mod.applies(tags, route, button):
+                    return gated(f"Enter would submit the form, through '{button}'")
+            # An app can wire Enter in a field to any action with no form at all (Juice Shop's
+            # login does), so in a field or on the page itself it's refused while anything on
+            # the page is tagged careful by name.
+            if not element or element.get("role") in TEXT_ROLES or element.get("role") in ("textbox", "searchbox", "combobox"):
+                tagged = self._careful_on_page(tags)
+                if tagged:
+                    return gated(f"Enter here could set off '{tagged}', which is on this page")
+        if key not in _LOOK_KEYS and careful_mod.applies(tags, route, name):
+            if not element:
+                return gated("it can't tell what has focus, so it can't judge what the key would do")
+            if element.get("a11y_nth"):
+                return gated("it found the element only by its accessible name, so it can't judge what the key would do")
+            gate = gate_plan(element, self._site)
+            allowed = ("click",) if key in ("Enter", "Space") else ("fill",)
+            if gate.kind not in allowed:
+                return gated(gate.reason if gate.kind is None else f"it can only be {gate.kind}ed")
+        target = {"press": key}
+        if element is not None and step.get("role"):
+            target.update(role=element["role"], name=element["name"], locator=element.get("locator", ""),
+                          **({"a11y_nth": element["a11y_nth"]} if element.get("a11y_nth") else {}))
+        blocked_before = len(self.blocked_off_site)
+        ok = self._actuate(target) and len(self.blocked_off_site) == blocked_before
+        if len(self.blocked_off_site) > blocked_before:
+            self.last_failure = "it leads off the site, and the browser was stopped"
         return self._outcome(record, ok)
 
     def _outcome(self, record: dict, ok: bool) -> dict:

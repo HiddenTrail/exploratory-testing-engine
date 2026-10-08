@@ -49,13 +49,15 @@ Feature: A web run tests fully, except where the target is tagged careful
       | clicks "Checkout"                          | refused, "tagged careful, and the read-only safety gate refuses it" |
       | types into a search box                    | done, with the Driver's value                       |
       | types into any other field                 | refused                                             |
+      | presses Escape or Tab                      | done (keys are judged in press_a_key.feature)       |
+      | presses Enter in a field                   | refused                                             |
 
   Scenario: A careful route covers the routes under it
     Given "/#/payment" is tagged careful
     Then a step on "/#/payment" or "#/payment/confirm" is careful, and one on "/#/basket" isn't
 
   Scenario: Logging out is refused everywhere
-    When a step clicks "Logout", "Log out", "Sign out" or "Log off", or goes to a route like "/logout"
+    When a step clicks "Logout", "Log out", "Sign out" or "Log off", presses Enter or Space on one, or goes to a route like "/logout"
     Then it is refused: "it would log out, which ends the session every test starts from"
 
   Scenario: A session nobody set up is careful everywhere

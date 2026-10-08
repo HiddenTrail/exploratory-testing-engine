@@ -15,7 +15,7 @@ divide cleanly:
 - **This adapter** takes that ontology as its **carried reference**: a guide to the
   product's screens, their routes and what's on them, never a limit (#310). A test starts
   from a route on the site or a screen the map knows, and runs up to 6 steps (click, fill,
-  select, goto, back) on whatever is on the page. It tests fully by default: clicks,
+  select, press a key, goto, back) on whatever is on the page. It tests fully by default: clicks,
   types, submits, buys (#299). Safety lives in the engine: the browser never leaves the
   site, logging out is refused, and on parts of a target tagged careful
   (`test-targets/careful/<product>.json`, `WEB_GUI_CAREFUL`) the read-only gate decides
