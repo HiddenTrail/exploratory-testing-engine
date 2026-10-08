@@ -105,6 +105,12 @@ def run(adapter: SUTAdapter, run_config: RunConfig, replay: dict | None = None) 
     if run_config.lean:
         # So a lean run is only ever compared with lean runs (#295).
         output["lean"] = {"with": sorted(run_config.lean_with)}
+    # What the model was given besides the evidence, so a saved run's calls can be rebuilt
+    # exactly: one casting round again (trailhound/recast.py, #371), or the judging (#370).
+    output["settings"] = {"model": run_config.model, "max_checkpoints": run_config.max_checkpoints,
+                          "first_round_test_budget": run_config.first_round_test_budget,
+                          "default_test_budget": run_config.default_test_budget,
+                          "skeptic_history": run_config.skeptic_history}
     if replay:
         output["rejudged_from"] = replay["source"]
     bug_reports = []

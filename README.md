@@ -180,6 +180,7 @@ trailhound/
   lean.py       # lean runs for experiments: the fields and calls a lean run skips (#295)
   ask.py        # python -m trailhound.ask <run>: asks a saved run for a part it didn't write
   rejudge.py    # python -m trailhound.rejudge <run>: the same tests, only the judging again, N times (#370)
+  recast.py     # python -m trailhound.recast <run> --checkpoint K: one casting round again, N times, nothing run (#371)
   adapters/
     registry.py           # name -> adapter module, resolved lazily at run time
     token_purchase/        # first adapter: single request/response, decline-reason logic
@@ -278,7 +279,9 @@ parameters with `--model`, `--max-checkpoints`, `--first-round-budget`,
 `--default-budget`, `--out-dir`. `--lean` makes a cheaper run for experiments,
 and `python -m trailhound.ask` asks a saved run for what it skipped.
 `python -m trailhound.rejudge` judges a saved run's tests again, to measure a
-change to the judging (see [`trailhound/README.md`](trailhound/README.md)).
+change to the judging, and `python -m trailhound.recast` asks a saved casting
+round again, to measure a change to the steering (see
+[`trailhound/README.md`](trailhound/README.md)).
 
 See [`trailhound/README.md`](trailhound/README.md) for adding a new adapter by hand,
 and the CI/testing setup. To drive a web app in a browser, see

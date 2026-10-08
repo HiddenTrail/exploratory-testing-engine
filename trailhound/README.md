@@ -111,6 +111,7 @@ trailhound/
   lean.py       # lean runs for experiments: the fields and calls a lean run skips (#295)
   ask.py        # python -m trailhound.ask <run>: asks a saved run for a part it didn't write
   rejudge.py    # python -m trailhound.rejudge <run>: the same tests, only the judging again, N times (#370)
+  recast.py     # python -m trailhound.recast <run> --checkpoint K: one casting round again, N times, nothing run (#371)
   config.py     # RunConfig: model, checkpoint and test budgets, output folder
   http.py, redact.py, util.py  # small shared helpers
   adapters/
@@ -182,6 +183,23 @@ prints a row per repetition next to the saved run's:
 ```
 python -m trailhound.rejudge runs/<run> --adapter web_gui --times 3 --out runs/<experiment>/<arm>
 ```
+
+To measure a change to the steering (what the Driver casts: blocking questions first,
+promises, the caps, the oracle), ask one saved checkpoint's casting round again (#371).
+The call is rebuilt as the loop built it, the current code answers it N times, the
+loop's limits are applied, and nothing runs. A table counts each round: tests cast and
+run, follow-ups, questions answered first, promises, oracle tests, free tests and start
+points, next to the saved round. One call each, mostly read from the cache after the
+first:
+
+```
+python -m trailhound.recast runs/<run> --adapter web_gui --checkpoint 2 --times 5 --out runs/<experiment>/<arm>
+```
+
+Since #371 a run records its settings in `output.json` (model, budgets, the objections
+history the Driver got), so both tools rebuild its calls exactly. For a run saved
+before, give `--first-round-budget` and `--default-budget`; the model is the default
+unless `--model` says otherwise, and there's no objections history.
 
 ### Authenticating through Bedrock instead of an API key
 
