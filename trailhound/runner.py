@@ -71,20 +71,26 @@ def lean_line(run_config: RunConfig) -> str:
             + (f"; switched back on: {', '.join(kept)}" if kept else "") + ".")
 
 
-def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
+def run(adapter: SUTAdapter, run_config: RunConfig, replay: dict | None = None) -> dict:
+    """replay, if given, re-judges a saved run (#370, built by trailhound/rejudge.py): its
+    rounds, its happy-day example, its test numbers and where it came from. Nothing live
+    happens then: no SUT check, no bug replays, no videos and no bug reports, and the
+    spending limit is the one rejudge started for all its repetitions."""
     validate_adapter(adapter)
-    # Before anything that could spend: a bad limit stops the run here, at no cost.
-    limits = start_run()
-    print(f"Spending limit: about ${limits.max_cost_usd:.2f} or {limits.max_calls} model calls, whichever comes first.")
+    if replay is None:
+        # Before anything that could spend: a bad limit stops the run here, at no cost.
+        limits = start_run()
+        print(f"Spending limit: about ${limits.max_cost_usd:.2f} or {limits.max_calls} model calls, whichever comes first.")
     if run_config.lean:
         print(lean_line(run_config))
     client = build_client()
 
-    (adapter.check_sut_ready or default_check_sut_ready)(adapter)
+    if replay is None:
+        (adapter.check_sut_ready or default_check_sut_ready)(adapter)
 
-    happy_day_example = get_happy_day_example(adapter)
+    happy_day_example = replay["happy_day_example"] if replay else get_happy_day_example(adapter)
     if happy_day_example.get("request") or happy_day_example.get("response"):
-        print("The happy-day example from the live SUT:")
+        print("The happy-day example from the saved run:" if replay else "The happy-day example from the live SUT:")
         print(f"  {_one_line(happy_day_example['request'])} -> {_one_line(happy_day_example['response'])}")
 
     out_dir = run_config.out_dir
@@ -99,8 +105,11 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
     if run_config.lean:
         # So a lean run is only ever compared with lean runs (#295).
         output["lean"] = {"with": sorted(run_config.lean_with)}
+    if replay:
+        output["rejudged_from"] = replay["source"]
     bug_reports = []
-    test_counter = itertools.count(1)
+    # A re-judged run numbers its tests as the saved run did.
+    test_counter = iter(replay["test_numbers"]) if replay else itertools.count(1)
     usage_log: list[dict] = []
     # The same list object, so every write below - including save_progress's
     # partial ones - serializes whatever has accumulated by then. The per-call
@@ -125,7 +134,7 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
     try:
         casting_log, checkpoints, stopped_reason = run_checkpoint_loop(
             client, adapter, run_config, happy_day_example, test_counter,
-            on_checkpoint=save_progress, usage_sink=usage_log,
+            on_checkpoint=save_progress, usage_sink=usage_log, replay=replay["rounds"] if replay else None,
         )
         output["casting_log"] = casting_log
         output["checkpoints"] = checkpoints
@@ -138,7 +147,8 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
         observations = steering.keep_parked(observations, checkpoints, steering.parked_claims(checkpoints))
         # Every bug's tests run again before anything is written up (#177). One that
         # doesn't reproduce is lowered to an anomaly here, so it never gets a bug report.
-        output["replays"], output["replay_log"] = replay_bugs(adapter, observations, casting_log, test_counter)
+        output["replays"], output["replay_log"] = (([], []) if replay else
+                                                   replay_bugs(adapter, observations, casting_log, test_counter))
         for record in output["replays"]:
             print(f"  replayed {record['observation_id']}: {record['verdict']}"
                   + (f" ({record['detail']})" if record.get("detail") else ""))
@@ -151,7 +161,9 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
         # Only bugs get a written report. Findings and anomalies are already complete
         # in output["observations"], so they need no LLM call.
         bugs = [o for o in observations if o["kind"] == "bug"]
-        if bugs and not run_config.wants("bug_reports"):
+        if bugs and replay:
+            print(f"Re-judged: no bug replays or reports for {len(bugs)} bug(s); they'd need the live system.")
+        elif bugs and not run_config.wants("bug_reports"):
             print(f"Lean run: no bug reports written for {len(bugs)} bug(s). Ask for them afterwards with "
                   f"python -m trailhound.ask {out_dir} --adapter {adapter.name} --bug-reports")
         elif bugs:
@@ -197,7 +209,7 @@ def run(adapter: SUTAdapter, run_config: RunConfig) -> dict:
         if score:
             output["score"] = score
             print(f"Known problems found: {len(score['found'])} of {score['known']}")
-    if adapter.save_test_media is not None:
+    if adapter.save_test_media is not None and replay is None:
         keep_test_media(adapter, output, out_dir)
     # How the Driver answered the Skeptic (#257), from whatever checkpoints finished.
     output["interplay"] = interplay.measure(output.get("checkpoints") or [])
