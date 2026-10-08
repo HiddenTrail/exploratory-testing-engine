@@ -20,7 +20,8 @@
 #
 # Code: trailhound/client.py (call_tool_with_retry, unstring_json_fields),
 # trailhound/tools.py (salvage_casting), trailhound/ledger.py (salvage_behaviors),
-# trailhound/loop.py (get_casting_round, get_checkpoint_hypothesis)
+# trailhound/loop.py (get_casting_round, get_checkpoint_hypothesis). A nudge_fn (#341) is a
+# check worth one retry, never a failed call.
 
 Feature: Every model call is a forced tool call, checked and retried with feedback
   As someone paying for runs
@@ -101,6 +102,12 @@ Feature: Every model call is a forced tool call, checked and retried with feedba
       | 2    | 2     | accepted as it is, nothing to salvage |
     # A fault in the round itself, like reasoning that isn't text, fails every test on its
     # own, so nothing is kept. What a salvage returns is validated again before it's used.
+
+  Scenario: A nudge is asked once and never on the last attempt
+    Given a call has a nudge_fn, a check worth one retry but never a failed call (#341)
+    Then its errors are added to the attempt's only the first time it finds any
+    And never on the last attempt, so an answer that's otherwise valid is taken
+    And the hypothesis summary's verdict check is one (hypothesis.feature)
 
   Scenario: A hypothesis's last attempt can lose a behaviour that cites a test with an error
     Given the last hypothesis attempt's only fault is a behaviour citing a test that recorded an error

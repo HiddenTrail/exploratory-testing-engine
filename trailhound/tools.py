@@ -13,6 +13,8 @@ has to follow from the objections it raises. BUG_REPORT_TOOL below was ported fr
 token-purchase-poc's most-evolved version.
 """
 
+import re
+
 from trailhound import ledger
 
 OBSERVATION_KINDS = ("finding", "anomaly", "bug")
@@ -102,7 +104,8 @@ HYPOTHESIS_TOOL = {
         "properties": {
             "summary": {
                 "type": "string",
-                "description": f"One sentence: what you now believe about the system. {_limit('summary')}",
+                "description": ("One sentence: what the tests found and what they covered. Not a verdict on "
+                                f"the product or a whole area. {_limit('summary')}"),
             },
             "behaviors": {
                 "type": "array",
@@ -417,8 +420,10 @@ HYPOTHESIS_SYSTEM_PROMPT = """You are characterizing this system's behavior base
 from this session so far. Keep every field short: each one has a word limit, and test numbers are the
 evidence, not prose.
 
-Say what you now believe in one sentence (summary), list the behavior you confirmed as normal
-(behaviors), and list anything that looks wrong or worth a closer look (observations). If nothing has
+Say in one sentence what the tests found and what they covered (summary), list the behavior you
+confirmed as normal (behaviors), and list anything that looks wrong or worth a closer look
+(observations). The summary is never a verdict on the product or a whole area ("works as expected",
+"behaves normally", "no bugs found"): a checkpoint's tests can't show that, so name what they did show. If nothing has
 turned up, leave observations empty rather than forcing a claim - this implementation may have no
 problems at all. List what's still untested.
 
@@ -475,6 +480,35 @@ def _check_text(errors: list[str], where: str, value, key: str, *, required: boo
         errors.append(f"{where} must not be empty")
     elif is_far_too_long(value, key):
         errors.append(f"{where} is far too long ({len(value.split())} words, limit {WORD_LIMITS[key]})")
+
+
+# A summary that judges the whole product (#341). In 25 of 28 checkpoints where the Skeptic
+# objected to coverage with no claim to point at, the summary read like "Juice Shop behaves
+# largely as expected ... no obvious new bugs found", after 10 to 20 tests. Only these
+# phrases: "Checkout works from a reliable state" names what a test showed, and is fine.
+# Accepted limit: a phrase can also fit a narrow finding ("the total updates as expected"),
+# and an overclaim can be worded around them. That costs one retry or one miss, never a
+# run: the call asks about it once and never on the last try (nudge_fn).
+_PRODUCT_VERDICT = re.compile(
+    r"\bas (?:expected|intended)\b"
+    r"|\b(?:behaves|behaving|behave)\s+(?:\w+\s+)?(?:normally|correctly|fine|properly|sensibly)\b"
+    r"|\b(?:works?|working|functions?)\s+(?:\w+\s+)?(?:normally|correctly|fine|properly|mechanically)\b"
+    r"|\beverything\s+works\b|\ball\s+good\b|\bfine\s+overall\b"
+    r"|\bnothing\s+(?:\w+\s+)?(?:wrong|unexpected|broken)\b"
+    r"|\bno\s+(?:\w+\s+){0,2}(?:bugs?|issues|problems|defects|regressions)\b",
+    re.IGNORECASE)
+
+
+def summary_verdict_errors(data) -> list[str]:
+    """A summary that gives a verdict on the product or a whole area (#341). The hypothesis
+    call asks it as a nudge_fn: once, and never on the last try, so wording never costs
+    more than one retry or stops a run."""
+    summary = data.get("summary") if isinstance(data, dict) else None
+    found = _PRODUCT_VERDICT.search(summary) if isinstance(summary, str) else None
+    if not found:
+        return []
+    return [f"'summary' gives a verdict on the product (\"{found.group(0)}\"): this checkpoint's tests can't show "
+            "that. Say what they found and which areas they covered instead; this is asked once."]
 
 
 def validate_hypothesis_response(data, *, known_observation_ids=(), open_gap_ids=(), lean=False,
