@@ -301,7 +301,7 @@ def test_each_step_has_what_its_kind_needs():
                                                  {"do": "fill", "role": "textbox", "name": "Q"},
                                                  {"do": "goto", "value": "https://elsewhere.example"}))
     assert errors == [
-        "candidate_tests[0].steps[0].do must be one of: click, fill, select, goto, back",
+        "candidate_tests[0].steps[0].do must be one of: click, fill, select, press, goto, back",
         "candidate_tests[0].steps[1] (click) needs a 'role'",
         "candidate_tests[0].steps[2] (fill) needs a 'value'",
         "candidate_tests[0].steps[3] (goto) needs a route on the site as its value, starting with '/' or '#'"]

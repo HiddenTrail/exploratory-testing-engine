@@ -29,7 +29,7 @@ Feature: A web test is a start and a few steps on the live page
 
   Scenario: A test has a start and up to 6 steps
     Then a cast test has "start": a route on the site like "/#/basket", or a screen id like "st02"
-    And "steps": 1 to 6 of "click", "fill", "select" (each with "role" and "name"), "goto" (a route as "value") and "back"
+    And "steps": 1 to 6 of "click", "fill", "select" (each with "role" and "name"), "press" (a key as "value", see press_a_key.feature), "goto" (a route as "value") and "back"
     And "fill" and "select" have the "value" to type or choose, and a step can have "nth" (from 1)
 
   Scenario: The validator checks the shape, never the map

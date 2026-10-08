@@ -54,6 +54,11 @@ id is reached by replaying how it was found. Each step is one of:
   click   an element, by its role and name ("button", "Add to Basket")
   fill    a field, by role and name, with the value you choose
   select  an option in a list, by the list's role and name and the option as value
+  press   a key, as value: Enter, Escape, Tab, Shift+Tab, ArrowUp, ArrowDown, ArrowLeft,
+          ArrowRight, Space or Backspace. With a role and name it goes to that element,
+          focused first (Enter in a chat box sends the message); without, to whatever has
+          focus after the step before (a field you just filled), and the step's result
+          says what that was in "focused"
   goto    a route on the site, as value
   back    the browser's back button
 Name elements the way `carried_map` and a result's `page_controls` list them, "role:name":
@@ -157,7 +162,11 @@ SAFETY_NOTE = """HOW FAR YOU MAY GO. This run tests fully: you may click anythin
 into any field, choose options, submit forms, add to the basket and check out, and change
 settings, on a copy of the product nobody depends on. 'testing_mode' in your evidence says if
 any part of it is tagged careful; there you only look, and a step that would submit, buy,
-delete or type into anything but a search box comes back "refused". Two things are refused
+delete or type into anything but a search box comes back "refused". A key press there is
+judged the same way: Escape, Tab and Shift+Tab are fine, Enter and Space only on what you
+could click and never in a field, the arrow keys and Backspace only in a search box. Enter
+in a form submits it, so it's refused anywhere a click on the form's submit button would be,
+and Enter in a field is refused while a control on the page is tagged careful by name. Two things are refused
 everywhere: logging out, which ends the session every test starts from, and leaving the
 product's site (blocked_off_site). After any test that reaches a new state the run reboots
 to the start."""
@@ -235,8 +244,10 @@ def coverage_of(result: dict) -> dict:
     would put a new field into the history the model reads."""
     tried, inputs = [], []
     for step in result.get("steps") or []:
-        if step.get("status") != "done" or step.get("do") not in ("click", "fill", "select"):
+        if step.get("status") != "done" or step.get("do") not in ("click", "fill", "select", "press"):
             continue
+        if step["do"] == "press" and not step.get("role"):
+            continue                            # on whatever had focus: no control named
         token = ref_mod.control_token(step.get("role", ""), step.get("name", ""))
         if token not in tried:
             tried.append(token)
@@ -523,17 +534,20 @@ CASTING_TOOL = {
                                 "properties": {
                                     "do": {"type": "string", "enum": list(live_session.STEP_KINDS)},
                                     "role": {"type": "string",
-                                             "description": "The element's role, for click, fill and select "
+                                             "description": "The element's role, for click, fill and select, and "
+                                                            "for press when the key goes to a named element "
                                                             "(the part before the first colon in 'role:name')."},
                                     "name": {"type": "string",
-                                             "description": "The element's name, for click, fill and select. "
-                                                            "Empty for an element without one (an image, an icon)."},
+                                             "description": "The element's name, for click, fill and select, and "
+                                                            "press with a role. Empty for an element without one "
+                                                            "(an image, an icon)."},
                                     "nth": {"type": "integer",
                                             "description": "Which one, when several elements on the page have this "
                                                            "role and name (page_controls shows '(x12)'). 1 if left out."},
                                     "value": {"type": "string",
-                                              "description": "What to type (fill), the option (select), or the "
-                                                             "route (goto). Empty otherwise."},
+                                              "description": "What to type (fill), the option (select), the key "
+                                                             f"(press: {', '.join(live_session.PRESS_KEYS)}), or "
+                                                             "the route (goto). Empty otherwise."},
                                 },
                                 "required": ["do"],
                             },
@@ -602,15 +616,19 @@ def _step_errors(where: str, step) -> list[str]:
     if kind not in live_session.STEP_KINDS:
         return [f"{where}.do must be one of: {', '.join(live_session.STEP_KINDS)}"]
     errors = []
-    if kind in ("click", "fill", "select"):
+    if kind in ("click", "fill", "select") or (kind == "press" and (step.get("role") or step.get("name"))):
         if not isinstance(step.get("role"), str) or not step["role"].strip():
-            errors.append(f"{where} ({kind}) needs a 'role'")
+            errors.append(f"{where} ({kind}) needs a 'role'" + (" when it names an element" if kind == "press" else ""))
         if not isinstance(step.get("name", ""), str):
             errors.append(f"{where}.name must be text (empty for an element without a name)")
         if "nth" in step and (not isinstance(step["nth"], int) or isinstance(step["nth"], bool) or step["nth"] < 1):
             errors.append(f"{where}.nth must be a whole number from 1")
     if kind in ("fill", "select", "goto") and not isinstance(step.get("value"), str):
         errors.append(f"{where} ({kind}) needs a 'value'")
+    if kind == "press" and "nth" in step and not (step.get("role") or step.get("name")):
+        errors.append(f"{where} (press) has 'nth' but no element: give it a 'role' and 'name'")
+    if kind == "press" and step.get("value") not in live_session.PRESS_KEYS:
+        errors.append(f"{where} (press) needs a key as its value, one of: {', '.join(live_session.PRESS_KEYS)}")
     if kind == "goto" and not str(step.get("value", "")).startswith(("/", "#")):
         errors.append(f"{where} (goto) needs a route on the site as its value, starting with '/' or '#'")
     return errors
