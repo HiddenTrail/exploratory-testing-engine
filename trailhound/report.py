@@ -363,6 +363,12 @@ def _render_checkpoint(checkpoint_num, checkpoint_entry, rounds, render_test_ent
                        f"{_obstacles_list(hypothesis.get('obstacles'))}")
     if behaviors:
         details.append(f"<p><strong>Confirmed behavior</strong></p><ul>{behaviors}</ul>")
+    # Behaviours the last try still based on a test with an error, left out so the run could go on (#363).
+    dropped_behaviors = "".join(f"<li>{inline_markdown(str((d.get('behavior') or {}).get('claim', '')))}: "
+                                f"{esc(d.get('why', ''))}</li>" for d in hypothesis.get("dropped_behaviors") or [])
+    if dropped_behaviors:
+        details.append("<p><strong>Dropped from behaviour, still wrong at the last try</strong></p>"
+                       f"<ul>{dropped_behaviors}</ul>")
     if observations:
         details.append("<p><strong>Observations in detail</strong></p>"
                        + "".join(_observation_details(o, checks.get(o["id"])) for o in observations))
