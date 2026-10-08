@@ -235,6 +235,8 @@ def get_checkpoint_hypothesis(
             data, known_observation_ids=known_observation_ids, open_gap_ids=open_gap_ids, lean=run_config.lean,
             ideas_to_answer=tuple(ideas_to_answer), errors_to_account=errors_to_account, test_problems=test_problems,
         ),
+        # A behaviour still citing a test with an error at the last try is dropped, not the run (#363).
+        salvage_fn=ledger.salvage_behaviors(test_problems or {}),
         # Room to spare: when the hypothesis carried the testing story (#265), answers ran
         # 2,000 to 2,560 tokens and were cut off at the old 2,560. The limit costs nothing
         # until it's hit.
@@ -596,6 +598,8 @@ def run_checkpoint_loop(
         stamp_observation_ids(checkpoint_num, hypothesis)
         earlier_observations.extend(hypothesis["observations"])
         print(f"  summary: {hypothesis['summary']}")
+        for d in hypothesis.get("dropped_behaviors") or []:
+            print(f"  dropped a behaviour that was still wrong at the last try: {d['why']}")
         for o in hypothesis["observations"]:
             print(f"  {o['id']} {o['kind']}: {o['claim']}")
         if hypothesis["prior_gaps"]:

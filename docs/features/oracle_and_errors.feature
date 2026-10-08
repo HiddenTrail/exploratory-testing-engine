@@ -11,7 +11,8 @@
 # oracle_progress), trailhound/loop.py, trailhound/tools.py (HYPOTHESIS_TOOL "ideas" and
 # "dismissed_errors", validate_hypothesis_response, reconcile_kinds), trailhound/outcome.py
 # ("problems"), trailhound/adapters/web_gui/adapter.py (problems_of), trailhound/report.py,
-# trailhound/run_summary.py. Tests: trailhound/tests/test_oracle_ledger.py
+# trailhound/run_summary.py. Tests: trailhound/tests/test_oracle_ledger.py,
+# trailhound/tests/test_hypothesis_salvage.py (#363)
 
 Feature: The Driver tests from the oracle and answers for every idea and every error
   As someone relying on the engine to find problems
@@ -46,6 +47,9 @@ Feature: The Driver tests from the oracle and answers for every idea and every e
   Scenario: A test with an error isn't normal behaviour
     When a behaviour cites a test that recorded a trusted error
     Then it is sent back: "behaviors[i] cites test N, which recorded ...: a test with an error isn't normal behaviour"
+    But if the last attempt's only fault is such a behaviour, the behaviour is dropped and the run goes on (#363)
+    And the hypothesis keeps it in "dropped_behaviors" with why, "cites test 13, which recorded ...", the log says "dropped a behaviour that was still wrong at the last try: ...", and the report lists it under "Dropped from behaviour, still wrong at the last try"
+    And the error itself still has to be answered, and any other fault still fails the attempt
 
   Scenario: A bug on a reproduced error stays a bug
     Given the Driver calls an observation a "bug", and more than one of its tests recorded the same trusted error

@@ -14,10 +14,13 @@
 #
 # A casting round that is mostly fine shouldn't end a run over one bad test. CI run
 # 37297715890 died after $1.07 because one test of four named a control the map doesn't
-# have, at every attempt (#288). So the last attempt can be salvaged.
+# have, at every attempt (#288). So the last attempt can be salvaged. The same went for the
+# hypothesis: runs/full352/F2 stopped after one checkpoint because a behaviour kept citing a
+# test with an error (#363), so its last attempt can lose those behaviours.
 #
 # Code: trailhound/client.py (call_tool_with_retry, unstring_json_fields),
-# trailhound/tools.py (salvage_casting), trailhound/loop.py (get_casting_round)
+# trailhound/tools.py (salvage_casting), trailhound/ledger.py (salvage_behaviors),
+# trailhound/loop.py (get_casting_round, get_checkpoint_hypothesis)
 
 Feature: Every model call is a forced tool call, checked and retried with feedback
   As someone paying for runs
@@ -98,6 +101,11 @@ Feature: Every model call is a forced tool call, checked and retried with feedba
       | 2    | 2     | accepted as it is, nothing to salvage |
     # A fault in the round itself, like reasoning that isn't text, fails every test on its
     # own, so nothing is kept. What a salvage returns is validated again before it's used.
+
+  Scenario: A hypothesis's last attempt can lose a behaviour that cites a test with an error
+    Given the last hypothesis attempt's only fault is a behaviour citing a test that recorded an error
+    Then that behaviour is dropped into "dropped_behaviors" and the hypothesis is used (oracle_and_errors.feature)
+    But with any other fault left, the engine gives up as before
 
   Scenario Outline: The engine gives up after the attempt budget is spent
     Given every reply <failure>

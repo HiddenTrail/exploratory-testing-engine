@@ -115,6 +115,30 @@ def errors(hypothesis: dict, *, ideas_to_answer=(), errors_to_account=None, test
     return found
 
 
+def salvage_behaviors(test_problems: dict[int, list[str]]):
+    """The hypothesis's salvage_fn for call_tool_with_retry (#363): on the last attempt, a
+    hypothesis whose only fault is a behaviour citing a test with an error loses that
+    behaviour, and the run goes on. In runs/full352/F2 the Driver called the login form's
+    "Invalid email or password." normal three times over, citing tests that recorded the
+    401, and the run stopped after one checkpoint. A behaviour is the least of what a
+    hypothesis says, so dropping it costs little; the error still has to be answered, and
+    the dropped ones are kept in 'dropped_behaviors' with why. What's returned is validated
+    again, so any other fault still fails the attempt."""
+    def salvage(answer):
+        behaviors = answer.get("behaviors") if isinstance(answer, dict) else None
+        if not isinstance(behaviors, list):
+            return None
+        kept, dropped = [], []
+        for b in behaviors:
+            bad = [(n, p) for n in ((b.get("tests") or []) if isinstance(b, dict) else []) for p in test_problems.get(n, [])]
+            if bad:
+                dropped.append({"behavior": b, "why": f"cites test {bad[0][0]}, which recorded \"{bad[0][1]}\""})
+            else:
+                kept.append(b)
+        return {**answer, "behaviors": kept, "dropped_behaviors": dropped} if dropped else None
+    return salvage
+
+
 def rests_on_reproduced_error(observation: dict, test_problems: dict[int, list[str]]) -> bool:
     """Whether an observation rests on a trusted problem that more than one of its tests
     recorded: then it is a bug, whatever caused it (#312)."""
