@@ -205,7 +205,8 @@ experiment to $1 to $3 in total:
   (#370), about $0.10 to $0.15 a checkpoint lean:
   `python -m trailhound.rejudge runs/<run> --adapter <sut> --times 3 --out runs/<exp>/<arm>`
 - **The steering** (what the Driver casts): one casting round from a saved
-  checkpoint, repeated (#371, not built yet).
+  checkpoint, asked again several times with nothing run (#371), one call each:
+  `python -m trailhound.recast runs/<run> --adapter <sut> --checkpoint 2 --times 5 --out runs/<exp>/<arm>`
 - **The whole version** (known problems per run, #279): whole runs, only at
   milestones, with enough of them to mean something.
 

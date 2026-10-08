@@ -33,7 +33,7 @@ Feature: A saved run's tests can be judged again
   Scenario: What it leaves out and how it's written
     Then a lean run is re-judged lean, with the same parts switched on, and "--with" switches more on
     And no SUT check, bug replays, videos or bug reports, which need the live system ("replays" is empty)
-    And a repetition starts with no history of earlier runs' objections, whatever the saved run had
+    And a repetition uses the model and the history of earlier runs' objections the saved run recorded in "settings" (#371); a run saved before has neither, so it gets the default model and no history
     And each repetition is written to <dir>/r<N> as output.json and report.html, with "rejudged_from" naming the saved run
     And all repetitions share one spending limit, TRAILHOUND_MAX_COST_USD, and stop when it's reached
     And at the end a table has one row for the saved run and one per repetition: how it stopped, checkpoints, claims holding up, summaries judging the product, objections and how many blocked, objections by kind, retries and cost

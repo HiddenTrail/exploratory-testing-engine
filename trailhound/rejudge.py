@@ -14,8 +14,9 @@ switched on; --with switches more on. All repetitions share one spending limit
 the report and run_summary read it as they are. At the end it prints one row per
 repetition, next to the saved run's own row.
 
-Accepted limits: a repetition starts with no "objections from earlier runs" history,
-whatever the saved run had, so both arms of an experiment start the same. Bug replays,
+Since #371 a run records its model and the objections history its Driver was given
+(output.json "settings"), and a re-judgement uses them. A run saved before has neither: a
+repetition then uses the default model and starts with no such history. Bug replays,
 videos and bug reports need the live system and are left out. A run saved before #177
 has no cast tests to replay and is refused.
 """
@@ -109,7 +110,8 @@ def main(argv=None) -> None:
     ap.add_argument("--out", type=Path, required=True, help="where to write r1, r2, ...")
     ap.add_argument("--model", default=None)
     ap.add_argument("--first-round-budget", type=int, default=None, dest="first_round_test_budget",
-                    help="the saved run's first-round budget, for the records that use it (the adapter's default if left out)")
+                    help="the saved run's first-round budget, for the records that use it (what the run recorded, "
+                         "or the adapter's default for a run saved before #371)")
     ap.add_argument("--default-budget", type=int, default=None, dest="default_test_budget")
     ap.add_argument("--with", default="", dest="lean_with", metavar="PARTS",
                     help="For a lean run: parts to switch on as well, from: " + ", ".join(LEAN_PARTS))
@@ -128,11 +130,15 @@ def main(argv=None) -> None:
     print(f"Spending limit for all {args.times} repetition(s): about ${limits.max_cost_usd:.2f} "
           f"or {limits.max_calls} model calls.")
     rows = [row("saved", output)]
+    saved = output.get("settings") or {}              # recorded since #371
     for n in range(1, args.times + 1):
         print(f"\n=== Re-judging {args.run_dir} ({n} of {args.times}) ===")
-        run_config = RunConfig.for_adapter(adapter, model=args.model, max_checkpoints=checkpoints_allowed(output),
-                                           first_round_test_budget=args.first_round_test_budget,
-                                           default_test_budget=args.default_test_budget,
+        run_config = RunConfig.for_adapter(adapter, model=args.model or saved.get("model"),
+                                           max_checkpoints=checkpoints_allowed(output),
+                                           skeptic_history=saved.get("skeptic_history"),
+                                           first_round_test_budget=(args.first_round_test_budget
+                                                                    or saved.get("first_round_test_budget")),
+                                           default_test_budget=args.default_test_budget or saved.get("default_test_budget"),
                                            out_dir=args.out / f"r{n}", lean=lean, lean_with=lean_with)
         result = run(adapter, run_config, replay=copy.deepcopy(replay))
         rows.append(row(f"r{n}", result))

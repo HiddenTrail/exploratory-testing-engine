@@ -64,6 +64,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | [`setting_names.feature`](setting_names.feature) | Settings are named TRAILHOUND_, and the old ENGINE_ names still work |
 | [`lean_runs.feature`](lean_runs.feature) | A lean run asks the model only for what decides a finding |
 | [`rejudge.feature`](rejudge.feature) | A saved run's tests can be judged again, to measure a change to the judging |
+| [`recast.feature`](recast.feature) | A saved casting round can be asked again, to measure a change to the steering |
 | [`fresh_target.feature`](fresh_target.feature) | Each run of an experiment starts from a freshly restarted target |
 | [`readiness.feature`](readiness.feature) | The engine checks the SUT is up and fetches one real example before spending anything |
 | [`run_persistence.feature`](run_persistence.feature) | Progress is saved after every checkpoint |
