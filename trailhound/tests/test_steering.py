@@ -123,7 +123,8 @@ def test_three_checkpoints_cap_the_follow_ups_and_then_park_the_claim(monkeypatc
 
     assert "first round: leave 'follows_up' empty" in casting_calls[0]["system"]
     assert "At most 2 of this round's tests may follow up" in casting_calls[1]["system"]
-    assert "First, the questions that block the verdict: C1.G1" in casting_calls[1]["system"]
+    assert json.loads(casting_calls[1]["user_message"])["answer_first"].startswith(
+        "First, the questions that block the verdict: C1.G1")
     # Checkpoint 2: the blocking question's test runs outside the cap, two more follow-ups
     # run, the third is over the limit, the new test runs.
     assert [c["follow_ups"] for c in checkpoints] == [0, 3, 0]

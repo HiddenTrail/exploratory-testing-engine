@@ -26,12 +26,12 @@ def test_a_promise_is_a_change_of_approach_still_open_in_the_review():
 
 
 def test_the_driver_is_told_what_it_promised_comes_first():
-    note = steering.casting_note(2, False, None, ("C2.G1", "C2.G4"), 2, promised=("C2.G4",))
-    assert note.startswith("\n\nFirst, the questions that block the verdict: C2.G1, and what you promised in the "
+    note = steering.answer_first(("C2.G1", "C2.G4"), 2, promised=("C2.G4",))
+    assert note.startswith("First, the questions that block the verdict: C2.G1, and what you promised in the "
                            "debrief: C2.G4 (your words are in 'promises'). At least 2 test(s) must answer them, one "
                            "per question, starting from each question's next_test or your promise")
-    only = steering.casting_note(2, False, None, ("C2.G4",), 1, promised=("C2.G4",))
-    assert only.startswith("\n\nFirst, what you promised in the debrief: C2.G4")
+    only = steering.answer_first(("C2.G4",), 1, promised=("C2.G4",))
+    assert only.startswith("First, what you promised in the debrief: C2.G4")
     [error] = steering.blocking_shortfall({"candidate_tests": []}, ("C2.G4",), 6, promised=("C2.G4",))
     assert error.startswith("1 question(s) from the last review come first (they block the verdict, or you promised "
                             "them in the debrief), and this round answers 0.")
@@ -88,7 +88,8 @@ def test_the_loop_holds_the_next_round_to_the_promise_and_records_it(monkeypatch
                                                                             lean_with=frozenset({"debrief"})),
                                                    {}, itertools.count(1))
     promised = gaps["promised"]
-    assert f"First, what you promised in the debrief: {promised}" in calls[1]["system"]
+    assert json.loads(calls[1]["user_message"])["answer_first"].startswith(
+        f"First, what you promised in the debrief: {promised}")
     assert json.loads(calls[1]["user_message"])["promises"] == [
         {"id": promised, "promise": "next round I'll open the basket in a new tab"}]
     assert checkpoints[1]["promises"] == [{"id": promised, "promise": "next round I'll open the basket in a new tab",
