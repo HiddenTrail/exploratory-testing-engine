@@ -404,6 +404,37 @@ def get_skeptic_review(
     return lean.fill(review, SKEPTIC_TOOL, lean.SKEPTIC_DROPS) if run_config.lean else review
 
 
+def _cast(client, adapter, run_config, happy_day_example, history_segments, prior_feedback, test_budget,
+          is_first_checkpoint, usage_sink, run_diagnostics, earlier_observations, checkpoints, parked, parked_ids,
+          idea_ids, ranked, casting_log, blocking, promises):
+    """A live checkpoint's casting round, the tests to run and the ones the limits drop."""
+    casting = get_casting_round(
+        client,
+        adapter,
+        run_config,
+        happy_day_example,
+        history_segments,
+        prior_feedback,
+        test_budget=test_budget,
+        is_first_round=is_first_checkpoint,
+        usage_sink=usage_sink,
+        run_diagnostics=run_diagnostics,
+        follow_up_ids=frozenset({o["id"] for o in earlier_observations}
+                                | {g["id"] for cp in checkpoints for g in cp["skeptic_review"]["gaps"]}),
+        parked=steering.for_driver(checkpoints, parked),
+        idea_ids=idea_ids,
+        oracle_progress=steering.oracle_progress(ranked, casting_log, checkpoints) if ranked else None,
+        blocking=blocking,
+        promises=promises,
+    )
+    # Most of a round goes to new ground, and parked claims get no more tests (#305).
+    to_run, over_limit = steering.limit(casting.get("candidate_tests") or [],
+                                        steering.follow_up_cap(test_budget), parked_ids,
+                                        steering.free_cap(test_budget) if idea_ids else None, blocking,
+                                        steering.blocking_needed(blocking, test_budget))
+    return casting, to_run, over_limit
+
+
 def run_checkpoint_loop(
     client: Anthropic,
     adapter: SUTAdapter,
@@ -412,8 +443,16 @@ def run_checkpoint_loop(
     test_counter,
     on_checkpoint=None,
     usage_sink: list[dict] | None = None,
+    replay: dict | None = None,
 ):
     """Returns (casting_log, checkpoints, stopped_reason).
+
+    replay, if given, re-judges a saved run (#370): {checkpoint: {"reasoning", "tests",
+    "dropped_tests"}} from trailhound/rejudge.py. Each checkpoint then runs the saved
+    round's tests exactly, with no casting call and no limits applied again, and the
+    adapter hands back the saved results, so only the judging (hypothesis, story,
+    Skeptic, debrief) is done again, by the same code as a live run. A re-judged run that
+    goes on past the saved run's last checkpoint stops as "replay_ended".
 
     After every batch, trailhound/diagnostics.py runs over the whole log so far and its
     findings go three places: printed, into the hypothesis and next casting calls as
@@ -476,32 +515,19 @@ def run_checkpoint_loop(
         blocking = () if is_first_checkpoint else steering.blocking_ids(prior_feedback)
         promises = [] if is_first_checkpoint else steering.promises(prior_feedback, checkpoints[-1].get("debrief"))
         blocking += tuple(p["id"] for p in promises if p["id"] not in blocking)
-        casting = get_casting_round(
-            client,
-            adapter,
-            run_config,
-            happy_day_example,
-            history_segments,
-            prior_feedback,
-            test_budget=test_budget,
-            is_first_round=is_first_checkpoint,
-            usage_sink=usage_sink,
-            run_diagnostics=run_diagnostics,
-            follow_up_ids=frozenset({o["id"] for o in earlier_observations}
-                                    | {g["id"] for cp in checkpoints for g in cp["skeptic_review"]["gaps"]}),
-            parked=steering.for_driver(checkpoints, parked),
-            idea_ids=idea_ids,
-            oracle_progress=steering.oracle_progress(ranked, casting_log, checkpoints) if ranked else None,
-            blocking=blocking,
-            promises=promises,
-        )
-
+        if replay is not None:
+            saved = replay.get(checkpoint_num)
+            if saved is None:
+                stopped_reason = "replay_ended"
+                break
+            casting = {"give_up": False, "reasoning": saved["reasoning"], "candidate_tests": saved["tests"]}
+            to_run, over_limit = list(saved["tests"]), list(saved["dropped_tests"])
+        else:
+            casting, to_run, over_limit = _cast(
+                client, adapter, run_config, happy_day_example, history_segments, prior_feedback, test_budget,
+                is_first_checkpoint, usage_sink, run_diagnostics, earlier_observations, checkpoints, parked,
+                parked_ids, idea_ids, ranked, casting_log, blocking, promises)
         entries_before = len(casting_log)
-        # Most of a round goes to new ground, and parked claims get no more tests (#305).
-        to_run, over_limit = steering.limit(casting.get("candidate_tests") or [],
-                                            steering.follow_up_cap(test_budget), parked_ids,
-                                            steering.free_cap(test_budget) if idea_ids else None, blocking,
-                                            steering.blocking_needed(blocking, test_budget))
         dropped_tests = casting.get("dropped_tests", []) + over_limit
         if blocking:
             answered = steering.blocking_answered(to_run, blocking)

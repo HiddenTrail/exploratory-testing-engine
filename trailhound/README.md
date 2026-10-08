@@ -110,6 +110,7 @@ trailhound/
   cli.py        # python -m trailhound.cli --adapter <name>
   lean.py       # lean runs for experiments: the fields and calls a lean run skips (#295)
   ask.py        # python -m trailhound.ask <run>: asks a saved run for a part it didn't write
+  rejudge.py    # python -m trailhound.rejudge <run>: the same tests, only the judging again, N times (#370)
   config.py     # RunConfig: model, checkpoint and test budgets, output folder
   http.py, redact.py, util.py  # small shared helpers
   adapters/
@@ -169,6 +170,17 @@ run, ask the saved run for it, one call each, written to `<run>/asked/`:
 python -m trailhound.ask runs/<run> --adapter web_gui --story [N]
 python -m trailhound.ask runs/<run> --adapter web_gui --bug-reports
 python -m trailhound.ask runs/<run> --adapter web_gui --question "Why was C3.O1 doubted?"
+```
+
+To measure a change to the judging (the hypothesis, the Skeptic, the debrief), re-judge
+a saved run instead of running again (#370): its tests and results stay as they were,
+and only the judging is done again, by the current code, several times. That leaves
+only the judging's own randomness, at about $0.10 a checkpoint lean. A lean run is
+re-judged lean. Each repetition goes to `<out>/r<N>` in the run's shape, and the end
+prints a row per repetition next to the saved run's:
+
+```
+python -m trailhound.rejudge runs/<run> --adapter web_gui --times 3 --out runs/<experiment>/<arm>
 ```
 
 ### Authenticating through Bedrock instead of an API key
