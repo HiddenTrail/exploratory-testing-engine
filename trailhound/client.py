@@ -98,6 +98,20 @@ def build_client() -> Anthropic | AnthropicBedrockMantle:
     return Anthropic(api_key=api_key)
 
 
+def cache_control() -> dict:
+    """The cache marker: the default 5 minute lifetime, or 1 hour with TRAILHOUND_CACHE_TTL=1h
+    (#393). A cached prompt lives 5 minutes after its last use, and on a slow target the tests
+    between two calls can take longer, so the next call writes the whole prompt again. 1 hour
+    keeps it alive, but a write costs twice the input price against 1.25 times, so it is not
+    the default: on a fast run it only adds cost."""
+    ttl = settings.get("CACHE_TTL").lower()
+    if ttl in ("", "5m"):
+        return {"type": "ephemeral"}
+    if ttl == "1h":
+        return {"type": "ephemeral", "ttl": "1h"}
+    raise SystemExit(f"TRAILHOUND_CACHE_TTL must be 5m or 1h, not {ttl!r}.")
+
+
 def _cache_breakpoint(system: str) -> list[dict]:
     """Marks the end of the system prompt as a cache breakpoint. A marker there
     covers the whole static prefix - tools render before system, so one system
@@ -109,7 +123,7 @@ def _cache_breakpoint(system: str) -> list[dict]:
     either way, it's just not re-billed or re-processed when byte-identical to
     a recent prior call.
     """
-    return [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+    return [{"type": "text", "text": system, "cache_control": cache_control()}]
 
 
 # Anthropic allows 4 cache_control markers per request; _cache_breakpoint spends
@@ -145,7 +159,7 @@ def _cacheable_content(cached_segments: list[str], user_message: str) -> list[di
     for index, segment in enumerate(cached_segments):
         block = {"type": "text", "text": segment}
         if index in marked:
-            block["cache_control"] = {"type": "ephemeral"}
+            block["cache_control"] = cache_control()
         content.append(block)
     content.append({"type": "text", "text": user_message})
     return content

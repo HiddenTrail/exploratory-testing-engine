@@ -1,6 +1,8 @@
 """What the page tells the user, step by step (issue #351). One test uses a real browser
 and is skipped where none is installed; the rest need none."""
 
+import time
+
 import pytest
 
 from trailhound.adapters.web_gui import adapter as adp
@@ -169,3 +171,53 @@ def test_the_page_is_read_in_a_real_browser():
     finally:
         browser.close()
         pw.stop()
+
+
+# ---- where a test's time went (issue #391) -----------------------------------------------------
+
+def test_a_test_says_where_its_time_went_and_where_its_video_starts(monkeypatch):
+    result = _one_step(monkeypatch, [[], []])
+    timing = result["timing"]
+    assert set(timing) == {"reach", "idle_watch", "steps", "settle", "total"}      # no video here
+    assert timing["steps"] == result["click"] and timing["settle"] == result["settle"]
+    assert timing["total"] >= timing["reach"] >= 0 and timing["idle_watch"] == 0     # the state's noise was known
+
+
+def test_a_recorded_test_also_says_where_its_steps_begin_in_the_video(monkeypatch):
+    after = _Obs(elements=[{"role": "button", "name": "A", "locator": "#a"}])
+    after.url = "http://app.example/"
+    sess = _acting_session(monkeypatch, after)
+    monkeypatch.setattr(sess, "_find_live", lambda role, name, nth=1: {"role": role, "name": name, "locator": "#a"})
+    monkeypatch.setattr(sess, "_page_route", lambda: "/")
+    monkeypatch.setattr(sess, "_page_says", lambda: [])
+    sess.careful = {"everywhere": False, "routes": [], "controls": []}
+    sess._video_dir, sess._context_opened = "somewhere", time.time() - 40      # the context opened 40 s ago
+    timing = sess.act_steps("st01", [{"do": "click", "role": "button", "name": "A"}])["timing"]
+    assert 39 < timing["video_start"] < 42 and timing["video_length"] >= timing["video_start"]
+
+
+def test_a_new_state_is_watched_idle_and_the_watch_is_timed_apart(monkeypatch):
+    after = _Obs(elements=[{"role": "button", "name": "A", "locator": "#a"}])
+    after.url = "http://app.example/"
+    sess = _acting_session(monkeypatch, after)
+    sess._noise = {}                                                          # not seen idle yet
+    monkeypatch.setattr(sess, "_idle_noise", lambda: time.sleep(0.05) or {})
+    monkeypatch.setattr(sess, "_find_live", lambda role, name, nth=1: {"role": role, "name": name, "locator": "#a"})
+    monkeypatch.setattr(sess, "_page_route", lambda: "/")
+    monkeypatch.setattr(sess, "_page_says", lambda: [])
+    sess.careful = {"everywhere": False, "routes": [], "controls": []}
+    timing = sess.act_steps("st01", [{"do": "click", "role": "button", "name": "A"}])["timing"]
+    assert timing["idle_watch"] >= 0.1                                        # one decimal: 0.05 s rounds to 0.1 or 0.0
+
+
+def test_the_report_and_the_console_line_show_the_timing():
+    timing = {"reach": 8.2, "idle_watch": 6.3, "steps": 1.2, "settle": 0.5, "total": 16.4, "video_start": 14.6,
+              "video_length": 16.1}
+    html = adp._timing_html({"timing": timing})
+    assert "took <span class=\"num\">16.4s</span> in all" in html and "6.3s watching the state idle" in html
+    assert "steps begin 14.6s into the 16.1s video" in html
+    assert adp._timing_html({}) == "" and "watching" not in adp._timing_html({"timing": {**timing, "idle_watch": 0}})
+    line = adp.describe_result_for_log({"result": {"verdict": "sent", "screen_was": "same_screen", "click": 1.2,
+                                                   "settle": 0.5, "timing": timing, "reached_target_state": True}})
+    assert line.startswith("same_screen (click 1.2s, settled 0.5s), 16.4s in all")
+

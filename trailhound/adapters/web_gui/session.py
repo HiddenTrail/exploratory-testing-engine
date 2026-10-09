@@ -945,6 +945,7 @@ class Session:
         if getattr(self, "_session_storage_js", None) and getattr(self, "_start_as", "same_tab") == "same_tab":
             self._context.add_init_script(self._session_storage_js)
         self.page = self._context.new_page()
+        self._context_opened = time.time()          # where this context's video starts (#391)
         self._guard_page(self.page)
         self.col = Collector().attach(self.page)
         self._inflight: set = set()
@@ -1638,17 +1639,21 @@ class Session:
         # A new tab's page can sit differently while idle (it may fail requests a same-tab
         # page doesn't), so its background is learned on its own.
         noise_key = start if self._start_as == "same_tab" else f"{start}@{self._start_as}"
+        act_started = time.time()
         reached, before, expected, path = self._reach(start)
+        reach_seconds, idle_seconds = time.time() - act_started, 0.0
         # Learn this state's background once per run, but only once the replay is
         # verified to have reached it: a drifted first replay would otherwise attach
         # another page's noise to this state for the rest of the run. The watch moves
         # the page on, so it rests and is read again afterwards.
         if reached and noise_key not in self._noise:
+            idle_started = time.time()
             self._noise[noise_key] = self._idle_noise()
             # The watch moves the page on: PrestaShop's slider turns about 5 s after each
             # load, so a read after the watch no longer matched the state (#146 audit
             # rerun). Reach the state afresh instead, as every later act does.
             reached, before, expected, path = self._reach(start)
+            idle_seconds = time.time() - idle_started
         settled_before = self.last_rest
         storage_before = self._storage()
         before_sig = signature(before)
@@ -1685,6 +1690,7 @@ class Session:
         # The recording that shows this test: the path to the state, then the action.
         # Taken before the recovery reboot opens a context of its own.
         self.last_video = self._video_of_page()
+        video_length = time.time() - getattr(self, "_context_opened", t0)
         screen_was = self._classify(before_sig, after_sig)
         first_sight = after_sig not in self.seen_signatures
         # NONE vs VARIANT: same signature, but did the body text OR the pixels still move?
@@ -1712,6 +1718,14 @@ class Session:
             "verdict": "sent" if sent else "not_actuated",
             # Each step and what came of it: done, not_found, refused or failed (#310).
             "steps": done,
+            # Where a test's time went, in seconds (#391). The video of the test starts when its
+            # browser context opened, so video_start is where the steps begin in it.
+            "timing": {
+                "reach": round(reach_seconds, 1), "idle_watch": round(idle_seconds, 1),
+                "steps": click, "settle": settle,
+                **({"video_start": round(t0 - self._context_opened, 1), "video_length": round(video_length, 1)}
+                   if getattr(self, "_video_dir", None) and getattr(self, "_context_opened", None) else {}),
+            },
         }
         if sent:
             # What's on the page now, so the next round can act on it (#310).
@@ -1797,6 +1811,7 @@ class Session:
             recovered = self.recover()
             result["recovered_to"] = recovered
             result["recovered_ok"] = recovered == self.entry_signature
+        result["timing"]["total"] = round(time.time() - act_started, 1)
         return result
 
     def _replay(self, path: list[dict]) -> bool:

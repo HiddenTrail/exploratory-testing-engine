@@ -40,6 +40,14 @@ Feature: The tests a run rests on can be watched
     Then its casting_log entry has "video": "videos/test_3.webm"
     And its card in the report has a fold "Video of this test" with a video player that loads nothing until it's played
 
+  Scenario: The video opens where the test's steps begin
+    # The video is the test's whole last browser context: the way to the state, then the steps
+    # (#391 records where they begin). Juice Shop run 3's test 1 video is 91 s long.
+    Given the test's "timing" has "video_start" of 14.6
+    Then the player's source ends in "#t=13.6", a second before the steps, which Chromium honours on these files
+    And the fold's summary says "(opens at the steps, 14.6s in)"
+    # With no video_start, or a start of 0, the video opens at its beginning.
+
   Scenario: Videos can be switched off, and only a run records
     Given WEB_GUI_VIDEO is "off"
     Then nothing is recorded and no entry has a "video"
