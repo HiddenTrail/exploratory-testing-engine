@@ -191,6 +191,7 @@ def summarize(output: dict, log_text: str | None = None, bugs: list | None = Non
             f"{p['claim']} ({p['checkpoints_in_a_row']} checkpoints in a row)" for p in parked), ""]
     if output.get("learned"):                    # written by --learn after the run (#328)
         lines += ["**Learned for the next run:**", *(f"- {_cell(line)}" for line in output["learned"]), ""]
+    lines += _time_line(output)
     usage = output.get("usage_summary") or {}
     if usage:
         calls = sum(c.get("calls", 0) for c in usage.values())
@@ -200,6 +201,24 @@ def summarize(output: dict, log_text: str | None = None, bugs: list | None = Non
         lines.append(f"{calls} model call(s){retries}. Estimated cost about ${estimated_cost(usage):.2f} "
                      f"(list prices for a Sonnet-class model; the provider's console has the real bill).")
     return "\n".join(lines) + "\n"
+
+
+def _time_line(output: dict) -> list[str]:
+    """How long the run took, and its slowest test (#391): from the first to the last model
+    call, which leaves out the start-up before the first one. Empty for a run with neither."""
+    from datetime import datetime
+
+    stamps = [u["at"] for u in output.get("usage_log") or [] if u.get("at")]
+    timed = [(e["result"]["timing"]["total"], e["test_number"]) for e in output.get("casting_log") or []
+             if isinstance((e.get("result") or {}).get("timing"), dict) and e["result"]["timing"].get("total") is not None]
+    parts = []
+    if len(stamps) > 1:
+        wall = (datetime.fromisoformat(stamps[-1]) - datetime.fromisoformat(stamps[0])).total_seconds()
+        parts.append(f"{wall / 60:.1f} minutes from the first to the last model call")
+    if timed:
+        slowest = max(timed)
+        parts.append(f"{sum(t for t, _ in timed) / len(timed):.0f} s a test on average, the slowest #{slowest[1]} at {slowest[0]:.0f} s")
+    return ["Time: " + "; ".join(parts) + ".", ""] if parts else []
 
 
 def main() -> None:
