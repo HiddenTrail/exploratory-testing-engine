@@ -26,6 +26,29 @@ Feature: The static prompt and the growing test history are cached
     And no tool schema gets a cache_control marker
     # With cache_static_content off (the default) system and tools are sent as given.
 
+  Scenario Outline: The cache lives 5 minutes unless TRAILHOUND_CACHE_TTL asks for an hour (#393)
+    # A cached prompt lives 5 minutes after its last use. On a slow target the tests between two
+    # calls can take longer, so the next call writes the whole prompt again. An hour keeps it
+    # alive, but its write costs twice the input price against 1.25 times, so on a fast run it
+    # only adds cost. Bedrock accepts it (checked 2026-10-09: the write is reported as
+    # ephemeral_1h_input_tokens and the next call reads it).
+    Given TRAILHOUND_CACHE_TTL is <setting>
+    When the engine marks a cache breakpoint
+    Then the marker is <marker>
+
+    Examples:
+      | setting          | marker                                |
+      | not set          | cache_control {"type": "ephemeral"}   |
+      | "5m"             | cache_control {"type": "ephemeral"}   |
+      | "1h"             | {"type": "ephemeral", "ttl": "1h"}    |
+      | "forever"        | refused: TRAILHOUND_CACHE_TTL must be 5m or 1h |
+
+  Scenario: The run summary says how the cache did
+    Given a run's usage log with a time on each call
+    When its summary is written
+    Then it has a line "Prompt cache: N tokens written, M read."
+    And, when calls came more than 5 minutes after the previous call of their kind and read nothing, the number of them and a hint to try TRAILHOUND_CACHE_TTL=1h
+
   Scenario: Casting and hypothesis calls send static evidence and history as separate blocks
     Given a run on checkpoint 3
     When the engine asks for a casting round or a hypothesis
