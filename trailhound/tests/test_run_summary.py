@@ -61,3 +61,21 @@ def test_the_summary_says_how_long_the_run_took_and_which_test_was_slowest():
         "Time: 30.0 minutes from the first to the last model call; 25 s a test on average, the slowest #2 at 40 s.", ""]
     assert run_summary._time_line({}) == []
 
+
+def test_the_summary_says_how_the_prompt_cache_did_and_which_calls_outlived_it():
+    from trailhound import run_summary
+
+    def use(at, call, write, read):
+        return {"at": at, "call": call, "cache_creation_input_tokens": write, "cache_read_input_tokens": read}
+    output = {"usage_log": [use("2026-10-09T11:00:00+00:00", "submit_casting_round", 27000, 0),
+                            use("2026-10-09T11:00:20+00:00", "submit_casting_round", 0, 27000),
+                            use("2026-10-09T11:29:00+00:00", "submit_checkpoint_hypothesis", 43000, 0),
+                            use("2026-10-09T11:39:00+00:00", "submit_checkpoint_hypothesis", 54000, 0),
+                            use("2026-10-09T11:41:00+00:00", "submit_checkpoint_hypothesis", 0, 68000)]}
+    [line, blank] = run_summary._cache_line(output)
+    assert line.startswith("Prompt cache: 124,000 tokens written, 95,000 read.")
+    assert "1 call(s) came more than 5 minutes after" in line and "TRAILHOUND_CACHE_TTL=1h" in line and blank == ""
+    quick = {"usage_log": output["usage_log"][:2]}
+    assert run_summary._cache_line(quick) == ["Prompt cache: 27,000 tokens written, 27,000 read.", ""]
+    assert run_summary._cache_line({}) == []
+

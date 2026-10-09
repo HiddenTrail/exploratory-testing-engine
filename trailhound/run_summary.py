@@ -192,6 +192,7 @@ def summarize(output: dict, log_text: str | None = None, bugs: list | None = Non
     if output.get("learned"):                    # written by --learn after the run (#328)
         lines += ["**Learned for the next run:**", *(f"- {_cell(line)}" for line in output["learned"]), ""]
     lines += _time_line(output)
+    lines += _cache_line(output)
     usage = output.get("usage_summary") or {}
     if usage:
         calls = sum(c.get("calls", 0) for c in usage.values())
@@ -219,6 +220,31 @@ def _time_line(output: dict) -> list[str]:
         slowest = max(timed)
         parts.append(f"{sum(t for t, _ in timed) / len(timed):.0f} s a test on average, the slowest #{slowest[1]} at {slowest[0]:.0f} s")
     return ["Time: " + "; ".join(parts) + ".", ""] if parts else []
+
+
+def _cache_line(output: dict) -> list[str]:
+    """How the prompt cache did (#393), from the saved usage log: the tokens written and read,
+    and the calls that came more than 5 minutes after the previous call of the same kind, which
+    is how long a cached prompt lives, and so wrote the prompt again. Empty without a usage log."""
+    from datetime import datetime
+
+    log = [u for u in output.get("usage_log") or [] if u.get("at")]
+    if not log:
+        return []
+    written = sum(u.get("cache_creation_input_tokens", 0) for u in log)
+    read = sum(u.get("cache_read_input_tokens", 0) for u in log)
+    last_by_kind, expired = {}, 0
+    for u in log:
+        at = datetime.fromisoformat(u["at"])
+        before = last_by_kind.get(u["call"])
+        if before is not None and (at - before).total_seconds() > 300 and not u.get("cache_read_input_tokens"):
+            expired += 1
+        last_by_kind[u["call"]] = at
+    line = f"Prompt cache: {written:,} tokens written, {read:,} read."
+    if expired:
+        line += (f" {expired} call(s) came more than 5 minutes after the previous one of their kind and wrote their prompt "
+                 "again. On a slow target TRAILHOUND_CACHE_TTL=1h keeps it alive, at twice the write price.")
+    return [line, ""]
 
 
 def main() -> None:
