@@ -58,15 +58,22 @@ _AREA_TEXT = 160
 SURFACE_MATCH_BONUS = 0.5
 
 
+def heuristics_dir() -> Path:
+    """The heuristic library's folder: next to this module, or TRAILHOUND_HEURISTICS_DIR
+    when that's set, so a demo on a new product can carry its own copy and vocabulary (#384)."""
+    folder = settings.get("HEURISTICS_DIR")
+    return Path(folder) if folder else HEURISTICS_DIR
+
+
 def load_vocabulary() -> dict[str, Any]:
-    return json.loads((HEURISTICS_DIR / "vocabulary.json").read_text(encoding="utf-8"))
+    return json.loads((heuristics_dir() / "vocabulary.json").read_text(encoding="utf-8"))
 
 
 def load_heuristics() -> list[dict[str, Any]]:
     """Every heuristic in the library, in file order, each with the source of the
     file it came from. One file per source (HTSM, Hendrickson, WCAG, ...)."""
     heuristics = []
-    for path in sorted(HEURISTICS_DIR.glob("*.json")):
+    for path in sorted(heuristics_dir().glob("*.json")):
         if path.name == "vocabulary.json":
             continue
         data = json.loads(path.read_text(encoding="utf-8"))

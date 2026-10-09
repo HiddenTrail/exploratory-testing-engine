@@ -18,17 +18,24 @@ A fact's global id is `<product>.<page>.<id>`, e.g. `juice-shop.product-list.F1`
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from trailhound import settings
 from trailhound.ontology import areas
+from trailhound.ontology.oracle_creator import load_vocabulary
 
 REPO = Path(__file__).resolve().parents[2]
 WIKI_DIR = REPO / "wiki"
-VOCABULARY = Path(__file__).parent / "heuristics" / "vocabulary.json"
+
+
+def wiki_folder() -> Path:
+    """The wiki's folder: wiki/ in the repo, or TRAILHOUND_WIKI_DIR when that's set, so a
+    demo on a new product keeps its pages apart from the committed wiki (#384)."""
+    folder = settings.get("WIKI_DIR")
+    return Path(folder) if folder else WIKI_DIR
 
 
 def _frontmatter(path: Path) -> dict[str, Any]:
@@ -46,10 +53,10 @@ def _page_slug(path: Path, product: str) -> str:
     return stem[len(product) + 1:] if stem.startswith(product + "-") else stem
 
 
-def load_product(product: str, wiki_dir: Path = WIKI_DIR) -> dict[str, Any] | None:
+def load_product(product: str, wiki_dir: Path | None = None) -> dict[str, Any] | None:
     """The product's surfaces and its entities (features and facts), or None if the
     wiki has no overview for it."""
-    pages = sorted(wiki_dir.rglob("*.md"))
+    pages = sorted((wiki_dir or wiki_folder()).rglob("*.md"))
     overview = next((p for p in pages if _frontmatter(p).get("type") == "Product Overview"
                      and _frontmatter(p).get("product") == product), None)
     if overview is None:
@@ -77,10 +84,10 @@ def load_product(product: str, wiki_dir: Path = WIKI_DIR) -> dict[str, Any] | No
     return {"product": product, "surfaces": list(_frontmatter(overview).get("surfaces", [])), "entities": entities}
 
 
-def product_errors(product: str, wiki_dir: Path = WIKI_DIR) -> list[str]:
+def product_errors(product: str, wiki_dir: Path | None = None) -> list[str]:
     """What's wrong with a product's pages: unknown features or fact kinds, facts
     without text or with a source the page doesn't list, duplicate fact ids."""
-    vocabulary = json.loads(VOCABULARY.read_text(encoding="utf-8"))
+    vocabulary = load_vocabulary()
     features = set(vocabulary["tags"]["feature"]) | set(vocabulary["tags"]["surface"])
     kinds = set(vocabulary["fact_kinds"])
     loaded = load_product(product, wiki_dir)

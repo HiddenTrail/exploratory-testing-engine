@@ -2,6 +2,7 @@
 HICCUPPS seeds, and the oracle built from both. No model calls."""
 
 import json
+import shutil
 
 from trailhound.ontology import feedback, oracle_creator, product, seeder
 
@@ -170,3 +171,36 @@ def test_a_run_focus_gets_up_to_a_third_of_the_drivers_ideas():
     assert all("(this run's focus: security)" in i["rationale"] for i in in_focus)
     assert len({i["category"] for i in focused}) >= 8              # still rounded across the seeds
     assert not any(i.get("focus") for i in plain)
+
+
+def test_the_wiki_and_the_library_can_live_in_other_folders(tmp_path, monkeypatch):
+    # #384: a demo on a new product keeps its pages, heuristics and vocabulary in its own folder.
+    wiki, library = tmp_path / "wiki", tmp_path / "library"
+    wiki.mkdir()
+    shutil.copytree(oracle_creator.HEURISTICS_DIR, library)
+    vocabulary = json.loads((library / "vocabulary.json").read_text(encoding="utf-8"))
+    vocabulary["tags"]["feature"].append("recipe")
+    (library / "vocabulary.json").write_text(json.dumps(vocabulary), encoding="utf-8")
+    (wiki / "overview.md").write_text("---\ntype: Product Overview\nproduct: demo\nsurfaces: [gui]\n---\n",
+                                      encoding="utf-8")
+    (wiki / "demo-recipes.md").write_text(
+        "---\ntype: Entity\nproduct: demo\ntitle: Recipes\nfeatures: [recipe]\n"
+        "sources:\n  - id: doc\n    resource: docs/x.md\n"
+        "facts:\n  - id: F1\n    kind: rule\n    text: A recipe needs a label.\n    source: doc\n---\n",
+        encoding="utf-8")
+    shared = oracle_creator.load_heuristics()
+    assert any("'recipe' isn't in the vocabulary" in e for e in product.product_errors("demo", wiki_dir=wiki))
+    monkeypatch.setenv("TRAILHOUND_WIKI_DIR", str(wiki))
+    monkeypatch.setenv("TRAILHOUND_HEURISTICS_DIR", str(library))
+    assert product.product_errors("demo") == []
+    assert [e["title"] for e in product.load_product("demo")["entities"]] == ["Recipes"]
+    assert "recipe" in oracle_creator.load_vocabulary()["tags"]["feature"]
+    assert len(oracle_creator.load_heuristics()) == len(shared)
+    assert any("A recipe needs a label" in e["claim"] for e in seeder.build_oracle("demo")["expectations"])
+
+
+def test_the_folders_default_to_the_committed_ones(monkeypatch):
+    monkeypatch.delenv("TRAILHOUND_WIKI_DIR", raising=False)
+    monkeypatch.delenv("TRAILHOUND_HEURISTICS_DIR", raising=False)
+    assert product.wiki_folder() == product.WIKI_DIR
+    assert oracle_creator.heuristics_dir() == oracle_creator.HEURISTICS_DIR

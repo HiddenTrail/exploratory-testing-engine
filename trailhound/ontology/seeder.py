@@ -51,7 +51,7 @@ def _owner(seeds: list[dict], heuristic: dict) -> dict | None:
     return None
 
 
-def build_oracle(product: str, wiki_dir: Path = product_layer.WIKI_DIR) -> dict[str, Any]:
+def build_oracle(product: str, wiki_dir: Path | None = None) -> dict[str, Any]:
     """{"product", "seeds", "expectations": [...]}, every expectation with an id, its
     seed, tier, entity, claim, how to check it, its sources and a score."""
     # The screens Spoor's map showed, from the product's context (#311), next to what the
