@@ -112,3 +112,54 @@ def test_the_capture_gives_an_unnamed_control_a_hint_in_a_real_browser():
     finally:
         browser.close()
         pw.stop()
+
+
+def _browser_page(html):
+    sync_api = pytest.importorskip("playwright.sync_api")
+    try:
+        pw = sync_api.sync_playwright().start()
+        browser = pw.chromium.launch()
+    except Exception as exc:
+        pytest.skip(f"no browser installed here ({str(exc).splitlines()[0][:60]})")
+    page = browser.new_page()
+    page.set_content(html)
+    return pw, browser, page
+
+
+def test_a_disabled_control_fails_at_once_with_the_reason_disabled_and_is_never_clicked(monkeypatch):
+    # #389: the ladder took 7 to 9 s on a disabled button, and its forced click came back "done".
+    pw, browser, page = _browser_page("""
+      <button id="off" disabled onclick="document.title='clicked'">Explore results</button>
+      <button id="aria" aria-disabled="true">Export data</button>
+      <fieldset disabled><button id="inside">Save</button></fieldset>
+      <button id="on" aria-disabled="false">Start job</button>""")
+    try:
+        sess = live_session.Session.__new__(live_session.Session)
+        sess.page = page
+        sess.last_failure = ""
+        clicks = []
+        monkeypatch.setattr(page, "click", lambda *a, **k: clicks.append(a))
+        monkeypatch.setattr(live_session, "_DISABLED_LOOK_MS", 1)
+        assert [sess._still_disabled(css) for css in ("#off", "#aria", "#inside", "#on", "#nothing", "")] == [
+            True, True, True, False, False, False]
+        monkeypatch.setattr(sess, "_live_locator", lambda role, name: "#off")
+        assert sess._actuate({"role": "button", "name": "Explore results", "locator": "#off"}) is False
+        assert sess.last_failure == "disabled"
+        assert clicks == [] and page.title() == ""
+    finally:
+        browser.close()
+        pw.stop()
+
+
+def test_a_control_that_is_enabled_a_moment_later_is_still_clicked(monkeypatch):
+    pw, browser, page = _browser_page("""
+      <button id="save" disabled>Save</button>
+      <script>setTimeout(() => document.getElementById('save').disabled = false, 300)</script>""")
+    try:
+        sess = live_session.Session.__new__(live_session.Session)
+        sess.page = page
+        assert sess._still_disabled("#save") is False
+    finally:
+        browser.close()
+        pw.stop()
+

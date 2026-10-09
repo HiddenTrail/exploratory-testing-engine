@@ -427,6 +427,10 @@ window.__trailhoundInvalid = [];
 })();
 """
 _PAGE_SAYS_CHARS = 160
+# A disabled control is given 5 looks, 200 ms apart, to become enabled (#389).
+_DISABLED_LOOKS = 5
+_DISABLED_LOOK_MS = 200
+_DISABLED_JS = "el => el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true'"
 # The browser's own check is an event, not something on the page: each read hands over
 # those that fired since the last one. So it's "shown" on every step that sets it off,
 # even when the step before set off the same one, and never "gone".
@@ -1191,6 +1195,13 @@ class Session:
         # ladder's 4 s + 3 s of timeouts. The live selector, not the saved one, which
         # can be stale (#123) and would point this at the wrong element.
         target = self._live_locator(role, name) or css
+        # A control the page has disabled can't be clicked. Waiting out the ladder below
+        # costs 7 to 9 s, and its forced click raises nothing on a disabled button, so the
+        # step would come back "done" for a press that did nothing, and a documented rule
+        # (Explore results is disabled until a run exists) would read as a dead control (#389).
+        if self._still_disabled(target):
+            self._note_failure(Exception("element is not enabled"))
+            return False
         cover = self._cover(target)
         for _ in range(5):
             if cover.get("state") != "covered":
@@ -1484,6 +1495,23 @@ class Session:
         if ok:
             return {**record, "status": "done"}
         return {**record, "status": "failed", "detail": self.last_failure or "the browser couldn't do it"}
+
+    def _still_disabled(self, css: str) -> bool:
+        """Whether the control is disabled (the disabled attribute, a disabled fieldset, or
+        aria-disabled="true") and stays so for up to a second: an app may enable a button a
+        moment after a field was filled. A selector that matches nothing is not disabled."""
+        if not css:
+            return False
+        for attempt in range(_DISABLED_LOOKS):
+            try:
+                disabled = self.page.eval_on_selector(css, _DISABLED_JS)
+            except Exception:
+                return False
+            if not disabled:
+                return False
+            if attempt < _DISABLED_LOOKS - 1:
+                self.page.wait_for_timeout(_DISABLED_LOOK_MS)
+        return True
 
     def _cover(self, css: str) -> dict:
         if not css:
