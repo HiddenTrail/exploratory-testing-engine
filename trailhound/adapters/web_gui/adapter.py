@@ -410,6 +410,21 @@ def save_test_media(test_numbers, out_dir: Path) -> dict[int, str]:
     return {n: f"videos/{name}" for n, name in session.save_videos(test_numbers, out_dir / "videos").items()}
 
 
+def _timing_html(result) -> str:
+    """Where the test's time went (#391), and where its steps begin in the video."""
+    t = result.get("timing")
+    if not t or t.get("total") is None:
+        return ""
+    parts = [f"{t['reach']}s to reach the start"]
+    if t.get("idle_watch"):
+        parts.append(f"{t['idle_watch']}s watching the state idle")
+    parts.append(f"{t['steps']}s on the steps, {t['settle']}s settling")
+    video = (f" The steps begin {t['video_start']}s into the {t['video_length']}s video." if t.get("video_start") is not None
+             else "")
+    return (f'<div class="test-outcome prose-muted">took <span class="num">{esc(t["total"])}s</span> in all: '
+            f'{esc(", ".join(parts))}.{video}</div>')
+
+
 def _video_html(entry) -> str:
     """The test's video, when it was kept (#286). preload="none", so a report with many
     videos still opens quickly."""
@@ -504,6 +519,8 @@ def describe_result_for_log(result: dict) -> str:
                         if s.get("status") != "done")
         return f"NOT RUN - {why or 'the test never reached its start'}"
     line = f"{detail['screen_was']} (click {detail.get('click', '?')}s, settled {detail['settle']}s)"
+    if (detail.get("timing") or {}).get("total") is not None:
+        line += f", {detail['timing']['total']}s in all"
     if detail.get("covered_by"):
         line += f", clicked through {detail['covered_by']} on top of it"
     if detail.get("blocked_off_site"):
@@ -805,6 +822,7 @@ def render_test_entry(entry) -> str:
       </div>
       <div class="test-outcome prose-muted">click took <span class="num">{esc(result.get('click', '?'))}s</span>, settled in <span class="num">{esc(result.get('settle'))}s</span>{f", clicked through {esc(result['covered_by'])} on top of it" if result.get('covered_by') else ""}</div>
       {f'<div class="test-outcome">{badge("stopped from leaving the site", "warn")} {esc(", ".join(result["blocked_off_site"]))}</div>' if result.get("blocked_off_site") else ""}
+      {_timing_html(result)}
       {_signals_html(result)}
       {_request_log_html(result)}
       {_video_html(entry)}
