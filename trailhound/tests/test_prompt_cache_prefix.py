@@ -130,3 +130,31 @@ def test_the_skeptics_history_reaches_the_drivers_evidence_only_when_there_is_on
     assert json.loads(head.split("\n\n=== T ===")[0])["skeptic_history"] == history
     plain = loop._cacheable_evidence_segments(_ADAPTER, _HAPPY_DAY, "T", ["cp1"])[0]
     assert "skeptic_history" not in plain
+
+
+# ---- the cache lifetime (issue #393) ----------------------------------------------------------
+
+def test_the_cache_lives_5_minutes_unless_a_person_asks_for_an_hour(monkeypatch):
+    from trailhound import client
+
+    monkeypatch.delenv("TRAILHOUND_CACHE_TTL", raising=False)
+    assert client.cache_control() == {"type": "ephemeral"}
+    assert client._cache_breakpoint("system")[0]["cache_control"] == {"type": "ephemeral"}
+    monkeypatch.setenv("TRAILHOUND_CACHE_TTL", "1H")
+    assert client.cache_control() == {"type": "ephemeral", "ttl": "1h"}
+    assert client._cache_breakpoint("system")[0]["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
+    blocks = client._cacheable_content(["a", "b", "c"], "fresh")
+    assert [b.get("cache_control") for b in blocks] == [{"type": "ephemeral", "ttl": "1h"}] * 3 + [None]
+    monkeypatch.setenv("TRAILHOUND_CACHE_TTL", "5m")
+    assert client.cache_control() == {"type": "ephemeral"}
+
+
+def test_a_cache_lifetime_that_is_neither_is_refused_with_a_sentence(monkeypatch):
+    import pytest
+
+    from trailhound import client
+
+    monkeypatch.setenv("TRAILHOUND_CACHE_TTL", "forever")
+    with pytest.raises(SystemExit, match="must be 5m or 1h, not 'forever'"):
+        client.cache_control()
+
