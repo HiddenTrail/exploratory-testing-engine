@@ -109,6 +109,7 @@ The game client (`clash_royale`, `clash-royale-kit`) is out of scope and not cov
 | [`page_says.feature`](page_says.feature) | Each step says what the page told the user |
 | [`press_a_key.feature`](press_a_key.feature) | A test step can press a key |
 | [`web_signal_trust.feature`](web_signal_trust.feature) | Only trustworthy signals count as evidence |
+| [`test_timing.feature`](test_timing.feature) | Each test says where its time went and where its steps begin in its video |
 | [`web_idle_noise.feature`](web_idle_noise.feature) | The engine learns each state's idle noise |
 | [`web_signal_audit.feature`](web_signal_audit.feature) | Signal handling can be audited on a live site |
 
