@@ -93,3 +93,16 @@ def test_the_session_keeps_only_the_videos_asked_for(tmp_path, monkeypatch):
     # The videos nobody asked for go with the scratch folder.
     assert not scratch.exists()
     assert session.save_videos({2}, tmp_path / "again") == {}
+
+
+def test_the_video_opens_a_second_before_the_steps_begin():
+    entry = {"test_number": 3, "cast_test": {}, "linked_hypothesis": "", "predicted_outcome": "x", "predicted_screen": "same_screen",
+             "result": {"verdict": "sent", "reached_target_state": True, "timing": {"video_start": 14.6, "video_length": 31.0}},
+             "video": "videos/test_3.webm"}
+    html = adp.render_test_entry(entry)
+    assert 'src="videos/test_3.webm#t=13.6"' in html and "(opens at the steps, 14.6s in)" in html
+    early = {**entry, "result": {**entry["result"], "timing": {"video_start": 0.4}}}
+    assert 'src="videos/test_3.webm#t=0.0"' in adp.render_test_entry(early)
+    untimed = {**entry, "result": {"verdict": "sent", "reached_target_state": True}}
+    assert 'src="videos/test_3.webm"' in adp.render_test_entry(untimed) and "opens at" not in adp.render_test_entry(untimed)
+
