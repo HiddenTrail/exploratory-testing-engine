@@ -49,6 +49,22 @@ Feature: Controls are pressed by role and name, and a cover is reported
       | another element that goes away within a second           | the click ladder                           | not set                            |
       | a dialog named "cookieconsent" that stays                | a click event dispatched to the control    | "dialog 'cookieconsent'"           |
 
+  Scenario: A disabled control fails at once and is never clicked
+    # The click ladder cost 7 to 9 s on a disabled button, and its forced click raised
+    # nothing, so the step came back done for a press that did nothing (#389). A control
+    # the page disabled read as a dead control.
+    Given a button whose "disabled" attribute is set, or that sits in a disabled fieldset, or whose aria-disabled is "true"
+    When it is actuated
+    Then the session looks at it up to 5 times, 200 ms apart, in case the app enables it a moment later
+    And if it is still disabled the step fails with the detail "disabled"
+    And no click is sent, so the step takes about a second, not 7 to 9
+    # aria-disabled="false" is not disabled.
+
+  Scenario: A control that is enabled a moment later is still clicked
+    Given a button that is disabled when the step starts and enabled 300 ms later
+    When it is actuated
+    Then it is clicked by the click ladder
+
   Scenario: A cover gets up to a second to go away
     Given another element is on top of the control
     When it is actuated
