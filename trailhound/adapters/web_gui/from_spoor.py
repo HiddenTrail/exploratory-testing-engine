@@ -28,6 +28,7 @@ become self-loops are dropped. Pages that only appear after a filled-in scaffold
 import argparse
 import json
 import os
+import sqlite3
 import sys
 from collections import deque
 from pathlib import Path
@@ -42,6 +43,29 @@ from identity import signature  # noqa: E402
 from perceive import capture  # noqa: E402
 
 SCHEMA = "web-recon/1"
+
+
+_SQLITE_HEADER = b"SQLite format 3\x00"
+
+
+def load_saved_map(path: str | Path) -> dict:
+    """Spoor's saved map as {url: {"exploration": {...}}}, from a map JSON file (older
+    Spoor) or from its SQLite database (#385). The database keeps every run, so each url
+    gets its latest one. Opened read-only: this never changes Spoor's cache."""
+    path = Path(path)
+    with path.open("rb") as f:
+        is_database = f.read(len(_SQLITE_HEADER)) == _SQLITE_HEADER
+    if not is_database:
+        return json.loads(path.read_text(encoding="utf-8"))
+    db = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+    try:
+        rows = db.execute("SELECT url, exploration_json FROM runs WHERE exploration_json IS NOT NULL ORDER BY id").fetchall()
+    except sqlite3.DatabaseError as error:
+        raise SystemExit(f"{path} is a SQLite file, but not a Spoor database this converter reads (#385): {error}")
+    finally:
+        db.close()
+    # Later runs come later in the order, so they replace earlier ones for the same url.
+    return {url: {"exploration": json.loads(exploration)} for url, exploration in rows}
 
 
 def _norm(name: str) -> str:
@@ -255,7 +279,7 @@ def live_observer(url: str, headed: bool = False, session_file: str | None = Non
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Turn a Spoor map into web_gui's ontology.json (live replay).")
-    ap.add_argument("--map", required=True, help="Spoor's saved map, e.g. .spoor-cache/maps/127.0.0.1_3000.json")
+    ap.add_argument("--map", required=True, help="Spoor's saved map: .spoor-cache/maps/127.0.0.1_3000.json (older Spoor) or .spoor-cache/spoor.db")
     ap.add_argument("--url", required=True, help="the explored URL, as Spoor keyed it")
     ap.add_argument("--out", required=True)
     ap.add_argument("--headed", action="store_true")
@@ -265,7 +289,7 @@ def main() -> None:
                     help="the product whose careful tags apply (default: WEB_GUI_PRODUCT)")
     args = ap.parse_args()
 
-    saved = json.loads(Path(args.map).read_text(encoding="utf-8"))
+    saved = load_saved_map(args.map)
     entry = saved.get(args.url) or saved.get(args.url.rstrip("/")) or saved.get(args.url.rstrip("/") + "/")
     if not entry or not entry.get("exploration"):
         raise SystemExit(f"no exploration for {args.url} in {args.map} (keys: {', '.join(saved)})")

@@ -2,8 +2,12 @@
 browser: replay paths, merging, dropping unstable pages, name matching, and what it
 follows and keeps (#310). No browser, no LLM."""
 
+import json
+
+import pytest
+
 from trailhound.adapters.web_gui import careful
-from trailhound.adapters.web_gui.from_spoor import convert
+from trailhound.adapters.web_gui.from_spoor import convert, load_saved_map
 from trailhound.adapters.web_gui.reference import Reference
 from perceive import Observation  # web-recon, on the path via trailhound.adapters.web_gui.session
 
@@ -179,3 +183,51 @@ def test_the_summary_prints_on_a_console_that_cannot_encode_icon_characters():
     print_summary(report, "out.json", console)
     console.flush()
     assert "refused: link:All products ?" in raw.getvalue().decode("cp1252")
+
+
+# ---- the saved map in either of Spoor's formats (#385) ----------------------------------------------
+
+def _spoor_database(path, runs):
+    """What current Spoor saves: sites and runs tables, one row per run, the exploration as JSON."""
+    import sqlite3
+
+    db = sqlite3.connect(path)
+    db.execute("CREATE TABLE sites (id INTEGER PRIMARY KEY, domain TEXT NOT NULL UNIQUE)")
+    db.execute("CREATE TABLE runs (id INTEGER PRIMARY KEY, site_id INTEGER NOT NULL, url TEXT NOT NULL, "
+               "captured_at TEXT NOT NULL, records_json TEXT NOT NULL, exploration_json TEXT)")
+    db.execute("INSERT INTO sites VALUES (1, 'localhost:5173')")
+    for url, exploration in runs:
+        db.execute("INSERT INTO runs (site_id, url, captured_at, records_json, exploration_json) VALUES (1, ?, 'x', '[]', ?)",
+                   (url, None if exploration is None else json.dumps(exploration)))
+    db.commit()
+    db.close()
+
+
+def test_a_map_file_and_a_spoor_database_give_the_same_exploration(tmp_path):
+    exploration = {"states": [{"id": "S1", "actions": []}], "transitions": [], "skipped": []}
+    as_file = tmp_path / "map.json"
+    as_file.write_text(json.dumps({"http://localhost:5173": {"exploration": exploration}}), encoding="utf-8")
+    as_database = tmp_path / "spoor.db"
+    _spoor_database(as_database, [("http://localhost:5173", exploration)])
+    assert load_saved_map(as_file) == load_saved_map(as_database) == {"http://localhost:5173": {"exploration": exploration}}
+
+
+def test_the_database_gives_each_url_its_latest_run_and_skips_runs_with_no_exploration(tmp_path):
+    old = {"states": [{"id": "old", "actions": []}], "transitions": [], "skipped": []}
+    new = {"states": [{"id": "new", "actions": []}], "transitions": [], "skipped": []}
+    db = tmp_path / "spoor.db"
+    _spoor_database(db, [("http://a", old), ("http://a", new), ("http://b", None)])
+    saved = load_saved_map(db)
+    assert saved == {"http://a": {"exploration": new}}
+
+
+def test_a_sqlite_file_that_isnt_spoors_is_refused_with_a_sentence(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "other.db"
+    db = sqlite3.connect(path)
+    db.execute("CREATE TABLE things (id INTEGER)")
+    db.commit()
+    db.close()
+    with pytest.raises(SystemExit, match="not a Spoor database"):
+        load_saved_map(path)

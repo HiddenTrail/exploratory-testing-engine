@@ -33,6 +33,22 @@ Feature: A Spoor map is converted into web_gui's site map by replaying it live
     And each written transition has effect "navigate" and a "click" action on the live element's locator
     And the ontology has schema "web-recon/1" and target url "http://127.0.0.1:3000"
 
+  Scenario Outline: Spoor's map can be a map file or Spoor's database (#385)
+    Given Spoor saved its map as <saved as>
+    When I run "python -m trailhound.adapters.web_gui.from_spoor --map <map> --url http://localhost:5173 --out <ontology.json>"
+    Then the explored url's exploration is read from it
+    # The database keeps every run, so the url's latest run counts, and a run with no
+    # exploration is skipped. It is opened read-only and Spoor's modules are never imported.
+
+    Examples:
+      | saved as                                                 | map                                  |
+      | one JSON file per site (older Spoor)                      | .spoor-cache/maps/localhost_5173.json |
+      | a SQLite database of runs (current Spoor)                 | .spoor-cache/spoor.db                |
+
+  Scenario: A SQLite file that is not a Spoor database is refused with a sentence
+    When I run from_spoor with a SQLite file that has no "runs" table
+    Then it stops and says the file is not a Spoor database
+
   Scenario: Every page is replayed twice, and an unstable one is dropped
     # live_observer reboots to a fresh browser context before each replay.
     Given a Spoor state whose path fails to replay, or reaches a different signature the second time
