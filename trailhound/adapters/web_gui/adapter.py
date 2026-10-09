@@ -430,8 +430,13 @@ def _video_html(entry) -> str:
     videos still opens quickly."""
     if not entry.get("video"):
         return ""
-    return (f'<details class="fold"><summary>Video of this test</summary>'
-            f'<video controls preload="none" width="640" src="{esc(entry["video"])}"></video></details>')
+    # The video is the test's whole last browser context, and its steps begin some way in (#392).
+    # A media fragment opens it a second before the steps, and the summary says so.
+    begins = ((entry.get("result") or {}).get("timing") or {}).get("video_start")
+    fragment = f"#t={max(0.0, begins - 1):.1f}" if begins else ""
+    note = f" (opens at the steps, {begins}s in)" if fragment else ""
+    return (f'<details class="fold"><summary>Video of this test{note}</summary>'
+            f'<video controls preload="none" width="640" src="{esc(entry["video"])}{fragment}"></video></details>')
 
 
 def _screen_differences(first: str, second: str) -> list[str]:
