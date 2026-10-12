@@ -140,7 +140,8 @@ into it. **The exceptions are the folders other code depends on:**
   Renaming or moving something in them can break the engine without CI
   noticing. The game-ontology and android-bot tests only run on Windows and CI
   doesn't run them, so run them yourself (see below) before a PR that changes
-  them. Moving these out of the archive is issue #48.
+  them. Moving these out of the archive is issue #48 for the Clash Royale folders
+  and #420 for `web-recon/`.
 - **Read by tests:** `complex-sut-poc/` and `token-purchase-poc/` (by the two
   parity tests). Replacing that with test fixtures is issue #77.
 
