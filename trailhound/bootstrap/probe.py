@@ -22,7 +22,9 @@ up here too, not speculatively now.
 """
 
 import json
+import re
 from dataclasses import dataclass, field
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -107,7 +109,42 @@ just to have something to submit.
 Call submit_probe_request with your answer."""
 
 
-def validate_probe_response(data) -> list[str]:
+def probe_rule(endpoint: DiscoveredEndpoint) -> str:
+    """What the probe may send (#415), in the words the model is told."""
+    return (f"Send GET to any path on this API to read it, and {endpoint.method.upper()} only to "
+            f"{endpoint.path}, the endpoint you're confirming. Nothing else is sent.")
+
+
+def _endpoint_path(template: str) -> re.Pattern:
+    """The endpoint's path with each {parameter} standing for one path segment."""
+    return re.compile("".join("[^/]+" if part.startswith("{") else re.escape(part)
+                              for part in re.split(r"(\{[^}]*\})", template)) + "$")
+
+
+def probe_errors(probe: dict, base_url: str, endpoint: DiscoveredEndpoint) -> list[str]:
+    """Why a proposed probe mustn't be sent (#415), or nothing. Bootstrap probes the real
+    system, and the model chooses the method and path, steered by context text that may
+    come from a ticket. So: GET anywhere on the site, the endpoint's own method only to
+    the endpoint's path, and never a path that takes the request to another host (the URL
+    is base_url + path, so '@evil.example' would make 127.0.0.1:8000 a user name)."""
+    method, path = str(probe.get("method", "")).upper(), probe.get("path")
+    if not isinstance(path, str):
+        return []
+    base = urlsplit(base_url)
+    sent = urlsplit(base_url + path)
+    if not path.startswith("/") or path.startswith("//") or (sent.scheme, sent.netloc) != (base.scheme, base.netloc):
+        return [f"'path' must start with '/' and stay on {base_url}; '{path}' doesn't"]
+    own = endpoint.method.upper()
+    if method not in ("GET", own):
+        return [f"'{method}' isn't allowed here: send {' or '.join(dict.fromkeys(('GET', own)))}. "
+                f"{probe_rule(endpoint)}"]
+    if method != "GET" and not _endpoint_path(endpoint.path).match(sent.path.removeprefix(base.path.rstrip("/"))):
+        return [f"{method} goes only to {endpoint.path}, not '{path}'. {probe_rule(endpoint)}"]
+    return []
+
+
+def validate_probe_response(data, base_url: str | None = None, endpoint: DiscoveredEndpoint | None = None) -> list[str]:
+    """The answer's shape, and with base_url and endpoint, whether it may be sent (#415)."""
     errors = []
     if not isinstance(data, dict):
         return [f"expected an object, got {type(data).__name__}"]
@@ -124,6 +161,8 @@ def validate_probe_response(data) -> list[str]:
         errors.append("'path' must be a string")
     if not isinstance(data.get("body"), dict):
         errors.append("'body' must be an object")
+    if base_url is not None and endpoint is not None and not errors:
+        errors += probe_errors(data, base_url, endpoint)
     return errors
 
 
@@ -249,9 +288,13 @@ def validate_review_response(data) -> list[str]:
 
 def _get_probe(
     client, request_fields, probe_log: list[dict], prior_review: dict | None, model: str, max_attempts: int,
-    api_context: str = "",
+    api_context: str = "", base_url: str = "", endpoint: DiscoveredEndpoint | None = None,
 ) -> dict:
     evidence = {
+        # Which endpoint this is, and what may be sent (#415), so a probe isn't a guess
+        # that the validator sends back.
+        **({"endpoint": {"method": endpoint.method.upper(), "path": endpoint.path},
+            "what_may_be_sent": probe_rule(endpoint)} if endpoint is not None else {}),
         "current_schema_fields": [
             {"name": f.name, "type": f.type, "required": f.required, "enum": f.enum, "description": f.description}
             for f in request_fields
@@ -269,7 +312,7 @@ def _get_probe(
         tools=[PROBE_TOOL],
         tool_name="submit_probe_request",
         user_message=json.dumps(evidence, indent=2),
-        validate_fn=validate_probe_response,
+        validate_fn=lambda data: validate_probe_response(data, base_url or None, endpoint),
         max_tokens=1536,
         max_attempts=max_attempts,
     )
@@ -331,9 +374,13 @@ def run_bootstrap_probe_loop(
     latest_fields = endpoint.request_fields
 
     for _ in range(max_probes):
-        probe = _get_probe(anthropic_client, latest_fields, probe_log, prior_review, model, max_attempts, api_context)
+        probe = _get_probe(anthropic_client, latest_fields, probe_log, prior_review, model, max_attempts, api_context,
+                           base_url, endpoint)
         if probe["give_up"]:
             break
+        refused = probe_errors(probe, base_url, endpoint)
+        if refused:    # the validator sends these back, so this only guards against a change to it
+            raise RuntimeError(f"Refused to send a probe: {refused[0]}")
 
         response = call_sut_once(base_url, probe["path"], probe["body"], method=probe["method"], transport=transport)
         request = {"method": probe["method"], "path": probe["path"], "body": probe["body"]}

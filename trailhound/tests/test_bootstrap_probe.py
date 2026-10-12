@@ -358,3 +358,27 @@ def test_validate_review_response_rejects_bad_field_type_in_updated_fields():
 def test_freetext_and_probe_share_the_same_field_from_dict():
     assert freetext_field_from_dict is field_from_dict
     assert probe_field_from_dict is field_from_dict
+
+
+# --- what may be sent (issue #415) ---
+
+def test_a_probe_that_may_not_be_sent_goes_back_and_never_reaches_the_sut():
+    sent = []
+
+    def handler(request):
+        sent.append((request.method, request.url.host, request.url.path))
+        return httpx.Response(200, json={"ok": True})
+
+    client = _FakeAnthropicClient([
+        _tool_response("p1", _canned_probe(method="DELETE", path="/submit")),
+        _tool_response("p2", _canned_probe(method="POST", path="/submit")),
+        _tool_response("r1", _canned_review(verdict="confident_enough")),
+    ])
+    result = run_bootstrap_probe_loop(client, "http://test", _initial_schema(), max_probes=5,
+                                      transport=httpx.MockTransport(handler))
+    assert result.status == "confirmed" and sent == [("POST", "test", "/submit")]
+    first = _evidence(client.messages.calls, 0)
+    assert first["endpoint"] == {"method": "POST", "path": "/submit"}
+    assert "POST only to /submit" in first["what_may_be_sent"]
+    retry = str(client.messages.calls[1]["messages"])
+    assert "'DELETE' isn't allowed here: send GET or POST" in retry

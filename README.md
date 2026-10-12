@@ -99,6 +99,11 @@ Other flags:
 - `--spec-text <text>` - a schema-inference fallback, read only if Phase 1
   discovery finds nothing at all (i.e. no OpenAPI/Swagger doc).
 - `--max-probes N` - cap on Phase 3 probing rounds (default 8).
+- `--allow-remote` - probe a base URL that isn't on this machine. Probing sends
+  real requests, so without it the CLI only probes `127.0.0.1`, `localhost` or
+  `::1` (#415). Use it only for a throwaway copy. Whatever the host, a probe may
+  GET any path on the site and use the endpoint's own method only on the
+  endpoint's path.
 
 ### Context-enriched bootstrap
 
