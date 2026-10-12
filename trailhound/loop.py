@@ -13,7 +13,7 @@ import json
 from anthropic import Anthropic
 
 from trailhound import coverage, diagnostics, lean, ledger, steering
-from trailhound.adapter import SUTAdapter
+from trailhound.adapter import SUTAdapter, with_result
 from trailhound.client import call_tool_with_retry
 from trailhound.config import RunConfig
 from trailhound.http import default_happy_day_example
@@ -560,7 +560,7 @@ def run_checkpoint_loop(
                 print(f"  test #{test_number} ({label}): {detail}")
 
                 result = adapter.execute_test(test, test_number)
-                casting_log.append({
+                casting_log.append(with_result({
                     "checkpoint": checkpoint_num,
                     "round": 1,
                     "round_reasoning": casting["reasoning"],
@@ -574,8 +574,7 @@ def run_checkpoint_loop(
                        and test["rules_out_if"].strip() else {}),
                     # The test exactly as cast, so trailhound/verify.py can run it again (#177).
                     "cast_test": test,
-                    **result,
-                })
+                }, result))
                 result_detail = adapter.describe_result_for_log(result) if adapter.describe_result_for_log else str(result.get("response", {}).get("body", {}))
                 # A skipped test never ran, so there's no prediction to check. Not
                 # every adapter sets prediction_matched on a skip, so don't read it.

@@ -241,6 +241,9 @@ an unavailable model fails fast with a 404 and costs nothing.
    `check_sut_ready` and `fetch_happy_day_example` for anything else.
    `validate_adapter()` (in `trailhound/adapter.py`) checks all this and raises a
    clear error naming what's missing, before any HTTP/Anthropic calls are made.
+   `execute_test` returns a dict with at least `test_number`; it may not use the
+   names the engine writes beside it (`RESERVED_RESULT_KEYS`, such as `checkpoint`
+   or `cast_test`), or the run stops at the first test that does (#411).
 3. Register it in `trailhound/adapters/registry.py`'s `_ADAPTERS` map.
 4. Do **not** touch `trailhound/tools.py` - the hypothesis/Skeptic schema is
    shared across every adapter by design.

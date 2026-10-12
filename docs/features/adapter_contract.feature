@@ -11,7 +11,14 @@
 # one hook is refused, because the other would fall back to HTTP and fail with a
 # confusing connection error just as the run seemed to have started.
 #
-# Code: trailhound/adapter.py (SUTAdapter, validate_adapter), trailhound/loop.py
+# execute_test's result is stored next to fields the engine writes itself: a test's
+# casting-log entry has its checkpoint and the test as cast, and a bug replay's record
+# says which test and bug it's for. Until #411 a result that used one of those names
+# silently replaced the engine's value, so a "cast_test" in a result would make the bug
+# replays run a different test. No adapter did, but nothing stopped one.
+#
+# Code: trailhound/adapter.py (SUTAdapter, validate_adapter, RESERVED_RESULT_KEYS,
+# with_result), trailhound/loop.py, trailhound/verify.py
 
 Feature: Any system can be tested through one SUTAdapter
   As an engineer adding a new SUT
@@ -77,6 +84,19 @@ Feature: Any system can be tested through one SUTAdapter
       | 6      | 4096   |
       | 8      | 4096   |
       | 10     | 6144   |
+
+  Scenario: A result may not use a field the engine writes (#411)
+    Given an adapter whose execute_test returns "cast_test" in its result
+    When the first test runs
+    Then the run stops with "the adapter's result uses the engine's field(s) 'cast_test': rename them in execute_test"
+    And the reserved names are checkpoint, round, round_reasoning, linked_hypothesis, oracle_claim_id, follows_up, rules_out_if, cast_test, replay_of and for
+    And a bug replay whose result uses one stops the same way
+
+  Scenario: The engine reads a few result keys, and the rest are the adapter's own
+    Given execute_test returns a result
+    Then the engine reads "test_number" (required), "skipped" and "skip_reason" for a test that never ran, and "prediction_matched"
+    And it reads the outcome envelope that outcome.attach adds (see outcome_envelope.feature)
+    And everything else in the result is the adapter's, kept in the casting log as it is
 
   Scenario: The hypothesis, Skeptic and bug report tools are shared and can't be overridden
     # What counts as a claim, a bug and a strong result has to be the same for every SUT.

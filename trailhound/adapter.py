@@ -41,7 +41,10 @@ class SUTAdapter:
     validate_casting_response: Callable[[Any], list[str]] | None = None
     casting_max_tokens: Callable[[int], int] = _DEFAULT_CASTING_MAX_TOKENS
 
-    # Execution.
+    # Execution. execute_test(test, test_number) returns the result as a dict. The engine
+    # reads "test_number" (required), "skipped" and "skip_reason" for a test that never
+    # ran, "prediction_matched", and the envelope outcome.attach adds; the rest is the
+    # adapter's own. It may not use RESERVED_RESULT_KEYS (#411).
     execute_test: Callable[[dict, int], dict] | None = None
 
     # Reaching the SUT at all. Both default to the HTTP behaviour every adapter
@@ -99,6 +102,26 @@ class SUTAdapter:
     default_max_checkpoints: int = 4
     default_first_round_test_budget: int = 12
     default_test_budget: int = 8
+
+
+# The fields the engine writes beside a result: in a test's casting-log entry (the
+# checkpoint, the test as cast, its oracle id...) and in a bug replay's record (#411).
+RESERVED_RESULT_KEYS = frozenset({
+    "checkpoint", "round", "round_reasoning", "linked_hypothesis", "oracle_claim_id",
+    "follows_up", "rules_out_if", "cast_test", "replay_of", "for",
+})
+
+
+def with_result(engine_fields: dict, result: dict) -> dict:
+    """The engine's fields with an adapter's result added (#411). A clash used to be
+    silent, with the result's value winning, so a "cast_test" in a result would make the
+    bug replays run a different test. It's an adapter bug, so it's refused by name, at
+    the first test that has it, rather than settled quietly either way."""
+    clash = sorted(engine_fields.keys() & result.keys())
+    if clash:
+        raise RuntimeError(f"the adapter's result uses the engine's field(s) {', '.join(map(repr, clash))}: "
+                           f"rename them in execute_test (RESERVED_RESULT_KEYS in trailhound/adapter.py)")
+    return {**engine_fields, **result}
 
 
 _REQUIRED_FIELDS = (
