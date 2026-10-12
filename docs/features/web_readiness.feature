@@ -10,7 +10,7 @@
 # What check_ready finds is written into the Driver's onboarding evidence.
 #
 # Code: trailhound/adapters/web_gui/session.py (check_ready, _resolve_ontology_path,
-# Session.baseline), trailhound/adapters/web_gui/adapter.py (fetch_happy_day_example)
+# refuse_unless_local, Session.baseline), trailhound/adapters/web_gui/adapter.py (fetch_happy_day_example)
 
 Feature: The web_gui adapter checks its map and the live app before a run starts
   As someone about to spend money on a web run
@@ -36,6 +36,21 @@ Feature: The web_gui adapter checks its map and the live app before a run starts
     And WEB_GUI_URL is set to "http://localhost:5173"
     When check_ready runs
     Then the browser opens "http://localhost:5173"
+
+  Scenario Outline: A run only starts on this machine, unless a person says the remote site is a throwaway copy (#403)
+    Given the base URL is "<url>"
+    And WEB_GUI_ALLOW_REMOTE is "<allow>"
+    When check_ready starts the browser
+    Then <result>
+
+    Examples:
+      | url                      | allow | result                                                                               |
+      | http://127.0.0.1:3000    |       | the browser starts                                                                   |
+      | http://localhost:3001    |       | the browser starts                                                                   |
+      | http://[::1]:8080        |       | the browser starts                                                                   |
+      | https://shop.example.com |       | the run stops with SystemExit naming WEB_GUI_ALLOW_REMOTE, before any browser starts |
+      | https://shop.example.com | 0     | the run stops with SystemExit naming WEB_GUI_ALLOW_REMOTE, before any browser starts |
+      | https://shop.example.com | 1     | the browser starts                                                                   |
 
   Scenario Outline: WEB_GUI_HEADED decides whether Chromium is visible
     Given WEB_GUI_HEADED is "<value>"

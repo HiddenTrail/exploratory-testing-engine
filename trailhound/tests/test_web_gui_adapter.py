@@ -1172,6 +1172,74 @@ def test_every_page_of_every_fresh_context_is_guarded():
     assert len(context.guarded) == 1, "guarded once"
 
 
+def test_a_run_refuses_a_site_that_isnt_on_this_machine(monkeypatch):
+    # #403: the Driver is told it tests a throwaway copy, so it buys and deletes. Nothing
+    # checked that, and a typo in WEB_GUI_URL pointed a full run at whatever host it named.
+    monkeypatch.delenv("WEB_GUI_ALLOW_REMOTE", raising=False)
+    import pytest
+    with pytest.raises(SystemExit, match="WEB_GUI_ALLOW_REMOTE"):
+        live_session.Session(None, "https://shop.example.com", False)   # refused before a browser starts
+    for url in ("http://127.0.0.1:3000", "http://localhost:3001/", "http://[::1]:8080"):
+        live_session.refuse_unless_local(url)
+    monkeypatch.setenv("WEB_GUI_ALLOW_REMOTE", "0")
+    with pytest.raises(SystemExit):
+        live_session.refuse_unless_local("https://shop.example.com")
+    monkeypatch.setenv("WEB_GUI_ALLOW_REMOTE", "1")
+    live_session.refuse_unless_local("https://shop.example.com")      # a person said it's a throwaway copy
+
+
+class _ClosablePage(_SessionPage):
+    closed = False
+
+    def close(self):
+        self.closed = True
+
+
+class _UnguardableContext(_SessionContext):
+    def __init__(self):
+        super().__init__()
+        self.page = _ClosablePage()
+
+    def new_cdp_session(self, page):
+        raise RuntimeError("CDP is not available")
+
+
+class _UnguardableBrowser(_SessionBrowser):
+    def new_context(self, **options):
+        self.contexts.append(_UnguardableContext())
+        return self.contexts[-1]
+
+
+def test_a_page_the_guard_cant_cover_is_closed_and_the_run_stops():
+    # #403: a failed guard only printed a WARNING, and the run went on able to leave the site.
+    import pytest
+    session = object.__new__(live_session.Session)
+    session.base_url, session._browser, session._context = "http://127.0.0.1:3000", _UnguardableBrowser(), None
+    with pytest.raises(RuntimeError, match="leaving the site"):
+        session._open_fresh_page()
+    assert session._browser.contexts[0].page.closed, "nothing runs on the unguarded page"
+    acted = []
+    session._act = lambda start, steps: acted.append(start) or _result()
+    with pytest.raises(RuntimeError, match="leaving the site"):
+        session.act_steps("/", [])
+    assert acted == [], "no test starts once a page went unguarded"
+
+
+def test_a_test_during_which_the_guard_failed_stops_the_run():
+    # A tab a click opens is guarded from the context's "page" event, where an exception
+    # doesn't reach the test. What it leaves behind still stops the run when the test ends.
+    import pytest
+    session = object.__new__(live_session.Session)
+    session._videos = {}
+
+    def act(start, steps):
+        session.unguarded = "couldn't guard the browser against leaving the site (RuntimeError: gone)"
+        return _result()
+    session._act = act
+    with pytest.raises(RuntimeError, match="leaving the site"):
+        session.act_steps("/", [])
+
+
 def test_a_blocked_trip_off_the_site_shows_in_the_log_and_the_report():
     entry = {"test_number": 4, "request": {"state": "st07", "control": "link:GitHub"}, "predicted_outcome": "p",
              "predicted_screen": "new_screen", "actual_screen": "new_screen", "prediction_matched": True,

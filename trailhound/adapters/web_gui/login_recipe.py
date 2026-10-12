@@ -38,7 +38,7 @@ from urllib.parse import urlsplit
 
 from trailhound.adapters.web_gui.save_session import REPO, capture_session, parse_until, session_path
 
-_LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1")
+LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1")
 _STEP_KINDS = ("request", "goto", "click", "click_if_present", "fill")
 
 
@@ -105,9 +105,9 @@ def fill_in(value, credentials: dict):
 def refuse_unless_local(recipe: dict, base_url: str) -> None:
     """A request step can create data (an account), so it only runs against this machine."""
     host = urlsplit(base_url).hostname or ""
-    if any("request" in step for step in recipe["steps"]) and host not in _LOCAL_HOSTS:
+    if any("request" in step for step in recipe["steps"]) and host not in LOCAL_HOSTS:
         raise SystemExit(f"The login recipe sends requests that can create data, so it only runs against this "
-                         f"machine ({', '.join(_LOCAL_HOSTS)}), not {host!r}.")
+                         f"machine ({', '.join(LOCAL_HOSTS)}), not {host!r}.")
 
 
 def _locator(page, target):
