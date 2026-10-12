@@ -21,6 +21,8 @@ still good first: a replay is only worth something from a session the server acc
 
 from __future__ import annotations
 
+from trailhound.adapter import with_result
+
 NOT_AVAILABLE = "not available"   # the adapter doesn't support replay
 REPRODUCED = "reproduced"
 NOT_REPRODUCED = "not reproduced"
@@ -66,7 +68,7 @@ def replay_bugs(adapter, observations: list[dict], casting_log: list[dict], test
                     record["tests"].append({"test": original["test_number"], "replay": number, "same": None,
                                             "detail": f"the replay failed ({type(e).__name__}: {e})"})
                     continue
-                replay_log.append({"replay_of": original["test_number"], "for": bug["id"], **replayed})
+                replay_log.append(with_result({"replay_of": original["test_number"], "for": bug["id"]}, replayed))
                 same = adapter.compare_replay(original, replayed)
                 record["tests"].append({"test": original["test_number"], "replay": number, **same})
             # A cited test whose original run showed nothing (it never reached its state,
