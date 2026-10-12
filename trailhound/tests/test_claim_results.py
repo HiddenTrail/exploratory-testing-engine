@@ -4,7 +4,7 @@
 import html
 import re
 
-from trailhound.report import _render_checkpoint, claims_line
+from trailhound.report import _render_checkpoint, _render_conclusion_section, claims_line
 from trailhound.run_summary import summarize
 from trailhound.tools import claim_results, final_observations
 
@@ -74,3 +74,18 @@ def test_a_run_that_stopped_before_its_conclusion_says_so():
     text = summarize({"checkpoints": [_checkpoint(1, {"C1.O1": True, "C1.O2": False})], "casting_log": [],
                       "stopped_reason": "error", "error": "boom"})
     assert "**Claims:** the run stopped before its conclusion; by checkpoint C1 1 of 2." in text
+
+
+def test_a_claim_the_driver_stopped_repeating_is_labelled_dropped():
+    # #405: kept in the conclusion, and said why, since the last review never checked it.
+    checkpoints = [_checkpoint(1, {"C1.O1": True, "C1.O2": True}), _checkpoint(2, {"C2.O1": True})]
+    observations = [{**_obs("C2.O1"), "status": "corroborated", "skeptic_note": ""},
+                    {**_obs("C1.O2"), "status": "inconclusive", "skeptic_note": "", "dropped": True}]
+    output = {"checkpoints": checkpoints, "observations": observations, "casting_log": [],
+              "stopped_reason": "error", "error": "boom"}
+    text = summarize(output)
+    assert ("**Claims:** 1 of 2 claim(s) hold up when the run stopped early (the last checkpoint's 1, plus 1 "
+            "the Driver stopped repeating); by checkpoint C1 2 of 2, C2 1 of 1.") in text
+    assert "| C1.O2 | finding | inconclusive | dropped: the Driver stopped repeating it" in text
+    page = html.unescape(_render_conclusion_section(observations))
+    assert "The run's conclusion" in page and page.count(">dropped<") == 1

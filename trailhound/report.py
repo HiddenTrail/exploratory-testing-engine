@@ -709,22 +709,22 @@ def _render_glossary(output) -> str:
 
 
 def _render_conclusion_section(observations) -> str:
-    """Every observation of the final checkpoint with the status the engine gave
-    it. Bugs also get a written report below; findings and anomalies are complete
-    here."""
+    """Every claim the run made with the status the engine gave it: the final
+    checkpoint's, then any earlier one parked or dropped (#405). Bugs also get a
+    written report below; findings and anomalies are complete here."""
     if not observations:
         return ""
     rows = "".join(f"""
         <li>
           <span class="idtag">{esc(o['id'])}</span> {esc(o['kind'])} ({esc(o['severity'])})
           {badge(o['status'], 'good' if o['status'] == 'corroborated' else 'warn')}
-          {_replay_badge(o)}{badge("parked", "warn") + " " if o.get("parked") else ""}{inline_markdown(o['claim'])} {_tests_label(o['tests'])}{_lowered_label(o)}
+          {_replay_badge(o)}{badge("parked", "warn") + " " if o.get("parked") else ""}{badge("dropped", "warn") + " " if o.get("dropped") else ""}{inline_markdown(o['claim'])} {_tests_label(o['tests'])}{_lowered_label(o)}
           <div class="prose-muted">{inline_markdown(o['skeptic_note'])}</div>
         </li>
         """ for o in observations)
     return f"""
     <section id="conclusion">
-      <p class="eyebrow">Final checkpoint conclusion</p>
+      <p class="eyebrow">The run's conclusion</p>
       <h2>Findings, anomalies and bugs</h2>
       <ul>{rows}</ul>
     </section>

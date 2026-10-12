@@ -76,6 +76,13 @@ Feature: A bug's tests are replayed before it is reported
     Then before_replay returns the reason
     And every bug is marked "couldn't replay" with that reason, and no test is replayed
 
+  Scenario: Nothing is replayed after a run stopped early (#405)
+    Given a run that stopped with an error or the spending limit after a checkpoint finished
+    When its conclusion is worked out from the checkpoints that finished
+    Then replay_bugs gets the reason "the run stopped early, so nothing was run again"
+    And every bug is marked "couldn't replay" with that reason and lowered, and no test is replayed
+    But an adapter without compare_replay keeps its bugs, marked "not available", as in any run
+
   Scenario Outline: The report shows each observation's replay verdict as a badge
     Given an observation with replay verdict "<verdict>"
     When the report's conclusion section is rendered
