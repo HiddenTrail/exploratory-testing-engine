@@ -108,10 +108,12 @@ def select_heuristics(heuristics: list[dict[str, Any]], surfaces=None, features=
 
 def load_domain_claims(sut: str) -> list[dict[str, Any]]:
     """Flattens adapters/<sut>/oracle_library.json's {category: {vectors: [...]}}
-    shape into one list of {id, category, claim, rationale} dicts. id is a
-    stable, deterministic slug (category + position within it) - not the
-    claim text itself - so it survives the Driver paraphrasing the claim in
-    its own words when it cites one (see score_grounded_claim)."""
+    shape into one list of {id, category, claim, rationale} dicts. id is the
+    category plus the vector's own "id" from the file, not the claim text, so it
+    survives the Driver paraphrasing the claim when it cites one (see
+    score_grounded_claim). It used to be the vector's position, so adding a claim
+    moved the next run's learned results onto the wrong claims (#409). A new claim
+    takes the next free number in its category."""
     path = ADAPTERS_DIR / sut / "oracle_library.json"
     if not path.exists():
         return []
@@ -120,9 +122,15 @@ def load_domain_claims(sut: str) -> list[dict[str, Any]]:
     for category, body in data.get("modeled", {}).items():
         if not body.get("applies", True):
             continue
-        for index, vector in enumerate(body.get("vectors", []), start=1):
+        seen = set()
+        for vector in body.get("vectors", []):
+            vid = str(vector.get("id") or "").strip()
+            if not vid or vid in seen:
+                raise ValueError(f"{path}: every claim under '{category}' needs its own 'id' "
+                                 f"({'a repeated' if vid else 'a missing'} one: {vector.get('claim', '')[:60]!r})")
+            seen.add(vid)
             claims.append({
-                "id": f"claim:{category}:{index:02d}",
+                "id": f"claim:{category}:{vid}",
                 "category": category,
                 "claim": vector["claim"],
                 "rationale": vector.get("rationale", ""),

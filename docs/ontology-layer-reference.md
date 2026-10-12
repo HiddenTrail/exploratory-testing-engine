@@ -283,7 +283,9 @@ claim starts at a base score (`GROUNDED_BASE_SCORE = 5.0`) and is adjusted:
 | Claim keyword-matches a `jira_entries` title/description | Someone already flagged this as relevant | `+3.0` (stacks with the above) |
 
 Matching a test result to a claim is by stable `claim_id`
-(`claim:<category>:<index>`), not by text similarity — fixed after an
+(`claim:<category>:<id>`, the `id` written next to each claim in
+`oracle_library.json`, so adding a claim doesn't move the others, #409), not by
+text similarity. That was fixed after an
 earlier bug where the Driver's free-text `linked_hypothesis` never matched
 the claim's exact wording (see `docs/ontology-todo.md`, "claim-matching
 gap"). `jira_entries` matching is currently a blunt keyword overlap
