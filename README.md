@@ -344,7 +344,8 @@ hour, and the engine stops itself at $1.50 or 40 model calls.
 Every run, anywhere, has a spending limit (`trailhound/budget.py`): it stops before the
 next model call once it has made `TRAILHOUND_MAX_MODEL_CALLS` calls (default 80) or
 spent about `TRAILHOUND_MAX_COST_USD` (default $3.00). A run it stops keeps its
-output, and the run command exits with code 2.
+output, and the run command exits with code 2. The bootstrap pipeline keeps the same
+limits, and generates nothing when it's stopped (#419).
 
 #### Setting up AWS for the pipeline
 

@@ -6,7 +6,9 @@ model again and again. This is the last line: before every model call, the engin
 checks what the run has spent so far, and raises BudgetExceeded once it has made
 TRAILHOUND_MAX_MODEL_CALLS calls or spent about TRAILHOUND_MAX_COST_USD. The runner
 stops the run there and still writes everything it has (issue #255, for the CI
-pipeline, and on every machine).
+pipeline, and on every machine). Whatever calls the model starts its own guard with
+start_run(): the runner, ask, recast, rejudge and the bootstrap CLI (#419). Otherwise
+it would keep the default limits below and count on from earlier calls.
 
 The cost is an estimate at list prices for a Sonnet-class model, from the token counts
 each response reports. The check runs before a call, so the last call can go over the
