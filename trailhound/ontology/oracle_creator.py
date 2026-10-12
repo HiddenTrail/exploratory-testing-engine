@@ -180,7 +180,11 @@ def _context_delta(idea_id: str, context: dict[str, Any]) -> tuple[float, str]:
         return UNTESTED_BONUS, "untested"
     if result.get("verified") is False:
         return REFUTED_BONUS, "refuted"
-    return CONFIRMED_STALE_PENALTY, "confirmed"
+    if result.get("verified") is True:
+        return CONFIRMED_STALE_PENALTY, "confirmed"
+    # The tests couldn't tell (#407): nothing was learned, so it's as worth testing as an
+    # untested idea, never pushed down as if it had held.
+    return UNTESTED_BONUS, "cannot_tell"
 
 
 # With a run focus, at most this share of the Driver's slots goes to ideas with a focus tag.

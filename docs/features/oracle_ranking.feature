@@ -41,11 +41,12 @@ Feature: Test ideas are ranked by what's already known about them
     And its score is <score>
 
     Examples:
-      | result                                                 | status    | score |
-      | no test result for "claim:data:01"                     | untested  | 6.0   |
-      | a result for "claim:data:02" only                      | untested  | 6.0   |
-      | a result for "claim:data:01" with "verified" false     | refuted   | 9.0   |
-      | a result for "claim:data:01" with "verified" true      | confirmed | 3.0   |
+      | result                                                 | status      | score |
+      | no test result for "claim:data:01"                     | untested    | 6.0   |
+      | a result for "claim:data:02" only                      | untested    | 6.0   |
+      | a result for "claim:data:01" with "verified" false     | refuted     | 9.0   |
+      | a result for "claim:data:01" with "verified" true      | confirmed   | 3.0   |
+      | a result for "claim:data:01" with "verified" null      | cannot_tell | 6.0   |
 
   Scenario: A jira entry that mentions the claim adds 3.0 and "+jira" to the status
     Given an untested claim whose text contains a word longer than 4 letters
