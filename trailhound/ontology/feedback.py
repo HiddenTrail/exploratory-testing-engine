@@ -1,7 +1,9 @@
-"""Closes the loop: reads a Driver run's output.json (casting_log) and writes
-each executed test's oracle_claim_id + prediction_matched into layer 3's
-context_<sut>.json as a test_result, keyed by claim id. Existing entries for
-the same claim are overwritten (latest run wins) rather than duplicated.
+"""Closes the loop: reads a Driver run's output.json and writes the result of each
+oracle idea its tests cited into layer 3's context_<sut>.json as a test_result, keyed
+by claim id. The result is the Driver's own answer for the idea (held, broke or
+cannot_tell, #312), never a test's prediction_matched: that only says the screen came
+out as the Driver guessed (#407). Existing entries for the same claim are overwritten
+(latest run wins) rather than duplicated.
 An id that isn't one of the SUT's ranked ideas is dropped and reported: the
 Driver makes ids up, for example from gap ids, when it has no oracle to cite
 (issue #107).
@@ -21,6 +23,7 @@ import json
 from datetime import date
 from pathlib import Path
 
+from trailhound import ledger
 from trailhound.ontology import areas
 from trailhound.ontology.oracle_creator import build_product_ideas, build_ranked_ideas, context_path, load_context
 from trailhound.tools import OBJECTION_KINDS
@@ -42,27 +45,42 @@ def known_ids(sut: str, product: str | None = None) -> set[str]:
     return {idea["id"] for idea in ideas_for(sut, product)}
 
 
-def extract_results(output: dict, known: set[str]) -> tuple[list[dict], list[str]]:
-    """Only tests the Driver explicitly tied to a ranked oracle idea
-    (oracle_claim_id set) are feedback-worthy - linked_hypothesis alone is
-    free text the Driver writes itself and can't be matched back to an
-    oracle claim reliably (see docs/ontology-todo.md's former "known gap").
-    Returns the results and the cited ids that aren't in `known`, which are
-    left out rather than recorded against a claim that doesn't exist."""
-    results, dropped = [], []
+# What each of the Driver's answers means for the next run: held is confirmed, broke is
+# refuted, and cannot_tell is neither, so it's stored as unknown (None).
+_VERIFIED = {"held": True, "broke": False, "cannot_tell": None}
+
+
+def extract_results(output: dict, known: set[str]) -> tuple[list[dict], list[str], list[str]]:
+    """One result per ranked oracle idea a test that ran cited (oracle_claim_id set),
+    from the Driver's latest answer for it. linked_hypothesis alone is free text the
+    Driver writes itself and can't be matched back to an oracle claim reliably (see
+    docs/ontology-todo.md's former "known gap"). A skipped test never ran, so it doesn't
+    count as citing anything (#231).
+    Returns the results, the cited ids that aren't in `known` (left out rather than
+    recorded against a claim that doesn't exist), and the cited ideas the Driver never
+    answered (left out: nothing says how they came out)."""
+    answers = ledger.idea_answers(output.get("checkpoints") or [])
+    results, dropped, unanswered, seen = [], [], [], set()
     for entry in output.get("casting_log", []):
         claim_id = entry.get("oracle_claim_id")
-        if not claim_id:
+        if not claim_id or entry.get("skipped"):
             continue
         if claim_id not in known:
             dropped.append(claim_id)
             continue
+        if claim_id in seen:
+            continue
+        seen.add(claim_id)
+        if claim_id not in answers:
+            unanswered.append(claim_id)
+            continue
         results.append({
             "claim_id": claim_id,
-            "verified": entry.get("prediction_matched"),
+            "verdict": answers[claim_id],
+            "verified": _VERIFIED[answers[claim_id]],
             "timestamp": date.today().isoformat(),
         })
-    return results, dropped
+    return results, dropped, unanswered
 
 
 def extract_discoveries(output: dict) -> list[dict]:
@@ -170,8 +188,13 @@ def driver_history(context: dict) -> dict | None:
 
 
 def merge_results(context: dict, new_results: list[dict]) -> dict:
+    """The latest run wins, except that a run that couldn't tell learned nothing, so it
+    doesn't erase an earlier held or broke (#407)."""
     by_claim_id = {r["claim_id"]: r for r in context.get("test_results", [])}
     for result in new_results:
+        earlier = by_claim_id.get(result["claim_id"])
+        if result.get("verified") is None and earlier is not None and earlier.get("verified") is not None:
+            continue
         by_claim_id[result["claim_id"]] = result
     context["test_results"] = list(by_claim_id.values())
     return context
@@ -188,7 +211,7 @@ def learn(sut: str, run_path: Path, product: str | None = None) -> list[str]:
     output = json.loads(Path(run_path).read_text(encoding="utf-8"))
     ideas = ideas_for(sut, product)
     known = {idea["id"] for idea in ideas}
-    new_results, dropped = extract_results(output, known)
+    new_results, dropped, unanswered = extract_results(output, known)
     run = output.get("run_id") or Path(run_path).parent.name
 
     key = product or sut
@@ -226,6 +249,9 @@ def learn(sut: str, run_path: Path, product: str | None = None) -> list[str]:
             kinds[o["kind"]] = kinds.get(o["kind"], 0) + 1
         lines.append("The Skeptic's objections this run: " + ", ".join(
             f"{k} {n}" for k, n in sorted(kinds.items(), key=lambda kv: -kv[1])))
+    if unanswered:
+        lines.append(f"Learned nothing about {len(unanswered)} idea(s) the tests cited but the Driver never "
+                     f"answered: {', '.join(unanswered)}")
     if dropped:
         lines.append(f"Dropped {len(dropped)} made-up id(s) that aren't ranked ideas for {sut}: "
                      f"{', '.join(sorted(set(dropped)))}")

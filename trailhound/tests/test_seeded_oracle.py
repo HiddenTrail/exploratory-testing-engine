@@ -135,8 +135,10 @@ def test_feedback_knows_a_products_expectation_ids():
     assert "oracle:self_consistency:juice-shop.product-list.F2" in known
     output = {"casting_log": [{"oracle_claim_id": "oracle:self_consistency:juice-shop.product-list.F2",
                                "prediction_matched": True},
-                              {"oracle_claim_id": "heuristic:made_up", "prediction_matched": True}]}
-    results, dropped = feedback.extract_results(output, known)
+                              {"oracle_claim_id": "heuristic:made_up", "prediction_matched": True}],
+              "checkpoints": [{"hypothesis": {"ideas": [
+                  {"id": "oracle:self_consistency:juice-shop.product-list.F2", "verdict": "held", "tests": [1]}]}}]}
+    results, dropped, _ = feedback.extract_results(output, known)
     assert [r["claim_id"] for r in results] == ["oracle:self_consistency:juice-shop.product-list.F2"]
     assert dropped == ["heuristic:made_up"]
 

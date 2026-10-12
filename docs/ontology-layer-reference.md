@@ -208,7 +208,8 @@ tomorrow, in contrast to layer 2's sprint/quarter-stable facts and layer
 1's never-changing generic vocabulary.
 
 Implemented today as four arrays: `test_results` (outcomes fed back by
-`trailhound/ontology/feedback.py` after a Driver run), `discoveries` (screens a
+`trailhound/ontology/feedback.py` after a Driver run: the Driver's answer for each
+idea a test cited, `held`, `broke` or `cannot_tell`, #407), `discoveries` (screens a
 web_gui run reached that its map doesn't have, with the path that reached
 them, their safety-gated controls, and how often and in which runs they were
 reached: "seen once" until reached again, then "reproduced"; #157),
@@ -280,6 +281,7 @@ claim starts at a base score (`GROUNDED_BASE_SCORE = 5.0`) and is adjusted:
 | No matching test result found | Untested — mild priority bump, worth trying | `+1.0` |
 | Matching result, `verified: false` | Refuted — a real finding, jump to the top | `+4.0` |
 | Matching result, `verified: true` | Confirmed and stale — deprioritize, it's settled | `−2.0` |
+| Matching result, `verified` null (the Driver answered `cannot_tell`, #407) | Nothing was learned, so it ranks like an untested idea | `+1.0` |
 | Claim keyword-matches a `jira_entries` title/description | Someone already flagged this as relevant | `+3.0` (stacks with the above) |
 
 Matching a test result to a claim is by stable `claim_id`

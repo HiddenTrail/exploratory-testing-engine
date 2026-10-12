@@ -10,6 +10,11 @@ stable id and matching on that id instead of on prose."""
 from trailhound.ontology import feedback, oracle_creator
 
 
+def _answered(*answers):
+    """The run's checkpoints, with the Driver's answer per idea (#312): (id, verdict) pairs."""
+    return [{"hypothesis": {"ideas": [{"id": i, "verdict": v, "tests": [1]} for i, v in answers]}}]
+
+
 def test_domain_claim_ids_are_stable_and_unique():
     claims = oracle_creator.load_domain_claims("token_purchase")
     assert claims, "expected token_purchase's oracle_library.json to have claims"
@@ -42,12 +47,49 @@ def test_feedback_only_keeps_results_tied_to_an_oracle_claim_id():
             {"linked_hypothesis": "", "oracle_claim_id": "", "prediction_matched": True},  # pure edge-case probe
             {"linked_hypothesis": "an unlinked theory", "prediction_matched": False},  # not tied to any oracle claim
         ],
+        "checkpoints": _answered(("claim:data:01", "held")),
     }
-    results, dropped = feedback.extract_results(output, {"claim:data:01"})
+    results, dropped, _ = feedback.extract_results(output, {"claim:data:01"})
     assert dropped == []
     assert len(results) == 1
     assert results[0]["claim_id"] == "claim:data:01"
     assert results[0]["verified"] is True
+
+
+def test_an_idea_is_learned_from_the_drivers_answer_not_from_the_prediction():
+    # #407: prediction_matched says the screen came out as the Driver guessed. A guess that
+    # "this link is broken" came true is a broken link, not a confirmed idea.
+    output = {"casting_log": [{"oracle_claim_id": "a", "prediction_matched": True},
+                              {"oracle_claim_id": "b", "prediction_matched": False},
+                              {"oracle_claim_id": "b", "prediction_matched": True}],
+              "checkpoints": _answered(("a", "broke"), ("b", "held"))}
+    results, _, _ = feedback.extract_results(output, {"a", "b"})
+    assert [(r["claim_id"], r["verdict"], r["verified"]) for r in results] == [("a", "broke", False), ("b", "held", True)]
+
+
+def test_a_skipped_test_doesnt_count_as_checking_an_idea():
+    # #231: a skipped test never ran, so its prediction_matched False isn't a refutation.
+    output = {"casting_log": [{"oracle_claim_id": "a", "prediction_matched": False, "skipped": True}],
+              "checkpoints": _answered(("a", "broke"))}
+    assert feedback.extract_results(output, {"a"}) == ([], [], [])
+
+
+def test_an_idea_the_driver_didnt_answer_isnt_learned():
+    output = {"casting_log": [{"oracle_claim_id": "a", "prediction_matched": True}], "checkpoints": []}
+    assert feedback.extract_results(output, {"a"}) == ([], [], ["a"])
+
+
+def test_not_knowing_is_never_ranked_as_confirmed():
+    # #407: anything but False used to be "confirmed", which pushed the idea down.
+    claim = {"id": "claim:data:01", "claim": "x", "rationale": "r"}
+    output = {"casting_log": [{"oracle_claim_id": "claim:data:01", "prediction_matched": True}],
+              "checkpoints": _answered(("claim:data:01", "cannot_tell"))}
+    [result], _, _ = feedback.extract_results(output, {"claim:data:01"})
+    assert (result["verdict"], result["verified"]) == ("cannot_tell", None)
+    for stored in (result, {"claim_id": "claim:data:01"}):
+        score, status = oracle_creator.score_grounded_claim(claim, {"test_results": [stored]})
+        assert status == "cannot_tell"
+        assert score == oracle_creator.GROUNDED_BASE_SCORE + oracle_creator.UNTESTED_BONUS
 
 
 def test_feedback_merge_overwrites_by_claim_id_not_by_text():
@@ -55,6 +97,16 @@ def test_feedback_merge_overwrites_by_claim_id_not_by_text():
     new_results = [{"claim_id": "claim:data:01", "verified": True, "timestamp": "day2"}]
     merged = feedback.merge_results(context, new_results)
     assert merged["test_results"] == [{"claim_id": "claim:data:01", "verified": True, "timestamp": "day2"}]
+
+
+def test_a_later_cannot_tell_doesnt_erase_an_earlier_answer():
+    # #407: a run that couldn't tell learned nothing, so a refutation from an earlier run stands.
+    broke = {"claim_id": "a", "verdict": "broke", "verified": False, "timestamp": "day1"}
+    unsure = {"claim_id": "a", "verdict": "cannot_tell", "verified": None, "timestamp": "day2"}
+    assert feedback.merge_results({"test_results": [broke]}, [unsure])["test_results"] == [broke]
+    assert feedback.merge_results({"test_results": []}, [unsure])["test_results"] == [unsure]
+    held = {**broke, "verdict": "held", "verified": True, "timestamp": "day3"}
+    assert feedback.merge_results({"test_results": [broke]}, [held])["test_results"] == [held]
 
 
 def test_end_to_end_ranking_actually_shifts_once_feedback_is_merged_in():
@@ -66,7 +118,8 @@ def test_end_to_end_ranking_actually_shifts_once_feedback_is_merged_in():
     baseline_score, baseline_status = oracle_creator.score_grounded_claim(target, {"test_results": []})
     assert baseline_status == "untested"
 
-    output = {"casting_log": [{"oracle_claim_id": target["id"], "prediction_matched": False}]}
+    output = {"casting_log": [{"oracle_claim_id": target["id"], "prediction_matched": True}],
+              "checkpoints": _answered((target["id"], "broke"))}
     context = feedback.merge_results(
         {"test_results": [], "jira_entries": [], "risk_assessments": []},
         feedback.extract_results(output, feedback.known_ids("token_purchase"))[0],
@@ -84,8 +137,8 @@ def test_feedback_drops_ids_that_arent_ranked_ideas():
         {"oracle_claim_id": real, "prediction_matched": True},
         {"oracle_claim_id": "claim:data:C1.G1", "prediction_matched": False},
         {"oracle_claim_id": "heuristic:boundary_edges", "prediction_matched": True},
-    ]}
-    results, dropped = feedback.extract_results(output, feedback.known_ids("token_purchase"))
+    ], "checkpoints": _answered((real, "held"), ("heuristic:boundary_edges", "held"))}
+    results, dropped, _ = feedback.extract_results(output, feedback.known_ids("token_purchase"))
     assert [r["claim_id"] for r in results] == [real, "heuristic:boundary_edges"]
     assert dropped == ["claim:data:C1.G1"]
 
