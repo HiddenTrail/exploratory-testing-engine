@@ -207,6 +207,7 @@ experiment to $1 to $3 in total:
 - **The steering** (what the Driver casts): one casting round from a saved
   checkpoint, asked again several times with nothing run (#371), one call each:
   `python -m trailhound.recast runs/<run> --adapter <sut> --checkpoint 2 --times 5 --out runs/<exp>/<arm>`
+  For a change to the oracle ranking, add `--rerank` on both arms (#417).
 - **The whole version** (known problems per run, #279): whole runs, only at
   milestones, with enough of them to mean something.
 

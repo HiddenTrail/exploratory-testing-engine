@@ -152,3 +152,55 @@ def test_the_salvage_drops_count_as_cast_and_dropped():
                             limits)
     assert (counts["cast"], counts["to_run"], counts["dropped"], counts["starts"]) == (2, 1, 1, 1)
     assert recast.measure({"candidate_tests": [{"x": 1}]}, limits)["starts"] == "-"
+
+
+# --- --rerank (issue #417) ---
+
+def _idea(i):
+    return {"id": i, "claim": f"claim {i}", "rank": 1}
+
+
+def _recast(monkeypatch, saved_run, tmp_path, current_ranked, *flags):
+    """recast.main on the saved run with its oracle list set to old:1 and old:2, while the
+    adapter as the current code builds it has `current_ranked`. Returns what the Driver's
+    casting call got, and rounds.json."""
+    from dataclasses import replace
+    output, _, adapter = saved_run
+    output = {**output, "onboarding_extra": {**(output.get("onboarding_extra") or {}),
+                                             "oracle_ranked": [_idea("old:1"), _idea("old:2")]}}
+    (tmp_path / "saved").mkdir(exist_ok=True)
+    (tmp_path / "saved" / "output.json").write_text(json.dumps(output), encoding="utf-8")
+    current = replace(adapter, onboarding_extra={"oracle_ranked": current_ranked} if current_ranked else {})
+    got = []
+
+    def casting(*args, **kwargs):
+        got.append((args[1].onboarding_extra.get("oracle_ranked"), kwargs["idea_ids"]))
+        return {"give_up": False, "reasoning": "r", "candidate_tests": []}
+
+    monkeypatch.setattr(recast, "get_casting_round", casting)
+    monkeypatch.setattr(recast, "load_adapter", lambda name: current)
+    monkeypatch.setattr(recast, "available_adapters", lambda: ["fake"])
+    monkeypatch.setattr(recast, "build_client", lambda: None)
+    recast.main([str(tmp_path / "saved"), "--adapter", "fake", "--checkpoint", "2", "--times", "1",
+                 "--out", str(tmp_path / "exp"), *flags])
+    return got, json.loads((tmp_path / "exp" / "rounds.json").read_text(encoding="utf-8"))
+
+
+def test_rerank_gives_the_driver_the_list_the_current_code_builds(monkeypatch, saved_run, tmp_path, capsys):
+    got, saved = _recast(monkeypatch, saved_run, tmp_path, [_idea("new:1"), _idea("old:2")], "--rerank")
+    [(ranked, idea_ids)] = got
+    assert [i["id"] for i in ranked] == ["new:1", "old:2"] and idea_ids == {"new:1", "old:2"}
+    assert saved["oracle_ranked"] == ["new:1", "old:2"] and saved["reranked"] is True
+    assert "Re-ranked with the current code: 2 idea(s), 1 of them in the saved run's list of 2" in capsys.readouterr().out
+
+
+def test_without_rerank_the_driver_gets_the_saved_list(monkeypatch, saved_run, tmp_path):
+    got, saved = _recast(monkeypatch, saved_run, tmp_path, [_idea("new:1")])
+    [(ranked, idea_ids)] = got
+    assert [i["id"] for i in ranked] == ["old:1", "old:2"] and idea_ids == {"old:1", "old:2"}
+    assert saved["oracle_ranked"] == ["old:1", "old:2"] and saved["reranked"] is False
+
+
+def test_rerank_is_refused_when_the_current_adapter_ranks_nothing(monkeypatch, saved_run, tmp_path):
+    with pytest.raises(SystemExit, match="--rerank: the fake adapter has no ranked oracle"):
+        _recast(monkeypatch, saved_run, tmp_path, [], "--rerank")
