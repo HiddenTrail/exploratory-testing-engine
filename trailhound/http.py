@@ -13,11 +13,22 @@ no URL simply supplies its own pair.
 """
 
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 import httpx
 
 if TYPE_CHECKING:  # pragma: no cover - annotations only, and adapter imports nothing back
     from trailhound.adapter import SUTAdapter
+
+
+# The host names that mean this machine. web_gui's login_recipe keeps the same list.
+LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1")
+
+
+def on_this_machine(url: str) -> bool:
+    """Whether `url`'s host is this machine. Something that sends real requests (a
+    probe, a test) assumes it's on a copy nobody depends on (#415)."""
+    return (urlsplit(url).hostname or "") in LOCAL_HOSTS
 
 
 def http_accepted(response: dict) -> bool:

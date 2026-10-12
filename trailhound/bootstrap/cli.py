@@ -20,6 +20,10 @@ generated adapter is the last explicit human gate before it goes live,
 matching the "human review before trust" principle used throughout this
 roadmap.
 
+Probing sends real requests, including the endpoint's own method (often POST, PUT or
+DELETE), so it only starts on a base URL on this machine (127.0.0.1, localhost, ::1).
+--allow-remote says a remote one is a throwaway copy nobody depends on (#415).
+
 --discover-only stops after Phase 1 (OpenAPI/Swagger discovery) and writes
 just that result to runs/<name>/discovered_schema.json and
 discovered_schema.html - no LLM calls at all, so it's a free way to check
@@ -41,6 +45,7 @@ from trailhound.bootstrap.probe import run_bootstrap_probe_loop
 from trailhound.bootstrap.report import render_discovery_report
 from trailhound.bootstrap.schema import discover_or_draft_schema
 from trailhound.client import build_client
+from trailhound.http import LOCAL_HOSTS, on_this_machine
 
 _ADAPTERS_DIR = Path(__file__).resolve().parent.parent / "adapters"
 _RUNS_DIR = Path("runs")
@@ -89,6 +94,9 @@ def main() -> None:
     parser.add_argument("--ticket", default=None, dest="ticket_id",
                          help="Mock JIRA ticket ID, e.g. 'PROJ-101' - only used with --context-source jira.")
     parser.add_argument("--max-probes", type=int, default=8, dest="max_probes")
+    parser.add_argument("--allow-remote", action="store_true", dest="allow_remote",
+                        help="Probe a base URL that isn't on this machine. Only for a throwaway copy: "
+                             "probing sends real requests, with the endpoint's own method (#415).")
     parser.add_argument(
         "--discover-only", action="store_true", dest="discover_only",
         help="Only run OpenAPI/Swagger discovery (Phase 1, no LLM calls) and write the result to "
@@ -106,6 +114,12 @@ def main() -> None:
 
     if args.display_name is None:
         raise SystemExit("--display-name is required unless --discover-only is set")
+    # Before any model call or request, so a refusal costs nothing (#415). Discovery above
+    # only reads the published description, so it may look at any site.
+    if not on_this_machine(args.base_url) and not args.allow_remote:
+        raise SystemExit(f"{args.base_url} isn't on this machine ({', '.join(LOCAL_HOSTS)}). Probing sends real "
+                         f"requests, so it only starts on a remote site that is a throwaway copy: add --allow-remote "
+                         f"to say it is one.")
 
     api_context = ""
     if args.context_source == "jira":

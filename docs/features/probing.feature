@@ -11,7 +11,15 @@
 # because that is a fact code can check. Only the first endpoint of the schema is
 # probed.
 #
-# Code: trailhound/bootstrap/probe.py, trailhound/http.py (call_sut_once)
+# The model chooses each probe's method and path, steered by context text that can come
+# from a ticket. Until #415 anything it proposed was sent: DELETE as well as GET, to any
+# path, on any host. A path is appended to the base URL, so "@evil.example/x" even sent
+# the request to another host. Now probing only starts on this machine, a probe may read
+# anywhere on the site and write only to its endpoint, and code checks every probe
+# before it's sent.
+#
+# Code: trailhound/bootstrap/probe.py (probe_errors), trailhound/bootstrap/cli.py,
+# trailhound/http.py (call_sut_once, on_this_machine)
 
 Feature: The draft schema is checked by probing the live API
   As an engineer adding a new HTTP API
@@ -25,11 +33,36 @@ Feature: The draft schema is checked by probing the live API
   Scenario: Each round proposes one probe, sends it for real, then reviews
     When a probing round runs
     Then the model is called once with the tool "submit_probe_request"
-    And it gets the current schema fields, every probe so far and the previous review, if there is one
+    And it gets the endpoint's method and path, what may be sent, the current schema fields, every probe so far and the previous review, if there is one
     And the proposed method, path and body are sent to the live API as a real request
     And the probe log gets the request, the real response and the probe's reasoning
     And the model is called once more with the tool "submit_schema_review" and every probe so far
     And the review's "updated_fields" become the schema fields for the next round
+
+  Scenario: Probing only starts on this machine (#415)
+    When I run the bootstrap CLI with "--base-url https://api.example.com"
+    Then it stops with "https://api.example.com isn't on this machine (127.0.0.1, localhost, ::1)"
+    And it says to add --allow-remote if the site is a throwaway copy
+    And it stops before any model call or request
+    But "--allow-remote" lets it start, and "--discover-only" reads any site, since discovery only GETs the API's description
+
+  Scenario Outline: A probe may read anywhere on the site and write only to its endpoint (#415)
+    Given the endpoint is "PUT /orders/{id}" on "http://127.0.0.1:8000"
+    When the model proposes "<method> <path>"
+    Then the probe is <outcome>
+
+    Examples:
+      | method | path            | outcome                                                                   |
+      | GET    | /docs           | sent                                                                      |
+      | PUT    | /orders/42      | sent                                                                      |
+      | PUT    | /accounts/7     | sent back: "PUT goes only to /orders/{id}"                                |
+      | DELETE | /orders/42      | sent back: "'DELETE' isn't allowed here: send GET or PUT"                 |
+      | GET    | @evil.example/x | sent back: "'path' must start with '/' and stay on http://127.0.0.1:8000" |
+
+  Scenario: A probe that may not be sent goes back to the model, not to the API (#415)
+    When the model proposes a probe that may not be sent
+    Then it's sent back with the reason, the way any malformed answer is
+    And nothing reaches the API until a probe passes the check
 
   Scenario: Error messages in real responses steer the next probe
     # The probe prompt says to follow up on an error message not yet acted on before
