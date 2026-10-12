@@ -7,6 +7,10 @@ when it was clearly testing the same claim, so a real Driver run's results
 never actually reprioritized anything. Fixed by giving every domain claim a
 stable id and matching on that id instead of on prose."""
 
+import json
+
+import pytest
+
 from trailhound.ontology import feedback, oracle_creator
 
 
@@ -16,6 +20,30 @@ def test_domain_claim_ids_are_stable_and_unique():
     ids = [c["id"] for c in claims]
     assert len(ids) == len(set(ids))
     assert ids == [c["id"] for c in oracle_creator.load_domain_claims("token_purchase")]
+
+
+def _library(tmp_path, monkeypatch, vectors):
+    """A token_purchase-like library with the "data" category's vectors, read from tmp_path."""
+    (tmp_path / "fake_sut").mkdir(exist_ok=True)
+    (tmp_path / "fake_sut" / "oracle_library.json").write_text(json.dumps(
+        {"modeled": {"data": {"applies": True, "vectors": vectors}}}), encoding="utf-8")
+    monkeypatch.setattr(oracle_creator, "ADAPTERS_DIR", tmp_path)
+    return [c["id"] for c in oracle_creator.load_domain_claims("fake_sut")]
+
+
+def test_adding_a_claim_doesnt_move_the_ids_of_the_others(tmp_path, monkeypatch):
+    # #409: ids came from the position, so a new first claim took over claim:data:01's history.
+    before = _library(tmp_path, monkeypatch, [{"id": "01", "claim": "a"}, {"id": "02", "claim": "b"}])
+    after = _library(tmp_path, monkeypatch, [{"id": "03", "claim": "new"}, {"id": "01", "claim": "a"},
+                                             {"id": "02", "claim": "b"}])
+    assert before == ["claim:data:01", "claim:data:02"]
+    assert after == ["claim:data:03", "claim:data:01", "claim:data:02"]
+
+
+@pytest.mark.parametrize("vectors", [[{"claim": "no id"}], [{"id": "01", "claim": "a"}, {"id": "01", "claim": "b"}]])
+def test_a_claim_without_its_own_id_is_refused(tmp_path, monkeypatch, vectors):
+    with pytest.raises(ValueError, match="every claim under 'data' needs its own 'id'"):
+        _library(tmp_path, monkeypatch, vectors)
 
 
 def test_score_grounded_claim_matches_by_id_even_if_the_result_paraphrases_the_claim():

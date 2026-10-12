@@ -7,8 +7,10 @@
 #
 # Results used to be matched to claims by exact claim text. The Driver paraphrases,
 # so a real run's results never moved the ranking (the former "known gap" in
-# docs/ontology-todo.md). Every claim now has a stable id built from its category
-# and position, and results are matched on that id.
+# docs/ontology-todo.md). Every claim now has a stable id, its category plus the id
+# written next to it in the library, and results are matched on that id. Until #409
+# the id was the claim's position, so adding a claim moved every later one's learned
+# results onto the wrong claim.
 #
 # It is flat files with no database or service, and no model calls.
 #
@@ -19,13 +21,24 @@ Feature: Test ideas are ranked by what's already known about them
   I want domain claims scored by earlier results and tickets, with heuristics behind them, under stable ids
   So that the Driver gets the most useful ideas first and its results can be tied back to them
 
-  Scenario: Domain claims get stable ids from their category and position
+  Scenario: Domain claims get stable ids from their category and the id written in the library (#409)
     Given trailhound/adapters/token_purchase/oracle_library.json lists claims under "modeled" by category
+    And each claim has its own "id" in the file, "01" for the first claim in category "data"
     When load_domain_claims runs for "token_purchase"
     Then it returns 58 claims
     And the first claim in category "data" has id "claim:data:01"
     And loading again gives the same ids in the same order
     And no id appears twice
+
+  Scenario: Adding a claim doesn't move the others' ids (#409)
+    Given category "data" has claims with ids "01" and "02"
+    When a claim with id "03" is added in front of them
+    Then the ids are "claim:data:03", "claim:data:01" and "claim:data:02"
+
+  Scenario: A library with a missing or repeated id is refused (#409)
+    Given a claim in category "data" has no "id", or the same "id" as another claim in "data"
+    When load_domain_claims runs
+    Then it raises a ValueError saying "every claim under 'data' needs its own 'id'"
 
   Scenario: Categories that don't apply, and SUTs with no library, give no claims
     Given a category in "modeled" with "applies" set to false
