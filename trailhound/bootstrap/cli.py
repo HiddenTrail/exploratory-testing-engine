@@ -34,6 +34,7 @@ from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+from trailhound import budget
 from trailhound.bootstrap.discovery import discover_schema
 from trailhound.bootstrap.generate import generate_adapter_source, write_adapter_module
 from trailhound.bootstrap.jira_mock import fetch_ticket_context
@@ -125,8 +126,18 @@ def main() -> None:
             raise SystemExit(f"--context-file not found: {context_path}")
         api_context = context_path.read_text(encoding="utf-8").strip()
 
+    # Before anything that could spend, as a run does (#419): the limits from
+    # TRAILHOUND_MAX_COST_USD and TRAILHOUND_MAX_MODEL_CALLS, counted from zero.
+    limits = budget.start_run()
+    print(f"Spending limit: about ${limits.max_cost_usd:.2f} or {limits.max_calls} model calls, whichever comes first.")
     anthropic_client = build_client()
+    try:
+        _bootstrap(args, anthropic_client, api_context)
+    except budget.BudgetExceeded as e:
+        raise SystemExit(f"{e} Nothing was generated.")
 
+
+def _bootstrap(args, anthropic_client, api_context: str) -> None:
     print(f"[1/3] Discovering schema at {args.base_url} ...")
     schema = discover_or_draft_schema(args.base_url, args.spec_text, anthropic_client)
     if not schema.endpoints:

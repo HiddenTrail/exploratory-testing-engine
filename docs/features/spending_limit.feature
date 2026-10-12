@@ -9,8 +9,13 @@
 # and cache-read tokens). The check runs before a call, so the last call can go over by its own cost.
 # Asked for with the CI pipeline (#255), and on for every run on every machine.
 #
+# The bootstrap pipeline calls the model too. Its calls always went through the guard,
+# but until #419 it never started one from the environment, so it kept the default
+# limits whatever TRAILHOUND_MAX_* said, and counted on from any calls made before it.
+#
 # Code: trailhound/budget.py, trailhound/settings.py, trailhound/client.py (call_tool_with_retry),
-# trailhound/runner.py, trailhound/cli.py, trailhound/run_summary.py. Tests: trailhound/tests/test_budget.py
+# trailhound/runner.py, trailhound/cli.py, trailhound/run_summary.py, trailhound/bootstrap/cli.py.
+# Tests: trailhound/tests/test_budget.py, trailhound/tests/test_bootstrap_budget.py
 
 Feature: A run stops itself at a spending limit
   As someone paying for model calls
@@ -46,3 +51,10 @@ Feature: A run stops itself at a spending limit
     And stopped_reason is "budget_exceeded" and "error" says which limit was hit
     And the run summary starts with "The spending limit stopped the run:"
     And the run command exits with code 2 and doesn't feed the run into the context, even with --learn
+
+  Scenario: The bootstrap pipeline keeps the same limits (#419)
+    Given TRAILHOUND_MAX_MODEL_CALLS is "1"
+    When "python -m trailhound.bootstrap.cli --name my_api --display-name \"My API\" --base-url http://127.0.0.1:8020" runs
+    Then it prints "Spending limit: about $3.00 or 1 model calls, whichever comes first." before its first model call
+    And it stops before its second call with "Stopped by the spending limit: 1 model calls made" and "Nothing was generated."
+    And calls made earlier in the same process don't count against it
