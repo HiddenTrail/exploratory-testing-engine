@@ -9,7 +9,9 @@ import pytest
 from trailhound.adapters.web_gui import careful
 from trailhound.adapters.web_gui.from_spoor import convert, load_saved_map
 from trailhound.adapters.web_gui.reference import Reference
-from perceive import Observation  # web-recon, on the path via trailhound.adapters.web_gui.session
+from trailhound.adapters.web_gui.recon import perceive
+
+Observation = perceive.Observation
 
 URL = "http://127.0.0.1:3000"
 

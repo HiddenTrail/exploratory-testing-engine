@@ -36,11 +36,10 @@ from typing import Callable
 from urllib.parse import urlparse
 
 from trailhound.adapters.web_gui import careful
-from trailhound.adapters.web_gui import session as live_session  # puts web-recon on sys.path
+from trailhound.adapters.web_gui import session as live_session
+from trailhound.adapters.web_gui.recon import identity, perceive, safety
 
-import safety  # noqa: E402  (web-recon, on the path via session)
-from identity import signature  # noqa: E402
-from perceive import capture  # noqa: E402
+signature, capture = identity.signature, perceive.capture
 
 SCHEMA = "web-recon/1"
 
