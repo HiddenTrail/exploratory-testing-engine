@@ -71,6 +71,22 @@ def lean_line(run_config: RunConfig) -> str:
             + (f"; switched back on: {', '.join(kept)}" if kept else "") + ".")
 
 
+def conclusion(checkpoints: list[dict]) -> list[dict]:
+    """Every claim the run made (#405): the last checkpoint's with the status its review
+    gives them, and each earlier one the Driver stopped repeating, inconclusive."""
+    last = checkpoints[-1]
+    observations = final_observations(last["hypothesis"], last["skeptic_review"])
+    return steering.keep_every_claim(observations, checkpoints, steering.parked_claims(checkpoints))
+
+
+def _conclude(output: dict, observations: list[dict]) -> None:
+    output["observations"] = observations
+    # Findings alone don't count: an anomaly_found run has a real problem in it.
+    output["anomaly_found"] = any(o["kind"] in ("anomaly", "bug") for o in observations)
+    for o in observations:
+        print(f"  {o['id']} {o['kind']} ({o['status']}): {o['claim']}")
+
+
 def run(adapter: SUTAdapter, run_config: RunConfig, replay: dict | None = None) -> dict:
     """replay, if given, re-judges a saved run (#370, built by trailhound/rejudge.py): its
     rounds, its happy-day example, its test numbers and where it came from. Nothing live
@@ -146,11 +162,8 @@ def run(adapter: SUTAdapter, run_config: RunConfig, replay: dict | None = None) 
         output["checkpoints"] = checkpoints
         output["stopped_reason"] = stopped_reason
 
-        final_hypothesis = checkpoints[-1]["hypothesis"]
         final_skeptic_review = checkpoints[-1]["skeptic_review"]
-        observations = final_observations(final_hypothesis, final_skeptic_review)
-        # A parked claim stays in the conclusion even if the Driver stopped repeating it (#305).
-        observations = steering.keep_parked(observations, checkpoints, steering.parked_claims(checkpoints))
+        observations = conclusion(checkpoints)
         # Every bug's tests run again before anything is written up (#177). One that
         # doesn't reproduce is lowered to an anomaly here, so it never gets a bug report.
         output["replays"], output["replay_log"] = (([], []) if replay else
@@ -158,11 +171,7 @@ def run(adapter: SUTAdapter, run_config: RunConfig, replay: dict | None = None) 
         for record in output["replays"]:
             print(f"  replayed {record['observation_id']}: {record['verdict']}"
                   + (f" ({record['detail']})" if record.get("detail") else ""))
-        output["observations"] = observations
-        # Findings alone don't count: an anomaly_found run has a real problem in it.
-        output["anomaly_found"] = any(o["kind"] in ("anomaly", "bug") for o in observations)
-        for o in observations:
-            print(f"  {o['id']} {o['kind']} ({o['status']}): {o['claim']}")
+        _conclude(output, observations)
 
         # Only bugs get a written report. Findings and anomalies are already complete
         # in output["observations"], so they need no LLM call.
@@ -207,6 +216,19 @@ def run(adapter: SUTAdapter, run_config: RunConfig, replay: dict | None = None) 
         traceback.print_exc()
         output["error"] = str(e)
         output["stopped_reason"] = "error"
+
+    if "observations" not in output and output.get("checkpoints"):
+        # A run that stopped early still concludes from the checkpoints that finished (#405).
+        # Nothing runs again and no bug report is written: the system, the off-site guard or
+        # the spending limit is what stopped it. So a bug is lowered as one that couldn't be
+        # replayed, the same as when the saved login has expired.
+        print("The run stopped early. Its conclusion is from the checkpoints that finished:")
+        observations = conclusion(output["checkpoints"])
+        if not replay:
+            output["replays"], output["replay_log"] = replay_bugs(
+                adapter, observations, output.get("casting_log") or [], test_counter,
+                blocked="the run stopped early, so nothing was run again")
+        _conclude(output, observations)
 
     output["usage_summary"] = summarize_usage(usage_log)
     # Found X of Y known problems (#277), when the target has a list.

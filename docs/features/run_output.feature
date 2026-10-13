@@ -20,7 +20,7 @@ Feature: A run writes a JSON result, a bug list when there are bugs, and an HTML
     When a run finishes without an error
     Then output.json has "api_schema", "onboarding_extra" and "happy_day_example"
     And it has "casting_log", "checkpoints" and "stopped_reason"
-    And it has "observations", the final checkpoint's observations, each with the status the engine gave it, plus any parked claim the final checkpoint didn't continue
+    And it has "observations", every claim the run made, each with the status the engine gave it: the final checkpoint's, then each earlier one it didn't continue, marked "parked" or "dropped" (see final_status.feature)
     And it has "anomaly_found", "usage_log" and "usage_summary"
     And it has "replays" and "replay_log", the bug replays (see bug_replay.feature)
     And it has "interplay", how well the Driver answered the Skeptic (see driver_skeptic_interplay.feature)

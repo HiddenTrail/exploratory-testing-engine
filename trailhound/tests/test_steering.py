@@ -70,10 +70,23 @@ def test_a_parked_claim_stays_in_the_conclusion_when_the_driver_drops_it():
                    _cp(3, [("C3.O1", "")])]
     checkpoints[1]["hypothesis"]["observations"][0]["claim"] = "latest wording"
     final = [{"id": "C3.O1", "continues": "", "status": "corroborated"}]
-    concluded = steering.keep_parked(final, checkpoints, steering.parked_claims(checkpoints))
-    assert [(o["id"], o["status"], o.get("parked")) for o in concluded] == [
-        ("C3.O1", "corroborated", None), ("C2.O1", "inconclusive", True)]
+    concluded = steering.keep_every_claim(final, checkpoints, steering.parked_claims(checkpoints))
+    assert [(o["id"], o["status"], o.get("parked"), o.get("dropped")) for o in concluded] == [
+        ("C3.O1", "corroborated", None, None), ("C2.O1", "inconclusive", True, None)]
     assert concluded[1]["claim"] == "latest wording"
+
+
+def test_a_claim_the_driver_stopped_repeating_stays_in_the_conclusion():
+    # Run 37274272516 (#405): C1.O4 became C2.O4, then checkpoint 3 never mentioned it.
+    checkpoints = [_cp(1, [("C1.O1", ""), ("C1.O2", "")]),
+                   _cp(2, [("C2.O1", "C1.O1"), ("C2.O2", "C1.O2")]),
+                   _cp(3, [("C3.O1", "C2.O1")])]
+    checkpoints[1]["hypothesis"]["observations"][1]["claim"] = "latest wording"
+    final = [{"id": "C3.O1", "continues": "C2.O1", "status": "corroborated"}]
+    concluded = steering.keep_every_claim(final, checkpoints, {})
+    assert [(o["id"], o["status"], o.get("dropped")) for o in concluded] == [
+        ("C3.O1", "corroborated", None), ("C2.O2", "inconclusive", True)]
+    assert concluded[1]["claim"] == "latest wording" and concluded[1]["skeptic_note"] == ""
 
 
 def test_three_checkpoints_cap_the_follow_ups_and_then_park_the_claim(monkeypatch):

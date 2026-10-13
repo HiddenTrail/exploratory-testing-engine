@@ -54,9 +54,10 @@ def _oracle_and_errors(output: dict) -> list[str]:
     return lines + ([""] if lines else [])
 
 
-# A claim parked by #305, kept in the conclusion but given no more tests.
 # A claim parked by #305 in an earlier checkpoint, kept in the conclusion with no more tests.
 _PARKED = "parked: objected to in checkpoints in a row, so it got no more tests"
+# A claim the Driver stopped repeating, kept in the conclusion all the same (#405).
+_DROPPED = "dropped: the Driver stopped repeating it, so the last review didn't check it"
 _QUESTION_CHARS = 60
 
 
@@ -94,7 +95,7 @@ def _held_back_cell(o: dict, held_back: dict[str, list[str]]) -> str:
         return ""
     if o.get("id") in held_back:
         return "; ".join(held_back[o["id"]])
-    return _PARKED if o.get("parked") else ""
+    return _PARKED if o.get("parked") else _DROPPED if o.get("dropped") else ""
 
 
 def _claims(output: dict, observations: list[dict]) -> list[str]:
@@ -115,9 +116,15 @@ def _claims(output: dict, observations: list[dict]) -> list[str]:
         line = "**Claims:** the run stopped before its conclusion"
     else:
         held = sum(1 for o in observations if o.get("status") == "corroborated")
-        carried = sum(1 for o in observations if o.get("id") not in last_ids)
-        line = (f"**Claims:** {held} of {len(observations)} claim(s) hold up at the end of the run"
-                + (f" (the last checkpoint's {len(observations) - carried}, plus {carried} parked earlier)"
+        carried = [o for o in observations if o.get("id") not in last_ids]
+        parked = sum(1 for o in carried if o.get("parked"))
+        earlier = ([f"{parked} parked earlier"] if parked else []) + (
+            [f"{len(carried) - parked} the Driver stopped repeating"] if len(carried) > parked else [])
+        # A run that stopped early concludes from the checkpoints that finished (#405).
+        when = ("when the run stopped early" if output.get("stopped_reason") in ("error", "budget_exceeded")
+                else "at the end of the run")
+        line = (f"**Claims:** {held} of {len(observations)} claim(s) hold up {when}"
+                + (f" (the last checkpoint's {len(observations) - len(carried)}, plus {' and '.join(earlier)})"
                    if carried and last_ids else ""))
     if per:
         line += f"; by checkpoint {', '.join(per)}. The Skeptic's verdicts: {', '.join(verdicts)}"

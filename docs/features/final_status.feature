@@ -1,13 +1,18 @@
 # The final status of each observation, decided by the engine.
 #
-# A run's conclusion is the final checkpoint's observations, each marked
-# "corroborated" or "inconclusive". No model decides this. The engine reads the
-# Skeptic's last review: an observation is corroborated only when its check says
-# the evidence discriminates it from its rival and no blocking gap is about it.
-# Anything else is inconclusive, so a result that wasn't confirmed is never shown
-# as confirmed.
+# A run's conclusion is every claim the run made, each marked "corroborated" or
+# "inconclusive". No model decides this. The engine reads the Skeptic's last review:
+# an observation is corroborated only when its check says the evidence discriminates
+# it from its rival and no blocking gap is about it. Anything else is inconclusive,
+# so a result that wasn't confirmed is never shown as confirmed.
 #
-# Code: trailhound/tools.py (final_observations), trailhound/runner.py (run)
+# Until #405 the conclusion was the final checkpoint's observations only. A claim the
+# Driver stopped repeating fell out of it, though nothing told the Driver to repeat
+# one, and a run that stopped with an error had no conclusion at all. In the last 6
+# CI runs, one lost a finding that way and one lost all 3 of its claims.
+#
+# Code: trailhound/tools.py (final_observations), trailhound/runner.py (run, conclusion),
+# trailhound/steering.py (keep_every_claim), trailhound/verify.py (replay_bugs)
 
 Feature: The engine decides whether each final observation is corroborated
   As someone who needs honest results
@@ -41,12 +46,21 @@ Feature: The engine decides whether each final observation is corroborated
     Then "C3.O1" keeps all its own fields
     And it gains "status" and "skeptic_note" "a cumulative cap predicts the same declines"
 
-  Scenario: Only the final checkpoint's observations make up the conclusion, and parked claims
-    Given checkpoint 1 had observation "C1.O1" and checkpoint 2 had observation "C2.O1"
+  Scenario: A claim the Driver stopped repeating stays in the conclusion (#405)
+    Given checkpoint 1 had "C1.O1" and "C1.O2", and checkpoint 2 had "C2.O1" with "continues" "C1.O1"
     When the run ends after checkpoint 2
-    Then output.json "observations" holds "C2.O1" only
-    And "C1.O1" is still in checkpoint 1's record under "checkpoints"
-    But a parked claim the final checkpoint didn't continue is kept too, inconclusive and marked parked (#305, see new_ground_and_parking.feature)
+    Then output.json "observations" holds "C2.O1" with the status its review gives it
+    And then "C1.O2", in its latest wording, "inconclusive" because the last review never checked it, with "dropped": true and an empty "skeptic_note"
+    But a parked claim the final checkpoint didn't continue is marked "parked": true instead (#305, see new_ground_and_parking.feature)
+    And claims are followed through "continues", so a claim restated under a new id without it is kept twice
+
+  Scenario: A run that stops early concludes from the checkpoints that finished (#405)
+    Given checkpoints 1 and 2 finished, and checkpoint 3 stopped with an error or the spending limit
+    When the runner writes the output
+    Then the console shows "The run stopped early. Its conclusion is from the checkpoints that finished:"
+    And output.json "observations" is worked out from checkpoints 1 and 2 as if the run had ended there, and "anomaly_found" with it
+    But no test runs again: each bug is lowered to an anomaly as "couldn't replay", because "the run stopped early, so nothing was run again" (see bug_replay.feature)
+    And no bug report is written
 
   Scenario Outline: anomaly_found counts anomalies and bugs, not findings
     Given the final observations have the kinds <kinds>

@@ -5,6 +5,7 @@ checkpoints survive on disk rather than being lost with the crash. No
 network calls: the SUT readiness probe, happy-day fetch, and the three
 Anthropic-calling functions inside the loop are all stubbed."""
 
+import dataclasses
 import json
 
 import httpx
@@ -80,6 +81,65 @@ def test_output_json_written_incrementally_and_survives_a_mid_run_crash(monkeypa
     on_disk = json.loads((tmp_path / "output.json").read_text())
     assert len(on_disk["checkpoints"]) == 1
     assert on_disk["checkpoints"][0]["hypothesis"]["summary"] == "b"
+
+
+def _finding(claim, continues="", kind="finding"):
+    return {"kind": kind, "continues": continues, "claim": claim, "tests": [1],
+            "violates": "the spec says checkout succeeds" if kind == "bug" else "", "reproduced": "consistent",
+            "mechanism": "m", "rival": "r", "rival_ruled_out": False, "why": "w", "severity": "low"}
+
+
+def _stub_loop(monkeypatch, said_at, casting=_fake_casting_round):
+    """Every model call stubbed; the hypothesis of checkpoint n has the findings in said_at[n],
+    each a claim or a (claim, continues, kind) tuple."""
+    calls = {"n": 0}
+
+    def hypothesis(*a, **k):
+        calls["n"] += 1
+        return {**_fake_hypothesis(*a, **k), "observations": [_finding(*([c] if isinstance(c, str) else c))
+                                                                 for c in said_at.get(calls["n"], [])]}
+
+    monkeypatch.setattr(loop, "get_casting_round", casting)
+    monkeypatch.setattr(loop, "get_checkpoint_hypothesis", hypothesis)
+    monkeypatch.setattr(loop, "get_skeptic_review", lambda *a, **kw: _skeptic_review("weak"))
+    monkeypatch.setattr(loop, "get_testing_story", lambda *a, **k: {"areas": [], "obstacles": []})
+    monkeypatch.setattr(loop, "get_debrief_answers", lambda *a, **k: {"answers": []})
+    monkeypatch.setattr(loop, "get_reconsideration", lambda client, run_config, review, *a, **k: {"judgements": [], "revised_checks": [], "verdict": review["verdict"], "verdict_reason": review["verdict_reason"]})
+
+
+def test_a_finding_from_an_earlier_checkpoint_is_kept_when_the_driver_stops_repeating_it(monkeypatch, tmp_path):
+    _stub_loop(monkeypatch, {1: ["overlay covers the menu", "card form appears"],
+                              2: [("overlay covers the menu", "C1.O1")]})
+    output = runner.run(_FAKE_ADAPTER, RunConfig(max_checkpoints=2, out_dir=tmp_path))
+    assert [(o["id"], o["claim"], o.get("dropped")) for o in output["observations"]] == [
+        ("C2.O1", "overlay covers the menu", None), ("C1.O2", "card form appears", True)]
+
+
+def test_a_run_that_stops_early_concludes_from_the_checkpoints_that_finished(monkeypatch, tmp_path):
+    # Run 37297715890 (#405): checkpoint 3's casting gave up, and 3 claims from 2 finished
+    # checkpoints were missing from the conclusion.
+    rounds = {"n": 0}
+
+    def casting(*a, **k):
+        rounds["n"] += 1
+        if rounds["n"] == 2:
+            raise RuntimeError("Gave up after 3 attempts")
+        return _fake_casting_round(*a, **k)
+
+    tests_run = []
+    adapter = dataclasses.replace(
+        _FAKE_ADAPTER, compare_replay=lambda original, replayed: {"same": True, "detail": ""},
+        execute_test=lambda test, n: tests_run.append(n) or _FAKE_ADAPTER.execute_test(test, n))
+    _stub_loop(monkeypatch, {1: ["card form appears", ("checkout returns 500", "", "bug")]}, casting)
+    output = runner.run(adapter, RunConfig(max_checkpoints=3, out_dir=tmp_path))
+    assert output["stopped_reason"] == "error"
+    assert [(o["id"], o["kind"], o["status"]) for o in output["observations"]] == [
+        ("C1.O1", "finding", "inconclusive"), ("C1.O2", "anomaly", "inconclusive")]
+    # The bug isn't replayed after the run stopped, so it's lowered, with the reason.
+    bug = output["observations"][1]
+    assert bug["driver_kind"] == "bug" and bug["replay"] == "couldn't replay" and "stopped early" in bug["lowered_because"]
+    assert tests_run == [1] and output["anomaly_found"] is True
+    assert json.loads((tmp_path / "output.json").read_text())["observations"][0]["claim"] == "card form appears"
 
 
 def _casting_round_billing(tokens):

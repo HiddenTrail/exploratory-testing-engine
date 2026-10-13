@@ -33,7 +33,10 @@ Feature: The report and the summary lead with each claim's result
     When the run summary is written
     Then after the counts it says "**Claims:** 1 of 4 claim(s) hold up at the end of the run; by checkpoint C1 0 of 2, C2 2 of 3, C3 1 of 3. The Skeptic's verdicts: weak, weak, weak."
     And when the conclusion keeps claims parked earlier, it says so: "(the last checkpoint's 3, plus 1 parked earlier)"
-    And a run that stopped with an error says "**Claims:** the run stopped before its conclusion", then the checkpoints
+    And when it keeps claims the Driver stopped repeating: "(the last checkpoint's 1, plus 1 the Driver stopped repeating)"
+    And a run that stopped early after a checkpoint finished says "hold up when the run stopped early" instead of "at the end of the run"
+    And a run that stopped before any checkpoint finished says "**Claims:** the run stopped before its conclusion", then the checkpoints
     And the observations table has a "Held back by" column, empty for a corroborated claim
     And a blocking question comes with its text, cut to 60 characters, since the summary doesn't list the gaps
     And a claim parked by #305 in an earlier checkpoint is held back by "parked: objected to in checkpoints in a row, so it got no more tests"
+    And a claim the Driver stopped repeating (#405) is held back by "dropped: the Driver stopped repeating it, so the last review didn't check it", and the report shows it with a "dropped" badge

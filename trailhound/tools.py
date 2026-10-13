@@ -1453,7 +1453,8 @@ def validate_bug_reports(data, *, bug_ids=()) -> list[str]:
 
 
 def final_observations(hypothesis: dict, skeptic_review: dict) -> list[dict]:
-    """The run's conclusion: every observation of the final checkpoint with its
+    """The final checkpoint's part of the run's conclusion (runner.conclusion adds each
+    earlier claim the Driver stopped repeating, #405): every observation with its
     status, decided by the engine rather than by a model. An observation is
     'corroborated' when the Skeptic's last check says its evidence discriminates
     it from its rival and no blocking gap is about it; otherwise 'inconclusive'."""

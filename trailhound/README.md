@@ -60,9 +60,12 @@ the next checkpoint can answer a gap or continue an observation by id.
 At the end, every observation of the final checkpoint gets a status decided by
 the engine, not by a model: `corroborated` if the Skeptic's last check says its
 evidence discriminates it from its rival and no blocking gap is about it,
-otherwise `inconclusive`. All observations go into `output.json` under
-`observations`. Only **bugs** get a written bug report (one LLM call for all of
-them), because findings and anomalies are already complete as they are.
+otherwise `inconclusive`. An earlier claim the Driver stopped repeating stays in
+the conclusion too, `inconclusive` and marked `dropped` (#405). A run that stops
+early concludes from the checkpoints that finished. All observations go into
+`output.json` under `observations`. Only **bugs** get a written bug report (one
+LLM call for all of them), because findings and anomalies are already complete
+as they are.
 
 Before any bug is written up, the engine runs every test it cites again, exactly as
 cast (`trailhound/verify.py`, #177). The adapter says whether each replay came out the

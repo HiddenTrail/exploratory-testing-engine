@@ -33,11 +33,14 @@ def _lower(bug: dict, reason: str) -> None:
     bug["lowered_because"] = reason
 
 
-def replay_bugs(adapter, observations: list[dict], casting_log: list[dict], test_counter) -> tuple[list, list]:
+def replay_bugs(adapter, observations: list[dict], casting_log: list[dict], test_counter,
+                blocked: str = "") -> tuple[list, list]:
     """Replay the tests every bug in `observations` cites, and lower each bug whose
     tests don't all come out the same. Mutates the observations (each bug gets a
     'replay' verdict) and returns (one record per bug, the replays' own results).
-    Replays take the next test numbers, so they never collide with the run's."""
+    Replays take the next test numbers, so they never collide with the run's.
+    blocked: a reason to run nothing at all (a run that stopped early, #405), so every
+    bug is lowered as one that couldn't be replayed."""
     bugs = [o for o in observations if o["kind"] == "bug"]
     if not bugs:
         return [], []
@@ -46,7 +49,7 @@ def replay_bugs(adapter, observations: list[dict], casting_log: list[dict], test
             bug["replay"] = NOT_AVAILABLE
         return [{"observation_id": b["id"], "verdict": NOT_AVAILABLE, "tests": []} for b in bugs], []
 
-    blocker = adapter.before_replay() if adapter.before_replay else None
+    blocker = blocked or (adapter.before_replay() if adapter.before_replay else None)
     by_number = {e.get("test_number"): e for e in casting_log}
     records, replay_log = [], []
     for bug in bugs:

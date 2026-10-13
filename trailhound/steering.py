@@ -352,9 +352,11 @@ def for_driver(checkpoints: list[dict], parked: dict[str, int]) -> list[dict]:
             for first, n in parked.items()]
 
 
-def keep_parked(observations: list[dict], checkpoints: list[dict], parked: dict[str, int]) -> list[dict]:
-    """The run's conclusion with each parked claim kept, even if the Driver stopped
-    repeating it: its latest version, inconclusive, marked parked."""
+def keep_every_claim(observations: list[dict], checkpoints: list[dict], parked: dict[str, int]) -> list[dict]:
+    """The run's conclusion with every claim the run made, even one the Driver stopped
+    repeating (#405): its latest version, inconclusive because the last review never
+    checked it, marked parked (#305) or else dropped. Nothing tells the Driver to repeat
+    a claim to keep it, and a concession doesn't withdraw one either."""
     root = lineages(checkpoints)
     present = {root.get(o["id"], o["id"]) for o in observations}
     for o in observations:
@@ -364,6 +366,8 @@ def keep_parked(observations: list[dict], checkpoints: list[dict], parked: dict[
     for cp in checkpoints:
         for o in (cp.get("hypothesis") or {}).get("observations", []):
             first = root.get(o["id"], o["id"])
-            if first in parked and first not in present:
+            if first not in present:
                 latest[first] = o
-    return observations + [{**o, "status": "inconclusive", "parked": True, "skeptic_note": ""} for o in latest.values()]
+    return observations + [{**o, "status": "inconclusive", "skeptic_note": "",
+                            **({"parked": True} if first in parked else {"dropped": True})}
+                           for first, o in latest.items()]
