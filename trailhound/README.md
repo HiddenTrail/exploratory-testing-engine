@@ -9,9 +9,13 @@ The "archive" framing has exceptions. `adapters/clash_royale/session.py` puts
 `.experiments/game-ontology`, `.experiments/android-bot` and
 `.experiments/game-screen-probe` on `sys.path` and imports them at call time,
 rather than copying about 1,800 lines of Win32 window handling that have been
-hardened against a real client. `adapters/web_gui/session.py` does the same
-with `.experiments/web-recon`. Both comments record this as a knowing debt, and
-moving that code out of the archive is issue #48. Those folders are
+hardened against a real client. Its comment records this as a knowing debt,
+and moving that code out of the archive is issue #48. `adapters/web_gui/recon.py`
+loads three files from `.experiments/web-recon` (`identity`, `perceive`,
+`safety`) by path, under its own module names and without touching `sys.path`.
+The crawler that writes the map and the adapter that reads it share one copy,
+and none of web-recon's module names can shadow another module's (#420). Those
+folders are
 **maintained, not frozen**. game-ontology and android-bot have their own pytest
 suites, which are Windows-only, so CI runs neither. The parity tests also read
 `.experiments/complex-sut-poc` and `.experiments/token-purchase-poc` (issue #77).

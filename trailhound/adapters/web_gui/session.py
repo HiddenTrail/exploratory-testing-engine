@@ -24,25 +24,22 @@ import os
 import re
 import shutil
 from collections import Counter
-import sys
 import tempfile
 import time
 from urllib.parse import urljoin, urlsplit
 from pathlib import Path
 
 # web-recon is the source of truth for perception, identity and the safety gate; reuse it
-# rather than reimplement. It lives under .experiments/, so put it on the path here (the one
-# place this adapter crosses that line), exactly as web-recon's own scripts do.
-_WEB_RECON = Path(__file__).resolve().parents[3] / ".experiments" / "web-recon"
-if str(_WEB_RECON) not in sys.path:
-    sys.path.insert(0, str(_WEB_RECON))
+# rather than reimplement. It lives under .experiments/, and recon.py is the one place this
+# adapter crosses that line. It loads the three files without putting web-recon on sys.path.
+from trailhound.adapters.web_gui.recon import identity as _identity, perceive as _perceive, safety as _safety
 
-from identity import appearance, control_keys, impersonal, signature   # noqa: E402
-from perceive import _ELEMENTS_JS as ELEMENTS_JS   # noqa: E402
-from perceive import Collector, capture, visual_diff  # noqa: E402
-from safety import SEARCH_PROBE, TEXT_ROLES        # noqa: E402
-from safety import plan as gate_plan                # noqa: E402
-from safety import safe_actions                    # noqa: E402
+appearance, control_keys, impersonal, signature = (
+    _identity.appearance, _identity.control_keys, _identity.impersonal, _identity.signature)
+ELEMENTS_JS = _perceive._ELEMENTS_JS
+Collector, capture, visual_diff = _perceive.Collector, _perceive.capture, _perceive.visual_diff
+SEARCH_PROBE, TEXT_ROLES = _safety.SEARCH_PROBE, _safety.TEXT_ROLES
+gate_plan, safe_actions = _safety.plan, _safety.safe_actions
 
 from trailhound.adapters.web_gui import careful as careful_mod  # noqa: E402
 from trailhound.adapters.web_gui import reference as ref_mod  # noqa: E402
