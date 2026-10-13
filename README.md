@@ -206,7 +206,8 @@ trailhound/
   tests/          # deterministic regression + parity tests (no LLM calls, runs in CI)
 .experiments/     # mostly earlier prototypes this package was hardened from, kept as an archive.
                   #   Not all of it is archive. The engine loads four of these at run time, so a
-                  #   rename in them can break it (moving them out is issue #48):
+                  #   rename in them can break it (moving them out is #48 for the Clash Royale
+                  #   folders and #420 for web-recon):
   game-ontology/  #   the general game harness - window identity, readiness, input safety, screen
                   #   discovery. Own pytest suite, Windows-only. Read its README's "Things that
                   #   bit" before changing anything in controller.py.

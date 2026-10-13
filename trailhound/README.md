@@ -10,8 +10,9 @@ The "archive" framing has exceptions. `adapters/clash_royale/session.py` puts
 `.experiments/game-screen-probe` on `sys.path` and imports them at call time,
 rather than copying about 1,800 lines of Win32 window handling that have been
 hardened against a real client. `adapters/web_gui/session.py` does the same
-with `.experiments/web-recon`. Both comments record this as a knowing debt, and
-moving that code out of the archive is issue #48. Those folders are
+with `.experiments/web-recon`. Both comments record this as a knowing debt.
+Moving that code out of the archive is issue #48 for the Clash Royale folders
+and #420 for web-recon. Those folders are
 **maintained, not frozen**. game-ontology and android-bot have their own pytest
 suites, which are Windows-only, so CI runs neither. The parity tests also read
 `.experiments/complex-sut-poc` and `.experiments/token-purchase-poc` (issue #77).
