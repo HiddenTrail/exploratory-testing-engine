@@ -12,7 +12,7 @@
 # kept Juice Shop's socket.io poll open, so no page ever counted as rested.
 #
 # Code: trailhound/adapters/web_gui/session.py (off_site_target, _guard_page, _on_document,
-# _on_request_failed, _storage), adapter.py (API_SCHEMA_DOC, describe_result_for_log,
+# _on_request_failed, _storage, _stop_if_unguarded), adapter.py (API_SCHEMA_DOC, describe_result_for_log,
 # render_test_entry). Tests: trailhound/tests/test_web_gui_adapter.py
 
 Feature: The test browser never leaves the product's site
@@ -37,7 +37,13 @@ Feature: The test browser never leaves the product's site
 
   Scenario: Every page is guarded
     Then the page of every fresh browser context is guarded, and so is any tab a click opens
-    And if the guard can't be set up, the log says "WARNING: couldn't guard the browser against leaving the site"
+
+  Scenario: A page the guard can't cover stops the run (#403)
+    Given the guard can't be set up on a page, for example the first page of a fresh context or a tab a click opens
+    Then that page is closed, so nothing runs on it
+    And no further test starts, and a test that was running when it happened stops the run when it ends
+    And during the checkpoints, the run stops early with stopped_reason "error", and the error says "couldn't guard the browser against leaving the site"
+    And during the bug replays, which treat a failed replay as a missing check, each later replay fails before it acts, and its bug is lowered because it couldn't be replayed
 
   Scenario: A stopped trip is reported, not mistaken for the product
     When a test's navigation was stopped

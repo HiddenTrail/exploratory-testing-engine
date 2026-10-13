@@ -47,6 +47,7 @@ from safety import safe_actions                    # noqa: E402
 from trailhound.adapters.web_gui import careful as careful_mod  # noqa: E402
 from trailhound.adapters.web_gui import reference as ref_mod  # noqa: E402
 from trailhound.adapters.web_gui import to_context  # noqa: E402
+from trailhound.adapters.web_gui.login_recipe import LOCAL_HOSTS  # noqa: E402
 from trailhound.ontology.oracle_creator import load_context, load_vocabulary  # noqa: E402
 
 # Roles Playwright can target by (role, accessible name) - the robust first step of the
@@ -60,6 +61,9 @@ _ROLE_LOCATABLE = frozenset({
 _ONTOLOGY_ENV = "WEB_GUI_ONTOLOGY"
 _URL_ENV = "WEB_GUI_URL"
 _HEADED_ENV = "WEB_GUI_HEADED"
+# A run tests fully (it buys, deletes, changes settings), so it only starts on this machine
+# (#403). Set this to 1 only for a remote copy nobody depends on.
+_ALLOW_REMOTE_ENV = "WEB_GUI_ALLOW_REMOTE"
 # A saved Playwright session (context.storage_state(): cookies and storage) every test
 # starts from, for example logged in (issue #154). Each test still gets a fresh context,
 # just loaded from this file instead of empty, so results stay attributable. The file
@@ -853,9 +857,21 @@ def _replay_step(step: dict, done: dict, session) -> dict:
     return {k: step[k] for k in ("role", "name", "value", "locator", "nth") if step.get(k)}
 
 
+def refuse_unless_local(base_url: str) -> None:
+    """SystemExit unless `base_url` is on this machine or WEB_GUI_ALLOW_REMOTE is set (#403).
+    The Driver is told it tests a copy nobody depends on; this is what makes that true."""
+    host = urlsplit(base_url).hostname or ""
+    if host in LOCAL_HOSTS or os.environ.get(_ALLOW_REMOTE_ENV, "") not in ("", "0", "false", "False"):
+        return
+    raise SystemExit(f"{base_url} isn't on this machine ({', '.join(LOCAL_HOSTS)}). A run clicks, buys and "
+                     f"deletes, so it only starts on a remote site that is a throwaway copy: set "
+                     f"{_ALLOW_REMOTE_ENV}=1 to say it is one.")
+
+
 class Session:
     def __init__(self, reference: ref_mod.Reference, base_url: str, headed: bool, session_file: str | None = None,
                  record_video: bool = False):
+        refuse_unless_local(base_url)       # before anything starts, so a refusal costs nothing
         from playwright.sync_api import sync_playwright
         self.reference = reference
         self.base_url = base_url
@@ -873,6 +889,7 @@ class Session:
         # The browser never leaves the site (#308): where it was stopped from going.
         self._site = origin_of(base_url)
         self.blocked_off_site: list[str] = []
+        self.unguarded = ""                         # why a page couldn't be guarded: the run stops (#403)
         # Careful everywhere until check_ready loads the target's tags (#299): a session
         # nobody set up fails closed.
         self.careful = dict(careful_mod.EVERYTHING)
@@ -979,8 +996,16 @@ class Session:
             cdp.on("Fetch.requestPaused", lambda event: self._on_document(cdp, main_frame, event))
             cdp.send("Fetch.enable", {"patterns": [{"urlPattern": "*", "resourceType": "Document", "requestStage": stage}
                                                    for stage in ("Request", "Response")]})
-        except Exception as e:      # never silently unguarded: say so
-            print(f"WARNING: couldn't guard the browser against leaving the site ({type(e).__name__}: {e})")
+        except Exception as e:
+            # Never unguarded (#403): the page closes, and the next act_steps stops the run.
+            # Raising alone isn't enough: a tab a click opens is guarded from the context's
+            # "page" event, and much of a test catches every exception.
+            self.unguarded = f"couldn't guard the browser against leaving the site ({type(e).__name__}: {e})"
+            try:
+                page.close()
+            except Exception:
+                pass
+            raise RuntimeError(self.unguarded) from e
 
     def _on_document(self, cdp, main_frame: str, event: dict) -> None:
         """One paused page document: stopped if it takes the main frame off the site.
@@ -1603,6 +1628,7 @@ class Session:
         test starts clean. `start_as` "new_tab" starts every reboot of this test as a new tab,
         and "fresh" with no saved session at all (START_AS). With a test_number, the video of
         the context it ran in is kept under it."""
+        self._stop_if_unguarded()
         self._start_as = start_as
         self.last_video = None
         try:
@@ -1611,9 +1637,16 @@ class Session:
             self._start_as = "same_tab"
             if test_number is not None and self.last_video is not None:
                 self._videos[test_number] = self.last_video
+        self._stop_if_unguarded()
         if start_as != "same_tab":
             result["started_as"] = start_as
         return result
+
+    def _stop_if_unguarded(self) -> None:
+        """RuntimeError if a page went unguarded (#403), which the runner reports as the run
+        stopping early. Before a test, so none starts; after one, so its result isn't judged."""
+        if getattr(self, "unguarded", ""):
+            raise RuntimeError(f"{self.unguarded}, so the run stopped rather than test without it")
 
     def is_start(self, start: str) -> bool:
         """Whether a test can start there: a route on the site, or a screen this run knows."""
