@@ -20,6 +20,14 @@ the Driver was given: --first-round-budget and --default-budget give the budgets
 model is the default unless --model says otherwise, and the history is left out. The
 round after a run's last checkpoint can be asked too (what would the Driver do after the
 last debrief?), with no saved round to compare.
+
+The oracle's ranked ideas are the saved run's, so a change to the ranking never reached
+the call. --rerank gives the Driver the list the current code builds instead (#417), from
+the environment recast runs in: the product and focus (WEB_GUI_PRODUCT, WEB_GUI_FEATURES)
+and the learned context (TRAILHOUND_CONTEXT_DIR). A saved run doesn't record those, so
+the list it had can't be rebuilt exactly. To measure a ranking change, use --rerank on
+both arms, with the same settings and a copy of the same context, once on the old code
+and once on the new. rounds.json records which ideas each call got.
 """
 
 from __future__ import annotations
@@ -141,6 +149,8 @@ def main(argv=None) -> None:
     ap.add_argument("--first-round-budget", type=int, default=None, dest="first_round_test_budget",
                     help="for a run saved before #371, which doesn't record it")
     ap.add_argument("--default-budget", type=int, default=None, dest="default_test_budget")
+    ap.add_argument("--rerank", action="store_true",
+                    help="give the Driver the oracle list the current code builds, not the saved run's (#417)")
     args = ap.parse_args(argv)
     if args.times < 1 or args.checkpoint < 1:
         ap.error("--times and --checkpoint must be at least 1")
@@ -149,7 +159,18 @@ def main(argv=None) -> None:
     if not saved and (args.first_round_test_budget is None or args.default_test_budget is None):
         ap.error("this run was saved before #371 and doesn't record its test budgets: give --first-round-budget "
                  "and --default-budget (the benchmark settings are 10 and 6)")
-    adapter = saved_adapter(load_adapter(args.adapter), output)
+    current = load_adapter(args.adapter)
+    adapter = saved_adapter(current, output)
+    if args.rerank:
+        ranked = list((current.onboarding_extra or {}).get("oracle_ranked") or [])
+        if not ranked:
+            raise SystemExit(f"--rerank: the {args.adapter} adapter has no ranked oracle as the current code builds "
+                             f"it (is it switched off, e.g. WEB_GUI_ORACLE=off?)")
+        saved_ids = {i.get("id") for i in (adapter.onboarding_extra or {}).get("oracle_ranked") or []}
+        print(f"Re-ranked with the current code: {len(ranked)} idea(s), "
+              f"{sum(1 for i in ranked if i.get('id') in saved_ids)} of them in the saved run's list of {len(saved_ids)}.")
+        adapter = replace(adapter, onboarding_extra={**adapter.onboarding_extra, "oracle_ranked": ranked})
+    used = [i.get("id") for i in (adapter.onboarding_extra or {}).get("oracle_ranked") or []]
     run_config = RunConfig.for_adapter(
         adapter, model=args.model or saved.get("model"),
         first_round_test_budget=args.first_round_test_budget or saved.get("first_round_test_budget"),
@@ -180,6 +201,7 @@ def main(argv=None) -> None:
         # After every repetition, so what was paid for is kept if a later one breaks.
         args.out.mkdir(parents=True, exist_ok=True)
         (args.out / "rounds.json").write_text(json.dumps({"source": str(args.run_dir), "checkpoint": args.checkpoint,
+                                                          "reranked": args.rerank, "oracle_ranked": used,
                                                           "rounds": rounds}, indent=2), encoding="utf-8")
     print("\n" + HEADER + "\n" + "\n".join(rows))
     print(f"\nFiles: {(args.out / 'rounds.json').resolve()}")

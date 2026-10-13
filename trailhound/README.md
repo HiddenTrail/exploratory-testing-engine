@@ -198,6 +198,12 @@ first:
 python -m trailhound.recast runs/<run> --adapter web_gui --checkpoint 2 --times 5 --out runs/<experiment>/<arm>
 ```
 
+The oracle's ranked ideas are the saved run's, so a ranking change doesn't reach the
+call. `--rerank` gives the Driver the list the current code builds, from the environment
+recast runs in (`WEB_GUI_PRODUCT`, `WEB_GUI_FEATURES`, `TRAILHOUND_CONTEXT_DIR`) (#417).
+A saved run doesn't record those, so to measure a ranking change, use `--rerank` on both
+arms with the same settings and a copy of the same context, on the old code and the new.
+
 Since #371 a run records its settings in `output.json` (model, budgets, the objections
 history the Driver got), so both tools rebuild its calls exactly. For a run saved
 before, give `--first-round-budget` and `--default-budget`; the model is the default

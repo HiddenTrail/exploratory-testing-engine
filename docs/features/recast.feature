@@ -6,6 +6,12 @@
 # (#369). Asked again from the same saved checkpoint, the round shows what the change does
 # to it, one call a repetition, with nothing run.
 #
+# The oracle's ranked ideas came from the saved run, so a change to the ranking code
+# never reached the call (#417). --rerank gives the Driver the list the current code
+# builds instead. A saved run doesn't record the product, the focus or the learned context
+# its list came from, so that list can't be rebuilt exactly. A ranking change is measured
+# with --rerank on both arms, the same settings and a copy of the same context.
+#
 # Code: trailhound/recast.py, trailhound/runner.py (the "settings" it records),
 # trailhound/rejudge.py (reads them). Tests: trailhound/tests/test_recast.py
 
@@ -35,3 +41,18 @@ Feature: A saved casting round can be asked again
     Then since #371 output.json has "settings": the model, the number of checkpoints, both test budgets and the objections history the Driver was given
     And recast and rejudge take the budgets, the model and the objections history from there
     But for a run saved before, recast needs --first-round-budget and --default-budget, uses the default model unless --model says otherwise, and leaves the objections history out
+
+  Scenario: --rerank gives the Driver the list the current code builds (#417)
+    Given a saved run whose oracle list is "old:1" and "old:2"
+    And the current code, with the environment recast runs in, ranks "new:1" and "old:2"
+    When recast runs with --rerank
+    Then the casting call gets "new:1" and "old:2", and those are the ids a test may cite
+    And the console shows "Re-ranked with the current code: 2 idea(s), 1 of them in the saved run's list of 2."
+    And rounds.json has "reranked": true and "oracle_ranked": ["new:1", "old:2"]
+    But without --rerank the call gets the saved list, and rounds.json has "reranked": false
+
+  Scenario: --rerank is refused when the current code ranks nothing
+    Given the current adapter has no ranked oracle, for example with WEB_GUI_ORACLE=off
+    When recast runs with --rerank
+    Then it stops with "--rerank: the web_gui adapter has no ranked oracle as the current code builds it"
+    But web_gui without WEB_GUI_PRODUCT still ranks library heuristics, so a forgotten product shows as few ideas in common in the console line
